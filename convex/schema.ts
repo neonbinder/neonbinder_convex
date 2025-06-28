@@ -11,11 +11,17 @@ export default defineSchema({
     value: v.number(),
   }),
 
-  // Card Set Hierarchy
+  // New top-level: Sports
+  sports: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+  }).index("by_name", ["name"]),
+
   years: defineTable({
+    sportId: v.id("sports"),
     year: v.number(),
     description: v.optional(v.string()),
-  }).index("by_year", ["year"]),
+  }).index("by_sport", ["sportId"]).index("by_year", ["year"]),
 
   manufacturers: defineTable({
     yearId: v.id("years"),

@@ -4,8 +4,12 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { useState } from "react";
+import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/solid";
 
 export default function CardSetManager() {
+  const [selectedSportId, setSelectedSportId] = useState<Id<"sports"> | null>(
+    null,
+  );
   const [selectedYearId, setSelectedYearId] = useState<Id<"years"> | null>(
     null,
   );
@@ -15,77 +19,364 @@ export default function CardSetManager() {
   const [selectedVariantId, setSelectedVariantId] =
     useState<Id<"setVariants"> | null>(null);
 
+  // Toggle states for showing forms
+  const [showSportForm, setShowSportForm] = useState(false);
+  const [showYearForm, setShowYearForm] = useState(false);
+  const [showManufacturerForm, setShowManufacturerForm] = useState(false);
+  const [showSetForm, setShowSetForm] = useState(false);
+  const [showVariantForm, setShowVariantForm] = useState(false);
+  const [showCardForm, setShowCardForm] = useState(false);
+
+  // Expanded state for each selector
+  const [sportExpanded, setSportExpanded] = useState(false);
+  const [yearExpanded, setYearExpanded] = useState(false);
+  const [manufacturerExpanded, setManufacturerExpanded] = useState(false);
+  const [setExpanded, setSetExpanded] = useState(false);
+  const [variantExpanded, setVariantExpanded] = useState(false);
+
+  // Reset downstream selections when a parent changes
+  const handleSportSelect = (id: Id<"sports">) => {
+    setSelectedSportId(id);
+    setSelectedYearId(null);
+    setSelectedManufacturerId(null);
+    setSelectedSetId(null);
+    setSelectedVariantId(null);
+  };
+  const handleYearSelect = (id: Id<"years">) => {
+    setSelectedYearId(id);
+    setSelectedManufacturerId(null);
+    setSelectedSetId(null);
+    setSelectedVariantId(null);
+  };
+  const handleManufacturerSelect = (id: Id<"manufacturers">) => {
+    setSelectedManufacturerId(id);
+    setSelectedSetId(null);
+    setSelectedVariantId(null);
+  };
+  const handleSetSelect = (id: Id<"sets">) => {
+    setSelectedSetId(id);
+    setSelectedVariantId(null);
+  };
+  const handleVariantSelect = (id: Id<"setVariants">) => {
+    setSelectedVariantId(id);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="max-w-full mx-auto p-6">
       <h1 className="text-3xl font-bold mb-8 text-center">Card Set Manager</h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column - Forms */}
-        <div className="space-y-6">
-          <YearForm />
-          {selectedYearId && <ManufacturerForm yearId={selectedYearId} />}
-          {selectedManufacturerId && (
-            <SetForm manufacturerId={selectedManufacturerId} />
-          )}
-          {selectedSetId && <SetVariantForm setId={selectedSetId} />}
-          {selectedVariantId && <CardForm setVariantId={selectedVariantId} />}
-        </div>
-
-        {/* Right Column - Hierarchy Display */}
-        <div className="space-y-6">
-          <YearSelector
-            selectedYearId={selectedYearId}
-            onYearSelect={setSelectedYearId}
+      <div className="flex flex-row gap-4 overflow-x-auto">
+        {/* Sport Column */}
+        <div className="min-w-[260px] flex flex-col gap-4">
+          <SportSelector
+            selectedSportId={selectedSportId}
+            onSportSelect={handleSportSelect}
+            expanded={sportExpanded}
+            setExpanded={setSportExpanded}
           />
-          {selectedYearId && (
+          {(sportExpanded || !selectedSportId) &&
+            (showSportForm ? (
+              <SportForm onDone={() => setShowSportForm(false)} />
+            ) : (
+              <button
+                className="w-full bg-pink-600 text-white py-2 px-4 rounded-md hover:bg-pink-700"
+                onClick={() => setShowSportForm(true)}
+              >
+                Add Sport
+              </button>
+            ))}
+        </div>
+        {/* Year Column */}
+        {selectedSportId && (
+          <div className="min-w-[260px] flex flex-col gap-4">
+            <YearSelector
+              sportId={selectedSportId}
+              selectedYearId={selectedYearId}
+              onYearSelect={handleYearSelect}
+              expanded={yearExpanded}
+              setExpanded={setYearExpanded}
+            />
+            {(yearExpanded || !selectedYearId) &&
+              (showYearForm ? (
+                <YearForm
+                  sportId={selectedSportId}
+                  onDone={() => setShowYearForm(false)}
+                />
+              ) : (
+                <button
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+                  onClick={() => setShowYearForm(true)}
+                >
+                  Add Year
+                </button>
+              ))}
+          </div>
+        )}
+        {/* Manufacturer Column */}
+        {selectedYearId && (
+          <div className="min-w-[260px] flex flex-col gap-4">
             <ManufacturerSelector
               yearId={selectedYearId}
               selectedManufacturerId={selectedManufacturerId}
-              onManufacturerSelect={setSelectedManufacturerId}
+              onManufacturerSelect={handleManufacturerSelect}
+              expanded={manufacturerExpanded}
+              setExpanded={setManufacturerExpanded}
             />
-          )}
-          {selectedManufacturerId && (
+            {(manufacturerExpanded || !selectedManufacturerId) &&
+              (showManufacturerForm ? (
+                <ManufacturerForm
+                  yearId={selectedYearId}
+                  onDone={() => setShowManufacturerForm(false)}
+                />
+              ) : (
+                <button
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
+                  onClick={() => setShowManufacturerForm(true)}
+                >
+                  Add Manufacturer
+                </button>
+              ))}
+          </div>
+        )}
+        {/* Set Column */}
+        {selectedManufacturerId && (
+          <div className="min-w-[260px] flex flex-col gap-4">
             <SetSelector
               manufacturerId={selectedManufacturerId}
               selectedSetId={selectedSetId}
-              onSetSelect={setSelectedSetId}
+              onSetSelect={handleSetSelect}
+              expanded={setExpanded}
+              setExpanded={setSetExpanded}
             />
-          )}
-          {selectedSetId && (
+            {(setExpanded || !selectedSetId) &&
+              (showSetForm ? (
+                <SetForm
+                  manufacturerId={selectedManufacturerId}
+                  onDone={() => setShowSetForm(false)}
+                />
+              ) : (
+                <button
+                  className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700"
+                  onClick={() => setShowSetForm(true)}
+                >
+                  Add Set
+                </button>
+              ))}
+          </div>
+        )}
+        {/* Set Variant Column */}
+        {selectedSetId && (
+          <div className="min-w-[260px] flex flex-col gap-4">
             <SetVariantSelector
               setId={selectedSetId}
               selectedVariantId={selectedVariantId}
-              onVariantSelect={setSelectedVariantId}
+              onVariantSelect={handleVariantSelect}
+              expanded={variantExpanded}
+              setExpanded={setVariantExpanded}
             />
-          )}
-          {selectedVariantId && <CardList setVariantId={selectedVariantId} />}
-        </div>
+            {(variantExpanded || !selectedVariantId) &&
+              (showVariantForm ? (
+                <SetVariantForm
+                  setId={selectedSetId}
+                  onDone={() => setShowVariantForm(false)}
+                />
+              ) : (
+                <button
+                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+                  onClick={() => setShowVariantForm(true)}
+                >
+                  Add Variant
+                </button>
+              ))}
+          </div>
+        )}
+        {/* Cards Column */}
+        {selectedVariantId && (
+          <div className="min-w-[260px] flex flex-col gap-4">
+            <CardList setVariantId={selectedVariantId} />
+            {showCardForm ? (
+              <CardForm
+                setVariantId={selectedVariantId}
+                onDone={() => setShowCardForm(false)}
+              />
+            ) : (
+              <button
+                className="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700"
+                onClick={() => setShowCardForm(true)}
+              >
+                Add Card
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function YearForm() {
+function SportSelector({
+  selectedSportId,
+  onSportSelect,
+  expanded,
+  setExpanded,
+}: {
+  selectedSportId: Id<"sports"> | null;
+  onSportSelect: (id: Id<"sports">) => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
+}) {
+  const sports = useQuery(api.myFunctions.getSports);
+  const selected = sports?.find((s) => s._id === selectedSportId);
+  if (!sports) return <div>Loading sports...</div>;
+  if (selectedSportId && selected && !expanded) {
+    return (
+      <div
+        className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(true)}
+      >
+        <div>
+          <div className="font-semibold">{selected.name}</div>
+          {selected.description && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {selected.description}
+            </div>
+          )}
+        </div>
+        <ChevronDownIcon className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Sports</h2>
+        {selectedSportId && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse"
+            className="ml-2"
+          >
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {sports.map((sport) => (
+          <button
+            key={sport._id}
+            onClick={() => {
+              onSportSelect(sport._id);
+              setExpanded(false);
+            }}
+            className={`w-full text-left p-3 rounded-md border transition-colors ${
+              selectedSportId === sport._id
+                ? "bg-pink-100 dark:bg-pink-900 border-pink-300 dark:border-pink-700"
+                : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
+            }`}
+          >
+            <div className="font-semibold">{sport.name}</div>
+            {sport.description && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {sport.description}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SportForm({ onDone }: { onDone?: () => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const createSport = useMutation(api.myFunctions.createSport);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
+    try {
+      await createSport({ name, description: description || undefined });
+      setName("");
+      setDescription("");
+      onDone?.();
+    } catch (error) {
+      console.error("Error creating sport:", error);
+    }
+  };
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-semibold mb-4">Create Sport</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-2">Sport Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            placeholder="e.g., Baseball, Basketball, Soccer"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Description (optional)
+          </label>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            placeholder="e.g., MLB, NBA, FIFA"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 bg-pink-600 text-white py-2 px-4 rounded-md hover:bg-pink-700"
+          >
+            Create Sport
+          </button>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function YearForm({
+  sportId,
+  onDone,
+}: {
+  sportId: Id<"sports">;
+  onDone?: () => void;
+}) {
   const [year, setYear] = useState("");
   const [description, setDescription] = useState("");
   const createYear = useMutation(api.myFunctions.createYear);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!year) return;
-
     try {
       await createYear({
+        sportId,
         year: parseInt(year),
         description: description || undefined,
       });
       setYear("");
       setDescription("");
+      onDone?.();
     } catch (error) {
       console.error("Error creating year:", error);
     }
   };
-
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
       <h2 className="text-xl font-semibold mb-4">Create Year</h2>
@@ -113,18 +404,110 @@ function YearForm() {
             placeholder="e.g., Great year for baseball cards"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
-        >
-          Create Year
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+          >
+            Create Year
+          </button>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-function ManufacturerForm({ yearId }: { yearId: Id<"years"> }) {
+function YearSelector({
+  sportId,
+  selectedYearId,
+  onYearSelect,
+  expanded,
+  setExpanded,
+}: {
+  sportId: Id<"sports">;
+  selectedYearId: Id<"years"> | null;
+  onYearSelect: (id: Id<"years">) => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
+}) {
+  const years = useQuery(api.myFunctions.getYearsBySport, { sportId });
+  const selected = years?.find((y) => y._id === selectedYearId);
+  if (!years) return <div>Loading years...</div>;
+  if (selectedYearId && selected && !expanded) {
+    return (
+      <div
+        className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(true)}
+      >
+        <div>
+          <div className="font-semibold">{selected.year}</div>
+          {selected.description && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {selected.description}
+            </div>
+          )}
+        </div>
+        <ChevronDownIcon className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Years</h2>
+        {selectedYearId && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse"
+            className="ml-2"
+          >
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {years.map((year) => (
+          <button
+            key={year._id}
+            onClick={() => {
+              onYearSelect(year._id);
+              setExpanded(false);
+            }}
+            className={`w-full text-left p-3 rounded-md border transition-colors ${
+              selectedYearId === year._id
+                ? "bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700"
+                : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
+            }`}
+          >
+            <div className="font-semibold">{year.year}</div>
+            {year.description && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {year.description}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ManufacturerForm({
+  yearId,
+  onDone,
+}: {
+  yearId: Id<"years">;
+  onDone?: () => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const createManufacturer = useMutation(api.myFunctions.createManufacturer);
@@ -132,7 +515,6 @@ function ManufacturerForm({ yearId }: { yearId: Id<"years"> }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
-
     try {
       await createManufacturer({
         yearId,
@@ -141,6 +523,7 @@ function ManufacturerForm({ yearId }: { yearId: Id<"years"> }) {
       });
       setName("");
       setDescription("");
+      onDone?.();
     } catch (error) {
       console.error("Error creating manufacturer:", error);
     }
@@ -173,18 +556,35 @@ function ManufacturerForm({ yearId }: { yearId: Id<"years"> }) {
             placeholder="e.g., Leading baseball card manufacturer"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
-        >
-          Create Manufacturer
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
+          >
+            Create Manufacturer
+          </button>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-function SetForm({ manufacturerId }: { manufacturerId: Id<"manufacturers"> }) {
+function SetForm({
+  manufacturerId,
+  onDone,
+}: {
+  manufacturerId: Id<"manufacturers">;
+  onDone?: () => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const createSet = useMutation(api.myFunctions.createSet);
@@ -192,7 +592,6 @@ function SetForm({ manufacturerId }: { manufacturerId: Id<"manufacturers"> }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
-
     try {
       await createSet({
         manufacturerId,
@@ -201,6 +600,7 @@ function SetForm({ manufacturerId }: { manufacturerId: Id<"manufacturers"> }) {
       });
       setName("");
       setDescription("");
+      onDone?.();
     } catch (error) {
       console.error("Error creating set:", error);
     }
@@ -233,18 +633,35 @@ function SetForm({ manufacturerId }: { manufacturerId: Id<"manufacturers"> }) {
             placeholder="e.g., Main flagship set"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700"
-        >
-          Create Set
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700"
+          >
+            Create Set
+          </button>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-function SetVariantForm({ setId }: { setId: Id<"sets"> }) {
+function SetVariantForm({
+  setId,
+  onDone,
+}: {
+  setId: Id<"sets">;
+  onDone?: () => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [variantType, setVariantType] = useState<
@@ -254,14 +671,11 @@ function SetVariantForm({ setId }: { setId: Id<"sets"> }) {
   const [insertName, setInsertName] = useState("");
   const [parentVariantId, setParentVariantId] = useState("");
   const createSetVariant = useMutation(api.myFunctions.createSetVariant);
-
-  // Get existing variants for parent selection
   const variants = useQuery(api.myFunctions.getSetVariantsBySet, { setId });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
-
     try {
       await createSetVariant({
         setId,
@@ -283,6 +697,7 @@ function SetVariantForm({ setId }: { setId: Id<"sets"> }) {
       setParallelName("");
       setInsertName("");
       setParentVariantId("");
+      onDone?.();
     } catch (error) {
       console.error("Error creating set variant:", error);
     }
@@ -390,18 +805,35 @@ function SetVariantForm({ setId }: { setId: Id<"sets"> }) {
             placeholder="e.g., Main base set, Limited gold parallel"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
-        >
-          Create Set Variant
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+          >
+            Create Set Variant
+          </button>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-function CardForm({ setVariantId }: { setVariantId: Id<"setVariants"> }) {
+function CardForm({
+  setVariantId,
+  onDone,
+}: {
+  setVariantId: Id<"setVariants">;
+  onDone?: () => void;
+}) {
   const [cardNumber, setCardNumber] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [team, setTeam] = useState("");
@@ -413,7 +845,6 @@ function CardForm({ setVariantId }: { setVariantId: Id<"setVariants"> }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cardNumber) return;
-
     try {
       await createCard({
         setVariantId,
@@ -430,6 +861,7 @@ function CardForm({ setVariantId }: { setVariantId: Id<"setVariants"> }) {
       setPosition("");
       setDescription("");
       setImageUrl("");
+      onDone?.();
     } catch (error) {
       console.error("Error creating card:", error);
     }
@@ -510,51 +942,24 @@ function CardForm({ setVariantId }: { setVariantId: Id<"setVariants"> }) {
             placeholder="https://example.com/card-image.jpg"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700"
-        >
-          Add Card
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function YearSelector({
-  selectedYearId,
-  onYearSelect,
-}: {
-  selectedYearId: Id<"years"> | null;
-  onYearSelect: (yearId: Id<"years">) => void;
-}) {
-  const years = useQuery(api.myFunctions.getYears);
-
-  if (!years) return <div>Loading years...</div>;
-
-  return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">Years</h2>
-      <div className="space-y-2">
-        {years.map((year) => (
+        <div className="flex gap-2">
           <button
-            key={year._id}
-            onClick={() => onYearSelect(year._id)}
-            className={`w-full text-left p-3 rounded-md border transition-colors ${
-              selectedYearId === year._id
-                ? "bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700"
-                : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
-            }`}
+            type="submit"
+            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700"
           >
-            <div className="font-semibold">{year.year}</div>
-            {year.description && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {year.description}
-              </div>
-            )}
+            Add Card
           </button>
-        ))}
-      </div>
+          {onDone && (
+            <button
+              type="button"
+              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
+              onClick={onDone}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </form>
     </div>
   );
 }
@@ -563,25 +968,60 @@ function ManufacturerSelector({
   yearId,
   selectedManufacturerId,
   onManufacturerSelect,
+  expanded,
+  setExpanded,
 }: {
   yearId: Id<"years">;
   selectedManufacturerId: Id<"manufacturers"> | null;
   onManufacturerSelect: (manufacturerId: Id<"manufacturers">) => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
 }) {
   const manufacturers = useQuery(api.myFunctions.getManufacturersByYear, {
     yearId,
   });
-
+  const selected = manufacturers?.find((m) => m._id === selectedManufacturerId);
   if (!manufacturers) return <div>Loading manufacturers...</div>;
-
+  if (selectedManufacturerId && selected && !expanded) {
+    return (
+      <div
+        className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(true)}
+      >
+        <div>
+          <div className="font-semibold">{selected.name}</div>
+          {selected.description && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {selected.description}
+            </div>
+          )}
+        </div>
+        <ChevronDownIcon className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">Manufacturers</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Manufacturers</h2>
+        {selectedManufacturerId && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse"
+            className="ml-2"
+          >
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
+      </div>
       <div className="space-y-2">
         {manufacturers.map((manufacturer) => (
           <button
             key={manufacturer._id}
-            onClick={() => onManufacturerSelect(manufacturer._id)}
+            onClick={() => {
+              onManufacturerSelect(manufacturer._id);
+              setExpanded(false);
+            }}
             className={`w-full text-left p-3 rounded-md border transition-colors ${
               selectedManufacturerId === manufacturer._id
                 ? "bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700"
@@ -605,25 +1045,60 @@ function SetSelector({
   manufacturerId,
   selectedSetId,
   onSetSelect,
+  expanded,
+  setExpanded,
 }: {
   manufacturerId: Id<"manufacturers">;
   selectedSetId: Id<"sets"> | null;
   onSetSelect: (setId: Id<"sets">) => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
 }) {
   const sets = useQuery(api.myFunctions.getSetsByManufacturer, {
     manufacturerId,
   });
-
+  const selected = sets?.find((s) => s._id === selectedSetId);
   if (!sets) return <div>Loading sets...</div>;
-
+  if (selectedSetId && selected && !expanded) {
+    return (
+      <div
+        className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(true)}
+      >
+        <div>
+          <div className="font-semibold">{selected.name}</div>
+          {selected.description && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {selected.description}
+            </div>
+          )}
+        </div>
+        <ChevronDownIcon className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">Sets</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Sets</h2>
+        {selectedSetId && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse"
+            className="ml-2"
+          >
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
+      </div>
       <div className="space-y-2">
         {sets.map((set) => (
           <button
             key={set._id}
-            onClick={() => onSetSelect(set._id)}
+            onClick={() => {
+              onSetSelect(set._id);
+              setExpanded(false);
+            }}
             className={`w-full text-left p-3 rounded-md border transition-colors ${
               selectedSetId === set._id
                 ? "bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700"
@@ -647,23 +1122,73 @@ function SetVariantSelector({
   setId,
   selectedVariantId,
   onVariantSelect,
+  expanded,
+  setExpanded,
 }: {
   setId: Id<"sets">;
   selectedVariantId: Id<"setVariants"> | null;
   onVariantSelect: (variantId: Id<"setVariants">) => void;
+  expanded: boolean;
+  setExpanded: (expanded: boolean) => void;
 }) {
   const variants = useQuery(api.myFunctions.getSetVariantsBySet, { setId });
-
+  const selected = variants?.find((v) => v._id === selectedVariantId);
   if (!variants) return <div>Loading set variants...</div>;
-
+  if (selectedVariantId && selected && !expanded) {
+    return (
+      <div
+        className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(true)}
+      >
+        <div>
+          <div className="font-semibold">{selected.name}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Type: {selected.variantType}
+            {selected.variantType === "parallel" &&
+              selected.parallelName &&
+              ` - ${selected.parallelName}`}
+            {selected.variantType === "insert" &&
+              selected.insertName &&
+              ` - ${selected.insertName}`}
+            {selected.variantType === "parallel_of_insert" &&
+              selected.parallelName &&
+              ` - ${selected.parallelName}`}
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Cards: {selected.cardCount}
+          </div>
+          {selected.description && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {selected.description}
+            </div>
+          )}
+        </div>
+        <ChevronDownIcon className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">Set Variants</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Set Variants</h2>
+        {selectedVariantId && expanded && (
+          <button
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse"
+            className="ml-2"
+          >
+            <ChevronUpIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
+      </div>
       <div className="space-y-2">
         {variants.map((variant) => (
           <button
             key={variant._id}
-            onClick={() => onVariantSelect(variant._id)}
+            onClick={() => {
+              onVariantSelect(variant._id);
+              setExpanded(false);
+            }}
             className={`w-full text-left p-3 rounded-md border transition-colors ${
               selectedVariantId === variant._id
                 ? "bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-700"

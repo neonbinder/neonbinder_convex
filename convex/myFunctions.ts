@@ -80,46 +80,95 @@ export const myAction = action({
   },
 });
 
-// ===== YEAR MANAGEMENT =====
+// ===== SPORTS MANAGEMENT =====
+export const createSport = mutation({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+  },
+  returns: v.id("sports"),
+  handler: async (ctx, args) => {
+    // Check if sport already exists
+    const existing = await ctx.db
+      .query("sports")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .unique();
+    if (existing) throw new Error(`Sport '${args.name}' already exists`);
+    return await ctx.db.insert("sports", { name: args.name, description: args.description });
+  },
+});
 
+export const getSports = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("sports"),
+      _creationTime: v.number(),
+      name: v.string(),
+      description: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx) => {
+    return await ctx.db.query("sports").withIndex("by_name").order("asc").collect();
+  },
+});
+
+export const getSport = query({
+  args: { sportId: v.id("sports") },
+  returns: v.union(
+    v.object({
+      _id: v.id("sports"),
+      _creationTime: v.number(),
+      name: v.string(),
+      description: v.optional(v.string()),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.sportId);
+  },
+});
+
+// ===== YEAR MANAGEMENT =====
 export const createYear = mutation({
   args: {
+    sportId: v.id("sports"),
     year: v.number(),
     description: v.optional(v.string()),
   },
   returns: v.id("years"),
   handler: async (ctx, args) => {
-    // Check if year already exists
+    // Check if year already exists for this sport
     const existingYear = await ctx.db
       .query("years")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
-      .unique();
-    
-    if (existingYear) {
-      throw new Error(`Year ${args.year} already exists`);
+      .withIndex("by_sport", (q) => q.eq("sportId", args.sportId))
+      .collect();
+    if (existingYear.some(y => y.year === args.year)) {
+      throw new Error(`Year ${args.year} already exists for this sport`);
     }
-
     return await ctx.db.insert("years", {
+      sportId: args.sportId,
       year: args.year,
       description: args.description,
     });
   },
 });
 
-export const getYears = query({
-  args: {},
+export const getYearsBySport = query({
+  args: { sportId: v.id("sports") },
   returns: v.array(
     v.object({
       _id: v.id("years"),
       _creationTime: v.number(),
+      sportId: v.id("sports"),
       year: v.number(),
       description: v.optional(v.string()),
     })
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("years")
-      .withIndex("by_year")
+      .withIndex("by_sport", (q) => q.eq("sportId", args.sportId))
       .order("desc")
       .collect();
   },
@@ -131,6 +180,7 @@ export const getYear = query({
     v.object({
       _id: v.id("years"),
       _creationTime: v.number(),
+      sportId: v.id("sports"),
       year: v.number(),
       description: v.optional(v.string()),
     }),
