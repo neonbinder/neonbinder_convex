@@ -3,6 +3,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import NeonButton from "../../components/NeonButton";
 
 export default function SignIn() {
   const { signIn } = useAuthActions();
@@ -39,12 +40,9 @@ export default function SignIn() {
           name="password"
           placeholder="Password"
         />
-        <button
-          className="bg-foreground text-background rounded-md"
-          type="submit"
-        >
+        <NeonButton type="submit" className="w-full">
           {flow === "signIn" ? "Sign in" : "Sign up"}
-        </button>
+        </NeonButton>
         <div className="flex flex-row gap-2">
           <span>
             {flow === "signIn"

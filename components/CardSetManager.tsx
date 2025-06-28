@@ -5,6 +5,7 @@ import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/solid";
+import NeonButton from "./NeonButton";
 
 export default function CardSetManager() {
   const [selectedSportId, setSelectedSportId] = useState<Id<"sports"> | null>(
@@ -77,12 +78,9 @@ export default function CardSetManager() {
             (showSportForm ? (
               <SportForm onDone={() => setShowSportForm(false)} />
             ) : (
-              <button
-                className="w-full bg-pink-600 text-white py-2 px-4 rounded-md hover:bg-pink-700"
-                onClick={() => setShowSportForm(true)}
-              >
+              <NeonButton onClick={() => setShowSportForm(true)}>
                 Add Sport
-              </button>
+              </NeonButton>
             ))}
         </div>
         {/* Year Column */}
@@ -102,12 +100,9 @@ export default function CardSetManager() {
                   onDone={() => setShowYearForm(false)}
                 />
               ) : (
-                <button
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
-                  onClick={() => setShowYearForm(true)}
-                >
+                <NeonButton onClick={() => setShowYearForm(true)}>
                   Add Year
-                </button>
+                </NeonButton>
               ))}
           </div>
         )}
@@ -128,12 +123,9 @@ export default function CardSetManager() {
                   onDone={() => setShowManufacturerForm(false)}
                 />
               ) : (
-                <button
-                  className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
-                  onClick={() => setShowManufacturerForm(true)}
-                >
+                <NeonButton onClick={() => setShowManufacturerForm(true)}>
                   Add Manufacturer
-                </button>
+                </NeonButton>
               ))}
           </div>
         )}
@@ -154,12 +146,9 @@ export default function CardSetManager() {
                   onDone={() => setShowSetForm(false)}
                 />
               ) : (
-                <button
-                  className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700"
-                  onClick={() => setShowSetForm(true)}
-                >
+                <NeonButton onClick={() => setShowSetForm(true)}>
                   Add Set
-                </button>
+                </NeonButton>
               ))}
           </div>
         )}
@@ -180,12 +169,9 @@ export default function CardSetManager() {
                   onDone={() => setShowVariantForm(false)}
                 />
               ) : (
-                <button
-                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
-                  onClick={() => setShowVariantForm(true)}
-                >
+                <NeonButton onClick={() => setShowVariantForm(true)}>
                   Add Variant
-                </button>
+                </NeonButton>
               ))}
           </div>
         )}
@@ -199,12 +185,9 @@ export default function CardSetManager() {
                 onDone={() => setShowCardForm(false)}
               />
             ) : (
-              <button
-                className="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700"
-                onClick={() => setShowCardForm(true)}
-              >
+              <NeonButton onClick={() => setShowCardForm(true)}>
                 Add Card
-              </button>
+              </NeonButton>
             )}
           </div>
         )}
@@ -332,19 +315,13 @@ function SportForm({ onDone }: { onDone?: () => void }) {
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-pink-600 text-white py-2 px-4 rounded-md hover:bg-pink-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Create Sport
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>
@@ -407,19 +384,13 @@ function YearForm({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Create Year
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>
@@ -559,19 +530,13 @@ function ManufacturerForm({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Create Manufacturer
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>
@@ -636,19 +601,13 @@ function SetForm({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Create Set
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>
@@ -808,19 +767,13 @@ function SetVariantForm({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Create Set Variant
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>
@@ -945,19 +898,13 @@ function CardForm({
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700"
+            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
           >
             Add Card
           </button>
-          {onDone && (
-            <button
-              type="button"
-              className="flex-1 bg-gray-300 dark:bg-gray-700 text-black dark:text-white py-2 px-4 rounded-md"
-              onClick={onDone}
-            >
-              Cancel
-            </button>
-          )}
+          <NeonButton cancel onClick={onDone}>
+            Cancel
+          </NeonButton>
         </div>
       </form>
     </div>

@@ -3,6 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
+import Head from "next/head";
+import { Theme } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -28,11 +32,21 @@ export default function RootLayout({
 }>) {
   return (
     <ConvexAuthNextjsServerProvider>
+      <Head>
+        <link rel="icon" href="/favicon.png" />
+      </Head>
       <html lang="en">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
+          <Theme
+            accentColor="green"
+            grayColor="sage"
+            radius="large"
+            appearance="dark"
+          >
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </Theme>
         </body>
       </html>
     </ConvexAuthNextjsServerProvider>
