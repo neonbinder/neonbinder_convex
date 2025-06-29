@@ -3,7 +3,7 @@
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
-import CardSetManager from "../components/CardSetManager";
+import SetSelector from "../components/SetSelector";
 import Image from "next/image";
 import NeonButton from "../components/NeonButton";
 
@@ -18,7 +18,7 @@ export default function Home() {
         <SignOutButton />
       </header>
       <main className="p-8 flex flex-col gap-8">
-        <CardSetManager />
+        <SetSelector />
       </main>
     </>
   );
