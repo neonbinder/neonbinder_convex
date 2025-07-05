@@ -11,6 +11,21 @@ export default defineSchema({
     value: v.number(),
   }),
 
+  // User profiles for storing site credential references and preferences
+  userProfiles: defineTable({
+    userId: v.id("users"),
+    siteCredentials: v.optional(v.array(v.object({
+      site: v.string(),
+      hasCredentials: v.boolean(),
+      lastUpdated: v.optional(v.string()),
+    }))),
+    preferences: v.optional(v.object({
+      defaultSport: v.optional(v.string()),
+      defaultYear: v.optional(v.number()),
+      theme: v.optional(v.union(v.literal("light"), v.literal("dark"))),
+    })),
+  }).index("by_user", ["userId"]),
+
   // New top-level: Sports
   sports: defineTable({
     name: v.string(),
