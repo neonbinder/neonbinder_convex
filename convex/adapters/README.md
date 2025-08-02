@@ -3,9 +3,9 @@
 This directory contains adapters for different sports card platforms. The adapters are organized into two categories:
 
 ## ListBySet Platforms
-These platforms primarily deal with complete sets:
-- **BuySportsCards** (`buysportscards.ts`)
-- **Sportlots** (`sportlots.ts`)
+These platforms primarily deal with complete sets (currently being refactored for available sets identification):
+- **BuySportsCards** (`buysportscards.ts`) - Authentication and login functionality available
+- **Sportlots** (`sportlots.ts`) - Authentication and login functionality available
 
 ## ListByCard Platforms  
 These platforms primarily deal with individual cards:
@@ -16,7 +16,7 @@ These platforms primarily deal with individual cards:
 ## Architecture
 
 ### Base Classes and Interfaces
-- `base.ts` - Contains base adapter class and interfaces
+- `base.ts` - Contains base adapter class and CardAdapter interface (SetAdapter removed for refactoring)
 - `types.ts` - Contains common type definitions and validators
 
 ### Individual Platform Adapters
@@ -29,33 +29,10 @@ Each platform has its own adapter file that implements either `CardAdapter` or `
 
 ### Individual Platform Searches
 
-#### Search for Sets (BuySportsCards, Sportlots)
+#### Search for Sets (Currently Disabled)
 ```typescript
-import { api } from "../_generated/api";
-
-// Search BuySportsCards
-const buySportsCardsResults = await convex.runAction(
-  api.adapters.buysportscards.searchBuySportsCards,
-  {
-    setName: "Topps Baseball",
-    year: 2023,
-    sport: "baseball",
-    manufacturer: "Topps",
-    maxPrice: 100,
-    minPrice: 10,
-  }
-);
-
-// Search Sportlots
-const sportlotsResults = await convex.runAction(
-  api.adapters.sportlots.searchSportlots,
-  {
-    setName: "Upper Deck Hockey",
-    year: 2022,
-    sport: "hockey",
-    manufacturer: "Upper Deck",
-  }
-);
+// Note: Set search functionality has been removed as we're focusing on available sets identification
+// This functionality will be replaced with new available sets identification features
 ```
 
 #### Search for Cards (eBay, MySlabs, MyCardPost)
@@ -117,19 +94,10 @@ const allCardResults = await convex.runAction(
 );
 ```
 
-#### Search All Set Platforms
+#### Search All Set Platforms (Currently Disabled)
 ```typescript
-const allSetResults = await convex.runAction(
-  api.adapters.index.searchAllSetPlatforms,
-  {
-    setName: "Topps Chrome Baseball",
-    year: 2023,
-    sport: "baseball",
-    manufacturer: "Topps",
-    maxPrice: 200,
-    platforms: ["buysportscards", "sportlots"], // Optional: specify platforms
-  }
-);
+// Note: Set search functionality has been removed as we're focusing on available sets identification
+// This functionality will be replaced with new available sets identification features
 ```
 
 ## Response Format
@@ -210,7 +178,7 @@ All adapters include error handling and will return empty results if a platform 
 To add a new platform:
 
 1. Create a new adapter file (e.g., `newplatform.ts`)
-2. Implement either `CardAdapter` or `SetAdapter` interface
+2. Implement the `CardAdapter` interface (SetAdapter removed for refactoring)
 3. Extend the `BaseAdapter` class for common HTTP functionality
 4. Add the platform to the appropriate unified search function in `index.ts`
 5. Update this README with usage examples

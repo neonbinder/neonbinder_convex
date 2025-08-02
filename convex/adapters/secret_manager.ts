@@ -100,6 +100,8 @@ export const getSiteCredentials = action({
       site: v.string(),
       userId: v.string(),
       createdAt: v.string(),
+      expiresAt: v.optional(v.number()),
+      token: v.optional(v.string()),
     }),
     v.null()
   ),

@@ -2,80 +2,277 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { api } from "../_generated/api";
-import { BaseAdapter, SetAdapter, SetSearchParams, SetListingsResponse, SetListing } from "./base";
-import { getSecretManagerClient } from "./secret_manager";
+import { BaseAdapter, SetAdapter, SetParameters } from "./base";
+import axios, { AxiosInstance } from "axios";
+
+// Types for BSC API responses
+interface Filter {
+  label: string;
+  slug: string;
+  count: number;
+}
+
+interface Aggregations {
+  aggregations: {
+    [key: string]: Filter[];
+  };
+}
+
+interface FilterParams {
+  filters: {
+    [key: string]: string[];
+  };
+}
 
 export class BuySportsCardsAdapter extends BaseAdapter implements SetAdapter {
   private baseUrl = "https://api-prod.buysportscards.com";
+  private _api: AxiosInstance | null = null;
 
-  async searchSets(params: SetSearchParams): Promise<SetListingsResponse> {
+  private get api(): AxiosInstance {
+    if (!this._api) {
+      this.login();
+      if (!this._api) {
+        throw new Error("API not initialized. Call login() first to get authentication token.");
+      }
+    }
+    return this._api;
+  }
+
+  private async initializeApi(token: string): Promise<void> {
+    this._api = axios.create({
+      baseURL: 'https://api-prod.buysportscards.com/',
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        'accept-language': 'en-US,en;q=0.9',
+        assumedrole: 'sellers',
+        'content-type': 'application/json',
+        origin: 'https://www.buysportscards.com',
+        referer: 'https://www.buysportscards.com/',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': 'macOS',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+        authority: 'api-prod.buysportscards.com',
+        authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  /**
+   * Build set parameters by calling the BSC filters API
+   * This method helps build the primary key for identifying sets
+   */
+  async buildSetParameters(partial: Partial<SetParameters>): Promise<Partial<SetParameters>> {
     try {
-      // Get authentication tokens
-      const tokens = await this.getTokens();
-      if (!tokens) {
-        throw new Error("Not authenticated with BuySportsCards. Please authenticate first.");
+      // Start with the provided partial parameters
+      const result: Partial<SetParameters> = { ...partial };
+
+      // If we have sport, year, and manufacturer, we can get set options
+      if (result.sport && result.year && result.manufacturer) {
+        const filterParams: FilterParams = {
+          filters: {
+            sport: [result.sport],
+            year: [result.year.toString()],
+            manufacturer: [result.manufacturer],
+          }
+        };
+
+        // Call the BSC filters API to get available sets
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', filterParams);
+        const setOptions = response.data.aggregations.setName?.filter(option => option.count > 0) || [];
+
+        // If we have a setName in partial, validate it exists
+        if (result.setName) {
+          const matchingSet = setOptions.find(option => option.label === result.setName);
+          if (!matchingSet) {
+            console.warn(`[BSC Adapter] Set name "${result.setName}" not found in available options`);
+          }
+        }
+
+        // If we have a setName and variantType, we can get variant options
+        if (result.setName && result.variantType) {
+          const variantFilterParams: FilterParams = {
+            filters: {
+              ...filterParams.filters,
+              setName: [result.setName],
+            }
+          };
+
+          const variantResponse = await this.api.post<Aggregations>('search/bulk-upload/filters', variantFilterParams);
+          const variantOptions = variantResponse.data.aggregations.variantName?.filter(option => option.count > 0) || [];
+
+          // Handle different variant types
+          if (result.variantType === 'base') {
+            const baseVariant = variantOptions.find(option => option.label.toLowerCase() === 'base');
+            if (baseVariant) {
+              result.variantType = 'base';
+            }
+          } else if (result.variantType === 'insert' && result.insertName) {
+            const insertVariant = variantOptions.find(option => option.label === result.insertName);
+            if (insertVariant) {
+              result.insertName = insertVariant.label;
+            }
+          } else if (result.variantType === 'parallel' && result.parallelName) {
+            const parallelVariant = variantOptions.find(option => option.label === result.parallelName);
+            if (parallelVariant) {
+              result.parallelName = parallelVariant.label;
+            }
+          } else if (result.variantType === 'parallel_of_insert' && result.insertName && result.parallelName) {
+            // For parallel_of_insert, we need to find the insert first, then its parallels
+            const insertVariant = variantOptions.find(option => option.label === result.insertName);
+            if (insertVariant) {
+              result.insertName = insertVariant.label;
+              // Note: For parallel_of_insert, we might need an additional API call
+              // to get the parallels of a specific insert
+            }
+          }
+        }
       }
 
-      // Build search query for BuySportsCards API
-      const searchParams = {
-        q: params.setName,
-        year: params.year,
-        sport: params.sport,
-        manufacturer: params.manufacturer,
-        minPrice: params.minPrice,
-        maxPrice: params.maxPrice,
-        limit: 50,
-      };
-
-      const queryString = this.buildQueryString(searchParams);
-      const url = `${this.baseUrl}/api/sets/search?${queryString}`;
-
-      const response = await this.makeRequest(url, {
-        headers: {
-          'accept': 'application/json, text/plain, */*',
-          'accept-language': 'en-US,en;q=0.9',
-          'assumedrole': 'sellers',
-          'content-type': 'application/json',
-          'origin': 'https://www.buysportscards.com',
-          'referer': 'https://www.buysportscards.com/',
-          'authority': 'api-prod.buysportscards.com',
-          'authorization': `Bearer ${tokens.accessToken}`,
-        },
-      });
-
-      const data = await this.parseJsonResponse(response) as BuySportsCardsResponse;
-
-      // Transform the response to our standard format
-      const listings: SetListing[] = data.results.map(item => ({
-        id: item.id,
-        setName: item.set_name,
-        year: item.year,
-        sport: item.sport,
-        manufacturer: item.manufacturer,
-        totalCards: item.total_cards,
-        price: item.price,
-        condition: item.condition,
-        platform: "buysportscards",
-        url: `${this.baseUrl}/set/${item.id}`,
-        seller: item.seller,
-      }));
-
-      return {
-        listings,
-        totalCount: data.total_count,
-        platform: "buysportscards",
-      };
+      return result;
     } catch (error) {
-      console.error("Error searching BuySportsCards:", error);
-      throw new Error(`Failed to search BuySportsCards: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`[BSC Adapter] Error building set parameters:`, error);
+      throw new Error(`Failed to build set parameters: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  private async getTokens(): Promise<{ accessToken: string; expiresAt: number } | null> {
-    // This would need to be called from within a Convex action context
-    // For now, we'll return null and let the caller handle authentication
-    return null;
+  /**
+   * Get available options for a specific parameter type
+   * This method calls the BSC filters API and returns available options
+   */
+  async getAvailableOptions(partial: Partial<SetParameters>): Promise<{
+    availableOptions: {
+      sports?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+      years?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+      manufacturers?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+      setNames?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+      variantNames?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+    };
+    currentParams: Partial<SetParameters>;
+  }> {
+    try {
+      const result: Partial<SetParameters> = { ...partial };
+      const availableOptions: {
+        sports?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+        years?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+        manufacturers?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+        setNames?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+        variantNames?: Array<{ site: string; values: Array<{ label: string; value: string }> }>;
+      } = {};
+
+      // Get sports if no sport is selected
+      if (!result.sport) {
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', { filters: {} });
+        const sports = response.data.aggregations.sport?.filter(option => option.count > 0) || [];
+        availableOptions.sports = [{
+          site: "BSC",
+          values: sports.map(sport => ({
+            label: sport.slug,
+            value: sport.slug
+          }))
+        }];
+      }
+
+      // Get years if sport is selected but no year
+      if (result.sport && !result.year) {
+        const filterParams: FilterParams = {
+          filters: { sport: [result.sport] }
+        };
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', filterParams);
+        const years = response.data.aggregations.year?.filter(option => option.count > 0) || [];
+        availableOptions.years = [{
+          site: "BSC",
+          values: years.map(year => ({
+            label: year.slug,
+            value: year.slug
+          }))
+        }];
+      }
+
+      // Get manufacturers if sport and year are selected but no manufacturer
+      if (result.sport && result.year && !result.manufacturer) {
+        const filterParams: FilterParams = {
+          filters: {
+            sport: [result.sport],
+            year: [result.year.toString()]
+          }
+        };
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', filterParams);
+        const manufacturers = response.data.aggregations.manufacturer?.filter(option => option.count > 0) || [];
+        availableOptions.manufacturers = [{
+          site: "BSC",
+          values: manufacturers.map(manufacturer => ({
+            label: manufacturer.slug,
+            value: manufacturer.slug
+          }))
+        }];
+      }
+
+      // Get set names if sport, year, and manufacturer are selected but no set name
+      if (result.sport && result.year && result.manufacturer && !result.setName) {
+        const filterParams: FilterParams = {
+          filters: {
+            sport: [result.sport],
+            year: [result.year.toString()],
+            manufacturer: [result.manufacturer]
+          }
+        };
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', filterParams);
+        const setNames = response.data.aggregations.setName?.filter(option => option.count > 0) || [];
+        availableOptions.setNames = [{
+          site: "BSC",
+          values: setNames.map(setName => ({
+            label: setName.slug,
+            value: setName.slug
+          }))
+        }];
+      }
+
+      // Get variant names if all previous parameters are selected but no variant type
+      if (result.sport && result.year && result.manufacturer && result.setName && !result.variantType) {
+        const filterParams: FilterParams = {
+          filters: {
+            sport: [result.sport],
+            year: [result.year.toString()],
+            manufacturer: [result.manufacturer],
+            setName: [result.setName]
+          }
+        };
+        const response = await this.api.post<Aggregations>('search/bulk-upload/filters', filterParams);
+        const variantNames = response.data.aggregations.variantName?.filter(option => option.count > 0) || [];
+        availableOptions.variantNames = [{
+          site: "BSC",
+          values: variantNames.map(variantName => ({
+            label: variantName.slug,
+            value: variantName.slug
+          }))
+        }];
+      }
+
+      return {
+        availableOptions,
+        currentParams: result
+      };
+    } catch (error) {
+      console.error(`[BSC Adapter] Error getting available options:`, error);
+      throw new Error(`Failed to get available options: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Example method showing how to use the API object
+   * This demonstrates making authenticated requests to BuySportsCards
+   */
+  async makeAuthenticatedRequest(endpoint: string): Promise<unknown> {
+    try {
+      const response = await this.api.get(endpoint);
+      return response.data;
+    } catch (error) {
+      console.error(`[BSC Adapter] API request failed:`, error);
+      throw new Error(`Failed to make authenticated request: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -92,6 +289,7 @@ export class BuySportsCardsAdapter extends BaseAdapter implements SetAdapter {
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
       // Try to fetch the /sites endpoint which should be available if the service is running
+      console.log(`[BSC Adapter] Checking if browser service is running at ${url}/sites`);
       const response = await fetch(`${url}/sites`, {
         method: 'GET',
         signal: controller.signal,
@@ -131,163 +329,40 @@ export class BuySportsCardsAdapter extends BaseAdapter implements SetAdapter {
     console.log(`[BSC Adapter] Browser service is running at ${browserServiceUrl}`);
 
     try {
-      // Get credentials from Secret Manager
-      // Note: This would need to be called from within a Convex action context
-      // For now, we'll use a placeholder token
-      console.log(`[BSC Adapter] Using placeholder token for authentication`);
+      // Call the browser automation service to get the token
+      const response = await fetch(`${browserServiceUrl}/bsc-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: process.env.BSC_EMAIL,
+          password: process.env.BSC_PASSWORD,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to login to BuySportsCards via browser service");
+      const { token, expiresAt } = await response.json();
 
-      // For now, we'll use a default expiration time
-      const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+      // Initialize the API with the token
+      console.log("token", token);
+      await this.initializeApi(token);
 
       return {
-        accessToken: 'placeholder-token',
+        accessToken: token,
         expiresAt,
       };
     } catch (error) {
       // Log detailed error information
       console.error(`[BSC Adapter] Error logging in to BuySportsCards:`, error);
-
-      // Determine the type of error and provide a more specific error message
       let errorMessage: string;
-
       if (error instanceof Error) {
         errorMessage = error.message;
       } else {
         errorMessage = 'Unknown error occurred during login process';
       }
-
       console.error(`[BSC Adapter] Login error details: ${errorMessage}`);
       throw new Error(`Failed to login to BuySportsCards: ${errorMessage}`);
     }
   }
 }
-
-// BuySportsCards API response types
-interface BuySportsCardsResponse {
-  results: Array<{
-    id: string;
-    set_name: string;
-    year: number;
-    sport: string;
-    manufacturer: string;
-    total_cards?: number;
-    price: number;
-    condition?: string;
-    seller?: string;
-  }>;
-  total_count: number;
-}
-
-// Convex action to search BuySportsCards
-export const searchBuySportsCards = action({
-  args: {
-    setName: v.string(),
-    year: v.optional(v.number()),
-    sport: v.optional(v.string()),
-    manufacturer: v.optional(v.string()),
-    maxPrice: v.optional(v.number()),
-    minPrice: v.optional(v.number()),
-  },
-  returns: v.object({
-    listings: v.array(v.object({
-      id: v.string(),
-      setName: v.string(),
-      year: v.number(),
-      sport: v.string(),
-      manufacturer: v.string(),
-      totalCards: v.optional(v.number()),
-      price: v.number(),
-      condition: v.optional(v.string()),
-      platform: v.string(),
-      url: v.string(),
-      seller: v.optional(v.string()),
-    })),
-    totalCount: v.number(),
-    platform: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    try {
-      // Get stored credentials
-      const credentials = await ctx.runAction(api.adapters.secret_manager.getSiteCredentials, {
-        site: "buysportscards",
-      });
-
-      if (!credentials) {
-        throw new Error("Not authenticated with BuySportsCards. Please save credentials first.");
-      }
-
-      // Login to get fresh tokens
-      const adapter = new BuySportsCardsAdapter();
-      const tokens = await adapter.login();
-
-      // Build search query for BuySportsCards API
-      const searchParams = {
-        q: args.setName,
-        year: args.year,
-        sport: args.sport,
-        manufacturer: args.manufacturer,
-        minPrice: args.minPrice,
-        maxPrice: args.maxPrice,
-        limit: 50,
-      };
-
-      // Build query string
-      const queryString = new URLSearchParams();
-      for (const [key, value] of Object.entries(searchParams)) {
-        if (value !== undefined && value !== null) {
-          queryString.append(key, String(value));
-        }
-      }
-
-      const url = `https://api-prod.buysportscards.com/api/sets/search?${queryString}`;
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json, text/plain, */*',
-          'accept-language': 'en-US,en;q=0.9',
-          'assumedrole': 'sellers',
-          'content-type': 'application/json',
-          'origin': 'https://www.buysportscards.com',
-          'referer': 'https://www.buysportscards.com/',
-          'authority': 'api-prod.buysportscards.com',
-          'authorization': `Bearer ${tokens.accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json() as BuySportsCardsResponse;
-
-      // Transform the response to our standard format
-      const listings = data.results.map(item => ({
-        id: item.id,
-        setName: item.set_name,
-        year: item.year,
-        sport: item.sport,
-        manufacturer: item.manufacturer,
-        totalCards: item.total_cards,
-        price: item.price,
-        condition: item.condition,
-        platform: "buysportscards",
-        url: `https://api-prod.buysportscards.com/set/${item.id}`,
-        seller: item.seller,
-      }));
-
-      return {
-        listings,
-        totalCount: data.total_count,
-        platform: "buysportscards",
-      };
-
-    } catch (error) {
-      console.error("Error searching BuySportsCards:", error);
-      throw new Error(`Failed to search BuySportsCards: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  },
-});
 
 // Convex action to test BuySportsCards credentials
 export const testCredentials = action({
@@ -357,6 +432,98 @@ export const testCredentials = action({
         message: `Authentication failed: ${errorMessage}`,
         details
       };
+    }
+  },
+});
+
+// Convex action to get available set parameters from BSC
+export const getAvailableSetParameters = action({
+  args: {
+    partialParams: v.object({
+      sport: v.optional(v.string()),
+      year: v.optional(v.number()),
+      manufacturer: v.optional(v.string()),
+      setName: v.optional(v.string()),
+      variantType: v.optional(v.union(
+        v.literal("base"),
+        v.literal("insert"),
+        v.literal("parallel"),
+        v.literal("parallel_of_insert")
+      )),
+      insertName: v.optional(v.string()),
+      parallelName: v.optional(v.string()),
+    }),
+  },
+  returns: v.object({
+    availableOptions: v.object({
+      sports: v.optional(v.array(v.object({
+        site: v.string(),
+        values: v.array(v.object({
+          label: v.string(),
+          value: v.string(),
+        })),
+      }))),
+      years: v.optional(v.array(v.object({
+        site: v.string(),
+        values: v.array(v.object({
+          label: v.string(),
+          value: v.string(),
+        })),
+      }))),
+      manufacturers: v.optional(v.array(v.object({
+        site: v.string(),
+        values: v.array(v.object({
+          label: v.string(),
+          value: v.string(),
+        })),
+      }))),
+      setNames: v.optional(v.array(v.object({
+        site: v.string(),
+        values: v.array(v.object({
+          label: v.string(),
+          value: v.string(),
+        })),
+      }))),
+      variantNames: v.optional(v.array(v.object({
+        site: v.string(),
+        values: v.array(v.object({
+          label: v.string(),
+          value: v.string(),
+        })),
+      }))),
+    }),
+    currentParams: v.object({
+      sport: v.optional(v.string()),
+      year: v.optional(v.number()),
+      manufacturer: v.optional(v.string()),
+      setName: v.optional(v.string()),
+      variantType: v.optional(v.union(
+        v.literal("base"),
+        v.literal("insert"),
+        v.literal("parallel"),
+        v.literal("parallel_of_insert")
+      )),
+      insertName: v.optional(v.string()),
+      parallelName: v.optional(v.string()),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      const adapter = new BuySportsCardsAdapter();
+      
+      // Login to get authentication
+      await adapter.login();
+      
+      // Get available options using the adapter
+      const result = await adapter.getAvailableOptions(args.partialParams);
+      
+      return {
+        availableOptions: result.availableOptions,
+        currentParams: result.currentParams,
+      };
+    } catch (error) {
+      console.error("Error getting available set parameters:", error);
+      throw new Error(`Failed to get available set parameters: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 });

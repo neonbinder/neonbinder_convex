@@ -65,9 +65,7 @@ export interface CardAdapter {
 }
 
 // Base adapter interface for ListBySet platforms  
-export interface SetAdapter {
-  searchSets(params: SetSearchParams): Promise<SetListingsResponse>;
-}
+// Note: searchSets functionality has been removed as we're focusing on available sets identification
 
 // Base class with common HTTP functionality
 export abstract class BaseAdapter {
@@ -100,4 +98,20 @@ export abstract class BaseAdapter {
     }
     return searchParams.toString();
   }
+}
+
+export type VariantType = "base" | "insert" | "parallel" | "parallel_of_insert";
+
+export interface SetParameters {
+  sport: string;
+  year: number;
+  manufacturer: string;
+  setName: string;
+  variantType: VariantType;
+  insertName?: string;    // required for insert, parallel_of_insert
+  parallelName?: string;  // required for parallel, parallel_of_insert
+}
+
+export interface SetAdapter {
+  buildSetParameters(partial: Partial<SetParameters>): Promise<Partial<SetParameters>>;
 } 

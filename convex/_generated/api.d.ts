@@ -21,6 +21,7 @@ import type * as adapters_mycardpost from "../adapters/mycardpost.js";
 import type * as adapters_myslabs from "../adapters/myslabs.js";
 import type * as adapters_secret_manager from "../adapters/secret_manager.js";
 import type * as adapters_sportlots from "../adapters/sportlots.js";
+import type * as adapters_testBscSetParameters from "../adapters/testBscSetParameters.js";
 import type * as adapters_types from "../adapters/types.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   "adapters/myslabs": typeof adapters_myslabs;
   "adapters/secret_manager": typeof adapters_secret_manager;
   "adapters/sportlots": typeof adapters_sportlots;
+  "adapters/testBscSetParameters": typeof adapters_testBscSetParameters;
   "adapters/types": typeof adapters_types;
   auth: typeof auth;
   http: typeof http;

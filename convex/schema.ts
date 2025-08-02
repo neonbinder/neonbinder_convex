@@ -30,6 +30,7 @@ export default defineSchema({
   sports: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
+    sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
   }).index("by_name", ["name"]),
 
   years: defineTable({
@@ -74,4 +75,17 @@ export default defineSchema({
     description: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
   }).index("by_set_variant", ["setVariantId"]),
+
+  // Set Parameter Selection Table
+  setSelections: defineTable({
+    name: v.string(),
+    description: v.string(),
+    sport: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    year: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
 });

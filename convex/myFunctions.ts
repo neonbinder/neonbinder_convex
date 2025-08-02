@@ -85,6 +85,7 @@ export const createSport = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
   },
   returns: v.id("sports"),
   handler: async (ctx, args) => {
@@ -94,7 +95,7 @@ export const createSport = mutation({
       .withIndex("by_name", (q) => q.eq("name", args.name))
       .unique();
     if (existing) throw new Error(`Sport '${args.name}' already exists`);
-    return await ctx.db.insert("sports", { name: args.name, description: args.description });
+    return await ctx.db.insert("sports", { name: args.name, description: args.description, sites: args.sites });
   },
 });
 
@@ -106,6 +107,7 @@ export const getSports = query({
       _creationTime: v.number(),
       name: v.string(),
       description: v.optional(v.string()),
+      sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
     })
   ),
   handler: async (ctx) => {
@@ -121,6 +123,7 @@ export const getSport = query({
       _creationTime: v.number(),
       name: v.string(),
       description: v.optional(v.string()),
+      sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
     }),
     v.null()
   ),
@@ -714,5 +717,71 @@ export const searchCardSets = query({
     );
 
     return variantsWithHierarchy;
+  },
+});
+
+// Create a new set selection
+export const createSetSelection = mutation({
+  args: {
+    name: v.string(),
+    description: v.string(),
+    sport: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    year: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const id = await ctx.db.insert("setSelections", {
+      ...args,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return id;
+  },
+});
+
+// Update an existing set selection
+export const updateSetSelection = mutation({
+  args: {
+    id: v.id("setSelections"),
+    name: v.string(),
+    description: v.string(),
+    sport: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    year: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.id, {
+      name: args.name,
+      description: args.description,
+      sport: args.sport,
+      year: args.year,
+      manufacturer: args.manufacturer,
+      setName: args.setName,
+      variantType: args.variantType,
+      updatedAt: now,
+    });
+    return args.id;
+  },
+});
+
+// Get a set selection by id
+export const getSetSelection = query({
+  args: { id: v.id("setSelections") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// List all set selections
+export const listSetSelections = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("setSelections").order("desc").collect();
   },
 });
