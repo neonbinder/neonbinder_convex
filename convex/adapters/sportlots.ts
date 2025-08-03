@@ -4,15 +4,11 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { BaseAdapter } from "./base";
 import { api } from "../_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export class SportlotsAdapter extends BaseAdapter {
   private baseUrl = "https://www.sportlots.com";
 }
-
-
-
-// Convex action to search Sportlots
-// Note: searchSets functionality has been removed as we're focusing on available sets identification
 
 // Convex action to test Sportlots credentials
 export const testCredentials = action({
@@ -23,7 +19,16 @@ export const testCredentials = action({
     details: v.optional(v.string()),
   }),
   handler: async (ctx): Promise<{ success: boolean; message: string; details?: string }> => {
-    // Get stored credentials
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return {
+        success: false,
+        message: "Not authenticated",
+        details: "Please sign in to test credentials"
+      };
+    }
+
+    // Get stored credentials to verify they exist
     const credentials: { username: string; password: string; site: string; userId: string; createdAt: string } | null = await ctx.runAction(api.adapters.secret_manager.getSiteCredentials, {
       site: "sportlots",
     });
@@ -36,11 +41,52 @@ export const testCredentials = action({
       };
     }
 
-    // Placeholder - implement actual Sportlots login test
-    return {
-      success: true,
-      message: `Sportlots credentials found for ${credentials.username}. Login testing not yet implemented.`,
-      details: "This is a placeholder. Actual Sportlots login testing will be implemented in a future update."
-    };
+    try {
+      // Call the browser service to test login using the Secret Manager key
+      const browserServiceUrl = process.env.BROWSER_SERVICE_URL || "https://neonbinder-browser-117170654588.us-central1.run.app";
+      const secretKey = `sportlots-credentials-${userId}`;
+      
+      const response = await fetch(`${browserServiceUrl}/login/sportlots`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          key: secretKey,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          success: false,
+          message: "Failed to test Sportlots credentials",
+          details: `Browser service error: ${errorText}`
+        };
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        return {
+          success: true,
+          message: result.message || "Successfully logged into Sportlots",
+          details: `Login test completed successfully for ${credentials.username}`
+        };
+      } else {
+        return {
+          success: false,
+          message: "Sportlots login test failed",
+          details: result.error || "Unknown error occurred during login test"
+        };
+      }
+    } catch (error) {
+      console.error("Error testing Sportlots credentials:", error);
+      return {
+        success: false,
+        message: "Failed to test Sportlots credentials",
+        details: `Error: ${error instanceof Error ? error.message : "Unknown error"}. Make sure the browser service is running at ${process.env.BROWSER_SERVICE_URL || "https://neonbinder-browser-117170654588.us-central1.run.app"}`
+      };
+    }
   },
 });

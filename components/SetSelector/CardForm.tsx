@@ -41,6 +41,9 @@ export default function CardForm({
       onDone?.();
     } catch (error) {
       console.error("Error creating card:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error("Error details:", errorMessage);
     }
   };
 

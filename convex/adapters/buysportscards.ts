@@ -305,7 +305,7 @@ export class BuySportsCardsAdapter extends BaseAdapter implements SetAdapter {
 
   async login(): Promise<{ accessToken: string; expiresAt: number }> {
     // Get the browser service URL from environment variable or use default
-    let browserServiceUrl = process.env.NEONBINDER_BROWSER_URL || 'http://localhost:8080';
+    let browserServiceUrl = process.env.NEONBINDER_BROWSER_URL || 'https://neonbinder-browser-117170654588.us-central1.run.app';
 
     // Ensure the URL has the correct format (has protocol)
     if (!browserServiceUrl.startsWith('http://') && !browserServiceUrl.startsWith('https://')) {

@@ -175,9 +175,11 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error("Error testing credentials:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       setMessage("Failed to test credentials. Please try again.");
       setMessageDetails(
-        "An unexpected error occurred while testing credentials.",
+        `An unexpected error occurred while testing credentials: ${errorMessage}`,
       );
       setMessageType("error");
       setIsAuthenticated(false);
