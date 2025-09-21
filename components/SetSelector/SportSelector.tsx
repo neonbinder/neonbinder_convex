@@ -1,10 +1,10 @@
-import { Id } from "../../convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import EntitySelector from "./EntitySelector";
 
 type SportSelectorProps = {
-  selectedSportId: Id<"sports"> | null;
-  onSportSelect: (id: Id<"sports">) => void;
+  selectedSportId: GenericId<"selectorOptions"> | null;
+  onSportSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
@@ -18,13 +18,14 @@ export default function SportSelector({
   return (
     <EntitySelector
       title="Sports"
-      query={api.myFunctions.getSports}
+      query={api.myFunctions.getSelectorOptions}
+      queryArgs={{ level: "sport" }}
       selectedId={selectedSportId as string | null}
-      onSelect={(id) => onSportSelect(id as Id<"sports">)}
+      onSelect={(id) => onSportSelect(id as GenericId<"selectorOptions">)}
       expanded={expanded}
       setExpanded={setExpanded}
-      getDisplayName={(sport) => sport.name as string}
-      getDescription={(sport) => sport.description as string | undefined}
+      getDisplayName={(sport) => sport.value as string}
+      getDescription={() => undefined}
       selectedColor="bg-pink-100 dark:bg-pink-900 border-pink-300 dark:border-pink-700"
     />
   );

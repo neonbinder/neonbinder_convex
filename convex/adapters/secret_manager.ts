@@ -244,7 +244,12 @@ export const testSiteCredentials = action({
       // Each site-specific test function will retrieve its own credentials
       switch (args.site) {
         case "buysportscards":
-          return await ctx.runAction(api.adapters.buysportscards.testCredentials, {});
+          const bscResult = await ctx.runAction(api.adapters.buysportscards.getBscToken, {});
+          return {
+            success: bscResult.success,
+            message: bscResult.success ? "BSC token retrieved successfully" : bscResult.error || "Failed to get BSC token",
+            details: bscResult.token ? "Token available" : undefined,
+          };
 
         case "ebay":
           return await ctx.runAction(api.adapters.ebay.testCredentials, {});

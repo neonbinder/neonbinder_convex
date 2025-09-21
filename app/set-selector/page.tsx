@@ -1,4 +1,4 @@
-import SetSelector from "../../components/SetSelector";
+import SetSelector from "../../components/modules/SetSelector";
 
 export default function SetSelectorPage() {
   return (

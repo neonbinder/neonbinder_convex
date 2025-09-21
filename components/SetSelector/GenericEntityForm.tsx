@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import NeonButton from "../NeonButton";
+import NeonButton from "../modules/NeonButton";
 
 type Field = {
   name: string;

@@ -1,11 +1,11 @@
-import { Id } from "../../convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import EntitySelector from "./EntitySelector";
 
 type YearSelectorProps = {
-  sportId: Id<"sports">;
-  selectedYearId: Id<"years"> | null;
-  onYearSelect: (id: Id<"years">) => void;
+  sportId: GenericId<"selectorOptions">;
+  selectedYearId: GenericId<"selectorOptions"> | null;
+  onYearSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
@@ -20,14 +20,14 @@ export default function YearSelector({
   return (
     <EntitySelector
       title="Years"
-      query={api.myFunctions.getYearsBySport}
-      queryArgs={{ sportId }}
+      query={api.myFunctions.getSelectorOptions}
+      queryArgs={{ level: "year", parentId: sportId }}
       selectedId={selectedYearId as string | null}
-      onSelect={(id) => onYearSelect(id as Id<"years">)}
+      onSelect={(id) => onYearSelect(id as GenericId<"selectorOptions">)}
       expanded={expanded}
       setExpanded={setExpanded}
-      getDisplayName={(year) => (year.year as number).toString()}
-      getDescription={(year) => year.description as string | undefined}
+      getDisplayName={(year) => year.value as string}
+      getDescription={(year) => undefined}
       selectedColor="bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700"
     />
   );

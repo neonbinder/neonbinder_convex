@@ -1,11 +1,11 @@
-import { Id } from "../../convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import EntitySelector from "./EntitySelector";
 
 type SetVariantSelectorProps = {
-  setId: Id<"sets">;
-  selectedVariantId: Id<"setVariants"> | null;
-  onVariantSelect: (id: Id<"setVariants">) => void;
+  setId: GenericId<"selectorOptions">;
+  selectedVariantId: GenericId<"selectorOptions"> | null;
+  onVariantSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
@@ -20,14 +20,14 @@ export default function SetVariantSelector({
   return (
     <EntitySelector
       title="Set Variants"
-      query={api.myFunctions.getSetVariantsBySet}
-      queryArgs={{ setId }}
+      query={api.myFunctions.getSelectorOptions}
+      queryArgs={{ level: "variantType", parentId: setId }}
       selectedId={selectedVariantId as string | null}
-      onSelect={(id) => onVariantSelect(id as Id<"setVariants">)}
+      onSelect={(id) => onVariantSelect(id as GenericId<"selectorOptions">)}
       expanded={expanded}
       setExpanded={setExpanded}
-      getDisplayName={(variant) => variant.name as string}
-      getDescription={(variant) => variant.description as string | undefined}
+      getDisplayName={(variant) => variant.value as string}
+      getDescription={(variant) => undefined}
       selectedColor="bg-orange-100 dark:bg-orange-900 border-orange-300 dark:border-orange-700"
     />
   );

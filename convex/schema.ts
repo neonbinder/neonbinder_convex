@@ -26,57 +26,28 @@ export default defineSchema({
     })),
   }).index("by_user", ["userId"]),
 
-  // New top-level: Sports
-  sports: defineTable({
-    name: v.string(),
-    description: v.optional(v.string()),
-    sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-  }).index("by_name", ["name"]),
-
-  years: defineTable({
-    sportId: v.id("sports"),
-    year: v.number(),
-    description: v.optional(v.string()),
-  }).index("by_sport", ["sportId"]).index("by_year", ["year"]),
-
-  manufacturers: defineTable({
-    yearId: v.id("years"),
-    name: v.string(),
-    description: v.optional(v.string()),
-  }).index("by_year", ["yearId"]),
-
-  sets: defineTable({
-    manufacturerId: v.id("manufacturers"),
-    name: v.string(),
-    description: v.optional(v.string()),
-  }).index("by_manufacturer", ["manufacturerId"]),
-
-  setVariants: defineTable({
-    setId: v.id("sets"),
-    name: v.string(),
-    description: v.optional(v.string()),
-    variantType: v.union(
-      v.literal("base"),
-      v.literal("parallel"),
+  // Selector Options - stores all possible values for each selector level
+  selectorOptions: defineTable({
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
       v.literal("insert"),
-      v.literal("parallel_of_insert")
+      v.literal("parallel")
     ),
-    parentVariantId: v.optional(v.id("setVariants")), // For parallels of inserts
-    parallelName: v.optional(v.string()), // For parallel variants
-    insertName: v.optional(v.string()),   // For insert variants
-  }).index("by_set", ["setId"]),
+    value: v.string(), // Display value (e.g., "Football")
+    platformData: v.object({
+      bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+      sportlots: v.optional(v.string()),
+    }),
+    parentId: v.optional(v.id("selectorOptions")), // For hierarchical relationships
+    children: v.optional(v.array(v.id("selectorOptions"))), // Child options
+    lastUpdated: v.number(),
+  }).index("by_level", ["level"]).index("by_parent", ["parentId"]).index("by_value", ["value"]),
 
-  cards: defineTable({
-    setVariantId: v.id("setVariants"),
-    cardNumber: v.string(),
-    playerName: v.optional(v.string()),
-    team: v.optional(v.string()),
-    position: v.optional(v.string()),
-    description: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-  }).index("by_set_variant", ["setVariantId"]),
-
-  // Set Parameter Selection Table
+  // Set Selections - stores user's selected set parameters
   setSelections: defineTable({
     name: v.string(),
     description: v.string(),
@@ -85,6 +56,8 @@ export default defineSchema({
     manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
     setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
     variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    insert: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    parallel: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
     createdAt: v.number(),
     updatedAt: v.number(),
   }),

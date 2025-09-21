@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import NeonButton from "../NeonButton";
+import NeonButton from "../modules/NeonButton";
 
 type EntityColumnProps = {
   selector: ReactNode;

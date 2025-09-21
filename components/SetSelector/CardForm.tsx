@@ -1,14 +1,14 @@
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
-import NeonButton from "../NeonButton";
+import NeonButton from "../modules/NeonButton";
+import type { GenericId } from "convex/values";
 
 export default function CardForm({
   setVariantId,
   onDone,
 }: {
-  setVariantId: Id<"setVariants">;
+  setVariantId: GenericId<"setVariants">;
   onDone?: () => void;
 }) {
   const [cardNumber, setCardNumber] = useState("");

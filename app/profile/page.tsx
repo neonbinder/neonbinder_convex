@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import NeonButton from "../../components/NeonButton";
+import NeonButton from "../../components/modules/NeonButton";
 import Image from "next/image";
 
 const SUPPORTED_SITES = [

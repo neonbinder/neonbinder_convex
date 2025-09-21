@@ -183,17 +183,17 @@ body {
 
 :root, .light, .light-theme {
   --green-1: #f9fffa;
-  --green-2: #f2fcf3;
-  --green-3: #e1fae4;
-  --green-4: #cef6d2;
-  --green-5: #b6efbd;
-  --green-6: #98e6a4;
-  --green-7: #6bd980;
-  --green-8: #00c649;
-  --green-9: #00d558;
-  --green-10: #00c94c;
-  --green-11: #00851e;
-  --green-12: #054017;
+  --green-2: #f2fcf3; 
+  --green-3: #e1fae4; /* 50 */
+  --green-4: #cef6d2; /* 100 */ 
+  --green-5: #b6efbd; /* 200 */
+  --green-6: #98e6a4; /* 300 */
+  --green-7: #6bd980; /* 400 */
+  --green-8: #00c649; /* 500 */
+  --green-9: #00d558; /* 600 */
+  --green-10: #00c94c; /* 700 */
+  --green-11: #00851e; /* 800 */
+  --green-12: #054017; /* 900 */
 
   --green-a1: #00ff2b06;
   --green-a2: #00c5140d;
@@ -328,16 +328,16 @@ body {
 :root, .light, .light-theme {
   --blue-1: #fafdff;
   --blue-2: #f1fbff;
-  --blue-3: #e2f5ff;
-  --blue-4: #ccf1ff;
-  --blue-5: #b3e9ff;
-  --blue-6: #96ddff;
-  --blue-7: #6dcefa;
-  --blue-8: #00b9f6;
-  --blue-9: #00c2ff;
-  --blue-10: #00b7f3;
-  --blue-11: #0080b3;
-  --blue-12: #003a58;
+  --blue-3: #e2f5ff; /* 50 */
+  --blue-4: #ccf1ff; /* 100 */
+  --blue-5: #b3e9ff; /* 200 */
+  --blue-6: #96ddff; /* 300 */
+  --blue-7: #6dcefa; /* 400 */
+  --blue-8: #00b9f6; /* 500 */
+  --blue-9: #00c2ff; /* 600 */
+  --blue-10: #00b7f3; /* 700 */
+  --blue-11: #0080b3; /* 800 */
+  --blue-12: #003a58; /* 900 */
 
   --blue-a1: #0099ff05;
   --blue-a2: #00b7ff0e;

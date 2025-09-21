@@ -1,11 +1,11 @@
-import { Id } from "../../convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import EntitySelector from "./EntitySelector";
 
 type ManufacturerSelectorProps = {
-  yearId: Id<"years">;
-  selectedManufacturerId: Id<"manufacturers"> | null;
-  onManufacturerSelect: (id: Id<"manufacturers">) => void;
+  yearId: GenericId<"selectorOptions">;
+  selectedManufacturerId: GenericId<"selectorOptions"> | null;
+  onManufacturerSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
@@ -20,16 +20,16 @@ export default function ManufacturerSelector({
   return (
     <EntitySelector
       title="Manufacturers"
-      query={api.myFunctions.getManufacturersByYear}
-      queryArgs={{ yearId }}
+      query={api.myFunctions.getSelectorOptions}
+      queryArgs={{ level: "manufacturer", parentId: yearId }}
       selectedId={selectedManufacturerId as string | null}
-      onSelect={(id) => onManufacturerSelect(id as Id<"manufacturers">)}
+      onSelect={(id) =>
+        onManufacturerSelect(id as GenericId<"selectorOptions">)
+      }
       expanded={expanded}
       setExpanded={setExpanded}
-      getDisplayName={(manufacturer) => manufacturer.name as string}
-      getDescription={(manufacturer) =>
-        manufacturer.description as string | undefined
-      }
+      getDisplayName={(manufacturer) => manufacturer.value as string}
+      getDescription={(manufacturer) => undefined}
       selectedColor="bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700"
     />
   );

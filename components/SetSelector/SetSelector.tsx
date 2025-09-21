@@ -1,11 +1,11 @@
-import { Id } from "../../convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { api } from "../../convex/_generated/api";
 import EntitySelector from "./EntitySelector";
 
 type SetSelectorProps = {
-  manufacturerId: Id<"manufacturers">;
-  selectedSetId: Id<"sets"> | null;
-  onSetSelect: (id: Id<"sets">) => void;
+  manufacturerId: GenericId<"selectorOptions">;
+  selectedSetId: GenericId<"selectorOptions"> | null;
+  onSetSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
@@ -20,14 +20,14 @@ export default function SetSelector({
   return (
     <EntitySelector
       title="Sets"
-      query={api.myFunctions.getSetsByManufacturer}
-      queryArgs={{ manufacturerId }}
+      query={api.myFunctions.getSelectorOptions}
+      queryArgs={{ level: "setName", parentId: manufacturerId }}
       selectedId={selectedSetId as string | null}
-      onSelect={(id) => onSetSelect(id as Id<"sets">)}
+      onSelect={(id) => onSetSelect(id as GenericId<"selectorOptions">)}
       expanded={expanded}
       setExpanded={setExpanded}
-      getDisplayName={(set) => set.name as string}
-      getDescription={(set) => set.description as string | undefined}
+      getDisplayName={(set) => set.value as string}
+      getDescription={() => undefined}
       selectedColor="bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700"
     />
   );

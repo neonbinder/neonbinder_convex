@@ -1,162 +1,48 @@
-import React, { useState, useEffect } from "react";
-import { useMutation, useQuery, useAction } from "convex/react";
+import React from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import type { GenericId } from "convex/values";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/solid";
-import GenericEntityForm from "./GenericEntityForm";
-
-interface StoredParameter {
-  site: string;
-  value: string;
-}
 
 export function SportForm({ onDone }: { onDone?: () => void }) {
-  const createSport = useMutation(api.myFunctions.createSport);
-  const getAvailableSetParameters = useAction(
-    api.adapters.index.getAvailableSetParameters,
+  const updateSelectorOptions = useAction(
+    api.myFunctions.updateSelectorOptions,
   );
-  const [sites, setSites] = useState<StoredParameter[]>([]);
-  const [siteOptions, setSiteOptions] = useState<
-    { site: string; values: { label: string; value: string }[] }[]
-  >([]);
-  const [loadingSites, setLoadingSites] = useState(true);
-
-  useEffect(() => {
-    async function fetchSites() {
-      setLoadingSites(true);
-      try {
-        const result = await getAvailableSetParameters({ partialParams: {} });
-        const sportsOptions = result?.availableOptions?.sports;
-        setSiteOptions(sportsOptions || []);
-        // Default to one mapping for the first site/value
-        if (sportsOptions && sportsOptions.length > 0) {
-          setSites([
-            {
-              site: sportsOptions[0].site,
-              value: sportsOptions[0].values[0]?.value || "",
-            },
-          ]);
-        }
-      } finally {
-        setLoadingSites(false);
-      }
-    }
-    fetchSites();
-  }, [getAvailableSetParameters]);
-
-  const handleSiteChange = (idx: number, newSite: string) => {
-    const siteObj = siteOptions.find((s) => s.site === newSite);
-    const newValue = siteObj?.values[0]?.value || "";
-    setSites((prev) =>
-      prev.map((s, i) => (i === idx ? { site: newSite, value: newValue } : s)),
-    );
-  };
-
-  const handleValueChange = (idx: number, newValue: string) => {
-    setSites((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, value: newValue } : s)),
-    );
-  };
-
-  const handleAddMapping = () => {
-    if (siteOptions.length === 0) return;
-    setSites((prev) => [
-      ...prev,
-      {
-        site: siteOptions[0].site,
-        value: siteOptions[0].values[0]?.value || "",
-      },
-    ]);
-  };
-
-  const handleRemoveMapping = (idx: number) => {
-    setSites((prev) => prev.filter((_, i) => i !== idx));
-  };
 
   return (
-    <GenericEntityForm
-      title="Create Sport"
-      fields={[
-        {
-          name: "name",
-          label: "Sport Name",
-          type: "text",
-          placeholder: "e.g., Baseball, Basketball, Soccer",
-          required: true,
-        },
-        {
-          name: "description",
-          label: "Description (optional)",
-          type: "text",
-          placeholder: "e.g., MLB, NBA, FIFA",
-        },
-      ]}
-      submitLabel="Create Sport"
-      onSubmit={async (values) => {
-        await createSport({
-          name: values.name,
-          description: values.description || undefined,
-          sites,
-        });
-        setSites([]);
-        onDone?.();
-      }}
-      onCancel={onDone!}
-    >
-      <div className="mb-2">
-        <label className="block text-xs font-medium mb-1">
-          Sites (platform mapping)
-        </label>
-        {loadingSites ? (
-          <div>Loading site options...</div>
-        ) : (
-          sites.map((siteObj, idx) => (
-            <div key={idx} className="flex items-center gap-2 mb-1">
-              <select
-                className="w-1/3 p-1 border rounded-md"
-                value={siteObj.site}
-                onChange={(e) => handleSiteChange(idx, e.target.value)}
-              >
-                {siteOptions.map((opt) => (
-                  <option key={opt.site} value={opt.site}>
-                    {opt.site}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="w-2/3 p-1 border rounded-md"
-                value={siteObj.value}
-                onChange={(e) => handleValueChange(idx, e.target.value)}
-              >
-                {(
-                  siteOptions.find((s) => s.site === siteObj.site)?.values || []
-                ).map((val) => (
-                  <option key={val.value} value={val.value}>
-                    {val.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="text-red-500 text-xs"
-                onClick={() => handleRemoveMapping(idx)}
-                disabled={sites.length === 1}
-              >
-                Remove
-              </button>
-            </div>
-          ))
-        )}
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-semibold mb-4">Update Sport Options</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-4">
+        This will fetch the latest sport options from all connected platforms
+        and update the database.
+      </p>
+
+      <div className="flex gap-2">
         <button
-          type="button"
-          className="text-blue-600 text-xs mt-1"
-          onClick={handleAddMapping}
-          disabled={loadingSites || siteOptions.length === 0}
+          onClick={async () => {
+            try {
+              const result = await updateSelectorOptions({
+                level: "sport",
+                parentFilters: {},
+              });
+              console.log("Updated sport options:", result);
+              onDone?.();
+            } catch (error) {
+              console.error("Failed to update sport options:", error);
+            }
+          }}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         >
-          + Add Site Mapping
+          Update Sport Options
+        </button>
+        <button
+          onClick={onDone}
+          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+        >
+          Cancel
         </button>
       </div>
-    </GenericEntityForm>
+    </div>
   );
 }
 
@@ -166,12 +52,14 @@ export function SportSelector({
   expanded,
   setExpanded,
 }: {
-  selectedSportId: Id<"sports"> | null;
-  onSportSelect: (id: Id<"sports">) => void;
+  selectedSportId: GenericId<"selectorOptions"> | null;
+  onSportSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 }) {
-  const sports = useQuery(api.myFunctions.getSports);
+  const sports = useQuery(api.myFunctions.getSelectorOptions, {
+    level: "sport",
+  });
   const selected = sports?.find((s) => s._id === selectedSportId);
   if (!sports) return <div>Loading sports...</div>;
   if (selectedSportId && selected && !expanded) {
@@ -181,12 +69,7 @@ export function SportSelector({
         onClick={() => setExpanded(true)}
       >
         <div>
-          <div className="font-semibold">{selected.name}</div>
-          {selected.description && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {selected.description}
-            </div>
-          )}
+          <div className="font-semibold">{selected.value}</div>
         </div>
         <ChevronDownIcon className="w-5 h-5 text-gray-500" />
       </div>
@@ -220,12 +103,7 @@ export function SportSelector({
                 : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
             }`}
           >
-            <div className="font-semibold">{sport.name}</div>
-            {sport.description && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {sport.description}
-              </div>
-            )}
+            <div className="font-semibold">{sport.value}</div>
           </button>
         ))}
       </div>

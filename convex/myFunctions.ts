@@ -80,683 +80,37 @@ export const myAction = action({
   },
 });
 
-// ===== SPORTS MANAGEMENT =====
-export const createSport = mutation({
-  args: {
-    name: v.string(),
-    description: v.optional(v.string()),
-    sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-  },
-  returns: v.id("sports"),
-  handler: async (ctx, args) => {
-    // Check if sport already exists
-    const existing = await ctx.db
-      .query("sports")
-      .withIndex("by_name", (q) => q.eq("name", args.name))
-      .unique();
-    if (existing) throw new Error(`Sport '${args.name}' already exists`);
-    return await ctx.db.insert("sports", { name: args.name, description: args.description, sites: args.sites });
-  },
-});
+// ===== SET SELECTIONS MANAGEMENT =====
 
-export const getSports = query({
-  args: {},
-  returns: v.array(
-    v.object({
-      _id: v.id("sports"),
-      _creationTime: v.number(),
-      name: v.string(),
-      description: v.optional(v.string()),
-      sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    })
-  ),
-  handler: async (ctx) => {
-    return await ctx.db.query("sports").withIndex("by_name").order("asc").collect();
-  },
-});
-
-export const getSport = query({
-  args: { sportId: v.id("sports") },
-  returns: v.union(
-    v.object({
-      _id: v.id("sports"),
-      _creationTime: v.number(),
-      name: v.string(),
-      description: v.optional(v.string()),
-      sites: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.sportId);
-  },
-});
-
-// ===== YEAR MANAGEMENT =====
-export const createYear = mutation({
-  args: {
-    sportId: v.id("sports"),
-    year: v.number(),
-    description: v.optional(v.string()),
-  },
-  returns: v.id("years"),
-  handler: async (ctx, args) => {
-    // Check if year already exists for this sport
-    const existingYear = await ctx.db
-      .query("years")
-      .withIndex("by_sport", (q) => q.eq("sportId", args.sportId))
-      .collect();
-    if (existingYear.some(y => y.year === args.year)) {
-      throw new Error(`Year ${args.year} already exists for this sport`);
-    }
-    return await ctx.db.insert("years", {
-      sportId: args.sportId,
-      year: args.year,
-      description: args.description,
-    });
-  },
-});
-
-export const getYearsBySport = query({
-  args: { sportId: v.id("sports") },
-  returns: v.array(
-    v.object({
-      _id: v.id("years"),
-      _creationTime: v.number(),
-      sportId: v.id("sports"),
-      year: v.number(),
-      description: v.optional(v.string()),
-    })
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("years")
-      .withIndex("by_sport", (q) => q.eq("sportId", args.sportId))
-      .order("desc")
-      .collect();
-  },
-});
-
-export const getYear = query({
-  args: { yearId: v.id("years") },
-  returns: v.union(
-    v.object({
-      _id: v.id("years"),
-      _creationTime: v.number(),
-      sportId: v.id("sports"),
-      year: v.number(),
-      description: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.yearId);
-  },
-});
-
-// ===== MANUFACTURER MANAGEMENT =====
-
-export const createManufacturer = mutation({
-  args: {
-    yearId: v.id("years"),
-    name: v.string(),
-    description: v.optional(v.string()),
-  },
-  returns: v.id("manufacturers"),
-  handler: async (ctx, args) => {
-    // Verify year exists
-    const year = await ctx.db.get(args.yearId);
-    if (!year) {
-      throw new Error("Year not found");
-    }
-
-    return await ctx.db.insert("manufacturers", {
-      yearId: args.yearId,
-      name: args.name,
-      description: args.description,
-    });
-  },
-});
-
-export const getManufacturersByYear = query({
-  args: { yearId: v.id("years") },
-  returns: v.array(
-    v.object({
-      _id: v.id("manufacturers"),
-      _creationTime: v.number(),
-      yearId: v.id("years"),
-      name: v.string(),
-      description: v.optional(v.string()),
-    })
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("manufacturers")
-      .withIndex("by_year", (q) => q.eq("yearId", args.yearId))
-      .order("asc")
-      .collect();
-  },
-});
-
-export const getManufacturer = query({
-  args: { manufacturerId: v.id("manufacturers") },
-  returns: v.union(
-    v.object({
-      _id: v.id("manufacturers"),
-      _creationTime: v.number(),
-      yearId: v.id("years"),
-      name: v.string(),
-      description: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.manufacturerId);
-  },
-});
-
-// ===== SET MANAGEMENT =====
-
-export const createSet = mutation({
-  args: {
-    manufacturerId: v.id("manufacturers"),
-    name: v.string(),
-    description: v.optional(v.string()),
-  },
-  returns: v.id("sets"),
-  handler: async (ctx, args) => {
-    // Verify manufacturer exists
-    const manufacturer = await ctx.db.get(args.manufacturerId);
-    if (!manufacturer) {
-      throw new Error("Manufacturer not found");
-    }
-
-    return await ctx.db.insert("sets", {
-      manufacturerId: args.manufacturerId,
-      name: args.name,
-      description: args.description,
-    });
-  },
-});
-
-export const getSetsByManufacturer = query({
-  args: { manufacturerId: v.id("manufacturers") },
-  returns: v.array(
-    v.object({
-      _id: v.id("sets"),
-      _creationTime: v.number(),
-      manufacturerId: v.id("manufacturers"),
-      name: v.string(),
-      description: v.optional(v.string()),
-    })
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("sets")
-      .withIndex("by_manufacturer", (q) => q.eq("manufacturerId", args.manufacturerId))
-      .order("asc")
-      .collect();
-  },
-});
-
-export const getSet = query({
-  args: { setId: v.id("sets") },
-  returns: v.union(
-    v.object({
-      _id: v.id("sets"),
-      _creationTime: v.number(),
-      manufacturerId: v.id("manufacturers"),
-      name: v.string(),
-      description: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.setId);
-  },
-});
-
-// ===== SET VARIANT MANAGEMENT =====
-
-export const createSetVariant = mutation({
-  args: {
-    setId: v.id("sets"),
-    name: v.string(),
-    description: v.optional(v.string()),
-    variantType: v.union(
-      v.literal("base"),
-      v.literal("parallel"),
-      v.literal("insert"),
-      v.literal("parallel_of_insert")
-    ),
-    parentVariantId: v.optional(v.id("setVariants")),
-    parallelName: v.optional(v.string()),
-    insertName: v.optional(v.string()),
-  },
-  returns: v.id("setVariants"),
-  handler: async (ctx, args) => {
-    // Verify set exists
-    const set = await ctx.db.get(args.setId);
-    if (!set) {
-      throw new Error("Set not found");
-    }
-
-    // Validate variant type specific fields
-    if (args.variantType === "parallel" && !args.parallelName) {
-      throw new Error("Parallel name is required for parallel variants");
-    }
-    if (args.variantType === "insert" && !args.insertName) {
-      throw new Error("Insert name is required for insert variants");
-    }
-    if (args.variantType === "parallel_of_insert" && (!args.parentVariantId || !args.parallelName)) {
-      throw new Error("Parent variant ID and parallel name are required for parallel of insert variants");
-    }
-
-    return await ctx.db.insert("setVariants", {
-      setId: args.setId,
-      name: args.name,
-      description: args.description,
-      variantType: args.variantType,
-      parentVariantId: args.parentVariantId,
-      parallelName: args.parallelName,
-      insertName: args.insertName,
-    });
-  },
-});
-
-export const getSetVariantsBySet = query({
-  args: { setId: v.id("sets") },
-  returns: v.array(
-    v.object({
-      _id: v.id("setVariants"),
-      _creationTime: v.number(),
-      setId: v.id("sets"),
-      name: v.string(),
-      description: v.optional(v.string()),
-      variantType: v.union(
-        v.literal("base"),
-        v.literal("parallel"),
-        v.literal("insert"),
-        v.literal("parallel_of_insert")
-      ),
-      parentVariantId: v.optional(v.id("setVariants")),
-      parallelName: v.optional(v.string()),
-      insertName: v.optional(v.string()),
-      cardCount: v.number(),
-    })
-  ),
-  handler: async (ctx, args) => {
-    const variants = await ctx.db
-      .query("setVariants")
-      .withIndex("by_set", (q) => q.eq("setId", args.setId))
-      .order("asc")
-      .collect();
-
-    const variantsWithCardCount = await Promise.all(
-      variants.map(async (variant) => {
-        const cardCount = await ctx.db
-          .query("cards")
-          .withIndex("by_set_variant", (q) => q.eq("setVariantId", variant._id))
-          .collect()
-          .then(cards => cards.length);
-
-        return {
-          ...variant,
-          cardCount,
-        };
-      })
-    );
-
-    return variantsWithCardCount;
-  },
-});
-
-export const getSetVariant = query({
-  args: { variantId: v.id("setVariants") },
-  returns: v.union(
-    v.object({
-      _id: v.id("setVariants"),
-      _creationTime: v.number(),
-      setId: v.id("sets"),
-      name: v.string(),
-      description: v.optional(v.string()),
-      variantType: v.union(
-        v.literal("base"),
-        v.literal("parallel"),
-        v.literal("insert"),
-        v.literal("parallel_of_insert")
-      ),
-      parentVariantId: v.optional(v.id("setVariants")),
-      parallelName: v.optional(v.string()),
-      insertName: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.variantId);
-  },
-});
-
-// ===== CARD MANAGEMENT =====
-
-export const createCard = mutation({
-  args: {
-    setVariantId: v.id("setVariants"),
-    cardNumber: v.string(),
-    playerName: v.optional(v.string()),
-    team: v.optional(v.string()),
-    position: v.optional(v.string()),
-    description: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-  },
-  returns: v.id("cards"),
-  handler: async (ctx, args) => {
-    // Verify set variant exists
-    const setVariant = await ctx.db.get(args.setVariantId);
-    if (!setVariant) {
-      throw new Error("Set variant not found");
-    }
-
-    return await ctx.db.insert("cards", {
-      setVariantId: args.setVariantId,
-      cardNumber: args.cardNumber,
-      playerName: args.playerName,
-      team: args.team,
-      position: args.position,
-      description: args.description,
-      imageUrl: args.imageUrl,
-    });
-  },
-});
-
-export const getCardsBySetVariant = query({
-  args: { setVariantId: v.id("setVariants") },
-  returns: v.array(
-    v.object({
-      _id: v.id("cards"),
-      _creationTime: v.number(),
-      setVariantId: v.id("setVariants"),
-      cardNumber: v.string(),
-      playerName: v.optional(v.string()),
-      team: v.optional(v.string()),
-      position: v.optional(v.string()),
-      description: v.optional(v.string()),
-      imageUrl: v.optional(v.string()),
-    })
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("cards")
-      .withIndex("by_set_variant", (q) => q.eq("setVariantId", args.setVariantId))
-      .order("asc")
-      .collect();
-  },
-});
-
-export const getCard = query({
-  args: { cardId: v.id("cards") },
-  returns: v.union(
-    v.object({
-      _id: v.id("cards"),
-      _creationTime: v.number(),
-      setVariantId: v.id("setVariants"),
-      cardNumber: v.string(),
-      playerName: v.optional(v.string()),
-      team: v.optional(v.string()),
-      position: v.optional(v.string()),
-      description: v.optional(v.string()),
-      imageUrl: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.cardId);
-  },
-});
-
-// ===== HIERARCHICAL QUERIES =====
-
-export const getFullHierarchy = query({
-  args: { yearId: v.id("years") },
-  returns: v.object({
-    year: v.object({
-      _id: v.id("years"),
-      _creationTime: v.number(),
-      year: v.number(),
-      description: v.optional(v.string()),
-    }),
-    manufacturers: v.array(
-      v.object({
-        _id: v.id("manufacturers"),
-        _creationTime: v.number(),
-        yearId: v.id("years"),
-        name: v.string(),
-        description: v.optional(v.string()),
-        sets: v.array(
-          v.object({
-            _id: v.id("sets"),
-            _creationTime: v.number(),
-            manufacturerId: v.id("manufacturers"),
-            name: v.string(),
-            description: v.optional(v.string()),
-            variants: v.array(
-              v.object({
-                _id: v.id("setVariants"),
-                _creationTime: v.number(),
-                setId: v.id("sets"),
-                name: v.string(),
-                description: v.optional(v.string()),
-                variantType: v.union(
-                  v.literal("base"),
-                  v.literal("parallel"),
-                  v.literal("insert"),
-                  v.literal("parallel_of_insert")
-                ),
-                parentVariantId: v.optional(v.id("setVariants")),
-                parallelName: v.optional(v.string()),
-                insertName: v.optional(v.string()),
-                cardCount: v.number(),
-              })
-            ),
-          })
-        ),
-      })
-    ),
-  }),
-  handler: async (ctx, args) => {
-    const year = await ctx.db.get(args.yearId);
-    if (!year) {
-      throw new Error("Year not found");
-    }
-
-    const manufacturers = await ctx.db
-      .query("manufacturers")
-      .withIndex("by_year", (q) => q.eq("yearId", args.yearId))
-      .order("asc")
-      .collect();
-
-    const manufacturersWithSets = await Promise.all(
-      manufacturers.map(async (manufacturer) => {
-        const sets = await ctx.db
-          .query("sets")
-          .withIndex("by_manufacturer", (q) => q.eq("manufacturerId", manufacturer._id))
-          .order("asc")
-          .collect();
-
-        const setsWithVariants = await Promise.all(
-          sets.map(async (set) => {
-            const variants = await ctx.db
-              .query("setVariants")
-              .withIndex("by_set", (q) => q.eq("setId", set._id))
-              .order("asc")
-              .collect();
-
-            const variantsWithCardCount = await Promise.all(
-              variants.map(async (variant) => {
-                const cardCount = await ctx.db
-                  .query("cards")
-                  .withIndex("by_set_variant", (q) => q.eq("setVariantId", variant._id))
-                  .collect()
-                  .then(cards => cards.length);
-
-                return {
-                  ...variant,
-                  cardCount,
-                };
-              })
-            );
-
-            return {
-              ...set,
-              variants: variantsWithCardCount,
-            };
-          })
-        );
-
-        return {
-          ...manufacturer,
-          sets: setsWithVariants,
-        };
-      })
-    );
-
-    return {
-      year,
-      manufacturers: manufacturersWithSets,
-    };
-  },
-});
-
-export const searchCardSets = query({
-  args: {
-    searchTerm: v.string(),
-    variantType: v.optional(v.union(
-      v.literal("base"),
-      v.literal("parallel"),
-      v.literal("insert"),
-      v.literal("parallel_of_insert")
-    )),
-  },
-  returns: v.array(
-    v.object({
-      _id: v.id("setVariants"),
-      _creationTime: v.number(),
-      setId: v.id("sets"),
-      name: v.string(),
-      description: v.optional(v.string()),
-      variantType: v.union(
-        v.literal("base"),
-        v.literal("parallel"),
-        v.literal("insert"),
-        v.literal("parallel_of_insert")
-      ),
-      parentVariantId: v.optional(v.id("setVariants")),
-      parallelName: v.optional(v.string()),
-      insertName: v.optional(v.string()),
-      set: v.object({
-        _id: v.id("sets"),
-        name: v.string(),
-        manufacturerId: v.id("manufacturers"),
-      }),
-      manufacturer: v.object({
-        _id: v.id("manufacturers"),
-        name: v.string(),
-        yearId: v.id("years"),
-      }),
-      year: v.object({
-        _id: v.id("years"),
-        year: v.number(),
-      }),
-    })
-  ),
-  handler: async (ctx, args) => {
-    // Get all set variants and filter by search term and variant type
-    const allVariants = await ctx.db.query("setVariants").collect();
-    
-    const filteredVariants = allVariants.filter(variant => {
-      const matchesSearch = 
-        variant.name.toLowerCase().includes(args.searchTerm.toLowerCase()) ||
-        (variant.parallelName && variant.parallelName.toLowerCase().includes(args.searchTerm.toLowerCase())) ||
-        (variant.insertName && variant.insertName.toLowerCase().includes(args.searchTerm.toLowerCase()));
-      
-      const matchesType = !args.variantType || variant.variantType === args.variantType;
-      
-      return matchesSearch && matchesType;
-    });
-
-    // Get set, manufacturer and year info for each variant
-    const variantsWithHierarchy = await Promise.all(
-      filteredVariants.map(async (variant) => {
-        const set = await ctx.db.get(variant.setId);
-        if (!set) throw new Error("Set not found");
-        
-        const manufacturer = await ctx.db.get(set.manufacturerId);
-        if (!manufacturer) throw new Error("Manufacturer not found");
-        
-        const year = await ctx.db.get(manufacturer.yearId);
-        if (!year) throw new Error("Year not found");
-
-        return {
-          ...variant,
-          set: {
-            _id: set._id,
-            name: set.name,
-            manufacturerId: set.manufacturerId,
-          },
-          manufacturer: {
-            _id: manufacturer._id,
-            name: manufacturer.name,
-            yearId: manufacturer.yearId,
-          },
-          year: {
-            _id: year._id,
-            year: year.year,
-          },
-        };
-      })
-    );
-
-    return variantsWithHierarchy;
-  },
-});
-
-// Create a new set selection
 export const createSetSelection = mutation({
   args: {
     name: v.string(),
     description: v.string(),
-    sport: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    year: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
+    sport: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    year: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    manufacturer: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    setName: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    variantType: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    insert: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    parallel: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
   },
+  returns: v.id("setSelections"),
   handler: async (ctx, args) => {
-    const now = Date.now();
     const id = await ctx.db.insert("setSelections", {
-      ...args,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return id;
-  },
-});
-
-// Update an existing set selection
-export const updateSetSelection = mutation({
-  args: {
-    id: v.id("setSelections"),
-    name: v.string(),
-    description: v.string(),
-    sport: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    year: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    manufacturer: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    setName: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-    variantType: v.optional(v.array(v.object({ site: v.string(), value: v.string() }))),
-  },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    await ctx.db.patch(args.id, {
       name: args.name,
       description: args.description,
       sport: args.sport,
@@ -764,24 +118,710 @@ export const updateSetSelection = mutation({
       manufacturer: args.manufacturer,
       setName: args.setName,
       variantType: args.variantType,
-      updatedAt: now,
+      insert: args.insert,
+      parallel: args.parallel,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     });
-    return args.id;
+    return id;
   },
 });
 
-// Get a set selection by id
+export const updateSetSelection = mutation({
+  args: {
+    id: v.id("setSelections"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    sport: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    year: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    manufacturer: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    setName: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    variantType: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    insert: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+    parallel: v.optional(
+      v.array(v.object({ site: v.string(), value: v.string() })),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    await ctx.db.patch(id, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const getSetSelection = query({
   args: { id: v.id("setSelections") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("setSelections"),
+      _creationTime: v.number(),
+      name: v.string(),
+      description: v.string(),
+      sport: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      year: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      manufacturer: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      setName: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      variantType: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      insert: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      parallel: v.optional(
+        v.array(v.object({ site: v.string(), value: v.string() })),
+      ),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
   },
 });
 
-// List all set selections
 export const listSetSelections = query({
-  args: {},
   handler: async (ctx) => {
     return await ctx.db.query("setSelections").order("desc").collect();
+  },
+});
+
+// ===== SELECTOR OPTIONS MANAGEMENT =====
+
+// Update selector options from all platforms
+export const updateSelectorOptions = action({
+  args: {
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    parentFilters: v.optional(
+      v.object({
+        sport: v.optional(v.string()),
+        year: v.optional(v.number()),
+        manufacturer: v.optional(v.string()),
+        setName: v.optional(v.string()),
+        variantType: v.optional(
+          v.union(
+            v.literal("base"),
+            v.literal("parallel"),
+            v.literal("insert"),
+            v.literal("parallel_of_insert"),
+          ),
+        ),
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    optionsCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      const { level, parentFilters } = args;
+
+      // Default to sport if no level specified
+      const selectorLevel = level || "sport";
+
+      console.log(
+        `[updateSelectorOptions] Updating ${selectorLevel} options with filters:`,
+        parentFilters,
+      );
+
+      // Get options from BSC API
+      let bscOptions: Array<{ value: string; platformData: any }> = [];
+      try {
+        const bscResult = await ctx.runAction(
+          api.adapters.buysportscards.getAvailableSetParameters,
+          {
+            partialParams: parentFilters || {},
+          },
+        );
+
+        if (bscResult.availableOptions) {
+          const levelKey =
+            selectorLevel === "sport"
+              ? "sports"
+              : selectorLevel === "year"
+                ? "years"
+                : selectorLevel === "manufacturer"
+                  ? "manufacturers"
+                  : selectorLevel === "setName"
+                    ? "setNames"
+                    : selectorLevel === "variantType"
+                      ? "variantNames"
+                      : selectorLevel;
+
+          const options =
+            bscResult.availableOptions[
+              levelKey as keyof typeof bscResult.availableOptions
+            ];
+          if (options && Array.isArray(options) && options.length > 0) {
+            bscOptions = options.flatMap((siteOption: any) =>
+              siteOption.values.map((value: any) => ({
+                value: value.label,
+                platformData: { bsc: value.value },
+              })),
+            );
+          }
+        }
+      } catch (error) {
+        console.error(`[updateSelectorOptions] BSC error:`, error);
+      }
+
+      // Get options from SportLots via browser service
+      let sportlotsOptions: Array<{ value: string; platformData: any }> = [];
+      try {
+        const browserServiceUrl =
+          process.env.NEONBINDER_BROWSER_URL || "http://localhost:8080";
+
+        // For now, skip SportLots since we can't make HTTP requests from Convex actions
+        // In a real implementation, you would need to use a different approach
+        console.log(
+          `[updateSelectorOptions] SportLots browser service not available from Convex actions`,
+        );
+      } catch (error) {
+        console.error(`[updateSelectorOptions] SportLots error:`, error);
+      }
+
+      // Combine and deduplicate options
+      const allOptions = [...bscOptions, ...sportlotsOptions];
+      const valueMap = new Map<string, { value: string; platformData: any }>();
+
+      allOptions.forEach((option) => {
+        const normalizedValue = option.value.toLowerCase().trim();
+        const existing = valueMap.get(normalizedValue);
+
+        if (existing) {
+          // Merge platform data
+          existing.platformData = {
+            ...existing.platformData,
+            ...option.platformData,
+          };
+        } else {
+          valueMap.set(normalizedValue, {
+            value: option.value,
+            platformData: option.platformData,
+          });
+        }
+      });
+
+      // Convert to array for storage
+      const optionsToStore = Array.from(valueMap.values());
+
+      // Store the options using a mutation
+      const result: {
+        success: boolean;
+        message: string;
+        optionsCount: number;
+      } = await ctx.runMutation(api.myFunctions.storeSelectorOptions, {
+        level: selectorLevel,
+        options: optionsToStore,
+        parentFilters: parentFilters || {},
+      });
+
+      console.log(
+        `[updateSelectorOptions] Successfully updated ${result.optionsCount} ${selectorLevel} options`,
+      );
+
+      return {
+        success: true,
+        message: `Successfully updated ${result.optionsCount} ${selectorLevel} options`,
+        optionsCount: result.optionsCount,
+      };
+    } catch (error) {
+      console.error(`[updateSelectorOptions] Error:`, error);
+      return {
+        success: false,
+        message: `Failed to update selector options: ${error instanceof Error ? error.message : "Unknown error"}`,
+        optionsCount: 0,
+      };
+    }
+  },
+});
+
+// Store selector options in the database
+export const storeSelectorOptions = mutation({
+  args: {
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    options: v.array(
+      v.object({
+        value: v.string(),
+        platformData: v.object({
+          bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+          sportlots: v.optional(v.string()),
+        }),
+      }),
+    ),
+    parentFilters: v.object({
+      sport: v.optional(v.string()),
+      year: v.optional(v.number()),
+      manufacturer: v.optional(v.string()),
+      setName: v.optional(v.string()),
+      variantType: v.optional(
+        v.union(
+          v.literal("base"),
+          v.literal("parallel"),
+          v.literal("insert"),
+          v.literal("parallel_of_insert"),
+        ),
+      ),
+    }),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    optionsCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      const { level, options, parentFilters } = args;
+
+      // Find parent option if we have filters
+      let parentId: any = undefined;
+      if (parentFilters) {
+        const parentLevel =
+          level === "year"
+            ? "sport"
+            : level === "manufacturer"
+              ? "year"
+              : level === "setName"
+                ? "manufacturer"
+                : level === "variantType"
+                  ? "setName"
+                  : undefined;
+
+        if (parentLevel) {
+          const parentValue =
+            parentFilters[parentLevel as keyof typeof parentFilters];
+          if (parentValue) {
+            const parentOption = await ctx.db
+              .query("selectorOptions")
+              .withIndex("by_level", (q) => q.eq("level", parentLevel))
+              .filter((q) => q.eq(q.field("value"), parentValue))
+              .first();
+
+            if (parentOption) {
+              parentId = parentOption._id;
+            }
+          }
+        }
+      }
+
+      // Clear existing options for this level and parent
+      const existingOptions = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level", (q) => q.eq("level", level))
+        .filter((q) => q.eq(q.field("parentId"), parentId))
+        .collect();
+
+      for (const option of existingOptions) {
+        await ctx.db.delete(option._id);
+      }
+
+      // Insert new options
+      const insertedOptions: any[] = [];
+      for (const option of options) {
+        const optionId = await ctx.db.insert("selectorOptions", {
+          level: level,
+          value: option.value,
+          platformData: option.platformData,
+          parentId: parentId,
+          children: [],
+          lastUpdated: Date.now(),
+        });
+        insertedOptions.push(optionId);
+      }
+
+      // Update parent's children array if we have a parent
+      if (parentId && insertedOptions.length > 0) {
+        await ctx.db.patch(parentId, {
+          children: insertedOptions,
+        });
+      }
+
+      return {
+        success: true,
+        message: `Successfully stored ${insertedOptions.length} ${level} options`,
+        optionsCount: insertedOptions.length,
+      };
+    } catch (error) {
+      console.error(`[storeSelectorOptions] Error:`, error);
+      return {
+        success: false,
+        message: `Failed to store selector options: ${error instanceof Error ? error.message : "Unknown error"}`,
+        optionsCount: 0,
+      };
+    }
+  },
+});
+
+// Get selector options for a specific level
+export const getSelectorOptions = query({
+  args: {
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    parentId: v.optional(v.id("selectorOptions")),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("selectorOptions"),
+      _creationTime: v.number(),
+      level: v.union(
+        v.literal("sport"),
+        v.literal("year"),
+        v.literal("manufacturer"),
+        v.literal("setName"),
+        v.literal("variantType"),
+        v.literal("insert"),
+        v.literal("parallel"),
+      ),
+      value: v.string(),
+      platformData: v.object({
+        bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlots: v.optional(v.string()),
+      }),
+      parentId: v.optional(v.id("selectorOptions")),
+      children: v.optional(v.array(v.id("selectorOptions"))),
+      lastUpdated: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const { level, parentId } = args;
+
+    if (parentId) {
+      return await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level", (q) => q.eq("level", level))
+        .filter((q) => q.eq(q.field("parentId"), parentId))
+        .collect();
+    } else {
+      return await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level", (q) => q.eq("level", level))
+        .filter((q) => q.eq(q.field("parentId"), undefined))
+        .collect();
+    }
+  },
+});
+
+// ===== AGGREGATED SELECTOR OPTIONS =====
+
+export const getAggregatedSelectorOptions = action({
+  args: {
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    parentFilters: v.optional(
+      v.object({
+        sport: v.optional(v.string()),
+        year: v.optional(v.number()),
+        manufacturer: v.optional(v.string()),
+        setName: v.optional(v.string()),
+        variantType: v.optional(
+          v.union(
+            v.literal("base"),
+            v.literal("parallel"),
+            v.literal("insert"),
+            v.literal("parallel_of_insert"),
+          ),
+        ),
+      }),
+    ),
+    loginKey: v.string(), // For SportLots credentials
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    optionsCount: v.number(),
+    options: v.array(
+      v.object({
+        value: v.string(),
+        platformData: v.object({
+          sportlots: v.optional(v.string()),
+          bsc: v.optional(v.array(v.string())),
+        }),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      console.log(
+        `[getAggregatedSelectorOptions] Getting ${args.level} options with filters:`,
+        args.parentFilters,
+      );
+
+      const aggregatedOptions: Array<{
+        value: string;
+        platformData: {
+          sportlots?: string;
+          bsc?: string[];
+        };
+      }> = [];
+
+      // 1. Get SportLots options from neonbinder_browser service
+      let sportlotsOptions: Array<{
+        value: string;
+        platformData: { sportlots: string };
+      }> = [];
+      try {
+        const browserServiceUrl =
+          process.env.BROWSER_SERVICE_URL || "http://localhost:8080";
+        const sportlotsResponse = await fetch(
+          `${browserServiceUrl}/get-selector-options`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              level: args.level,
+              parentFilters: args.parentFilters,
+              loginKey: args.loginKey,
+            }),
+          },
+        );
+
+        if (sportlotsResponse.ok) {
+          const sportlotsData = await sportlotsResponse.json();
+          if (sportlotsData.success) {
+            sportlotsOptions = sportlotsData.options;
+            console.log(
+              `[getAggregatedSelectorOptions] Got ${sportlotsOptions.length} SportLots options`,
+            );
+          }
+        } else {
+          console.error(
+            `[getAggregatedSelectorOptions] SportLots API error: ${sportlotsResponse.status}`,
+          );
+        }
+      } catch (error) {
+        console.error(`[getAggregatedSelectorOptions] SportLots error:`, error);
+      }
+
+      // 2. Get BSC options using the BSC API
+      let bscOptions: Array<{
+        value: string;
+        platformData: { bsc: string[] };
+      }> = [];
+      try {
+        // Get BSC token from Secret Manager
+        const tokenResult = await ctx.runAction(
+          api.adapters.secret_manager.getSiteCredentials,
+          {
+            site: "buysportscards",
+          },
+        );
+
+        if (tokenResult && tokenResult.token) {
+          // Build BSC filters based on parentFilters
+          const bscFilters: {
+            sport?: string[];
+            year?: string[];
+            setName?: string[];
+            variant?: string[];
+          } = {};
+
+          if (args.parentFilters?.sport) {
+            bscFilters.sport = [args.parentFilters.sport.toLowerCase()];
+          }
+          if (args.parentFilters?.year) {
+            bscFilters.year = [args.parentFilters.year.toString()];
+          }
+          if (args.parentFilters?.manufacturer) {
+            bscFilters.setName = [
+              args.parentFilters.manufacturer.toLowerCase(),
+            ];
+          }
+          if (args.parentFilters?.setName) {
+            bscFilters.setName = [args.parentFilters.setName.toLowerCase()];
+          }
+          if (args.parentFilters?.variantType) {
+            bscFilters.variant = [args.parentFilters.variantType];
+          }
+
+          // Call BSC API
+          const bscApiUrl =
+            "https://www.buysportscards.com/seller/bulk-upload/results";
+          const bscResponse = await fetch(bscApiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${tokenResult.token}`,
+            },
+            body: JSON.stringify({
+              condition: "near_mint",
+              currentListings: true,
+              productType: "raw",
+              filters: bscFilters,
+            }),
+          });
+
+          if (bscResponse.ok) {
+            const bscData = await bscResponse.json();
+
+            // Process BSC response to extract available options based on level
+            // This is a simplified example - you'll need to adapt based on actual BSC API response structure
+            if (args.level === "sport" && !args.parentFilters?.sport) {
+              // Extract unique sports from BSC response
+              const sports = new Set<string>();
+              // Process bscData to extract sports - this is placeholder logic
+              // In a real implementation, you would parse bscData to extract available sports
+              if (bscData && typeof bscData === "object") {
+                // Placeholder: extract sports from bscData
+                // This would need to be adapted based on the actual BSC API response structure
+                console.log(
+                  `[getAggregatedSelectorOptions] BSC data received:`,
+                  bscData,
+                );
+              }
+
+              bscOptions = Array.from(sports).map((sport) => ({
+                value: sport.charAt(0).toUpperCase() + sport.slice(1), // Capitalize first letter
+                platformData: { bsc: [sport.toLowerCase()] },
+              }));
+            } else if (args.level === "year" && !args.parentFilters?.year) {
+              // Extract unique years from BSC response
+              const years = new Set<string>();
+              // Process bscData to extract years - this is placeholder logic
+              if (bscData && typeof bscData === "object") {
+                // Placeholder: extract years from bscData
+                console.log(
+                  `[getAggregatedSelectorOptions] BSC data received:`,
+                  bscData,
+                );
+              }
+
+              bscOptions = Array.from(years).map((year) => ({
+                value: year,
+                platformData: { bsc: [year] },
+              }));
+            }
+            // Add similar logic for other levels
+
+            console.log(
+              `[getAggregatedSelectorOptions] Got ${bscOptions.length} BSC options`,
+            );
+          } else {
+            console.error(
+              `[getAggregatedSelectorOptions] BSC API error: ${bscResponse.status}`,
+            );
+          }
+        } else {
+          console.error(
+            `[getAggregatedSelectorOptions] No BSC token available`,
+          );
+        }
+      } catch (error) {
+        console.error(`[getAggregatedSelectorOptions] BSC error:`, error);
+      }
+
+      // 3. Combine and deduplicate options
+      const valueMap = new Map<
+        string,
+        { value: string; platformData: { sportlots?: string; bsc?: string[] } }
+      >();
+
+      // Add SportLots options
+      sportlotsOptions.forEach((option) => {
+        const normalizedValue = option.value.toLowerCase();
+        if (!valueMap.has(normalizedValue)) {
+          valueMap.set(normalizedValue, {
+            value: option.value,
+            platformData: { sportlots: option.platformData.sportlots },
+          });
+        } else {
+          // Merge with existing entry
+          const existing = valueMap.get(normalizedValue)!;
+          existing.platformData.sportlots = option.platformData.sportlots;
+        }
+      });
+
+      // Add BSC options
+      bscOptions.forEach((option) => {
+        const normalizedValue = option.value.toLowerCase();
+        if (!valueMap.has(normalizedValue)) {
+          valueMap.set(normalizedValue, {
+            value: option.value,
+            platformData: { bsc: option.platformData.bsc },
+          });
+        } else {
+          // Merge with existing entry
+          const existing = valueMap.get(normalizedValue)!;
+          existing.platformData.bsc = option.platformData.bsc;
+        }
+      });
+
+      // Convert map back to array
+      aggregatedOptions.push(...Array.from(valueMap.values()));
+
+      console.log(
+        `[getAggregatedSelectorOptions] Successfully combined ${aggregatedOptions.length} options`,
+      );
+
+      return {
+        success: true,
+        message: `Successfully found ${aggregatedOptions.length} ${args.level} options from SportLots and BSC`,
+        optionsCount: aggregatedOptions.length,
+        options: aggregatedOptions,
+      };
+    } catch (error) {
+      console.error(`[getAggregatedSelectorOptions] Error:`, error);
+      return {
+        success: false,
+        message: `Failed to get aggregated selector options: ${error instanceof Error ? error.message : "Unknown error"}`,
+        optionsCount: 0,
+        options: [],
+      };
+    }
   },
 });

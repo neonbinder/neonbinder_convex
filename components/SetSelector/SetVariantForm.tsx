@@ -1,142 +1,52 @@
-import { useMutation, useQuery } from "convex/react";
+import React from "react";
+import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
-import { useState } from "react";
-import GenericEntityForm from "./GenericEntityForm";
+import type { GenericId } from "convex/values";
 
 export default function SetVariantForm({
   setId,
   onDone,
 }: {
-  setId: Id<"sets">;
+  setId: GenericId<"selectorOptions">;
   onDone?: () => void;
 }) {
-  const [variantType, setVariantType] = useState<
-    "base" | "parallel" | "insert" | "parallel_of_insert"
-  >("base");
-  const [parallelName, setParallelName] = useState("");
-  const [insertName, setInsertName] = useState("");
-  const [parentVariantId, setParentVariantId] = useState("");
-  const createSetVariant = useMutation(api.myFunctions.createSetVariant);
-  const variants = useQuery(api.myFunctions.getSetVariantsBySet, { setId });
+  const updateSelectorOptions = useAction(
+    api.myFunctions.updateSelectorOptions,
+  );
 
   return (
-    <GenericEntityForm
-      title="Create Set Variant"
-      fields={[
-        {
-          name: "name",
-          label: "Variant Name",
-          type: "text",
-          placeholder: "e.g., Base Set, Gold Parallel, All-Star Insert",
-          required: true,
-        },
-        {
-          name: "description",
-          label: "Description (optional)",
-          type: "text",
-          placeholder: "e.g., Main base set, Limited gold parallel",
-        },
-      ]}
-      submitLabel="Create Set Variant"
-      onSubmit={async (values) => {
-        await createSetVariant({
-          setId,
-          name: values.name,
-          description: values.description || undefined,
-          variantType,
-          parallelName:
-            variantType === "parallel" || variantType === "parallel_of_insert"
-              ? parallelName
-              : undefined,
-          insertName: variantType === "insert" ? insertName : undefined,
-          parentVariantId:
-            variantType === "parallel_of_insert"
-              ? (parentVariantId as Id<"setVariants">)
-              : undefined,
-        });
-        onDone?.();
-      }}
-      onCancel={onDone!}
-    >
-      {/* Custom fields for variantType, parallelName, insertName, parentVariantId */}
-      <div className="space-y-4 mt-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Variant Type</label>
-          <select
-            value={variantType}
-            onChange={(e) =>
-              setVariantType(
-                e.target.value as
-                  | "base"
-                  | "parallel"
-                  | "insert"
-                  | "parallel_of_insert",
-              )
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-xl font-semibold mb-4">Update Set Variant Options</h2>
+      <p className="text-gray-600 dark:text-gray-400 mb-4">
+        This will fetch the latest set variant options from all connected
+        platforms and update the database.
+      </p>
+
+      <div className="flex gap-2">
+        <button
+          onClick={async () => {
+            try {
+              const result = await updateSelectorOptions({
+                level: "variantType",
+                parentFilters: { setName: setId }, // This would need to be the set value, not ID
+              });
+              console.log("Updated set variant options:", result);
+              onDone?.();
+            } catch (error) {
+              console.error("Failed to update set variant options:", error);
             }
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="base">Base Set</option>
-            <option value="parallel">Parallel</option>
-            <option value="insert">Insert</option>
-            <option value="parallel_of_insert">Parallel of Insert</option>
-          </select>
-        </div>
-        {(variantType === "parallel" ||
-          variantType === "parallel_of_insert") && (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Parallel Name
-            </label>
-            <input
-              type="text"
-              value={parallelName}
-              onChange={(e) => setParallelName(e.target.value)}
-              className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-              placeholder="e.g., Gold, Silver, Refractor"
-              required
-            />
-          </div>
-        )}
-        {variantType === "insert" && (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Insert Name
-            </label>
-            <input
-              type="text"
-              value={insertName}
-              onChange={(e) => setInsertName(e.target.value)}
-              className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-              placeholder="e.g., All-Star, Rookie, Legend"
-              required
-            />
-          </div>
-        )}
-        {variantType === "parallel_of_insert" && variants && (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Parent Insert Variant
-            </label>
-            <select
-              value={parentVariantId}
-              onChange={(e) => setParentVariantId(e.target.value)}
-              className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-              required
-            >
-              <option value="">Select an insert variant</option>
-              {variants
-                .filter((v) => v.variantType === "insert")
-                .map((variant) => (
-                  <option key={variant._id} value={variant._id}>
-                    {variant.name}{" "}
-                    {variant.insertName && `(${variant.insertName})`}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
+          }}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Update Set Variant Options
+        </button>
+        <button
+          onClick={onDone}
+          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+        >
+          Cancel
+        </button>
       </div>
-    </GenericEntityForm>
+    </div>
   );
 }
