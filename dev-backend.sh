@@ -11,4 +11,10 @@ fi
 
 # Run the Convex dev command
 echo "Starting Convex dev server..."
-dotenv -e .env.convex -- convex dev 
+if [ -n "$CONVEX_DEPLOY_KEY" ]; then
+  DEPLOY_KEY_ARG="--key=$CONVEX_DEPLOY_KEY"
+else
+  DEPLOY_KEY_ARG=""
+fi
+
+dotenv -e .env.convex -- convex dev $DEPLOY_KEY_ARG 
