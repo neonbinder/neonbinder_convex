@@ -8,7 +8,7 @@
     "dev:backend": "./dev-backend.sh",
     "env:browser": "npx convex env set NEONBINDER_BROWSER_URL",
     "tunnel": "npx localtunnel --port 8080",
-    "predev": "convex dev --until-success && convex dev --once --run-sh \"node setup.mjs --once\" && convex dashboard",
+    "predev": "npx convex dev --until-success && npx convex dev --once --run-sh \"node setup.mjs --once\" && npx convex dashboard",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

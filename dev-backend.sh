@@ -14,4 +14,8 @@ echo "Starting Convex dev server..."
 # The Convex CLI v1.27+ does not accept a --key flag. It reads configuration from env/.env.local.
 # If you need to provide a deploy key, set CONVEX_DEPLOY_KEY in the environment or .env.local.
 
-dotenv -e .env.convex -- convex dev
+if [ -f ".env.convex" ]; then
+  dotenv -e .env.convex -- convex dev
+else
+  npx convex dev
+fi
