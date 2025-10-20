@@ -61,4 +61,13 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }),
+
+  // Prize Pool - stores prizes for the wheel of fortune spin
+  prizePool: defineTable({
+    userId: v.id("users"),
+    prizeName: v.string(),
+    percentage: v.number(), // 0-100, represents the likelihood of winning this prize
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });
