@@ -358,10 +358,12 @@ export default function ProfilePage() {
     }
   };
 
-  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number) => {
+  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number, imageUrl: string) => {
     setEditingPrizeId(prizeId);
     setEditPrizeName(prizeName);
     setEditPrizePercentage(percentage.toString());
+    setEditPrizeImage(null);
+    setEditPrizeImagePreview(imageUrl);
     setPrizeMessage("");
   };
 
