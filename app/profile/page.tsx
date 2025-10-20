@@ -257,7 +257,7 @@ export default function ProfilePage() {
       setPrizeMessageType("error");
       return;
     }
-    if (!newPokemonImage && !newSportsImage) {
+    if (!newPokemonImage && newSportsImages.length === 0) {
       setPrizeMessage("Please select at least one image (Pokemon or Sports).");
       setPrizeMessageType("error");
       return;
@@ -273,7 +273,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
     try {
       let pokemonImageUrl: string | undefined;
-      let sportsImageUrl: string | undefined;
+      let sportsImageUrls: string[] = [];
 
       // Upload Pokemon image if provided
       if (newPokemonImage) {
@@ -288,17 +288,17 @@ export default function ProfilePage() {
         pokemonImageUrl = uploadResult.imageUrl;
       }
 
-      // Upload Sports image if provided
-      if (newSportsImage) {
+      // Upload Sports images if provided
+      for (let i = 0; i < newSportsImages.length; i++) {
         const uploadResult = await uploadPrizeImage({
-          imageBase64: newSportsImage,
-          prizeName: `${newPrizeName.trim()}_sports`,
+          imageBase64: newSportsImages[i],
+          prizeName: `${newPrizeName.trim()}_sports_${i + 1}`,
         });
 
         if (!uploadResult.success || !uploadResult.imageUrl) {
           throw new Error(uploadResult.message);
         }
-        sportsImageUrl = uploadResult.imageUrl;
+        sportsImageUrls.push(uploadResult.imageUrl);
       }
 
       // Create prize with both image URLs
@@ -306,14 +306,14 @@ export default function ProfilePage() {
         prizeName: newPrizeName.trim(),
         percentage,
         pokemonImageUrl,
-        sportsImageUrl,
+        sportsImageUrls: sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
       });
       setNewPrizeName("");
       setNewPrizePercentage("");
       setNewPokemonImage(null);
       setNewPokemonImagePreview(null);
-      setNewSportsImage(null);
-      setNewSportsImagePreview(null);
+      setNewSportsImages([]);
+      setNewSportsImagePreviews([]);
       setPrizeMessage("Prize added successfully!");
       setPrizeMessageType("success");
     } catch (error) {
