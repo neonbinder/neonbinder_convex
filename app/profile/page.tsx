@@ -363,6 +363,22 @@ export default function ProfilePage() {
       return;
     }
 
+    // Check if percentages will sum to 100
+    if (prizes) {
+      const currentTotal = prizes.reduce((sum, prize) => sum + prize.percentage, 0);
+      const editingPrize = prizes.find(p => p._id === editingPrizeId);
+      const editingPrizePercentage = editingPrize?.percentage || 0;
+      const newTotal = currentTotal - editingPrizePercentage + percentage;
+      if (newTotal !== 100) {
+        const diff = 100 - newTotal;
+        setPrizeMessage(
+          `Prize percentages must sum to 100%. Current total with this change would be ${newTotal}% (${diff > 0 ? '+' + diff : diff}%).`
+        );
+        setPrizeMessageType("error");
+        return;
+      }
+    }
+
     setIsLoading(true);
     setPrizeMessage("");
     try {
