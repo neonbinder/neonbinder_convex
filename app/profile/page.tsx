@@ -546,6 +546,70 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDrag = (e: React.DragEvent<HTMLDivElement>, isActive: boolean, imageType: "pokemon" | "sports") => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (imageType === "pokemon") {
+      setPokemonDragActive(isActive);
+    } else {
+      setSportsDragActive(isActive);
+    }
+  };
+
+  const handleDropFile = (e: React.DragEvent<HTMLDivElement>, imageType: "pokemon" | "sports", isEdit: boolean = false) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (imageType === "pokemon") {
+      setPokemonDragActive(false);
+    } else {
+      setSportsDragActive(false);
+    }
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        setPrizeMessage("Please select a valid image file.");
+        setPrizeMessageType("error");
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setPrizeMessage("Image size must be less than 5MB.");
+        setPrizeMessageType("error");
+        return;
+      }
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64String = event.target?.result as string;
+        if (isEdit) {
+          if (imageType === "pokemon") {
+            setEditPokemonImage(base64String);
+            setEditPokemonImagePreview(base64String);
+          } else {
+            setEditSportsImages([...editSportsImages, base64String]);
+            setEditSportsImagePreviews([...editSportsImagePreviews, base64String]);
+          }
+        } else {
+          if (imageType === "pokemon") {
+            setNewPokemonImage(base64String);
+            setNewPokemonImagePreview(base64String);
+          } else {
+            setNewSportsImages([...newSportsImages, base64String]);
+            setNewSportsImagePreviews([...newSportsImagePreviews, base64String]);
+          }
+        }
+        setPrizeMessage("");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
