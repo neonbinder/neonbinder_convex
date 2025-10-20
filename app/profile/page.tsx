@@ -849,19 +849,40 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label
-                    htmlFor={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
-                    className="block text-sm font-medium mb-2"
-                  >
+                  <label className="block text-sm font-medium mb-2">
                     Pokémon Image {editingPrizeId && "(leave blank to keep current)"}
                   </label>
-                  <input
-                    id={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageFileChange(e, "pokemon", editingPrizeId !== null)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                  <div
+                    onDragEnter={(e) => handleDrag(e, true, "pokemon")}
+                    onDragLeave={(e) => handleDrag(e, false, "pokemon")}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDropFile(e, "pokemon", editingPrizeId !== null)}
+                    className={`w-full p-6 border-2 border-dashed rounded-md transition-colors ${
+                      pokemonDragActive
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-slate-300 dark:border-slate-600 bg-background hover:border-green-400"
+                    }`}
+                  >
+                    <input
+                      id={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageFileChange(e, "pokemon", editingPrizeId !== null)}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                      className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                    >
+                      <div className="text-2xl">📸</div>
+                      <div className="text-sm text-foreground font-medium">
+                        Drag and drop your image here
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        or click to select
+                      </div>
+                    </label>
+                  </div>
                 </div>
                 {(editingPrizeId ? editPokemonImagePreview : newPokemonImagePreview) && (
                   <div className="mt-2">
