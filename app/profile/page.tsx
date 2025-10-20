@@ -47,6 +47,8 @@ export default function ProfilePage() {
   const [prizeMessage, setPrizeMessage] = useState("");
   const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
   const [isMounted, setIsMounted] = useState(false);
+  const [pokemonDragActive, setPokemonDragActive] = useState(false);
+  const [sportsDragActive, setSportsDragActive] = useState(false);
 
   // Actions and Mutations
   const storeCredentials = useAction(
