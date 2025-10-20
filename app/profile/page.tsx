@@ -897,20 +897,40 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label
-                    htmlFor={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
-                    className="block text-sm font-medium mb-2"
-                  >
+                  <label className="block text-sm font-medium mb-2">
                     Sports Images {editingPrizeId && "(leave blank to keep current)"}
                   </label>
-                  <input
-                    id={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageFileChange(e, "sports", editingPrizeId !== null)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Upload multiple sports images (one at a time)</p>
+                  <div
+                    onDragEnter={(e) => handleDrag(e, true, "sports")}
+                    onDragLeave={(e) => handleDrag(e, false, "sports")}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDropFile(e, "sports", editingPrizeId !== null)}
+                    className={`w-full p-6 border-2 border-dashed rounded-md transition-colors ${
+                      sportsDragActive
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-slate-300 dark:border-slate-600 bg-background hover:border-green-400"
+                    }`}
+                  >
+                    <input
+                      id={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageFileChange(e, "sports", editingPrizeId !== null)}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                      className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                    >
+                      <div className="text-2xl">⚽</div>
+                      <div className="text-sm text-foreground font-medium">
+                        Drag and drop your image here
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        or click to select (upload multiple)
+                      </div>
+                    </label>
+                  </div>
                 </div>
                 {(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).length > 0 && (
                   <div className="mt-2">
