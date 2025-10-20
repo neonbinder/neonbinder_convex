@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const [editPrizePercentage, setEditPrizePercentage] = useState("");
   const [prizeMessage, setPrizeMessage] = useState("");
   const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
+  const [isMounted, setIsMounted] = useState(false);
 
   // Actions and Mutations
   const storeCredentials = useAction(
