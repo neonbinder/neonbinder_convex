@@ -326,7 +326,7 @@ export const getPrizes = query({
     prizeName: v.string(),
     percentage: v.number(),
     pokemonImageUrl: v.optional(v.string()),
-    sportsImageUrl: v.optional(v.string()),
+    sportsImageUrls: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
   })),
