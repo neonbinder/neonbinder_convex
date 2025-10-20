@@ -67,7 +67,8 @@ export default defineSchema({
     userId: v.id("users"),
     prizeName: v.string(),
     percentage: v.number(), // 0-100, represents the likelihood of winning this prize
-    imageUrl: v.string(), // URL to the prize image stored in Google Cloud Storage
+    pokemonImageUrl: v.optional(v.string()), // URL to the Pokemon variant image stored in Google Cloud Storage
+    sportsImageUrl: v.optional(v.string()), // URL to the Sports variant image stored in Google Cloud Storage
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
