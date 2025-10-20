@@ -321,14 +321,33 @@ export default function ProfilePage() {
     setIsLoading(true);
     setPrizeMessage("");
     try {
+      let imageUrl: string | undefined;
+
+      // Upload new image if selected
+      if (editPrizeImage && editPrizeImage !== editPrizeImagePreview?.split(",")[1]) {
+        const uploadResult = await uploadPrizeImage({
+          imageBase64: editPrizeImage,
+          prizeName: editPrizeName.trim(),
+        });
+
+        if (!uploadResult.success || !uploadResult.imageUrl) {
+          throw new Error(uploadResult.message);
+        }
+        imageUrl = uploadResult.imageUrl;
+      }
+
+      // Update prize
       await updatePrize({
         prizeId: editingPrizeId,
         prizeName: editPrizeName.trim(),
         percentage,
+        imageUrl,
       });
       setEditingPrizeId(null);
       setEditPrizeName("");
       setEditPrizePercentage("");
+      setEditPrizeImage(null);
+      setEditPrizeImagePreview(null);
       setPrizeMessage("Prize updated successfully!");
       setPrizeMessageType("success");
     } catch (error) {
