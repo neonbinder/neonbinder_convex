@@ -605,7 +605,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Prize Messages */}
-            {prizeMessage && (
+            {isMounted && prizeMessage && (
               <div
                 className={`p-4 rounded-md ${
                   prizeMessageType === "success"
@@ -618,43 +618,45 @@ export default function ProfilePage() {
             )}
 
             {/* Prizes List */}
-            {prizes && prizes.length > 0 ? (
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
-                <div className="space-y-2">
-                  {prizes.map((prize) => (
-                    <div
-                      key={prize._id}
-                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{prize.prizeName}</p>
-                        <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+            {isMounted && (
+              prizes && prizes.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
+                  <div className="space-y-2">
+                    {prizes.map((prize) => (
+                      <div
+                        key={prize._id}
+                        className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{prize.prizeName}</p>
+                          <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+                        </div>
+                        <div className="flex gap-2 ml-4 flex-shrink-0">
+                          <NeonButton
+                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage)}
+                            disabled={isLoading || editingPrizeId !== null}
+                            className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
+                          >
+                            Edit
+                          </NeonButton>
+                          <NeonButton
+                            onClick={() => handleDeletePrize(prize._id)}
+                            disabled={isLoading}
+                            className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm"
+                          >
+                            Delete
+                          </NeonButton>
+                        </div>
                       </div>
-                      <div className="flex gap-2 ml-4 flex-shrink-0">
-                        <NeonButton
-                          onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage)}
-                          disabled={isLoading || editingPrizeId !== null}
-                          className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
-                        >
-                          Edit
-                        </NeonButton>
-                        <NeonButton
-                          onClick={() => handleDeletePrize(prize._id)}
-                          disabled={isLoading}
-                          className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm"
-                        >
-                          Delete
-                        </NeonButton>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md text-center text-muted-foreground">
-                <p>No prizes configured yet. Add your first prize above.</p>
-              </div>
+              ) : (
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md text-center text-muted-foreground">
+                  <p>No prizes configured yet. Add your first prize above.</p>
+                </div>
+              )
             )}
           </div>
 
