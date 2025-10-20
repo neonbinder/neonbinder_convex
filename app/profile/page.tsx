@@ -726,31 +726,60 @@ export default function ProfilePage() {
                   placeholder="Enter percentage (0-100)"
                 />
               </div>
-              <div>
-                <label
-                  htmlFor={editingPrizeId ? "edit-prize-image" : "prize-image"}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Prize Image {editingPrizeId && "(leave blank to keep current)"}
-                </label>
-                <input
-                  id={editingPrizeId ? "edit-prize-image" : "prize-image"}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageFileChange(e, editingPrizeId !== null)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              {(editingPrizeId ? editPrizeImagePreview : newPrizeImagePreview) && (
-                <div className="mt-3">
-                  <p className="text-sm font-medium mb-2">Image Preview:</p>
-                  <img
-                    src={editingPrizeId ? editPrizeImagePreview : newPrizeImagePreview}
-                    alt="Prize preview"
-                    className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                    className="block text-sm font-medium mb-2"
+                  >
+                    Pokémon Image {editingPrizeId && "(leave blank to keep current)"}
+                  </label>
+                  <input
+                    id={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageFileChange(e, "pokemon", editingPrizeId !== null)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
-              )}
+                {(editingPrizeId ? editPokemonImagePreview : newPokemonImagePreview) && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-2">Pokémon Preview:</p>
+                    <img
+                      src={editingPrizeId ? editPokemonImagePreview : newPokemonImagePreview}
+                      alt="Pokemon preview"
+                      className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                    className="block text-sm font-medium mb-2"
+                  >
+                    Sports Image {editingPrizeId && "(leave blank to keep current)"}
+                  </label>
+                  <input
+                    id={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageFileChange(e, "sports", editingPrizeId !== null)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                {(editingPrizeId ? editSportsImagePreview : newSportsImagePreview) && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-2">Sports Preview:</p>
+                    <img
+                      src={editingPrizeId ? editSportsImagePreview : newSportsImagePreview}
+                      alt="Sports preview"
+                      className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+                    />
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <NeonButton
                   onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
