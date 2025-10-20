@@ -669,6 +669,31 @@ export default function ProfilePage() {
                   placeholder="Enter percentage (0-100)"
                 />
               </div>
+              <div>
+                <label
+                  htmlFor={editingPrizeId ? "edit-prize-image" : "prize-image"}
+                  className="block text-sm font-medium mb-2"
+                >
+                  Prize Image {editingPrizeId && "(leave blank to keep current)"}
+                </label>
+                <input
+                  id={editingPrizeId ? "edit-prize-image" : "prize-image"}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageFileChange(e, editingPrizeId !== null)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              {(editingPrizeId ? editPrizeImagePreview : newPrizeImagePreview) && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium mb-2">Image Preview:</p>
+                  <img
+                    src={editingPrizeId ? editPrizeImagePreview : newPrizeImagePreview}
+                    alt="Prize preview"
+                    className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+                  />
+                </div>
+              )}
               <div className="flex gap-2">
                 <NeonButton
                   onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
