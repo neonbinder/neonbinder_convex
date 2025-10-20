@@ -231,6 +231,116 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAddPrize = async () => {
+    if (!newPrizeName.trim()) {
+      setPrizeMessage("Please enter a prize name.");
+      setPrizeMessageType("error");
+      return;
+    }
+    if (!newPrizePercentage || isNaN(Number(newPrizePercentage))) {
+      setPrizeMessage("Please enter a valid percentage.");
+      setPrizeMessageType("error");
+      return;
+    }
+    const percentage = Number(newPrizePercentage);
+    if (percentage < 0 || percentage > 100) {
+      setPrizeMessage("Percentage must be between 0 and 100.");
+      setPrizeMessageType("error");
+      return;
+    }
+
+    setIsLoading(true);
+    setPrizeMessage("");
+    try {
+      await createPrize({
+        prizeName: newPrizeName.trim(),
+        percentage,
+      });
+      setNewPrizeName("");
+      setNewPrizePercentage("");
+      setPrizeMessage("Prize added successfully!");
+      setPrizeMessageType("success");
+    } catch (error) {
+      setPrizeMessage(`Failed to add prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdatePrize = async () => {
+    if (!editingPrizeId) return;
+    if (!editPrizeName.trim()) {
+      setPrizeMessage("Please enter a prize name.");
+      setPrizeMessageType("error");
+      return;
+    }
+    if (!editPrizePercentage || isNaN(Number(editPrizePercentage))) {
+      setPrizeMessage("Please enter a valid percentage.");
+      setPrizeMessageType("error");
+      return;
+    }
+    const percentage = Number(editPrizePercentage);
+    if (percentage < 0 || percentage > 100) {
+      setPrizeMessage("Percentage must be between 0 and 100.");
+      setPrizeMessageType("error");
+      return;
+    }
+
+    setIsLoading(true);
+    setPrizeMessage("");
+    try {
+      await updatePrize({
+        prizeId: editingPrizeId as any,
+        prizeName: editPrizeName.trim(),
+        percentage,
+      });
+      setEditingPrizeId(null);
+      setEditPrizeName("");
+      setEditPrizePercentage("");
+      setPrizeMessage("Prize updated successfully!");
+      setPrizeMessageType("success");
+    } catch (error) {
+      setPrizeMessage(`Failed to update prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number) => {
+    setEditingPrizeId(prizeId);
+    setEditPrizeName(prizeName);
+    setEditPrizePercentage(percentage.toString());
+    setPrizeMessage("");
+  };
+
+  const handleDeletePrize = async (prizeId: string) => {
+    if (!confirm("Are you sure you want to delete this prize?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    setPrizeMessage("");
+    try {
+      await deletePrize({ prizeId: prizeId as any });
+      setPrizeMessage("Prize deleted successfully!");
+      setPrizeMessageType("success");
+    } catch (error) {
+      setPrizeMessage(`Failed to delete prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const cancelEditPrize = () => {
+    setEditingPrizeId(null);
+    setEditPrizeName("");
+    setEditPrizePercentage("");
+    setPrizeMessage("");
+  };
+
   return (
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
