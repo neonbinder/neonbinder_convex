@@ -445,8 +445,8 @@ export default function ProfilePage() {
     setEditPrizePercentage("");
     setEditPokemonImage(null);
     setEditPokemonImagePreview(null);
-    setEditSportsImage(null);
-    setEditSportsImagePreview(null);
+    setEditSportsImages([]);
+    setEditSportsImagePreviews([]);
     setPrizeMessage("");
   };
 
