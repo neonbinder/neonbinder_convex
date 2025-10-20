@@ -33,9 +33,13 @@ export default function ProfilePage() {
   // Prize Pool state
   const [newPrizeName, setNewPrizeName] = useState("");
   const [newPrizePercentage, setNewPrizePercentage] = useState("");
+  const [newPrizeImage, setNewPrizeImage] = useState<string | null>(null);
+  const [newPrizeImagePreview, setNewPrizeImagePreview] = useState<string | null>(null);
   const [editingPrizeId, setEditingPrizeId] = useState<string | null>(null);
   const [editPrizeName, setEditPrizeName] = useState("");
   const [editPrizePercentage, setEditPrizePercentage] = useState("");
+  const [editPrizeImage, setEditPrizeImage] = useState<string | null>(null);
+  const [editPrizeImagePreview, setEditPrizeImagePreview] = useState<string | null>(null);
   const [prizeMessage, setPrizeMessage] = useState("");
   const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
   const [isMounted, setIsMounted] = useState(false);
