@@ -347,7 +347,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
     try {
       let pokemonImageUrl: string | undefined;
-      let sportsImageUrl: string | undefined;
+      let sportsImageUrls: string[] = [];
 
       // Upload new Pokemon image if selected
       if (editPokemonImage && editPokemonImage !== editPokemonImagePreview?.split(",")[1]) {
@@ -362,17 +362,26 @@ export default function ProfilePage() {
         pokemonImageUrl = uploadResult.imageUrl;
       }
 
-      // Upload new Sports image if selected
-      if (editSportsImage && editSportsImage !== editSportsImagePreview?.split(",")[1]) {
-        const uploadResult = await uploadPrizeImage({
-          imageBase64: editSportsImage,
-          prizeName: `${editPrizeName.trim()}_sports`,
-        });
+      // Upload new Sports images if selected
+      for (let i = 0; i < editSportsImages.length; i++) {
+        const currentImage = editSportsImages[i];
+        const isNewImage = !editSportsImagePreviews.some(preview =>
+          preview === currentImage || currentImage === preview.split(",")[1]
+        );
 
-        if (!uploadResult.success || !uploadResult.imageUrl) {
-          throw new Error(uploadResult.message);
+        if (isNewImage) {
+          const uploadResult = await uploadPrizeImage({
+            imageBase64: currentImage,
+            prizeName: `${editPrizeName.trim()}_sports_${i + 1}`,
+          });
+
+          if (!uploadResult.success || !uploadResult.imageUrl) {
+            throw new Error(uploadResult.message);
+          }
+          sportsImageUrls.push(uploadResult.imageUrl);
+        } else {
+          sportsImageUrls.push(currentImage);
         }
-        sportsImageUrl = uploadResult.imageUrl;
       }
 
       // Update prize
@@ -381,15 +390,15 @@ export default function ProfilePage() {
         prizeName: editPrizeName.trim(),
         percentage,
         pokemonImageUrl,
-        sportsImageUrl,
+        sportsImageUrls: sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
       });
       setEditingPrizeId(null);
       setEditPrizeName("");
       setEditPrizePercentage("");
       setEditPokemonImage(null);
       setEditPokemonImagePreview(null);
-      setEditSportsImage(null);
-      setEditSportsImagePreview(null);
+      setEditSportsImages([]);
+      setEditSportsImagePreviews([]);
       setPrizeMessage("Prize updated successfully!");
       setPrizeMessageType("success");
     } catch (error) {
