@@ -299,6 +299,7 @@ export const getPrizes = query({
   args: {},
   returns: v.array(v.object({
     _id: v.id("prizePool"),
+    _creationTime: v.number(),
     userId: v.id("users"),
     prizeName: v.string(),
     percentage: v.number(),
