@@ -59,6 +59,12 @@ export default function ProfilePage() {
     api.adapters.secret_manager.testSiteCredentials,
   );
 
+  // Prize Pool mutations and queries
+  const createPrize = useMutation(api.userProfile.createPrize);
+  const updatePrize = useMutation(api.userProfile.updatePrize);
+  const deletePrize = useMutation(api.userProfile.deletePrize);
+  const prizes = useQuery(api.userProfile.getPrizes);
+
   // Get user profile to check if credentials are stored
   const profile = useQuery(api.userProfile.getUserProfile);
   const siteMeta = SUPPORTED_SITES.find((s) => s.key === selectedSite);
