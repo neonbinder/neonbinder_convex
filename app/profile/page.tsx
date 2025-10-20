@@ -350,7 +350,46 @@ export default function ProfilePage() {
     setEditingPrizeId(null);
     setEditPrizeName("");
     setEditPrizePercentage("");
+    setEditPrizeImage(null);
+    setEditPrizeImagePreview(null);
     setPrizeMessage("");
+  };
+
+  const handleImageFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isEdit: boolean = false
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setPrizeMessage("Please select a valid image file.");
+      setPrizeMessageType("error");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setPrizeMessage("Image size must be less than 5MB.");
+      setPrizeMessageType("error");
+      return;
+    }
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      if (isEdit) {
+        setEditPrizeImage(base64String);
+        setEditPrizeImagePreview(base64String);
+      } else {
+        setNewPrizeImage(base64String);
+        setNewPrizeImagePreview(base64String);
+      }
+      setPrizeMessage("");
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
