@@ -33,13 +33,17 @@ export default function ProfilePage() {
   // Prize Pool state
   const [newPrizeName, setNewPrizeName] = useState("");
   const [newPrizePercentage, setNewPrizePercentage] = useState("");
-  const [newPrizeImage, setNewPrizeImage] = useState<string | null>(null);
-  const [newPrizeImagePreview, setNewPrizeImagePreview] = useState<string | null>(null);
+  const [newPokemonImage, setNewPokemonImage] = useState<string | null>(null);
+  const [newPokemonImagePreview, setNewPokemonImagePreview] = useState<string | null>(null);
+  const [newSportsImage, setNewSportsImage] = useState<string | null>(null);
+  const [newSportsImagePreview, setNewSportsImagePreview] = useState<string | null>(null);
   const [editingPrizeId, setEditingPrizeId] = useState<string | null>(null);
   const [editPrizeName, setEditPrizeName] = useState("");
   const [editPrizePercentage, setEditPrizePercentage] = useState("");
-  const [editPrizeImage, setEditPrizeImage] = useState<string | null>(null);
-  const [editPrizeImagePreview, setEditPrizeImagePreview] = useState<string | null>(null);
+  const [editPokemonImage, setEditPokemonImage] = useState<string | null>(null);
+  const [editPokemonImagePreview, setEditPokemonImagePreview] = useState<string | null>(null);
+  const [editSportsImage, setEditSportsImage] = useState<string | null>(null);
+  const [editSportsImagePreview, setEditSportsImagePreview] = useState<string | null>(null);
   const [prizeMessage, setPrizeMessage] = useState("");
   const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
   const [isMounted, setIsMounted] = useState(false);
