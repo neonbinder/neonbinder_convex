@@ -30,6 +30,15 @@ export default function ProfilePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
+  // Prize Pool state
+  const [newPrizeName, setNewPrizeName] = useState("");
+  const [newPrizePercentage, setNewPrizePercentage] = useState("");
+  const [editingPrizeId, setEditingPrizeId] = useState<string | null>(null);
+  const [editPrizeName, setEditPrizeName] = useState("");
+  const [editPrizePercentage, setEditPrizePercentage] = useState("");
+  const [prizeMessage, setPrizeMessage] = useState("");
+  const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
+
   // Actions and Mutations
   const storeCredentials = useAction(
     api.adapters.secret_manager.storeSiteCredentials,
