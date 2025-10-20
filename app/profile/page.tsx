@@ -79,6 +79,11 @@ export default function ProfilePage() {
   console.log("[ProfilePage] selectedSite:", selectedSite);
   console.log("[ProfilePage] hasStoredCredentials:", hasStoredCredentials);
 
+  // Set mounted flag after hydration
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Reset form fields and edit mode when site changes
   useEffect(() => {
     setUsername("");
