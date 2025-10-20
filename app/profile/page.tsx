@@ -409,14 +409,14 @@ export default function ProfilePage() {
     }
   };
 
-  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number, pokemonImageUrl?: string, sportsImageUrl?: string) => {
+  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number, pokemonImageUrl?: string, sportsImageUrls?: string[]) => {
     setEditingPrizeId(prizeId);
     setEditPrizeName(prizeName);
     setEditPrizePercentage(percentage.toString());
     setEditPokemonImage(null);
     setEditPokemonImagePreview(pokemonImageUrl || null);
-    setEditSportsImage(null);
-    setEditSportsImagePreview(sportsImageUrl || null);
+    setEditSportsImages([]);
+    setEditSportsImagePreviews(sportsImageUrls || []);
     setPrizeMessage("");
   };
 
