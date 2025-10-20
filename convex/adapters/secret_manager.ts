@@ -100,7 +100,7 @@ export const getSiteCredentials = action({
       site: v.string(),
       userId: v.string(),
       createdAt: v.string(),
-      expiresAt: v.optional(v.number()),
+      expiresAt: v.optional(v.float64()),
       token: v.optional(v.string()),
     }),
     v.null()
@@ -127,7 +127,19 @@ export const getSiteCredentials = action({
         return null;
       }
 
-      const credentials = JSON.parse(version.payload.data.toString());
+      const storedData = JSON.parse(version.payload.data.toString());
+
+      // Sanitize the returned data to ensure it matches the validator
+      // Provide defaults for missing required fields
+      const credentials = {
+        username: storedData.username || "",
+        password: storedData.password || "",
+        site: storedData.site || args.site,
+        userId: storedData.userId || userId,
+        createdAt: storedData.createdAt || new Date().toISOString(),
+        ...(storedData.expiresAt && { expiresAt: Number(storedData.expiresAt) }),
+        ...(storedData.token && { token: storedData.token }),
+      };
 
       return credentials;
     } catch (error) {
@@ -286,4 +298,4 @@ export const testSiteCredentials = action({
       };
     }
   },
-}); 
+});
