@@ -254,6 +254,11 @@ export default function ProfilePage() {
       setPrizeMessageType("error");
       return;
     }
+    if (!newPrizeImage) {
+      setPrizeMessage("Please select an image for the prize.");
+      setPrizeMessageType("error");
+      return;
+    }
     const percentage = Number(newPrizePercentage);
     if (percentage < 0 || percentage > 100) {
       setPrizeMessage("Percentage must be between 0 and 100.");
@@ -264,12 +269,26 @@ export default function ProfilePage() {
     setIsLoading(true);
     setPrizeMessage("");
     try {
+      // Upload image to GCS
+      const uploadResult = await uploadPrizeImage({
+        imageBase64: newPrizeImage,
+        prizeName: newPrizeName.trim(),
+      });
+
+      if (!uploadResult.success || !uploadResult.imageUrl) {
+        throw new Error(uploadResult.message);
+      }
+
+      // Create prize with image URL
       await createPrize({
         prizeName: newPrizeName.trim(),
         percentage,
+        imageUrl: uploadResult.imageUrl,
       });
       setNewPrizeName("");
       setNewPrizePercentage("");
+      setNewPrizeImage(null);
+      setNewPrizeImagePreview(null);
       setPrizeMessage("Prize added successfully!");
       setPrizeMessageType("success");
     } catch (error) {
