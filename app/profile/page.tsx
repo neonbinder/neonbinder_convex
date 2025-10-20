@@ -778,7 +778,7 @@ export default function ProfilePage() {
                     htmlFor={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
                     className="block text-sm font-medium mb-2"
                   >
-                    Sports Image {editingPrizeId && "(leave blank to keep current)"}
+                    Sports Images {editingPrizeId && "(leave blank to keep current)"}
                   </label>
                   <input
                     id={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
@@ -787,15 +787,29 @@ export default function ProfilePage() {
                     onChange={(e) => handleImageFileChange(e, "sports", editingPrizeId !== null)}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">Upload multiple sports images (one at a time)</p>
                 </div>
-                {(editingPrizeId ? editSportsImagePreview : newSportsImagePreview) && (
+                {(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).length > 0 && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium mb-2">Sports Preview:</p>
-                    <img
-                      src={editingPrizeId ? editSportsImagePreview : newSportsImagePreview}
-                      alt="Sports preview"
-                      className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
-                    />
+                    <p className="text-sm font-medium mb-2">Sports Previews ({(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).length}):</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).map((preview, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={preview}
+                            alt={`Sports preview ${index + 1}`}
+                            className="h-24 w-24 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeSportsImage(index, editingPrizeId !== null)}
+                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
