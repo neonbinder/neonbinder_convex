@@ -346,19 +346,33 @@ export default function ProfilePage() {
     setIsLoading(true);
     setPrizeMessage("");
     try {
-      let imageUrl: string | undefined;
+      let pokemonImageUrl: string | undefined;
+      let sportsImageUrl: string | undefined;
 
-      // Upload new image if selected
-      if (editPrizeImage && editPrizeImage !== editPrizeImagePreview?.split(",")[1]) {
+      // Upload new Pokemon image if selected
+      if (editPokemonImage && editPokemonImage !== editPokemonImagePreview?.split(",")[1]) {
         const uploadResult = await uploadPrizeImage({
-          imageBase64: editPrizeImage,
-          prizeName: editPrizeName.trim(),
+          imageBase64: editPokemonImage,
+          prizeName: `${editPrizeName.trim()}_pokemon`,
         });
 
         if (!uploadResult.success || !uploadResult.imageUrl) {
           throw new Error(uploadResult.message);
         }
-        imageUrl = uploadResult.imageUrl;
+        pokemonImageUrl = uploadResult.imageUrl;
+      }
+
+      // Upload new Sports image if selected
+      if (editSportsImage && editSportsImage !== editSportsImagePreview?.split(",")[1]) {
+        const uploadResult = await uploadPrizeImage({
+          imageBase64: editSportsImage,
+          prizeName: `${editPrizeName.trim()}_sports`,
+        });
+
+        if (!uploadResult.success || !uploadResult.imageUrl) {
+          throw new Error(uploadResult.message);
+        }
+        sportsImageUrl = uploadResult.imageUrl;
       }
 
       // Update prize
@@ -366,13 +380,16 @@ export default function ProfilePage() {
         prizeId: editingPrizeId,
         prizeName: editPrizeName.trim(),
         percentage,
-        imageUrl,
+        pokemonImageUrl,
+        sportsImageUrl,
       });
       setEditingPrizeId(null);
       setEditPrizeName("");
       setEditPrizePercentage("");
-      setEditPrizeImage(null);
-      setEditPrizeImagePreview(null);
+      setEditPokemonImage(null);
+      setEditPokemonImagePreview(null);
+      setEditSportsImage(null);
+      setEditSportsImagePreview(null);
       setPrizeMessage("Prize updated successfully!");
       setPrizeMessageType("success");
     } catch (error) {
