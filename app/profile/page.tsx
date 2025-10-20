@@ -291,7 +291,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
     try {
       await updatePrize({
-        prizeId: editingPrizeId as any,
+        prizeId: editingPrizeId,
         prizeName: editPrizeName.trim(),
         percentage,
       });
@@ -323,7 +323,7 @@ export default function ProfilePage() {
     setIsLoading(true);
     setPrizeMessage("");
     try {
-      await deletePrize({ prizeId: prizeId as any });
+      await deletePrize({ prizeId });
       setPrizeMessage("Prize deleted successfully!");
       setPrizeMessageType("success");
     } catch (error) {
