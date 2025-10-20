@@ -858,7 +858,7 @@ export default function ProfilePage() {
                         className="flex items-start justify-between p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
                       >
                         <div className="flex items-start gap-4 flex-1 min-w-0">
-                          <div className="flex gap-3 flex-shrink-0">
+                          <div className="flex flex-wrap gap-3 flex-shrink-0">
                             {prize.pokemonImageUrl && (
                               <div className="flex flex-col items-center">
                                 <img
@@ -869,15 +869,19 @@ export default function ProfilePage() {
                                 <span className="text-xs mt-1 text-muted-foreground">Pokémon</span>
                               </div>
                             )}
-                            {prize.sportsImageUrl && (
-                              <div className="flex flex-col items-center">
-                                <img
-                                  src={prize.sportsImageUrl}
-                                  alt={`${prize.prizeName} Sports`}
-                                  className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
-                                />
-                                <span className="text-xs mt-1 text-muted-foreground">Sports</span>
-                              </div>
+                            {prize.sportsImageUrls && prize.sportsImageUrls.length > 0 && (
+                              <>
+                                {prize.sportsImageUrls.map((imageUrl, index) => (
+                                  <div key={index} className="flex flex-col items-center">
+                                    <img
+                                      src={imageUrl}
+                                      alt={`${prize.prizeName} Sports ${index + 1}`}
+                                      className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
+                                    />
+                                    <span className="text-xs mt-1 text-muted-foreground">Sports</span>
+                                  </div>
+                                ))}
+                              </>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -887,7 +891,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex gap-2 ml-4 flex-shrink-0">
                           <NeonButton
-                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.pokemonImageUrl, prize.sportsImageUrl)}
+                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.pokemonImageUrl, prize.sportsImageUrls)}
                             disabled={isLoading || editingPrizeId !== null}
                             className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
                           >
