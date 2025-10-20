@@ -481,21 +481,31 @@ export default function ProfilePage() {
           setEditPokemonImage(base64String);
           setEditPokemonImagePreview(base64String);
         } else {
-          setEditSportsImage(base64String);
-          setEditSportsImagePreview(base64String);
+          setEditSportsImages([...editSportsImages, base64String]);
+          setEditSportsImagePreviews([...editSportsImagePreviews, base64String]);
         }
       } else {
         if (imageType === "pokemon") {
           setNewPokemonImage(base64String);
           setNewPokemonImagePreview(base64String);
         } else {
-          setNewSportsImage(base64String);
-          setNewSportsImagePreview(base64String);
+          setNewSportsImages([...newSportsImages, base64String]);
+          setNewSportsImagePreviews([...newSportsImagePreviews, base64String]);
         }
       }
       setPrizeMessage("");
     };
     reader.readAsDataURL(file);
+  };
+
+  const removeSportsImage = (index: number, isEdit: boolean = false) => {
+    if (isEdit) {
+      setEditSportsImages(editSportsImages.filter((_, i) => i !== index));
+      setEditSportsImagePreviews(editSportsImagePreviews.filter((_, i) => i !== index));
+    } else {
+      setNewSportsImages(newSportsImages.filter((_, i) => i !== index));
+      setNewSportsImagePreviews(newSportsImagePreviews.filter((_, i) => i !== index));
+    }
   };
 
   return (
