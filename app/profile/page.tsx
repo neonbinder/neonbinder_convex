@@ -443,6 +443,7 @@ export default function ProfilePage() {
 
   const handleImageFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
+    imageType: "pokemon" | "sports",
     isEdit: boolean = false
   ) => {
     const file = e.target.files?.[0];
@@ -467,11 +468,21 @@ export default function ProfilePage() {
     reader.onload = (event) => {
       const base64String = event.target?.result as string;
       if (isEdit) {
-        setEditPrizeImage(base64String);
-        setEditPrizeImagePreview(base64String);
+        if (imageType === "pokemon") {
+          setEditPokemonImage(base64String);
+          setEditPokemonImagePreview(base64String);
+        } else {
+          setEditSportsImage(base64String);
+          setEditSportsImagePreview(base64String);
+        }
       } else {
-        setNewPrizeImage(base64String);
-        setNewPrizeImagePreview(base64String);
+        if (imageType === "pokemon") {
+          setNewPokemonImage(base64String);
+          setNewPokemonImagePreview(base64String);
+        } else {
+          setNewSportsImage(base64String);
+          setNewSportsImagePreview(base64String);
+        }
       }
       setPrizeMessage("");
     };
