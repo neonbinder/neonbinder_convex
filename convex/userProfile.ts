@@ -242,7 +242,7 @@ export const updatePrize = mutation({
     prizeName: v.string(),
     percentage: v.number(),
     pokemonImageUrl: v.optional(v.string()),
-    sportsImageUrl: v.optional(v.string()),
+    sportsImageUrls: v.optional(v.array(v.string())),
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -265,7 +265,7 @@ export const updatePrize = mutation({
       percentage: number;
       updatedAt: number;
       pokemonImageUrl?: string;
-      sportsImageUrl?: string;
+      sportsImageUrls?: string[];
     } = {
       prizeName: args.prizeName,
       percentage: args.percentage,
@@ -276,8 +276,8 @@ export const updatePrize = mutation({
       updateData.pokemonImageUrl = args.pokemonImageUrl;
     }
 
-    if (args.sportsImageUrl) {
-      updateData.sportsImageUrl = args.sportsImageUrl;
+    if (args.sportsImageUrls) {
+      updateData.sportsImageUrls = args.sportsImageUrls;
     }
 
     await ctx.db.patch(args.prizeId, updateData);
