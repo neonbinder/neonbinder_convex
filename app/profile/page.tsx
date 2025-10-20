@@ -532,6 +532,126 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+          {/* Prize Pool Section */}
+          <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Prize Pool</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Manage your prize pool for the wheel of fortune spin. Prizes with higher percentages are more likely to be won.
+              </p>
+            </div>
+
+            {/* Add/Edit Prize Form */}
+            <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md">
+              <div>
+                <label
+                  htmlFor={editingPrizeId ? "edit-prize-name" : "prize-name"}
+                  className="block text-sm font-medium mb-2"
+                >
+                  Prize Name
+                </label>
+                <input
+                  id={editingPrizeId ? "edit-prize-name" : "prize-name"}
+                  type="text"
+                  value={editingPrizeId ? editPrizeName : newPrizeName}
+                  onChange={(e) => editingPrizeId ? setEditPrizeName(e.target.value) : setNewPrizeName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter prize name (e.g., Extra Card, Booster Pack)"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={editingPrizeId ? "edit-prize-percentage" : "prize-percentage"}
+                  className="block text-sm font-medium mb-2"
+                >
+                  Win Percentage (0-100)
+                </label>
+                <input
+                  id={editingPrizeId ? "edit-prize-percentage" : "prize-percentage"}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={editingPrizeId ? editPrizePercentage : newPrizePercentage}
+                  onChange={(e) => editingPrizeId ? setEditPrizePercentage(e.target.value) : setNewPrizePercentage(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter percentage (0-100)"
+                />
+              </div>
+              <div className="flex gap-2">
+                <NeonButton
+                  onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
+                  disabled={isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? "Processing..." : editingPrizeId ? "Update Prize" : "Add Prize"}
+                </NeonButton>
+                {editingPrizeId && (
+                  <NeonButton
+                    onClick={cancelEditPrize}
+                    disabled={isLoading}
+                    className="flex-1 bg-slate-600 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </NeonButton>
+                )}
+              </div>
+            </div>
+
+            {/* Prize Messages */}
+            {prizeMessage && (
+              <div
+                className={`p-4 rounded-md ${
+                  prizeMessageType === "success"
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
+                }`}
+              >
+                <div className="font-medium">{prizeMessage}</div>
+              </div>
+            )}
+
+            {/* Prizes List */}
+            {prizes && prizes.length > 0 ? (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
+                <div className="space-y-2">
+                  {prizes.map((prize) => (
+                    <div
+                      key={prize._id}
+                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{prize.prizeName}</p>
+                        <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+                      </div>
+                      <div className="flex gap-2 ml-4 flex-shrink-0">
+                        <NeonButton
+                          onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage)}
+                          disabled={isLoading || editingPrizeId !== null}
+                          className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
+                        >
+                          Edit
+                        </NeonButton>
+                        <NeonButton
+                          onClick={() => handleDeletePrize(prize._id)}
+                          disabled={isLoading}
+                          className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm"
+                        >
+                          Delete
+                        </NeonButton>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md text-center text-muted-foreground">
+                <p>No prizes configured yet. Add your first prize above.</p>
+              </div>
+            )}
+          </div>
+
           {/* Security Information */}
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
