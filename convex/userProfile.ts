@@ -208,6 +208,7 @@ export const createPrize = mutation({
   args: {
     prizeName: v.string(),
     percentage: v.number(),
+    imageUrl: v.string(),
   },
   returns: v.id("prizePool"),
   handler: async (ctx, args) => {
@@ -221,6 +222,7 @@ export const createPrize = mutation({
       userId,
       prizeName: args.prizeName,
       percentage: args.percentage,
+      imageUrl: args.imageUrl,
       createdAt: now,
       updatedAt: now,
     });
@@ -237,6 +239,7 @@ export const updatePrize = mutation({
     prizeId: v.id("prizePool"),
     prizeName: v.string(),
     percentage: v.number(),
+    imageUrl: v.optional(v.string()),
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -254,11 +257,22 @@ export const updatePrize = mutation({
       throw new Error("Unauthorized");
     }
 
-    await ctx.db.patch(args.prizeId, {
+    const updateData: {
+      prizeName: string;
+      percentage: number;
+      updatedAt: number;
+      imageUrl?: string;
+    } = {
       prizeName: args.prizeName,
       percentage: args.percentage,
       updatedAt: Date.now(),
-    });
+    };
+
+    if (args.imageUrl) {
+      updateData.imageUrl = args.imageUrl;
+    }
+
+    await ctx.db.patch(args.prizeId, updateData);
 
     return true;
   },
