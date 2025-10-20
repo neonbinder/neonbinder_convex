@@ -822,16 +822,31 @@ export default function ProfilePage() {
                     {prizes.map((prize) => (
                       <div
                         key={prize._id}
-                        className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
+                        className="flex items-start justify-between p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
                       >
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          {prize.imageUrl && (
-                            <img
-                              src={prize.imageUrl}
-                              alt={prize.prizeName}
-                              className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
-                            />
-                          )}
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
+                          <div className="flex gap-3 flex-shrink-0">
+                            {prize.pokemonImageUrl && (
+                              <div className="flex flex-col items-center">
+                                <img
+                                  src={prize.pokemonImageUrl}
+                                  alt={`${prize.prizeName} Pokemon`}
+                                  className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
+                                />
+                                <span className="text-xs mt-1 text-muted-foreground">Pokémon</span>
+                              </div>
+                            )}
+                            {prize.sportsImageUrl && (
+                              <div className="flex flex-col items-center">
+                                <img
+                                  src={prize.sportsImageUrl}
+                                  alt={`${prize.prizeName} Sports`}
+                                  className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
+                                />
+                                <span className="text-xs mt-1 text-muted-foreground">Sports</span>
+                              </div>
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{prize.prizeName}</p>
                             <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
@@ -839,7 +854,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex gap-2 ml-4 flex-shrink-0">
                           <NeonButton
-                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.imageUrl)}
+                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.pokemonImageUrl, prize.sportsImageUrl)}
                             disabled={isLoading || editingPrizeId !== null}
                             className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
                           >
