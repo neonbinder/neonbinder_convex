@@ -732,19 +732,28 @@ export default function ProfilePage() {
               prizes && prizes.length > 0 ? (
                 <div className="space-y-3">
                   <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {prizes.map((prize) => (
                       <div
                         key={prize._id}
-                        className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
+                        className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md border border-slate-200 dark:border-slate-700"
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{prize.prizeName}</p>
-                          <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          {prize.imageUrl && (
+                            <img
+                              src={prize.imageUrl}
+                              alt={prize.prizeName}
+                              className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600 flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{prize.prizeName}</p>
+                            <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+                          </div>
                         </div>
                         <div className="flex gap-2 ml-4 flex-shrink-0">
                           <NeonButton
-                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage)}
+                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.imageUrl)}
                             disabled={isLoading || editingPrizeId !== null}
                             className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
                           >
