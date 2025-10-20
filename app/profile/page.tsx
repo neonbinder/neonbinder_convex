@@ -69,7 +69,6 @@ export default function ProfilePage() {
   const updatePrize = useMutation(api.userProfile.updatePrize);
   const deletePrize = useMutation(api.userProfile.deletePrize);
   const uploadPrizeImage = useAction(api.adapters.gcs.uploadPrizeImage);
-  const deletePrizeImage = useAction(api.adapters.gcs.deletePrizeImage);
   const prizes = useQuery(api.userProfile.getPrizes);
 
   // Get user profile to check if credentials are stored
@@ -792,7 +791,7 @@ export default function ProfilePage() {
               <li>
                 • Credentials are encrypted and only accessible to your account
               </li>
-              <li>• We never share your credentials with third parties</li>
+              <li>�� We never share your credentials with third parties</li>
               <li>• You can clear your credentials at any time</li>
               <li>• Test button uses stored credentials from Secret Manager</li>
             </ul>
