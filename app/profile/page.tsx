@@ -257,8 +257,8 @@ export default function ProfilePage() {
       setPrizeMessageType("error");
       return;
     }
-    if (!newPrizeImage) {
-      setPrizeMessage("Please select an image for the prize.");
+    if (!newPokemonImage && !newSportsImage) {
+      setPrizeMessage("Please select at least one image (Pokemon or Sports).");
       setPrizeMessageType("error");
       return;
     }
@@ -272,26 +272,48 @@ export default function ProfilePage() {
     setIsLoading(true);
     setPrizeMessage("");
     try {
-      // Upload image to GCS
-      const uploadResult = await uploadPrizeImage({
-        imageBase64: newPrizeImage,
-        prizeName: newPrizeName.trim(),
-      });
+      let pokemonImageUrl: string | undefined;
+      let sportsImageUrl: string | undefined;
 
-      if (!uploadResult.success || !uploadResult.imageUrl) {
-        throw new Error(uploadResult.message);
+      // Upload Pokemon image if provided
+      if (newPokemonImage) {
+        const uploadResult = await uploadPrizeImage({
+          imageBase64: newPokemonImage,
+          prizeName: `${newPrizeName.trim()}_pokemon`,
+        });
+
+        if (!uploadResult.success || !uploadResult.imageUrl) {
+          throw new Error(uploadResult.message);
+        }
+        pokemonImageUrl = uploadResult.imageUrl;
       }
 
-      // Create prize with image URL
+      // Upload Sports image if provided
+      if (newSportsImage) {
+        const uploadResult = await uploadPrizeImage({
+          imageBase64: newSportsImage,
+          prizeName: `${newPrizeName.trim()}_sports`,
+        });
+
+        if (!uploadResult.success || !uploadResult.imageUrl) {
+          throw new Error(uploadResult.message);
+        }
+        sportsImageUrl = uploadResult.imageUrl;
+      }
+
+      // Create prize with both image URLs
       await createPrize({
         prizeName: newPrizeName.trim(),
         percentage,
-        imageUrl: uploadResult.imageUrl,
+        pokemonImageUrl,
+        sportsImageUrl,
       });
       setNewPrizeName("");
       setNewPrizePercentage("");
-      setNewPrizeImage(null);
-      setNewPrizeImagePreview(null);
+      setNewPokemonImage(null);
+      setNewPokemonImagePreview(null);
+      setNewSportsImage(null);
+      setNewSportsImagePreview(null);
       setPrizeMessage("Prize added successfully!");
       setPrizeMessageType("success");
     } catch (error) {
