@@ -886,7 +886,16 @@ export default function ProfilePage() {
             {isMounted && (
               prizes && prizes.length > 0 ? (
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
+                    <div className={`text-sm font-medium ${
+                      prizes.reduce((sum, prize) => sum + prize.percentage, 0) === 100
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      Total: {prizes.reduce((sum, prize) => sum + prize.percentage, 0)}%
+                    </div>
+                  </div>
                   <div className="space-y-3">
                     {prizes.map((prize) => (
                       <div
