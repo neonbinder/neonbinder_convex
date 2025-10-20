@@ -208,7 +208,8 @@ export const createPrize = mutation({
   args: {
     prizeName: v.string(),
     percentage: v.number(),
-    imageUrl: v.string(),
+    pokemonImageUrl: v.optional(v.string()),
+    sportsImageUrl: v.optional(v.string()),
   },
   returns: v.id("prizePool"),
   handler: async (ctx, args) => {
@@ -222,7 +223,8 @@ export const createPrize = mutation({
       userId,
       prizeName: args.prizeName,
       percentage: args.percentage,
-      imageUrl: args.imageUrl,
+      pokemonImageUrl: args.pokemonImageUrl,
+      sportsImageUrl: args.sportsImageUrl,
       createdAt: now,
       updatedAt: now,
     });
