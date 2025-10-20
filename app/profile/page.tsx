@@ -68,6 +68,8 @@ export default function ProfilePage() {
   const createPrize = useMutation(api.userProfile.createPrize);
   const updatePrize = useMutation(api.userProfile.updatePrize);
   const deletePrize = useMutation(api.userProfile.deletePrize);
+  const uploadPrizeImage = useAction(api.adapters.gcs.uploadPrizeImage);
+  const deletePrizeImage = useAction(api.adapters.gcs.deletePrizeImage);
   const prizes = useQuery(api.userProfile.getPrizes);
 
   // Get user profile to check if credentials are stored
