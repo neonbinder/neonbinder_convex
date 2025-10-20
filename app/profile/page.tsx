@@ -269,6 +269,26 @@ export default function ProfilePage() {
       return;
     }
 
+    // Check if percentages will sum to 100
+    if (prizes) {
+      const currentTotal = prizes.reduce((sum, prize) => sum + prize.percentage, 0);
+      const newTotal = currentTotal + percentage;
+      if (newTotal !== 100) {
+        const diff = 100 - newTotal;
+        setPrizeMessage(
+          `Prize percentages must sum to 100%. Current total with this prize would be ${newTotal}% (${diff > 0 ? '+' + diff : diff}%).`
+        );
+        setPrizeMessageType("error");
+        return;
+      }
+    } else {
+      if (percentage !== 100) {
+        setPrizeMessage(`Prize percentage must be exactly 100% (currently ${percentage}%).`);
+        setPrizeMessageType("error");
+        return;
+      }
+    }
+
     setIsLoading(true);
     setPrizeMessage("");
     try {
