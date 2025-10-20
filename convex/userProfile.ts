@@ -317,6 +317,7 @@ export const getPrizes = query({
     userId: v.id("users"),
     prizeName: v.string(),
     percentage: v.number(),
+    imageUrl: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })),
