@@ -22,7 +22,7 @@ export const ErrorAlert = React.forwardRef<HTMLDivElement, ErrorAlertProps>(
         </p>
       </div>
     );
-  }
+  },
 );
 
 ErrorAlert.displayName = "ErrorAlert";

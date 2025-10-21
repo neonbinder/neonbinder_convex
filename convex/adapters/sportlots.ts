@@ -18,34 +18,48 @@ export const testCredentials = action({
     message: v.string(),
     details: v.optional(v.string()),
   }),
-  handler: async (ctx): Promise<{ success: boolean; message: string; details?: string }> => {
+  handler: async (
+    ctx,
+  ): Promise<{ success: boolean; message: string; details?: string }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return {
         success: false,
         message: "Not authenticated",
-        details: "Please sign in to test credentials"
+        details: "Please sign in to test credentials",
       };
     }
 
     // Get stored credentials to verify they exist
-    const credentials: { username: string; password: string; site: string; userId: string; createdAt: string } | null = await ctx.runAction(api.adapters.secret_manager.getSiteCredentials, {
-      site: "sportlots",
-    });
+    const credentials: {
+      username: string;
+      password: string;
+      site: string;
+      userId: string;
+      createdAt: string;
+    } | null = await ctx.runAction(
+      api.adapters.secret_manager.getSiteCredentials,
+      {
+        site: "sportlots",
+      },
+    );
 
     if (!credentials) {
       return {
         success: false,
         message: "No credentials found for Sportlots",
-        details: "Please save your credentials for Sportlots before testing. Go to the credentials section and enter your username and password."
+        details:
+          "Please save your credentials for Sportlots before testing. Go to the credentials section and enter your username and password.",
       };
     }
 
     try {
       // Call the browser service to test login using the Secret Manager key
-      const browserServiceUrl = process.env.BROWSER_SERVICE_URL || "https://neonbinder-browser-117170654588.us-central1.run.app";
+      const browserServiceUrl =
+        process.env.BROWSER_SERVICE_URL ||
+        "https://neonbinder-browser-117170654588.us-central1.run.app";
       const secretKey = `sportlots-credentials-${userId}`;
-      
+
       const response = await fetch(`${browserServiceUrl}/login/sportlots`, {
         method: "POST",
         headers: {
@@ -67,23 +81,23 @@ export const testCredentials = action({
         return {
           success: false,
           message: "Failed to test Sportlots credentials",
-          details: `Browser service error: ${errorDetails}`
+          details: `Browser service error: ${errorDetails}`,
         };
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
         return {
           success: true,
           message: result.message || "Successfully logged into Sportlots",
-          details: `Login test completed successfully for ${credentials.username}`
+          details: `Login test completed successfully for ${credentials.username}`,
         };
       } else {
         return {
           success: false,
           message: "Sportlots login test failed",
-          details: result.error || "Unknown error occurred during login test"
+          details: result.error || "Unknown error occurred during login test",
         };
       }
     } catch (error) {
@@ -91,7 +105,7 @@ export const testCredentials = action({
       return {
         success: false,
         message: "Failed to test Sportlots credentials",
-        details: `Error: ${error instanceof Error ? error.message : "Unknown error"}. Make sure the browser service is running at ${process.env.BROWSER_SERVICE_URL || "https://neonbinder-browser-117170654588.us-central1.run.app"}`
+        details: `Error: ${error instanceof Error ? error.message : "Unknown error"}. Make sure the browser service is running at ${process.env.BROWSER_SERVICE_URL || "https://neonbinder-browser-117170654588.us-central1.run.app"}`,
       };
     }
   },
