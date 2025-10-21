@@ -11,9 +11,15 @@ export const ErrorAlert = React.forwardRef<HTMLDivElement, ErrorAlertProps>(
     return (
       <div
         ref={ref}
-        className="bg-neon-pink/10 border-2 border-neon-pink rounded-lg p-4"
+        className="rounded-lg p-4"
+        style={{
+          backgroundColor: "rgba(255, 46, 154, 0.1)",
+          border: "2px solid #FF2E9A",
+        }}
       >
-        <p className="text-neon-pink text-sm font-medium">Error: {error}</p>
+        <p className="text-sm font-medium" style={{ color: "#FF2E9A" }}>
+          Error: {error}
+        </p>
       </div>
     );
   }
