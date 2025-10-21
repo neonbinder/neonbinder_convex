@@ -4,6 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import NeonButton from "../../components/modules/NeonButton";
+import { ErrorAlert } from "../../components/primitives";
 
 export default function SignIn() {
   const { signIn } = useAuthActions();
@@ -84,13 +85,7 @@ export default function SignIn() {
             </div>
           </div>
 
-          {error && (
-            <div className="bg-neon-pink/10 border border-neon-pink/30 rounded-lg p-4">
-              <p className="text-neon-pink text-sm font-medium">
-                Error: {error}
-              </p>
-            </div>
-          )}
+          <ErrorAlert error={error} />
 
           <NeonButton
             type="submit"

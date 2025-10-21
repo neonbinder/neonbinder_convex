@@ -22,3 +22,4 @@ export { Palette } from "./Palette";
 export { InlineCode } from "./InlineCode";
 export { ScrollListItem } from "./ScrollListItem";
 export { Poster } from "./Poster";
+export { ErrorAlert } from "./ErrorAlert";
