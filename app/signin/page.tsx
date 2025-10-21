@@ -34,6 +34,7 @@ export default function SignIn() {
         {/* Form */}
         <form
           className="space-y-6"
+          suppressHydrationWarning
           onSubmit={(e) => {
             e.preventDefault();
             const formData = new FormData(e.target as HTMLFormElement);
