@@ -956,7 +956,7 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full">
                 <NeonButton
                   onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
                   disabled={isLoading}
