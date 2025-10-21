@@ -974,13 +974,16 @@ export default function ProfilePage() {
                   </NeonButton>
                 </div>
               ) : (
-                <NeonButton
-                  onClick={handleAddPrize}
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? "Processing..." : "Add Prize"}
-                </NeonButton>
+                <div className="w-full">
+                  <NeonButton
+                    onClick={handleAddPrize}
+                    disabled={isLoading}
+                    className="w-full"
+                    style={{ width: "100%" }}
+                  >
+                    {isLoading ? "Processing..." : "Add Prize"}
+                  </NeonButton>
+                </div>
               )}
             </div>
 
