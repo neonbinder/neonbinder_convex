@@ -956,11 +956,11 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 w-full">
+              <div className={`flex gap-2 w-full ${editingPrizeId ? "flex-col" : ""}`}>
                 <NeonButton
                   onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
                   disabled={isLoading}
-                  className="flex-1"
+                  className="w-full"
                 >
                   {isLoading ? "Processing..." : editingPrizeId ? "Update Prize" : "Add Prize"}
                 </NeonButton>
@@ -968,7 +968,7 @@ export default function ProfilePage() {
                   <NeonButton
                     onClick={cancelEditPrize}
                     disabled={isLoading}
-                    className="flex-1 bg-slate-600 hover:bg-slate-700"
+                    className="w-full bg-slate-600 hover:bg-slate-700"
                   >
                     Cancel
                   </NeonButton>
