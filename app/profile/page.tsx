@@ -956,24 +956,32 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              <div className={`flex gap-2 w-full ${editingPrizeId ? "flex-col" : ""}`}>
-                <NeonButton
-                  onClick={editingPrizeId ? handleUpdatePrize : handleAddPrize}
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? "Processing..." : editingPrizeId ? "Update Prize" : "Add Prize"}
-                </NeonButton>
-                {editingPrizeId && (
+              {editingPrizeId ? (
+                <div className="flex gap-2">
+                  <NeonButton
+                    onClick={handleUpdatePrize}
+                    disabled={isLoading}
+                    className="flex-1"
+                  >
+                    {isLoading ? "Processing..." : "Update Prize"}
+                  </NeonButton>
                   <NeonButton
                     onClick={cancelEditPrize}
                     disabled={isLoading}
-                    className="w-full bg-slate-600 hover:bg-slate-700"
+                    className="flex-1 bg-slate-600 hover:bg-slate-700"
                   >
                     Cancel
                   </NeonButton>
-                )}
-              </div>
+                </div>
+              ) : (
+                <NeonButton
+                  onClick={handleAddPrize}
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  {isLoading ? "Processing..." : "Add Prize"}
+                </NeonButton>
+              )}
             </div>
 
             {/* Prize Messages */}
