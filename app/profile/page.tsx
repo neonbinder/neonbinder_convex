@@ -801,6 +801,26 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Security Information */}
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-5">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              🔒 Security Information
+            </h3>
+            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+              <li>
+                • Your credentials are securely stored in Google Cloud Secret
+                Manager
+              </li>
+              <li>
+                • Credentials are encrypted and only accessible to your account
+              </li>
+              <li>• We never share your credentials with third parties</li>
+              <li>• You can clear your credentials at any time</li>
+              <li>• Test button uses stored credentials from Secret Manager</li>
+            </ul>
+          </div>
+
           {/* Prize Pool Section */}
           <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
             <div>
