@@ -57,11 +57,17 @@ export const testCredentials = action({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        let errorDetails = "";
+        try {
+          const errorData = await response.json();
+          errorDetails = errorData.error || JSON.stringify(errorData);
+        } catch {
+          errorDetails = `HTTP ${response.status}`;
+        }
         return {
           success: false,
           message: "Failed to test Sportlots credentials",
-          details: `Browser service error: ${errorText}`
+          details: `Browser service error: ${errorDetails}`
         };
       }
 
