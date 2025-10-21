@@ -49,8 +49,8 @@ export default function SignIn() {
               });
           }}
         >
-          <div className="space-y-4">
-            <div>
+          <div className="space-y-4" suppressHydrationWarning>
+            <div suppressHydrationWarning>
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-white mb-2"
@@ -67,7 +67,7 @@ export default function SignIn() {
               />
             </div>
 
-            <div>
+            <div suppressHydrationWarning>
               <label
                 htmlFor="password"
                 className="block text-sm font-medium text-white mb-2"
