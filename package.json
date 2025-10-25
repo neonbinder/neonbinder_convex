@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
-    "dev:frontend": "next dev",
+    "dev:frontend": "npm run predev && next dev",
     "dev:backend": "./dev-backend.sh",
     "env:browser": "npx convex env set NEONBINDER_BROWSER_URL",
     "tunnel": "npx localtunnel --port 8080",
