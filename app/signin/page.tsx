@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import NeonButton from "../../components/modules/NeonButton";
@@ -8,14 +9,38 @@ import { ErrorAlert } from "../../components/primitives";
 
 export default function SignIn() {
   const { signIn } = useAuthActions();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
+  // Redirect when authentication is successful
+  useEffect(() => {
+    if (mounted && isAuthenticated && !isLoading) {
+      window.location.href = "/";
+    }
+  }, [isAuthenticated, isLoading, mounted]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    formData.set("flow", flow);
+
+    try {
+      await signIn("password", formData);
+      // Don't redirect here - let the useEffect handle it when auth state updates
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
   return (
     <div className="min-h-screen bg-black flex items-center justify-center px-4">
       <div className="w-full max-w-md space-y-8">
@@ -36,18 +61,7 @@ export default function SignIn() {
         <form
           className="space-y-6"
           suppressHydrationWarning
-          onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target as HTMLFormElement);
-            formData.set("flow", flow);
-            void signIn("password", formData)
-              .catch((error) => {
-                setError(error.message);
-              })
-              .then(() => {
-                router.push("/");
-              });
-          }}
+          onSubmit={handleSubmit}
         >
           <div className="space-y-4" suppressHydrationWarning>
             <div suppressHydrationWarning>
