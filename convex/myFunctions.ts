@@ -1,7 +1,7 @@
 import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getCurrentUserId } from "./auth";
 
 // Write your Convex functions in any file inside this directory (`convex`).
 // See https://docs.convex.dev/functions for more.
@@ -22,11 +22,26 @@ export const listNumbers = query({
       // Ordered by _creationTime, return most recent
       .order("desc")
       .take(args.count);
-    const userId = await getAuthUserId(ctx);
-    const user = userId === null ? null : await ctx.db.get(userId);
+    const userId = await getCurrentUserId(ctx);
+    // For Clerk, we don't need to fetch a user from the database
+    // The userId is the Clerk user ID (string)
     return {
-      viewer: user?.email ?? null,
+      viewer: userId, // Just return the Clerk user ID
       numbers: numbers.reverse().map((number) => number.value),
+    };
+  },
+});
+
+// Test authentication endpoint
+export const testAuth = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    console.log("Auth identity:", identity);
+    return {
+      authenticated: !!identity,
+      userId: identity?.subject || "not authenticated",
+      email: identity?.email || "no email",
+      name: identity?.name || "no name",
     };
   },
 });

@@ -2,7 +2,7 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getCurrentUserId } from "../auth";
 import { SecretManagerServiceClient, protos } from "@google-cloud/secret-manager";
 import { api } from "../_generated/api";
 
@@ -30,13 +30,23 @@ export const storeSiteCredentials = action({
     message: v.string(),
   }),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    console.log("[storeSiteCredentials] Starting handler, args:", args);
+    console.log("[storeSiteCredentials] Getting user identity from ctx.auth...");
+    const identity = await ctx.auth.getUserIdentity();
+    console.log("[storeSiteCredentials] Identity:", identity ? "Found" : "NULL", identity);
+    
+    const userId = await getCurrentUserId(ctx);
+    console.log("[storeSiteCredentials] getCurrentUserId returned:", userId);
+    
     if (!userId) {
+      console.error("[storeSiteCredentials] No userId found - authentication failed");
       return {
         success: false,
         message: "Not authenticated",
       };
     }
+
+    console.log("[storeSiteCredentials] Authentication successful, userId:", userId);
 
     try {
       const secretManager = getSecretManagerClient();
@@ -106,7 +116,7 @@ export const getSiteCredentials = action({
     v.null()
   ),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       console.log("[getSiteCredentials] No userId found in context");
       return null;
@@ -161,7 +171,7 @@ export const deleteSiteCredentials = action({
     message: v.string(),
   }),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return {
         success: false,
@@ -204,7 +214,7 @@ export const listUserSites = action({
     hasCredentials: v.boolean(),
   })),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return [];
     }

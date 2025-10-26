@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getCurrentUserId } from "./auth";
 
 /**
  * Get the current user's profile
@@ -9,7 +9,7 @@ export const getUserProfile = query({
   args: {},
   returns: v.union(
     v.object({
-      userId: v.id("users"),
+      userId: v.string(), // Clerk user ID as string
       siteCredentials: v.optional(v.array(v.object({
         site: v.string(),
         hasCredentials: v.boolean(),
@@ -24,7 +24,7 @@ export const getUserProfile = query({
     v.null()
   ),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return null;
     }
@@ -64,7 +64,7 @@ export const updateUserProfile = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -122,7 +122,7 @@ export const updateSiteCredentialStatus = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -177,7 +177,7 @@ export const removeSiteCredentialStatus = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -213,7 +213,7 @@ export const createPrize = mutation({
   },
   returns: v.id("prizePool"),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -246,7 +246,7 @@ export const updatePrize = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -295,7 +295,7 @@ export const deletePrize = mutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
@@ -322,7 +322,7 @@ export const getPrizes = query({
   returns: v.array(v.object({
     _id: v.id("prizePool"),
     _creationTime: v.number(),
-    userId: v.id("users"),
+    userId: v.string(), // Clerk user ID as string
     prizeName: v.string(),
     percentage: v.number(),
     pokemonImageUrl: v.optional(v.string()),
@@ -331,7 +331,7 @@ export const getPrizes = query({
     updatedAt: v.number(),
   })),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return [];
     }

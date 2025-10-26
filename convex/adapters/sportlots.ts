@@ -4,7 +4,7 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { BaseAdapter } from "./base";
 import { api } from "../_generated/api";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getCurrentUserId } from "../auth";
 
 export class SportlotsAdapter extends BaseAdapter {
   private baseUrl = "https://www.sportlots.com";
@@ -21,7 +21,7 @@ export const testCredentials = action({
   handler: async (
     ctx,
   ): Promise<{ success: boolean; message: string; details?: string }> => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return {
         success: false,

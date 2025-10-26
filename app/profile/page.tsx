@@ -34,18 +34,28 @@ export default function ProfilePage() {
   const [newPrizeName, setNewPrizeName] = useState("");
   const [newPrizePercentage, setNewPrizePercentage] = useState("");
   const [newPokemonImage, setNewPokemonImage] = useState<string | null>(null);
-  const [newPokemonImagePreview, setNewPokemonImagePreview] = useState<string | null>(null);
+  const [newPokemonImagePreview, setNewPokemonImagePreview] = useState<
+    string | null
+  >(null);
   const [newSportsImages, setNewSportsImages] = useState<string[]>([]);
-  const [newSportsImagePreviews, setNewSportsImagePreviews] = useState<string[]>([]);
+  const [newSportsImagePreviews, setNewSportsImagePreviews] = useState<
+    string[]
+  >([]);
   const [editingPrizeId, setEditingPrizeId] = useState<string | null>(null);
   const [editPrizeName, setEditPrizeName] = useState("");
   const [editPrizePercentage, setEditPrizePercentage] = useState("");
   const [editPokemonImage, setEditPokemonImage] = useState<string | null>(null);
-  const [editPokemonImagePreview, setEditPokemonImagePreview] = useState<string | null>(null);
+  const [editPokemonImagePreview, setEditPokemonImagePreview] = useState<
+    string | null
+  >(null);
   const [editSportsImages, setEditSportsImages] = useState<string[]>([]);
-  const [editSportsImagePreviews, setEditSportsImagePreviews] = useState<string[]>([]);
+  const [editSportsImagePreviews, setEditSportsImagePreviews] = useState<
+    string[]
+  >([]);
   const [prizeMessage, setPrizeMessage] = useState("");
-  const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">("success");
+  const [prizeMessageType, setPrizeMessageType] = useState<"success" | "error">(
+    "success",
+  );
   const [isMounted, setIsMounted] = useState(false);
   const [pokemonDragActive, setPokemonDragActive] = useState(false);
   const [sportsDragActive, setSportsDragActive] = useState(false);
@@ -136,12 +146,14 @@ export default function ProfilePage() {
     setIsLoading(true);
     setMessage("");
     try {
+      console.log("[handleSaveCredentials] Calling storeCredentials action");
       // Store credentials in Secret Manager
       const secretResult = await storeCredentials({
         site: selectedSite,
         username,
         password,
       });
+      console.log("[handleSaveCredentials] Result:", secretResult);
       if (!secretResult.success) {
         throw new Error(secretResult.message);
       }
@@ -273,19 +285,24 @@ export default function ProfilePage() {
 
     // Check if percentages will sum to 100
     if (prizes) {
-      const currentTotal = prizes.reduce((sum, prize) => sum + prize.percentage, 0);
+      const currentTotal = prizes.reduce(
+        (sum, prize) => sum + prize.percentage,
+        0,
+      );
       const newTotal = currentTotal + percentage;
       if (newTotal !== 100) {
         const diff = 100 - newTotal;
         setPrizeMessage(
-          `Prize percentages must sum to 100%. Current total with this prize would be ${newTotal}% (${diff > 0 ? '+' + diff : diff}%).`
+          `Prize percentages must sum to 100%. Current total with this prize would be ${newTotal}% (${diff > 0 ? "+" + diff : diff}%).`,
         );
         setPrizeMessageType("error");
         return;
       }
     } else {
       if (percentage !== 100) {
-        setPrizeMessage(`Prize percentage must be exactly 100% (currently ${percentage}%).`);
+        setPrizeMessage(
+          `Prize percentage must be exactly 100% (currently ${percentage}%).`,
+        );
         setPrizeMessageType("error");
         return;
       }
@@ -328,7 +345,8 @@ export default function ProfilePage() {
         prizeName: newPrizeName.trim(),
         percentage,
         pokemonImageUrl,
-        sportsImageUrls: sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
+        sportsImageUrls:
+          sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
       });
       setNewPrizeName("");
       setNewPrizePercentage("");
@@ -339,7 +357,9 @@ export default function ProfilePage() {
       setPrizeMessage("Prize added successfully!");
       setPrizeMessageType("success");
     } catch (error) {
-      setPrizeMessage(`Failed to add prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessage(
+        `Failed to add prize: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
       setPrizeMessageType("error");
     } finally {
       setIsLoading(false);
@@ -367,14 +387,17 @@ export default function ProfilePage() {
 
     // Check if percentages will sum to 100
     if (prizes) {
-      const currentTotal = prizes.reduce((sum, prize) => sum + prize.percentage, 0);
-      const editingPrize = prizes.find(p => p._id === editingPrizeId);
+      const currentTotal = prizes.reduce(
+        (sum, prize) => sum + prize.percentage,
+        0,
+      );
+      const editingPrize = prizes.find((p) => p._id === editingPrizeId);
       const editingPrizePercentage = editingPrize?.percentage || 0;
       const newTotal = currentTotal - editingPrizePercentage + percentage;
       if (newTotal !== 100) {
         const diff = 100 - newTotal;
         setPrizeMessage(
-          `Prize percentages must sum to 100%. Current total with this change would be ${newTotal}% (${diff > 0 ? '+' + diff : diff}%).`
+          `Prize percentages must sum to 100%. Current total with this change would be ${newTotal}% (${diff > 0 ? "+" + diff : diff}%).`,
         );
         setPrizeMessageType("error");
         return;
@@ -388,7 +411,10 @@ export default function ProfilePage() {
       let sportsImageUrls: string[] = [];
 
       // Upload new Pokemon image if selected
-      if (editPokemonImage && editPokemonImage !== editPokemonImagePreview?.split(",")[1]) {
+      if (
+        editPokemonImage &&
+        editPokemonImage !== editPokemonImagePreview?.split(",")[1]
+      ) {
         const uploadResult = await uploadPrizeImage({
           imageBase64: editPokemonImage,
           prizeName: `${editPrizeName.trim()}_pokemon`,
@@ -403,8 +429,9 @@ export default function ProfilePage() {
       // Upload new Sports images if selected
       for (let i = 0; i < editSportsImages.length; i++) {
         const currentImage = editSportsImages[i];
-        const isNewImage = !editSportsImagePreviews.some(preview =>
-          preview === currentImage || currentImage === preview.split(",")[1]
+        const isNewImage = !editSportsImagePreviews.some(
+          (preview) =>
+            preview === currentImage || currentImage === preview.split(",")[1],
         );
 
         if (isNewImage) {
@@ -428,7 +455,8 @@ export default function ProfilePage() {
         prizeName: editPrizeName.trim(),
         percentage,
         pokemonImageUrl,
-        sportsImageUrls: sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
+        sportsImageUrls:
+          sportsImageUrls.length > 0 ? sportsImageUrls : undefined,
       });
       setEditingPrizeId(null);
       setEditPrizeName("");
@@ -440,14 +468,22 @@ export default function ProfilePage() {
       setPrizeMessage("Prize updated successfully!");
       setPrizeMessageType("success");
     } catch (error) {
-      setPrizeMessage(`Failed to update prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessage(
+        `Failed to update prize: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
       setPrizeMessageType("error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEditPrize = (prizeId: string, prizeName: string, percentage: number, pokemonImageUrl?: string, sportsImageUrls?: string[]) => {
+  const handleEditPrize = (
+    prizeId: string,
+    prizeName: string,
+    percentage: number,
+    pokemonImageUrl?: string,
+    sportsImageUrls?: string[],
+  ) => {
     setEditingPrizeId(prizeId);
     setEditPrizeName(prizeName);
     setEditPrizePercentage(percentage.toString());
@@ -470,7 +506,9 @@ export default function ProfilePage() {
       setPrizeMessage("Prize deleted successfully!");
       setPrizeMessageType("success");
     } catch (error) {
-      setPrizeMessage(`Failed to delete prize: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setPrizeMessage(
+        `Failed to delete prize: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
       setPrizeMessageType("error");
     } finally {
       setIsLoading(false);
@@ -491,7 +529,7 @@ export default function ProfilePage() {
   const handleImageFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     imageType: "pokemon" | "sports",
-    isEdit: boolean = false
+    isEdit: boolean = false,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -520,7 +558,10 @@ export default function ProfilePage() {
           setEditPokemonImagePreview(base64String);
         } else {
           setEditSportsImages([...editSportsImages, base64String]);
-          setEditSportsImagePreviews([...editSportsImagePreviews, base64String]);
+          setEditSportsImagePreviews([
+            ...editSportsImagePreviews,
+            base64String,
+          ]);
         }
       } else {
         if (imageType === "pokemon") {
@@ -539,14 +580,22 @@ export default function ProfilePage() {
   const removeSportsImage = (index: number, isEdit: boolean = false) => {
     if (isEdit) {
       setEditSportsImages(editSportsImages.filter((_, i) => i !== index));
-      setEditSportsImagePreviews(editSportsImagePreviews.filter((_, i) => i !== index));
+      setEditSportsImagePreviews(
+        editSportsImagePreviews.filter((_, i) => i !== index),
+      );
     } else {
       setNewSportsImages(newSportsImages.filter((_, i) => i !== index));
-      setNewSportsImagePreviews(newSportsImagePreviews.filter((_, i) => i !== index));
+      setNewSportsImagePreviews(
+        newSportsImagePreviews.filter((_, i) => i !== index),
+      );
     }
   };
 
-  const handleDrag = (e: React.DragEvent<HTMLDivElement>, isActive: boolean, imageType: "pokemon" | "sports") => {
+  const handleDrag = (
+    e: React.DragEvent<HTMLDivElement>,
+    isActive: boolean,
+    imageType: "pokemon" | "sports",
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     if (imageType === "pokemon") {
@@ -556,7 +605,11 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDropFile = (e: React.DragEvent<HTMLDivElement>, imageType: "pokemon" | "sports", isEdit: boolean = false) => {
+  const handleDropFile = (
+    e: React.DragEvent<HTMLDivElement>,
+    imageType: "pokemon" | "sports",
+    isEdit: boolean = false,
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     if (imageType === "pokemon") {
@@ -593,7 +646,10 @@ export default function ProfilePage() {
             setEditPokemonImagePreview(base64String);
           } else {
             setEditSportsImages([...editSportsImages, base64String]);
-            setEditSportsImagePreviews([...editSportsImagePreviews, base64String]);
+            setEditSportsImagePreviews([
+              ...editSportsImagePreviews,
+              base64String,
+            ]);
           }
         } else {
           if (imageType === "pokemon") {
@@ -601,7 +657,10 @@ export default function ProfilePage() {
             setNewPokemonImagePreview(base64String);
           } else {
             setNewSportsImages([...newSportsImages, base64String]);
-            setNewSportsImagePreviews([...newSportsImagePreviews, base64String]);
+            setNewSportsImagePreviews([
+              ...newSportsImagePreviews,
+              base64String,
+            ]);
           }
         }
         setPrizeMessage("");
@@ -826,7 +885,8 @@ export default function ProfilePage() {
             <div>
               <h2 className="text-xl font-semibold mb-2">Prize Pool</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Manage your prize pool for the wheel of fortune spin. Prizes with higher percentages are more likely to be won.
+                Manage your prize pool for the wheel of fortune spin. Prizes
+                with higher percentages are more likely to be won.
               </p>
             </div>
 
@@ -843,26 +903,44 @@ export default function ProfilePage() {
                   id={editingPrizeId ? "edit-prize-name" : "prize-name"}
                   type="text"
                   value={editingPrizeId ? editPrizeName : newPrizeName}
-                  onChange={(e) => editingPrizeId ? setEditPrizeName(e.target.value) : setNewPrizeName(e.target.value)}
+                  onChange={(e) =>
+                    editingPrizeId
+                      ? setEditPrizeName(e.target.value)
+                      : setNewPrizeName(e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter prize name (e.g., Extra Card, Booster Pack)"
                 />
               </div>
               <div>
                 <label
-                  htmlFor={editingPrizeId ? "edit-prize-percentage" : "prize-percentage"}
+                  htmlFor={
+                    editingPrizeId
+                      ? "edit-prize-percentage"
+                      : "prize-percentage"
+                  }
                   className="block text-sm font-medium mb-2"
                 >
                   Win Percentage (0-100)
                 </label>
                 <input
-                  id={editingPrizeId ? "edit-prize-percentage" : "prize-percentage"}
+                  id={
+                    editingPrizeId
+                      ? "edit-prize-percentage"
+                      : "prize-percentage"
+                  }
                   type="number"
                   min="0"
                   max="100"
                   step="0.1"
-                  value={editingPrizeId ? editPrizePercentage : newPrizePercentage}
-                  onChange={(e) => editingPrizeId ? setEditPrizePercentage(e.target.value) : setNewPrizePercentage(e.target.value)}
+                  value={
+                    editingPrizeId ? editPrizePercentage : newPrizePercentage
+                  }
+                  onChange={(e) =>
+                    editingPrizeId
+                      ? setEditPrizePercentage(e.target.value)
+                      : setNewPrizePercentage(e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Enter percentage (0-100)"
                 />
@@ -870,13 +948,16 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Pokémon Image {editingPrizeId && "(leave blank to keep current)"}
+                    Pokémon Image{" "}
+                    {editingPrizeId && "(leave blank to keep current)"}
                   </label>
                   <div
                     onDragEnter={(e) => handleDrag(e, true, "pokemon")}
                     onDragLeave={(e) => handleDrag(e, false, "pokemon")}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDropFile(e, "pokemon", editingPrizeId !== null)}
+                    onDrop={(e) =>
+                      handleDropFile(e, "pokemon", editingPrizeId !== null)
+                    }
                     className={`w-full p-6 border-2 border-dashed rounded-md transition-colors ${
                       pokemonDragActive
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -884,14 +965,28 @@ export default function ProfilePage() {
                     }`}
                   >
                     <input
-                      id={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                      id={
+                        editingPrizeId
+                          ? "edit-prize-pokemon-image"
+                          : "prize-pokemon-image"
+                      }
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageFileChange(e, "pokemon", editingPrizeId !== null)}
+                      onChange={(e) =>
+                        handleImageFileChange(
+                          e,
+                          "pokemon",
+                          editingPrizeId !== null,
+                        )
+                      }
                       className="hidden"
                     />
                     <label
-                      htmlFor={editingPrizeId ? "edit-prize-pokemon-image" : "prize-pokemon-image"}
+                      htmlFor={
+                        editingPrizeId
+                          ? "edit-prize-pokemon-image"
+                          : "prize-pokemon-image"
+                      }
                       className="cursor-pointer flex flex-col items-center justify-center gap-2"
                     >
                       <div className="text-2xl">📸</div>
@@ -904,11 +999,17 @@ export default function ProfilePage() {
                     </label>
                   </div>
                 </div>
-                {(editingPrizeId ? editPokemonImagePreview : newPokemonImagePreview) && (
+                {(editingPrizeId
+                  ? editPokemonImagePreview
+                  : newPokemonImagePreview) && (
                   <div className="mt-2">
                     <p className="text-sm font-medium mb-2">Pokémon Preview:</p>
                     <img
-                      src={editingPrizeId ? editPokemonImagePreview : newPokemonImagePreview}
+                      src={
+                        editingPrizeId
+                          ? editPokemonImagePreview
+                          : newPokemonImagePreview
+                      }
                       alt="Pokemon preview"
                       className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
                     />
@@ -918,13 +1019,16 @@ export default function ProfilePage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Sports Images {editingPrizeId && "(leave blank to keep current)"}
+                    Sports Images{" "}
+                    {editingPrizeId && "(leave blank to keep current)"}
                   </label>
                   <div
                     onDragEnter={(e) => handleDrag(e, true, "sports")}
                     onDragLeave={(e) => handleDrag(e, false, "sports")}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDropFile(e, "sports", editingPrizeId !== null)}
+                    onDrop={(e) =>
+                      handleDropFile(e, "sports", editingPrizeId !== null)
+                    }
                     className={`w-full p-6 border-2 border-dashed rounded-md transition-colors ${
                       sportsDragActive
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -932,14 +1036,28 @@ export default function ProfilePage() {
                     }`}
                   >
                     <input
-                      id={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                      id={
+                        editingPrizeId
+                          ? "edit-prize-sports-image"
+                          : "prize-sports-image"
+                      }
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageFileChange(e, "sports", editingPrizeId !== null)}
+                      onChange={(e) =>
+                        handleImageFileChange(
+                          e,
+                          "sports",
+                          editingPrizeId !== null,
+                        )
+                      }
                       className="hidden"
                     />
                     <label
-                      htmlFor={editingPrizeId ? "edit-prize-sports-image" : "prize-sports-image"}
+                      htmlFor={
+                        editingPrizeId
+                          ? "edit-prize-sports-image"
+                          : "prize-sports-image"
+                      }
                       className="cursor-pointer flex flex-col items-center justify-center gap-2"
                     >
                       <div className="text-2xl">⚽</div>
@@ -952,11 +1070,26 @@ export default function ProfilePage() {
                     </label>
                   </div>
                 </div>
-                {(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).length > 0 && (
+                {(editingPrizeId
+                  ? editSportsImagePreviews
+                  : newSportsImagePreviews
+                ).length > 0 && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium mb-2">Sports Previews ({(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).length}):</p>
+                    <p className="text-sm font-medium mb-2">
+                      Sports Previews (
+                      {
+                        (editingPrizeId
+                          ? editSportsImagePreviews
+                          : newSportsImagePreviews
+                        ).length
+                      }
+                      ):
+                    </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {(editingPrizeId ? editSportsImagePreviews : newSportsImagePreviews).map((preview, index) => (
+                      {(editingPrizeId
+                        ? editSportsImagePreviews
+                        : newSportsImagePreviews
+                      ).map((preview, index) => (
                         <div key={index} className="relative">
                           <img
                             src={preview}
@@ -965,7 +1098,9 @@ export default function ProfilePage() {
                           />
                           <button
                             type="button"
-                            onClick={() => removeSportsImage(index, editingPrizeId !== null)}
+                            onClick={() =>
+                              removeSportsImage(index, editingPrizeId !== null)
+                            }
                             className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
                           >
                             ×
@@ -1021,17 +1156,26 @@ export default function ProfilePage() {
             )}
 
             {/* Prizes List */}
-            {isMounted && (
-              prizes && prizes.length > 0 ? (
+            {isMounted &&
+              (prizes && prizes.length > 0 ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm">Your Prizes ({prizes.length})</h3>
-                    <div className={`text-sm font-medium ${
-                      prizes.reduce((sum, prize) => sum + prize.percentage, 0) === 100
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      Total: {prizes.reduce((sum, prize) => sum + prize.percentage, 0)}%
+                    <h3 className="font-semibold text-sm">
+                      Your Prizes ({prizes.length})
+                    </h3>
+                    <div
+                      className={`text-sm font-medium ${
+                        prizes.reduce(
+                          (sum, prize) => sum + prize.percentage,
+                          0,
+                        ) === 100
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      Total:{" "}
+                      {prizes.reduce((sum, prize) => sum + prize.percentage, 0)}
+                      %
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -1049,32 +1193,54 @@ export default function ProfilePage() {
                                   alt={`${prize.prizeName} Pokemon`}
                                   className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
                                 />
-                                <span className="text-xs mt-1 text-muted-foreground">Pokémon</span>
+                                <span className="text-xs mt-1 text-muted-foreground">
+                                  Pokémon
+                                </span>
                               </div>
                             )}
-                            {prize.sportsImageUrls && prize.sportsImageUrls.length > 0 && (
-                              <>
-                                {prize.sportsImageUrls.map((imageUrl, index) => (
-                                  <div key={index} className="flex flex-col items-center">
-                                    <img
-                                      src={imageUrl}
-                                      alt={`${prize.prizeName} Sports ${index + 1}`}
-                                      className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
-                                    />
-                                    <span className="text-xs mt-1 text-muted-foreground">Sports</span>
-                                  </div>
-                                ))}
-                              </>
-                            )}
+                            {prize.sportsImageUrls &&
+                              prize.sportsImageUrls.length > 0 && (
+                                <>
+                                  {prize.sportsImageUrls.map(
+                                    (imageUrl, index) => (
+                                      <div
+                                        key={index}
+                                        className="flex flex-col items-center"
+                                      >
+                                        <img
+                                          src={imageUrl}
+                                          alt={`${prize.prizeName} Sports ${index + 1}`}
+                                          className="h-20 w-20 object-cover rounded border border-slate-300 dark:border-slate-600"
+                                        />
+                                        <span className="text-xs mt-1 text-muted-foreground">
+                                          Sports
+                                        </span>
+                                      </div>
+                                    ),
+                                  )}
+                                </>
+                              )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{prize.prizeName}</p>
-                            <p className="text-sm text-muted-foreground">{prize.percentage}% win chance</p>
+                            <p className="font-medium truncate">
+                              {prize.prizeName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {prize.percentage}% win chance
+                            </p>
                           </div>
                         </div>
                         <div className="flex gap-2 ml-4 flex-shrink-0">
                           <NeonButton
-                            onClick={() => handleEditPrize(prize._id, prize.prizeName, prize.percentage, prize.pokemonImageUrl, prize.sportsImageUrls)}
+                            onClick={() =>
+                              handleEditPrize(
+                                prize._id,
+                                prize.prizeName,
+                                prize.percentage,
+                                prize.pokemonImageUrl,
+                                prize.sportsImageUrls,
+                              )
+                            }
                             disabled={isLoading || editingPrizeId !== null}
                             className="bg-slate-600 hover:bg-slate-700 px-3 py-1 text-sm"
                           >
@@ -1096,8 +1262,7 @@ export default function ProfilePage() {
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md text-center text-muted-foreground">
                   <p>No prizes configured yet. Add your first prize above.</p>
                 </div>
-              )
-            )}
+              ))}
           </div>
 
           {/* Security Information */}

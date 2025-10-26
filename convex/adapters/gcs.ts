@@ -2,7 +2,7 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getCurrentUserId } from "../auth";
 import { Storage } from "@google-cloud/storage";
 
 // Initialize GCS client with credentials from base64 environment variable
@@ -28,7 +28,7 @@ export const uploadPrizeImage = action({
     message: v.string(),
   }),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return {
         success: false,
@@ -102,7 +102,7 @@ export const deletePrizeImage = action({
     message: v.string(),
   }),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getCurrentUserId(ctx);
     if (!userId) {
       return {
         success: false,

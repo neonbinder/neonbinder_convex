@@ -1,19 +1,25 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { authTables } from "@convex-dev/auth/server";
 
-// The schema is normally optional, but Convex Auth
-// requires indexes defined on `authTables`.
-// The schema provides more precise TypeScript types.
+// Using Clerk for authentication - users are identified by Clerk user IDs
 export default defineSchema({
-  ...authTables,
+  // Users table for storing Clerk user data
+  users: defineTable({
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    // Store the Clerk user ID as a string (not as a Convex ID)
+    clerkUserId: v.optional(v.string()),
+  }).index("by_clerk_user_id", ["clerkUserId"]),
+
   numbers: defineTable({
     value: v.number(),
   }),
 
   // User profiles for storing site credential references and preferences
+  // Using Clerk user IDs as strings
   userProfiles: defineTable({
-    userId: v.id("users"),
+    userId: v.string(), // Clerk user ID as string
     siteCredentials: v.optional(v.array(v.object({
       site: v.string(),
       hasCredentials: v.boolean(),
@@ -64,7 +70,7 @@ export default defineSchema({
 
   // Prize Pool - stores prizes for the wheel of fortune spin
   prizePool: defineTable({
-    userId: v.id("users"),
+    userId: v.string(), // Clerk user ID as string
     prizeName: v.string(),
     percentage: v.number(), // 0-100, represents the likelihood of winning this prize
     pokemonImageUrl: v.optional(v.string()), // URL to the Pokemon variant image stored in Google Cloud Storage
