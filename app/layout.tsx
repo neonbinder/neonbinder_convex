@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import ConvexClientProvider from "@/components/modules/ConvexClientProvider";
+import { PostHogProvider } from "@/components/modules/PostHogProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,7 +42,9 @@ export default function RootLayout({
             radius="large"
             appearance="dark"
           >
-            <ConvexClientProvider>{children}</ConvexClientProvider>
+            <PostHogProvider>
+              <ConvexClientProvider>{children}</ConvexClientProvider>
+            </PostHogProvider>
           </Theme>
         </body>
       </html>

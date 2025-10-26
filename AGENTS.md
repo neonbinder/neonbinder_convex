@@ -656,6 +656,285 @@ try {
 - [ ] Create Sentry dashboards for error rates and job latency.  
 - [ ] Verify correlation IDs appear in Sentry events and breadcrumbs.
 
+# Analytics & Product Intelligence with PostHog
+
+PostHog provides product analytics, feature flags, session recordings, and user surveys for NeonBinder.  
+All user interactions, feature usage, and business metrics should be tracked through PostHog to understand how collectors use the platform.
+
+---
+
+## 🧠 Goals
+- **Complete product insight:** Track all user actions from collection management to marketplace selling.  
+- **Privacy-first:** Respect user privacy with proper PII handling and opt-out support.  
+- **Correlated analytics:** Each event includes `userId`, `cardId`, `collectionId`, and other contextual identifiers.  
+- **Real-time tracking:** Monitor feature adoption and user flows as they happen.
+
+---
+
+## 🧩 What to Track
+
+**Critical User Actions** (Always Track)
+- Card added to collection
+- Card added to "Go Get It" list
+- Collection created/updated/deleted
+- Card scanning/recognition attempts
+- Marketplace listing created/updated/deleted
+- Checkout initiated/completed
+- User authentication events
+
+**Product Usage Metrics** (Track Regularly)
+- Collections per user
+- Cards per collection
+- Features accessed per session
+- Time spent in various sections
+- Filter and search usage patterns
+- Import/export operations
+
+**Business Metrics** (Track for Growth)
+- Marketplace sync success rates
+- Listing conversion rates
+- Image recognition accuracy
+- User retention cohorts
+- Feature adoption rates
+- Error recovery patterns
+
+---
+
+## 📊 Tracking Implementation
+
+### Setup
+
+```bash
+cd neonbinder_web
+npx -y @posthog/wizard@latest
+```
+
+Or install manually:
+```bash
+pnpm add posthog-js
+```
+
+### Web Implementation (Next.js)
+
+**Client-side tracking**
+```ts
+// lib/posthog.ts
+import posthog from 'posthog-js';
+
+export function initializePostHog() {
+  if (typeof window !== 'undefined') {
+    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
+      api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
+      person_profiles: 'identified_only',
+      capture_pageview: false, // disable automatic pageview capture, we'll track manually
+    });
+  }
+  return posthog;
+}
+
+export const posthog = initializePostHog();
+```
+
+**Server-side tracking (API Routes)**
+```ts
+import { PostHog } from 'posthog-node';
+
+const posthog = new PostHog(process.env.POSTHOG_API_KEY!, {
+  host: 'https://app.posthog.com',
+});
+
+export function trackEvent(userId: string, event: string, properties: Record<string, any>) {
+  posthog.capture({
+    distinctId: userId,
+    event,
+    properties: {
+      ...properties,
+      environment: process.env.NODE_ENV,
+      service: 'next-api',
+    },
+  });
+}
+```
+
+### Example: Tracking Card Addition
+
+```tsx
+import { posthog } from '@/lib/posthog';
+
+function CardAddButton({ card, collectionId }: Props) {
+  const handleAdd = async () => {
+    try {
+      await addCardToCollection(card.id, collectionId);
+      
+      // Track successful card addition
+      posthog.capture('card_added', {
+        cardId: card.id,
+        cardName: card.name,
+        collectionId,
+        collectionType: card.collectionType,
+        method: 'button_click',
+      });
+    } catch (error) {
+      // Track error
+      posthog.capture('card_add_failed', {
+        cardId: card.id,
+        collectionId,
+        error: error.message,
+      });
+    }
+  };
+
+  return <button onClick={handleAdd}>Add Card</button>;
+}
+```
+
+### Identifying Users
+
+Always identify users after authentication:
+
+```ts
+import { posthog } from '@/lib/posthog';
+import { useUser } from '@clerk/nextjs';
+
+export function usePosthogUser() {
+  const { user } = useUser();
+  
+  useEffect(() => {
+    if (user) {
+      posthog.identify(user.id, {
+        email: user.primaryEmailAddress?.emailAddress,
+        name: user.fullName,
+        created_at: user.createdAt,
+      });
+    } else {
+      posthog.reset(); // Reset anonymous IDs on logout
+    }
+  }, [user]);
+  
+  return posthog;
+}
+```
+
+### Feature Flags
+
+Use PostHog for feature flags and gradual rollouts:
+
+```tsx
+import { useFeatureFlag } from 'posthog-js/react';
+import { posthog } from '@/lib/posthog';
+
+function NewFeature() {
+  const isEnabled = posthog.isFeatureEnabled('new-collection-ui');
+  
+  if (!isEnabled) return null;
+  
+  return <CollectionV2 />;
+}
+```
+
+---
+
+## 🧩 Event Naming Conventions
+
+Use consistent, dot-notation naming for all events:
+
+**Format:** `object.action` or `section.object.action`
+
+| Category | Event Pattern | Example |
+|----------|--------------|---------|
+| **Collection** | `collection.{action}` | `collection.created`, `collection.deleted` |
+| **Card** | `card.{action}` | `card.added`, `card.scanned`, `card.removed` |
+| **Marketplace** | `marketplace.{action}` | `marketplace.listing_created`, `marketplace.sync_completed` |
+| **User** | `user.{action}` | `user.signed_in`, `user.profile_updated` |
+| **Checklist** | `checklist.{action}` | `checklist.completed`, `checklist.progress_updated` |
+| **Image Recognition** | `recognition.{action}` | `recognition.matched`, `recognition.failed` |
+| **Navigation** | `navigation.{destination}` | `navigation.dashboard`, `navigation.collection_view` |
+
+Always include relevant properties:
+```ts
+posthog.capture('card.added', {
+  cardId: card.id,
+  cardName: card.name,
+  cardYear: card.year,
+  cardManufacturer: card.manufacturer,
+  collectionId: collection.id,
+  collectionType: 'personal',
+  method: 'manual_entry', // or 'scan', 'import', etc.
+});
+```
+
+---
+
+## 🔒 Privacy & Security
+
+**No PII in Properties**
+- Never include email addresses, phone numbers, or real names in event properties
+- Use hashed or redacted identifiers when needed
+- Store sensitive data in PostHog's person profile, not in event properties
+
+**GDPR Compliance**
+- Honor user opt-out preferences
+- Provide clear privacy policy
+- Include PostHog's opt-out mechanism
+
+```ts
+// Respect user privacy preferences
+if (user.privacyTrackingDisabled) {
+  posthog.opt_out_capturing();
+} else {
+  posthog.opt_in_capturing();
+}
+```
+
+---
+
+## ⚙️ Correlation with Sentry
+
+Ensure PostHog events include the same correlation IDs as Sentry:
+
+```ts
+import * as Sentry from '@sentry/nextjs';
+import { posthog } from '@/lib/posthog';
+
+function trackWithContext(event: string, properties: Record<string, any>) {
+  const requestId = crypto.randomUUID();
+  
+  // Add to Sentry
+  Sentry.setTag('requestId', requestId);
+  Sentry.addBreadcrumb({
+    message: event,
+    level: 'info',
+    data: properties,
+  });
+  
+  // Add to PostHog
+  posthog.capture(event, {
+    ...properties,
+    requestId,
+    timestamp: new Date().toISOString(),
+  });
+}
+```
+
+This creates a unified trace across both systems.
+
+---
+
+## ✅ PostHog Setup Checklist
+
+- [ ] Run `npx @posthog/wizard` to set up Next.js integration
+- [ ] Add `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` to `.env.local`
+- [ ] Initialize PostHog in client-side layout
+- [ ] Set up user identification after auth
+- [ ] Create helper functions for common events
+- [ ] Implement correlation with Sentry
+- [ ] Configure dashboards for key metrics
+- [ ] Set up alerts for critical business events
+- [ ] Test event tracking in development
+- [ ] Verify GDPR compliance and opt-out flow
+
+---
+
 # Testing & Validation Standards
 
 Testing in NeonBinder ensures that collectors and sellers have a reliable, high-performance experience — whether on web, mobile, or through automation services.  
