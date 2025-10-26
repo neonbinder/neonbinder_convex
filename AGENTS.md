@@ -363,22 +363,21 @@ AI agents contributing to NeonBinder should adhere to the following principles w
 
 # Error Handling & Logging Standards
 
-NeonBinder uses a **hybrid observability stack** combining **Sentry**, **Firebase Crashlytics**, and **Grafana Loki**.  
-This approach provides unified visibility across all layers — from backend automation and web APIs to mobile runtime and native crashes — while keeping costs efficient.
+NeonBinder uses **Sentry** as the unified observability platform for error tracking, performance monitoring, and structured logging across all layers.  
+This approach provides complete visibility — from backend automation and web APIs to mobile runtime and native crashes — while keeping costs efficient.
 
 | Layer | Primary Tool | Purpose |
 |--------|---------------|----------|
-| Web (Next.js + Convex) | **Sentry** | Application and API error tracking, performance tracing |
-| Backend (Node/Puppeteer) | **Sentry** | Job and automation error tracking |
-| Mobile (Expo / React Native) | **Sentry** | JS/runtime errors, API failures, UI exceptions |
+| Web (Next.js + Convex) | **Sentry** | Application and API error tracking, performance tracing, structured logging |
+| Backend (Node/Puppeteer) | **Sentry** | Job and automation error tracking, structured logging |
+| Mobile (Expo / React Native) | **Sentry** | JS/runtime errors, API failures, UI exceptions, structured logging |
 | Mobile Native Layer | **Firebase Crashlytics** | Native iOS/Android crash reporting |
-| Logs (All Repos) | **Loki (Grafana Cloud)** | Structured, low-cost log aggregation and search |
 
 ---
 
 ## 🧠 Goals
-- **Unified visibility:** Sentry spans web, backend, and mobile JS; Crashlytics handles native-level crashes.  
-- **Low cost:** Loki free tier handles structured logs; Sentry and Crashlytics both have generous free plans.  
+- **Unified visibility:** Sentry handles all error tracking, performance monitoring, and structured logging across web, backend, and mobile JS layers.  
+- **Complete observability:** All errors, warnings, and info-level events flow through Sentry with consistent metadata.  
 - **Privacy-first:** No raw PII in logs or error contexts.  
 - **Correlated diagnostics:** Each error/log includes consistent metadata (`requestId`, `userId`, `repo`, `service`, etc.).
 
@@ -388,34 +387,11 @@ This approach provides unified visibility across all layers — from backend aut
 
 **Correlation**
 - Generate a `requestId` (UUID) per request or job; pass it through all layers.  
-- Include the following keys on all Sentry events and logs:
+- Include the following keys on all Sentry events:
   - `requestId`, `userId`, `repo`, `service`, `env`, `version`, and any contextual identifiers (`marketplace`, `cardId`, `job`).
 
-**Log Levels**
-| Level | Use Case |
-|--------|-----------|
-| `debug` | Development diagnostics only |
-| `info` | High-level lifecycle events |
-| `warn` | Recoverable anomalies |
-| `error` | Application-level failures |
-| `fatal` | Unrecoverable crashes or process aborts |
-
-**JSON Log Format Example**
-```json
-{
-  "level": "info",
-  "ts": "2025-10-26T14:21:00.000Z",
-  "msg": "collection.add.completed",
-  "requestId": "req_123",
-  "userId": "u_abc",
-  "repo": "neonbinder_web",
-  "service": "next-api",
-  "env": "production",
-  "version": "2025.10.26-1",
-  "durationMs": 183,
-  "counts": { "added": 3, "skipped": 1 }
-}
-```
+**Logging with Sentry**
+Use Sentry's structured logging for all events, errors, and informational messages.
 
 **Never log raw PII.**  
 Redact or hash user identifiers, card images, tokens, and cookies.
@@ -442,15 +418,33 @@ Sentry.init({
 });
 ```
 
-**API wrapper example**
+**API wrapper example with structured logging**
 ```ts
 import { withSentry } from '@sentry/nextjs';
+import * as Sentry from '@sentry/nextjs';
 
 export default withSentry(async function handler(req, res) {
   const requestId = req.headers['x-request-id'] ?? crypto.randomUUID();
   Sentry.setTag('requestId', requestId);
+  Sentry.setTag('repo', 'neonbinder_web');
+  Sentry.setTag('service', 'next-api');
+  
   try {
+    // Log info events
+    Sentry.addBreadcrumb({
+      message: 'collection.add.started',
+      level: 'info',
+      data: { userId: req.userId }
+    });
+    
     // business logic
+    
+    Sentry.addBreadcrumb({
+      message: 'collection.add.completed',
+      level: 'info',
+      data: { added: 3, skipped: 1, durationMs: 183 }
+    });
+    
     res.status(200).json({ ok: true });
   } catch (err) {
     Sentry.captureException(err);
@@ -496,9 +490,36 @@ Sentry.init({
   release: process.env.APP_VERSION,
   tracesSampleRate: 0.0 // disable for long-running jobs
 });
+
+// Example: structured logging for marketplace automation
+export async function syncMarketplace(marketplace: string, job: string) {
+  const requestId = crypto.randomUUID();
+  Sentry.setTag('requestId', requestId);
+  Sentry.setTag('marketplace', marketplace);
+  Sentry.setTag('job', job);
+  
+  try {
+    Sentry.addBreadcrumb({
+      message: 'marketplace.sync.started',
+      level: 'info',
+      data: { marketplace, job }
+    });
+    
+    // automation logic
+    
+    Sentry.addBreadcrumb({
+      message: 'marketplace.sync.completed',
+      level: 'info',
+      data: { processed: 10, errors: 0 }
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
 ```
 
-Each Puppeteer job should log its `jobName`, `requestId`, and marketplace to both Sentry and Loki.
+Each Puppeteer job should use Sentry breadcrumbs to log its `jobName`, `requestId`, and marketplace for complete observability.
 
 ---
 
@@ -532,40 +553,60 @@ Crashlytics data stays in Firebase Console; you can optionally export to BigQuer
 
 ---
 
-## 📜 Loki (Structured Logging)
+## 📜 Structured Logging with Sentry
 
-Loki provides cost-effective centralized logging through **Grafana Cloud’s free tier** (up to 50 GB/mo, 14-day retention).  
-All services emit **JSON logs to stdout**; **Grafana Agent** or **Promtail** forwards them to Loki.
+Sentry provides comprehensive logging capabilities through breadcrumbs and events. Use Sentry for all structured logging needs.
 
-**Minimal `log()` helper**
+**Basic Logging Pattern**
 ```ts
-export function log(level: string, msg: string, ctx: Record<string, any> = {}) {
-  const base = {
-    ts: new Date().toISOString(),
-    level, msg,
-    repo: process.env.NB_REPO,
-    service: process.env.NB_SERVICE,
-    env: process.env.NODE_ENV,
-    version: process.env.APP_VERSION,
-  };
-  console.log(JSON.stringify({ ...base, ...ctx }));
+// Add breadcrumbs for info-level events
+Sentry.addBreadcrumb({
+  message: 'operation.completed',
+  level: 'info',
+  data: { key: 'value' }
+});
+
+// Log errors
+Sentry.captureException(error);
+
+// Set context for operations
+Sentry.setContext('operation', {
+  marketplace: 'ebay',
+  cardCount: 10,
+  durationMs: 1500
+});
+```
+
+**Helper Function for Convenience**
+```ts
+export function logInfo(message: string, data?: Record<string, any>) {
+  Sentry.addBreadcrumb({
+    message,
+    level: 'info',
+    data
+  });
+}
+
+export function logError(error: Error, context?: Record<string, any>) {
+  if (context) {
+    Sentry.setContext('error_context', context);
+  }
+  Sentry.captureException(error);
 }
 ```
 
-**Use**
+**Usage**
 ```ts
-log('info', 'marketplace.sync.started', { marketplace: 'ebay', job: 'priceUpdate' });
+logInfo('marketplace.sync.started', { marketplace: 'ebay', job: 'priceUpdate' });
+logInfo('marketplace.sync.completed', { processed: 10, errors: 0 });
+
+try {
+  // operation
+} catch (error) {
+  logError(error, { marketplace: 'ebay', operation: 'sync' });
+  throw error;
+}
 ```
-
-**Labels for Loki**
-| Label | Example | Notes |
-|--------|----------|-------|
-| `repo` | `neonbinder_web` | keep low-cardinality |
-| `service` | `next-api`, `convex`, `worker` |  |
-| `env` | `dev`, `staging`, `prod` |  |
-| `version` | short git SHA |  |
-
-Put dynamic values (IDs, requestIds) **inside JSON**, not as labels.
 
 ---
 
@@ -574,12 +615,9 @@ Put dynamic values (IDs, requestIds) **inside JSON**, not as labels.
 **Sentry**
 - Alerts for *new issues*, *regressions*, *error rate spikes*.  
 - Tag-based routing (`repo`, `service`, `marketplace`).  
+- Create custom dashboards for error rates, warnings, and job latency.  
+- Error budget: alert when `error/total > 2%` over 15 minutes.  
 - Integrate with Slack `#neonbinder-alerts`.
-
-**Grafana (Loki)**
-- Create dashboards per repo (error rate, warnings, job latency).  
-- Alerts for patterns like `"level=error AND marketplace=ebay"`.  
-- Error budget: alert when `error/total > 2%` over 15 minutes.
 
 **Crashlytics**
 - Use Firebase Console for native crash stats; integrate Slack or email alerts if desired.
@@ -588,15 +626,15 @@ Put dynamic values (IDs, requestIds) **inside JSON**, not as labels.
 
 ## 🧱 Terraform & Secrets
 
-- Store Sentry DSNs and Loki credentials in **GCP Secret Manager**.  
-- Provision Loki and Sentry credentials via `neonbinder_terraform`.  
+- Store Sentry DSNs in **GCP Secret Manager**.  
+- Provision Sentry credentials via `neonbinder_terraform`.  
 - CI/CD injects environment variables into Cloud Run, GCP Functions, and Expo builds.
 
 ---
 
 ## ⚙️ Sampling & Noise Control
 - **Sentry:** Start with `tracesSampleRate: 0.1` on web, `0.0` on long jobs.  
-- **Logs:** Sample repetitive info logs (keep 1 in 10), but never drop `error` or `fatal`.  
+- **Breadcrumbs:** Add breadcrumbs for critical info events; Sentry will automatically sample if volume is high.  
 - **Crashlytics:** Disabled in local/dev builds to avoid noise.
 
 ---
@@ -613,10 +651,10 @@ Put dynamic values (IDs, requestIds) **inside JSON**, not as labels.
 - [ ] Add Sentry DSN and environment variables via secrets.  
 - [ ] Initialize Sentry in web, app, and browser repos.  
 - [ ] Add Crashlytics to mobile native builds.  
-- [ ] Replace `console.log` with structured `log()` helper.  
-- [ ] Deploy Grafana Agent → Loki; verify logs in Grafana Cloud.  
-- [ ] Set up Sentry + Grafana alerts routed to Slack.  
-- [ ] Verify correlation IDs appear across Sentry events and logs.
+- [ ] Replace `console.log` with Sentry breadcrumbs for logging.  
+- [ ] Set up Sentry alerts routed to Slack.  
+- [ ] Create Sentry dashboards for error rates and job latency.  
+- [ ] Verify correlation IDs appear in Sentry events and breadcrumbs.
 
 # Testing & Validation Standards
 
