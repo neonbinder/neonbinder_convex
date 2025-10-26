@@ -10,7 +10,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import SetSelector from "../../components/modules/SetSelector";
+import ComingSoon from "../../components/modules/ComingSoon";
 import Image from "next/image";
 import NeonButton from "../../components/modules/NeonButton";
 
@@ -34,8 +34,8 @@ export default function DashboardPage() {
           </SignedIn>
         </div>
       </header>
-      <main className="p-8 flex flex-col gap-8">
-        <SetSelector />
+      <main className="flex-1">
+        <ComingSoon />
       </main>
     </>
   );
