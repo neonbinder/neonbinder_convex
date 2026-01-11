@@ -2,7 +2,6 @@
 
 import {
   useAuth,
-  useUser,
   SignInButton,
   SignUpButton,
   SignedIn,
@@ -10,7 +9,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import ComingSoon from "../../components/modules/ComingSoon";
+import ComingSoon from "./ComingSoon";
 import Image from "next/image";
 import NeonButton from "../../components/modules/NeonButton";
 

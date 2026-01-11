@@ -6,15 +6,19 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: "https://1020d108441464cb1275b92cda2b8a6e@o4510257330520064.ingest.us.sentry.io/4510257349525504",
+  dsn: process.env.SENTRY_DSN,
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  environment: process.env.NODE_ENV,
+  release: process.env.NEXT_PUBLIC_APP_VERSION,
+
+  // Sample 10% of transactions in production
+  // Edge functions should sample at same rate as server
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  // Do not automatically send PII to comply with privacy-first standards
+  // If you need user data, explicitly add it via tags or context
+  // sendDefaultPii: false, // default value is false, explicitly set here for clarity
 });

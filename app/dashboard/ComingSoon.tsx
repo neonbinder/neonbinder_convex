@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Link, NeonHeader } from "../primitives";
-import { BindersIcon, ConvertIcon, MaximizeIcon } from "../icons";
+import { Link, NeonHeader } from "../../components/primitives";
+import { BindersIcon, ConvertIcon, MaximizeIcon } from "../../components/icons";
 
 export default function ComingSoon() {
   const router = useRouter();

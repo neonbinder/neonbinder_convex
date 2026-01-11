@@ -172,31 +172,168 @@ All repositories should follow a **modular, domain-driven structure**, with pred
 
 ## 🧩 1. General Directory Structure
 
-Each repository should organize source files by **domain**, not by technical type.  
+`neonbinder_web` uses the **Next.js App Router** structure with Convex backend integration. The codebase is organized as follows:
+
+### Frontend Structure (Next.js)
 
 ```
-/src
-  /cards
-    /components
-    /services
-    /types
-  /collections
-  /marketplaces
-  /users
-  /images
-  /agents
-  /lib
-  /hooks
-  /utils
-  /theme
+/
+  /app                    # Next.js App Router - pages and routing
+    /dashboard           # Dashboard page
+    /profile            # User profile page
+    /set-selector       # Card selection interface
+    /api                # API routes
+    /layout.tsx         # Root layout component
+    /globals.css        # Global styles
+  /components           # React components
+    /primitives         # Base UI components (Button, Input, etc.)
+    /modules            # Composite components and providers
+    /SetSelector        # Card selection components
+  /convex               # Convex backend (database, functions, auth)
+    /adapters           # Marketplace adapters and integrations
+    /schema.ts          # Database schema definitions
+    /myFunctions.ts      # Convex queries, mutations, actions
+    /auth.ts            # Authentication configuration
+  /public               # Static assets (images, fonts, icons)
 ```
 
-- **Domain folders** (e.g., `/cards`, `/collections`, `/marketplaces`) contain everything related to that feature.  
-- **Shared utilities** belong under `/lib` or `/utils`.  
-- **UI-level hooks** go in `/hooks`.  
-- **Global theming** (colors, typography, spacing, etc.) belongs in `/theme`.  
+### Backend Structure (Convex)
 
-This structure should mirror between `neonbinder_web` and `neonbinder_app` wherever possible to maintain parity across platforms.
+```
+/convex
+  /adapters             # Marketplace and external service integrations
+    base.ts            # Base adapter interface
+    ebay.ts            # eBay marketplace adapter
+    sportlots.ts       # SportLots marketplace adapter
+    buysportscards.ts   # BuySportsCards adapter
+    myslabs.ts         # MySlabs adapter
+    mycardpost.ts      # MyCardPost adapter
+    secret_manager.ts  # GCP Secret Manager integration
+    types.ts           # Shared adapter types
+  /schema.ts           # Convex schema definitions
+  /myFunctions.ts       # Queries, mutations, and actions
+  /auth.ts             # Authentication setup (Clerk integration)
+  /auth.config.ts      # Authentication configuration
+  /http.ts             # HTTP endpoint handlers
+```
+
+**Key principles**:
+- **Pages** in `/app` correspond to routes in the Next.js application
+- **Components** in `/components` are organized by purpose (primitives vs modules)
+- **Convex functions** in `/convex` handle database operations and backend logic
+- **Adapters** in `/convex/adapters` integrate with external marketplace APIs
+- **Shared utilities** belong alongside the components/features that use them
+- **Global config** (styles, Sentry, PostHog) lives at the root level
+
+**Convex functions** should be organized by domain within `myFunctions.ts` or split into domain-specific files as the codebase grows. Use clear sections and comments to separate concerns.
+
+### Working with Convex
+
+**Schema Definitions** (`/convex/schema.ts`)
+- Define all database tables and their field types here
+- Use Convex validators: `v.string()`, `v.number()`, `v.id()` etc.
+- Tables map to collections in the database
+
+```ts
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  numbers: defineTable({
+    value: v.number(),
+  }),
+  sets: defineTable({
+    sport: v.string(),
+    manufacturer: v.string(),
+    year: v.number(),
+  }),
+});
+```
+
+**Convex Functions** (`/convex/myFunctions.ts`)
+- **Queries** (`query`) - Read data, can be called from client with `useQuery`
+- **Mutations** (`mutation`) - Write data, can be called from client with `useMutation`
+- **Actions** (`action`) - Call external APIs or complex operations, can be called from client with `useAction`
+
+```ts
+import { query, mutation, action } from "./_generated/server";
+import { v } from "convex/values";
+
+// Query example - readonly data access
+export const listNumbers = query({
+  args: { count: v.number() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("numbers")
+      .order("desc")
+      .take(args.count);
+  },
+});
+
+// Mutation example - write data
+export const addNumber = mutation({
+  args: { value: v.number() },
+  handler: async (ctx, args) => {
+    const id = await ctx.db.insert("numbers", { value: args.value });
+    return id;
+  },
+});
+
+// Action example - external API calls
+export const syncMarketplace = action({
+  args: { marketplace: v.string() },
+  handler: async (ctx, args) => {
+    // Fetch from external API
+    const data = await ctx.fetch("https://api.example.com/data");
+    // Run a mutation with the result
+    await ctx.runMutation(api.myFunctions.processData, {
+      data: await data.json(),
+    });
+  },
+});
+```
+
+**Using Convex in React Components**
+```tsx
+"use client";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+function Component() {
+  // Query example
+  const numbers = useQuery(api.myFunctions.listNumbers, { count: 10 });
+  
+  // Mutation example
+  const addNumber = useMutation(api.myFunctions.addNumber);
+  
+  const handleAdd = async () => {
+    await addNumber({ value: 42 });
+  };
+  
+  return <div>{/* ... */}</div>;
+}
+```
+
+**Authentication in Convex**
+```ts
+import { query } from "./_generated/server";
+import { getCurrentUserId } from "./auth";
+
+export const getViewer = query({
+  handler: async (ctx) => {
+    const userId = await getCurrentUserId(ctx); // Gets Clerk user ID
+    return userId;
+  },
+});
+```
+
+**Best Practices**:
+- Keep business logic in Convex functions, not in components
+- Use actions for heavy computation or external API calls
+- Use queries for real-time data display
+- Use mutations for data modifications
+- Always validate arguments with `v.*` validators
+- Use `await` when calling other Convex functions within the same function
 
 ---
 

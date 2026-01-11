@@ -6,6 +6,9 @@ const isPublicRoute = createRouteMatcher([
   '/',
   '/signin(.*)',
   '/sign-up(.*)',
+  '/binder-tracking',
+  '/ai-card-identification',
+  '/managing-inventory',
 ])
 
 const clerkHandler = clerkMiddleware(async (auth, req) => {

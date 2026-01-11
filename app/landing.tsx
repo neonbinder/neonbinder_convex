@@ -3,9 +3,23 @@
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { NeonHeader, PullingLogo } from "../components/primitives";
+import { BindersIcon } from "../components/icons";
 
 export default function LandingPage() {
   const router = useRouter();
+
+  const handleBindersClick = () => {
+    router.push("/binder-tracking");
+  };
+
+  const handleAiIdentificationClick = () => {
+    router.push("/ai-card-identification");
+  };
+
+  const handleManagingInventoryClick = () => {
+    router.push("/managing-inventory");
+  };
 
   return (
     <>
@@ -20,11 +34,6 @@ export default function LandingPage() {
               Sign In
             </button>
           </SignInButton>
-          <SignUpButton mode="modal">
-            <button className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors">
-              Create Account
-            </button>
-          </SignUpButton>
         </div>
       </header>
       <main className="min-h-screen p-8">
@@ -32,17 +41,9 @@ export default function LandingPage() {
           {/* Hero Section */}
           <div className="text-center py-16">
             <div className="flex justify-center mb-8">
-              <Image
-                src="/logo.png"
-                alt="Neon Binder"
-                width={120}
-                height={120}
-                className="animate-pulse"
-              />
+              <PullingLogo size="large" animate={true} />
             </div>
-            <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
-              Neon Binder
-            </h1>
+            <NeonHeader />
             <p className="text-2xl text-slate-600 dark:text-slate-400 mb-8">
               Your digital card collection hub
             </p>
@@ -52,42 +53,48 @@ export default function LandingPage() {
                   Get Started
                 </button>
               </SignInButton>
-              <SignUpButton mode="modal">
-                <button className="px-8 py-4 rounded-lg bg-slate-600 hover:bg-slate-700 text-white text-lg font-semibold transition-colors">
-                  Create Account
-                </button>
-              </SignUpButton>
             </div>
+            <p className="text-lg text-slate-500 dark:text-slate-300 mt-6 max-w-2xl mx-auto font-medium">
+              Claim your spot before the beta drops. Get early access and insider updates—no FOMO allowed.
+            </p>
           </div>
 
           {/* Features Section */}
           <div className="grid md:grid-cols-3 gap-8 my-16">
-            <div className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-4xl mb-4">🔍</div>
+            <button
+              onClick={handleBindersClick}
+              className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-green-500 dark:hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20 transition-all cursor-pointer text-left"
+            >
+              <div className="mb-4">
+                <BindersIcon size={60} />
+              </div>
               <h3 className="text-xl font-semibold mb-2">
-                Multi-Platform Search
+                Fill Binders for Collection Tracking
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Search across multiple card platforms including BuySportsCards,
-                SportLots, and more.
+                Organize and track your card collection with digital binders, making it easy to see exactly what you own and what you're missing.
               </p>
-            </div>
-            <div className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-4xl mb-4">🎯</div>
-              <h3 className="text-xl font-semibold mb-2">Smart Filters</h3>
+            </button>
+            <button
+              onClick={handleAiIdentificationClick}
+              className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/20 transition-all cursor-pointer text-left"
+            >
+              <div className="text-4xl mb-4">🤖</div>
+              <h3 className="text-xl font-semibold mb-2">AI-Based Card Identification</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Find exactly what you're looking for with powerful filtering
-                options for sports, years, manufacturers, and more.
+                Let our AI technology identify cards automatically, taking the guesswork out of cataloging and ensuring accurate collection data.
               </p>
-            </div>
-            <div className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-4xl mb-4">🔒</div>
-              <h3 className="text-xl font-semibold mb-2">Secure Storage</h3>
+            </button>
+            <button
+              onClick={handleManagingInventoryClick}
+              className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/20 transition-all cursor-pointer text-left"
+            >
+              <div className="text-4xl mb-4">🌐</div>
+              <h3 className="text-xl font-semibold mb-2">Manage Multiple Inventory Sites</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Your credentials are encrypted and stored securely in Google
-                Cloud Secret Manager.
+                Track inventory across eBay, BuySportsCards, MySlabs, MyCardPost, and SportLots all in one place.
               </p>
-            </div>
+            </button>
           </div>
 
           {/* How It Works Section */}
@@ -102,11 +109,10 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold mb-2">
-                    Connect Your Accounts
+                    Take Pictures of Your Cards
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Securely store your login credentials for supported card
-                    marketplaces.
+                    Snap photos of your card collection using your phone or camera for quick and easy import.
                   </p>
                 </div>
               </div>
@@ -116,11 +122,10 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold mb-2">
-                    Build Your Set Criteria
+                    Import Your Cards
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Define what you're looking for with detailed set parameters
-                    and filters.
+                    Upload your photos and let Neon Binder automatically identify and catalog your cards.
                   </p>
                 </div>
               </div>
@@ -130,11 +135,36 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold mb-2">
-                    Search & Discover
+                    Build Your Binders
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Let Neon Binder search across platforms to find cards
-                    matching your criteria.
+                    Organize your collection into custom binders however you want—by sport, player, year, or any criteria you choose.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white font-bold">
+                  4
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    Synchronize to Sales Sites
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Automatically sync your listings to eBay, BuySportsCards, MySlabs, MyCardPost, and SportLots all at once.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white font-bold">
+                  5
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    Track Sales & Get Daily Pull Sheets
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Monitor your sales across all platforms and receive daily pull sheets to stay on top of your inventory.
                   </p>
                 </div>
               </div>

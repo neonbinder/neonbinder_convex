@@ -11,7 +11,8 @@
     "predev": "./setup-env.sh",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "builder": "npx builder.io@latest launch --app --serverUrl http://localhost:3000"
   },
   "dependencies": {
     "@clerk/backend": "^2.19.0",
