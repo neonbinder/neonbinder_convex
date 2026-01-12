@@ -27,7 +27,7 @@ export default function YearSelector({
       expanded={expanded}
       setExpanded={setExpanded}
       getDisplayName={(year) => year.value as string}
-      getDescription={(year) => undefined}
+      getDescription={() => undefined}
       selectedColor="bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700"
     />
   );

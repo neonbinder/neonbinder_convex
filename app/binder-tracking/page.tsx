@@ -34,6 +34,9 @@ export default function BinderTrackingPage() {
             <p className="text-xl text-slate-400 mb-8">
               The totally rad way to catalog, organize, and manage your trading cards
             </p>
+            <p className="text-lg font-semibold text-neon-green mt-6">
+              Free Tier: Track your collection for Free Forever
+            </p>
           </div>
 
           {/* Section 1: Upload Cards */}
@@ -201,9 +204,9 @@ export default function BinderTrackingPage() {
             <div>
               <h2 className="text-4xl font-bold mb-4 text-neon-yellow">Build It Your Way</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Here's the best part — organize your cards however YOU want. By set, by player, by team, by year, by manufacturer, 
-                by condition... heck, organize them however your collecting heart desires. We'll let you create unlimited custom binders 
-                and arrange your collection exactly how you like it. No rules. Total freedom.
+                Here's the best part — organize your cards however YOU want. Use our verified manufacturer checklists for instant accuracy or create your own custom binders.
+                By set, by player, by team, by year, by condition... organize them however your collecting heart desires. We'll let you create unlimited custom collections
+                and arrange your cards exactly how you like it. No rules. Total freedom.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">

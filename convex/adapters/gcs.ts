@@ -36,6 +36,14 @@ export const uploadPrizeImage = action({
       };
     }
 
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: "Prize image uploads are coming soon!",
+      };
+    }
+
     try {
       const gcs = getGCSClient();
       const bucket = gcs.bucket("neonbinder-prizes");
@@ -107,6 +115,14 @@ export const deletePrizeImage = action({
       return {
         success: false,
         message: "Not authenticated",
+      };
+    }
+
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: "Prize image deletion is coming soon!",
       };
     }
 

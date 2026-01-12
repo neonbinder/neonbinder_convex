@@ -34,6 +34,9 @@ export default function AiCardIdentificationPage() {
             <p className="text-xl text-slate-400 mb-8">
               The totally awesome way to recognize and catalog cards with AI power
             </p>
+            <p className="text-lg font-semibold text-neon-purple mt-6">
+              Free Tier: For personal collections
+            </p>
           </div>
 
           {/* Section 1: Instant Recognition */}
@@ -64,8 +67,8 @@ export default function AiCardIdentificationPage() {
             <div>
               <h2 className="text-4xl font-bold mb-4 text-neon-green">Instant Recognition</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Snap a photo and boom — our AI identifies your card instantly. No waiting around, no manual searching through databases.
-                We're talking lightning-fast recognition that just works. Your card is recognized in seconds with gnarly accuracy.
+                Snap a photo and boom — our AI matches your card against verified manufacturer databases instantly. No waiting around, no manual searching.
+                We're talking lightning-fast recognition that just works. Your card is identified in seconds with gnarly accuracy.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">

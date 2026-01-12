@@ -46,6 +46,14 @@ export const storeSiteCredentials = action({
       };
     }
 
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: "Credential storage is coming soon!",
+      };
+    }
+
     console.log("[storeSiteCredentials] Authentication successful, userId:", userId);
 
     try {
@@ -122,6 +130,11 @@ export const getSiteCredentials = action({
       return null;
     }
 
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return null;
+    }
+
     try {
       // Get the secret from Secret Manager
       const secretId = `${args.site}-credentials-${userId}`;
@@ -179,6 +192,14 @@ export const deleteSiteCredentials = action({
       };
     }
 
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: "Credential management is coming soon!",
+      };
+    }
+
     try {
       const secretManager = getSecretManagerClient();
 
@@ -216,6 +237,11 @@ export const listUserSites = action({
   handler: async (ctx) => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) {
+      return [];
+    }
+
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
       return [];
     }
 
@@ -260,6 +286,14 @@ export const testSiteCredentials = action({
   }),
   handler: async (ctx, args): Promise<{ success: boolean; message: string; details?: string }> => {
     console.log('[testSiteCredentials] Starting test for site:', args.site);
+
+    // Check if GCP features are enabled
+    if (process.env.GCP_FEATURES_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: "Credential testing is coming soon!",
+      };
+    }
 
     try {
       // Dispatch to site-specific test functions

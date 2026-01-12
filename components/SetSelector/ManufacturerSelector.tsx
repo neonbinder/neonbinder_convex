@@ -29,7 +29,7 @@ export default function ManufacturerSelector({
       expanded={expanded}
       setExpanded={setExpanded}
       getDisplayName={(manufacturer) => manufacturer.value as string}
-      getDescription={(manufacturer) => undefined}
+      getDescription={() => undefined}
       selectedColor="bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700"
     />
   );

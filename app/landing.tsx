@@ -59,6 +59,16 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {/* Free Tier Positioning */}
+          <div className="text-center mb-16 p-8 rounded-lg bg-gradient-to-r from-neon-green/10 to-neon-blue/10 border border-neon-green/30">
+            <p className="text-2xl font-bold text-neon-green">
+              Free Tier: Track your collection for Free Forever
+            </p>
+            <p className="text-lg text-slate-400 mt-3">
+              Paid tier coming soon for multi-platform inventory management
+            </p>
+          </div>
+
           {/* Features Section */}
           <div className="grid md:grid-cols-3 gap-8 my-16">
             <button
@@ -72,7 +82,7 @@ export default function LandingPage() {
                 Fill Binders for Collection Tracking
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Organize and track your card collection with digital binders, making it easy to see exactly what you own and what you're missing.
+                Organize and track your card collection with digital binders using verified manufacturer checklists or custom organization. See exactly what you own and what you&apos;re missing.
               </p>
             </button>
             <button
@@ -82,7 +92,7 @@ export default function LandingPage() {
               <div className="text-4xl mb-4">🤖</div>
               <h3 className="text-xl font-semibold mb-2">AI-Based Card Identification</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Let our AI technology identify cards automatically, taking the guesswork out of cataloging and ensuring accurate collection data.
+                Our AI matches your photos against verified manufacturer databases automatically, taking the guesswork out of cataloging and ensuring accurate collection data.
               </p>
             </button>
             <button
@@ -92,7 +102,7 @@ export default function LandingPage() {
               <div className="text-4xl mb-4">🌐</div>
               <h3 className="text-xl font-semibold mb-2">Manage Multiple Inventory Sites</h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Track inventory across eBay, BuySportsCards, MySlabs, MyCardPost, and SportLots all in one place.
+                Track inventory across eBay, BuySportsCards, MySlabs, MyCardPost, and SportLots all in one place. Coming soon for sellers.
               </p>
             </button>
           </div>
@@ -164,7 +174,7 @@ export default function LandingPage() {
                     Track Sales & Get Daily Pull Sheets
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Monitor your sales across all platforms and receive daily pull sheets to stay on top of your inventory.
+                    Monitor your sales across all platforms, receive daily shipping-ready pull sheets, and track financial performance with built-in analytics.
                   </p>
                 </div>
               </div>
@@ -177,8 +187,7 @@ export default function LandingPage() {
               Ready to Build Your Collection?
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
-              Join Neon Binder and start discovering cards across multiple
-              platforms.
+              Start tracking your collection for free forever. No credit card required.
             </p>
             <div className="flex gap-4 justify-center">
               <SignUpButton mode="modal">

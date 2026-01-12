@@ -1,8 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useAction, useQuery } from "convex/react";
+import { useFeatureFlagEnabled } from "posthog-js/react";
 import { api } from "../../convex/_generated/api";
 import NeonButton from "../../components/modules/NeonButton";
 import Image from "next/image";
@@ -90,6 +92,10 @@ export default function ProfilePage() {
   // Get user profile to check if credentials are stored
   const profile = useQuery(api.userProfile.getUserProfile);
   const siteMeta = SUPPORTED_SITES.find((s) => s.key === selectedSite);
+
+  // Feature flags for GCP-dependent features
+  const isCredentialsEnabled = useFeatureFlagEnabled("credentials-management-enabled");
+  const isPrizeImagesEnabled = useFeatureFlagEnabled("prize-images-enabled");
   const hasStoredCredentials =
     profile?.siteCredentials?.some(
       (cred) => cred.site === selectedSite && cred.hasCredentials,
@@ -687,28 +693,31 @@ export default function ProfilePage() {
               platforms.
             </p>
           </div>
-          {/* Site Selector */}
-          <div className="mb-6">
-            <label
-              htmlFor="site-select"
-              className="block text-sm font-medium mb-2"
-            >
-              Select Platform
-            </label>
-            <select
-              id="site-select"
-              value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {SUPPORTED_SITES.map((site) => (
-                <option key={site.key} value={site.key}>
-                  {site.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Credentials Section */}
+          {/* Site Selector and Credentials Section - Feature Flagged */}
+          {isCredentialsEnabled ? (
+            <>
+              {/* Site Selector */}
+              <div className="mb-6">
+                <label
+                  htmlFor="site-select"
+                  className="block text-sm font-medium mb-2"
+                >
+                  Select Platform
+                </label>
+                <select
+                  id="site-select"
+                  value={selectedSite}
+                  onChange={(e) => setSelectedSite(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {SUPPORTED_SITES.map((site) => (
+                    <option key={site.key} value={site.key}>
+                      {site.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* Credentials Section */}
           <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
             <div>
               <h2 className="text-xl font-semibold mb-2">
@@ -861,34 +870,54 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Security Information */}
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-5">
-            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              🔒 Security Information
-            </h3>
-            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>
-                • Your credentials are securely stored in Google Cloud Secret
-                Manager
-              </li>
-              <li>
-                • Credentials are encrypted and only accessible to your account
-              </li>
-              <li>• We never share your credentials with third parties</li>
-              <li>• You can clear your credentials at any time</li>
-              <li>• Test button uses stored credentials from Secret Manager</li>
-            </ul>
-          </div>
-
-          {/* Prize Pool Section */}
-          <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Prize Pool</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Manage your prize pool for the wheel of fortune spin. Prizes
-                with higher percentages are more likely to be won.
-              </p>
+              {/* Security Information */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-5">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  🔒 Security Information
+                </h3>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                  <li>
+                    • Your credentials are securely stored in Google Cloud Secret
+                    Manager
+                  </li>
+                  <li>
+                    • Credentials are encrypted and only accessible to your account
+                  </li>
+                  <li>• We never share your credentials with third parties</li>
+                  <li>• You can clear your credentials at any time</li>
+                  <li>• Test button uses stored credentials from Secret Manager</li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Platform Credentials</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Secure credential management for marketplace platforms.
+                </p>
+              </div>
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                <p className="text-amber-800 dark:text-amber-200 font-medium">
+                  🚀 Coming Soon!
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  Secure credential storage for marketplace platforms is coming in a future update.
+                </p>
+              </div>
             </div>
+          )}
+
+          {/* Prize Pool Section - Feature Flagged */}
+          {isPrizeImagesEnabled ? (
+            <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Prize Pool</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Manage your prize pool for the wheel of fortune spin. Prizes
+                  with higher percentages are more likely to be won.
+                </p>
+              </div>
 
             {/* Add/Edit Prize Form */}
             <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-md">
@@ -1263,26 +1292,25 @@ export default function ProfilePage() {
                   <p>No prizes configured yet. Add your first prize above.</p>
                 </div>
               ))}
-          </div>
-
-          {/* Security Information */}
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              🔒 Security Information
-            </h3>
-            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>
-                • Your credentials are securely stored in Google Cloud Secret
-                Manager
-              </li>
-              <li>
-                • Credentials are encrypted and only accessible to your account
-              </li>
-              <li>�� We never share your credentials with third parties</li>
-              <li>• You can clear your credentials at any time</li>
-              <li>• Test button uses stored credentials from Secret Manager</li>
-            </ul>
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Prize Pool</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Manage your prize pool for the wheel of fortune spin.
+                </p>
+              </div>
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                <p className="text-amber-800 dark:text-amber-200 font-medium">
+                  🚀 Coming Soon!
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  Prize pool management with image uploads is coming in a future update.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>

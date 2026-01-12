@@ -34,6 +34,9 @@ export default function ManagingInventoryPage() {
             <p className="text-xl text-slate-400 mb-8">
               Manage your entire inventory across all platforms from one totally rad place
             </p>
+            <p className="text-lg font-semibold text-neon-blue mt-6">
+              Paid tier: Coming soon for sellers
+            </p>
           </div>
 
           {/* Section 1: One Upload, Multiple Platforms */}
@@ -68,7 +71,7 @@ export default function ManagingInventoryPage() {
               <h2 className="text-4xl font-bold mb-4 text-neon-green">One Upload, Multiple Platforms</h2>
               <p className="text-lg text-slate-300 mb-6">
                 List your cards once and watch them sync instantly to eBay, BuySportsCards, MySlabs, MyCardPost, and SportLots.
-                No copy-paste, no manual uploads, no duplicate work. One action, five platforms. That's totally rad.
+                No copy-paste, no manual uploads, no duplicate work. One action, five platforms. That&apos;s totally rad.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
@@ -142,8 +145,8 @@ export default function ManagingInventoryPage() {
             <div className="md:order-1">
               <h2 className="text-4xl font-bold mb-4 text-neon-blue">Real-Time Inventory Control</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Watch your inventory update in real-time across all five platforms. Stock levels stay perfectly synced everywhere,
-                preventing overselling and keeping your reputation solid. Every card tracked, every platform in sync, always.
+                Watch your inventory update instantly across all five platforms. When a card sells on one platform, it&apos;s immediately removed from inventory everywhere else,
+                preventing overselling. Stock levels stay perfectly synced, keeping your reputation solid. Every card tracked, every platform in sync, always.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
@@ -164,7 +167,7 @@ export default function ManagingInventoryPage() {
                   <span className="text-neon-blue font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Perfect Sync Guaranteed</h4>
-                    <p>All platforms stay in perfect sync at all times. That's gnarly accuracy.</p>
+                    <p>All platforms stay in perfect sync at all times. That&apos;s gnarly accuracy.</p>
                   </div>
                 </div>
               </div>
@@ -203,7 +206,7 @@ export default function ManagingInventoryPage() {
               <h2 className="text-4xl font-bold mb-4 text-neon-yellow">Sales Intelligence</h2>
               <p className="text-lg text-slate-300 mb-6">
                 Get the full picture of your sales across all platforms. See which cards are selling hot and which ones are sitting.
-                Track performance marketplace by marketplace. Make smart decisions based on real data. Knowledge is power, dude.
+                Track performance marketplace by marketplace, monitor profitability, and make smart decisions based on real data. Built-in financial tracking keeps you informed every step of the way. Knowledge is power, dude.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
@@ -273,7 +276,7 @@ export default function ManagingInventoryPage() {
               <h2 className="text-4xl font-bold mb-4 text-neon-pink">Dominate the Card Show</h2>
               <p className="text-lg text-slate-300 mb-6">
                 Take your business to card shows and beyond. Generate a unique QR code for each card. Buyers scan at the show,
-                you get instant updates on your phone. Sell in-person with full platform tracking. That's the future of card selling, dude.
+                you get instant updates on your phone. Sell in-person with full platform tracking. That&apos;s the future of card selling, dude.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">

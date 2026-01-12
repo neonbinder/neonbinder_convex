@@ -27,7 +27,7 @@ export default function SetVariantSelector({
       expanded={expanded}
       setExpanded={setExpanded}
       getDisplayName={(variant) => variant.value as string}
-      getDescription={(variant) => undefined}
+      getDescription={() => undefined}
       selectedColor="bg-orange-100 dark:bg-orange-900 border-orange-300 dark:border-orange-700"
     />
   );

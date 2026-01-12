@@ -5,7 +5,7 @@ export default {
     {
       // Your Clerk Issuer URL from your "convex" JWT template
       // This is your Clerk Frontend API URL
-      domain: "https://moved-kingfish-65.clerk.accounts.dev",
+      domain: "https://clerk.neonbinder.io/.well-known/jwks.json",
       applicationID: "convex",
     },
   ],
