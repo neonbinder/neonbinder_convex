@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function ManufacturerForm({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   yearId: _yearId,
   onDone,
 }: {

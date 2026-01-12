@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function SetForm({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   manufacturerId: _manufacturerId,
   onDone,
 }: {
