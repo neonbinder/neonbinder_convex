@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function YearForm({
-  sportId,
+  sportId: _sportId,
   onDone,
 }: {
   sportId: GenericId<"selectorOptions">;
@@ -28,7 +28,8 @@ export default function YearForm({
             try {
               const result = await updateSelectorOptions({
                 level: "year",
-                parentFilters: { sport: sportId }, // This would need to be the sport value, not ID
+                // TODO: Look up sport value from selectorOptions table using sportId
+                // parentFilters: { sport: sportValue },
               });
               console.log("Updated year options:", result);
               onDone?.();

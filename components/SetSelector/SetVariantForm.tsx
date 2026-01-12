@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function SetVariantForm({
-  setId,
+  setId: _setId,
   onDone,
 }: {
   setId: GenericId<"selectorOptions">;
@@ -28,7 +28,8 @@ export default function SetVariantForm({
             try {
               const result = await updateSelectorOptions({
                 level: "variantType",
-                parentFilters: { setName: setId }, // This would need to be the set value, not ID
+                // TODO: Look up set value from selectorOptions table using setId
+                // parentFilters: { setName: setValue },
               });
               console.log("Updated set variant options:", result);
               onDone?.();

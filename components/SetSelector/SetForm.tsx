@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function SetForm({
-  manufacturerId,
+  manufacturerId: _manufacturerId,
   onDone,
 }: {
   manufacturerId: GenericId<"selectorOptions">;
@@ -28,7 +28,8 @@ export default function SetForm({
             try {
               const result = await updateSelectorOptions({
                 level: "setName",
-                parentFilters: { manufacturer: manufacturerId }, // This would need to be the manufacturer value, not ID
+                // TODO: Look up manufacturer value from selectorOptions table using manufacturerId
+                // parentFilters: { manufacturer: manufacturerValue },
               });
               console.log("Updated set options:", result);
               onDone?.();

@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function ManufacturerForm({
-  yearId,
+  yearId: _yearId,
   onDone,
 }: {
   yearId: GenericId<"selectorOptions">;
@@ -30,7 +30,8 @@ export default function ManufacturerForm({
             try {
               const result = await updateSelectorOptions({
                 level: "manufacturer",
-                parentFilters: { year: yearId }, // This would need to be the year value, not ID
+                // TODO: Look up year value from selectorOptions table using yearId
+                // parentFilters: { year: yearValue },
               });
               console.log("Updated manufacturer options:", result);
               onDone?.();
