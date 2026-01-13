@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "builder": "npx builder.io@latest launch --app --serverUrl http://localhost:3000"
+    "builder": "npx builder.io@latest launch --app --serverUrl http://localhost:3000",
+    "postinstall": "husky install"
   },
   "dependencies": {
     "@clerk/backend": "^2.19.0",
@@ -46,6 +47,7 @@
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.3",
+    "husky": "^9.1.7",
     "localtunnel": "^2.0.2",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.6",
