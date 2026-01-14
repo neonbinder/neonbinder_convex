@@ -22,16 +22,16 @@ import EntityColumn from "./EntityColumn";
 
 export default function CardSetManager() {
   const [selectedSportId, setSelectedSportId] =
-    useState<GenericId<"sports"> | null>(null);
+    useState<GenericId<"selectorOptions"> | null>(null);
   const [selectedYearId, setSelectedYearId] =
-    useState<GenericId<"years"> | null>(null);
+    useState<GenericId<"selectorOptions"> | null>(null);
   const [selectedManufacturerId, setSelectedManufacturerId] =
-    useState<GenericId<"manufacturers"> | null>(null);
-  const [selectedSetId, setSelectedSetId] = useState<GenericId<"sets"> | null>(
+    useState<GenericId<"selectorOptions"> | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState<GenericId<"selectorOptions"> | null>(
     null,
   );
   const [selectedVariantId, setSelectedVariantId] =
-    useState<GenericId<"setVariants"> | null>(null);
+    useState<GenericId<"selectorOptions"> | null>(null);
 
   // Expanded state for each selector
   const [sportExpanded, setSportExpanded] = useState(false);
@@ -41,29 +41,29 @@ export default function CardSetManager() {
   const [variantExpanded, setVariantExpanded] = useState(false);
 
   // Reset downstream selections when a parent changes
-  const handleSportSelect = (id: GenericId<"sports">) => {
+  const handleSportSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedSportId(id);
     setSelectedYearId(null);
     setSelectedManufacturerId(null);
     setSelectedSetId(null);
     setSelectedVariantId(null);
   };
-  const handleYearSelect = (id: GenericId<"years">) => {
+  const handleYearSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedYearId(id);
     setSelectedManufacturerId(null);
     setSelectedSetId(null);
     setSelectedVariantId(null);
   };
-  const handleManufacturerSelect = (id: GenericId<"manufacturers">) => {
+  const handleManufacturerSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedManufacturerId(id);
     setSelectedSetId(null);
     setSelectedVariantId(null);
   };
-  const handleSetSelect = (id: GenericId<"sets">) => {
+  const handleSetSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedSetId(id);
     setSelectedVariantId(null);
   };
-  const handleVariantSelect = (id: GenericId<"setVariants">) => {
+  const handleVariantSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedVariantId(id);
   };
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { useFeatureFlagEnabled } from "posthog-js/react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import NeonButton from "../../components/modules/NeonButton";
 import Image from "next/image";
 
@@ -43,7 +44,7 @@ export default function ProfilePage() {
   const [newSportsImagePreviews, setNewSportsImagePreviews] = useState<
     string[]
   >([]);
-  const [editingPrizeId, setEditingPrizeId] = useState<string | null>(null);
+  const [editingPrizeId, setEditingPrizeId] = useState<Id<"prizePool"> | null>(null);
   const [editPrizeName, setEditPrizeName] = useState("");
   const [editPrizePercentage, setEditPrizePercentage] = useState("");
   const [editPokemonImage, setEditPokemonImage] = useState<string | null>(null);
@@ -484,7 +485,7 @@ export default function ProfilePage() {
   };
 
   const handleEditPrize = (
-    prizeId: string,
+    prizeId: Id<"prizePool">,
     prizeName: string,
     percentage: number,
     pokemonImageUrl?: string,
@@ -500,7 +501,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
   };
 
-  const handleDeletePrize = async (prizeId: string) => {
+  const handleDeletePrize = async (prizeId: Id<"prizePool">) => {
     if (!confirm("Are you sure you want to delete this prize?")) {
       return;
     }
@@ -1035,9 +1036,9 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium mb-2">Pokémon Preview:</p>
                     <img
                       src={
-                        editingPrizeId
+                        (editingPrizeId
                           ? editPokemonImagePreview
-                          : newPokemonImagePreview
+                          : newPokemonImagePreview) ?? undefined
                       }
                       alt="Pokemon preview"
                       className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
