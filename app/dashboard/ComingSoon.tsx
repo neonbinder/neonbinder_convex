@@ -86,7 +86,7 @@ export default function ComingSoon() {
           <div className="my-12 text-center">
             <p className="text-lg text-white leading-relaxed">
               Thanks for signing up for our mailing list! Follow along as we build and launch Neon Binder.
-              We're excited to share our progress and get your feedback as we grow.
+              We&apos;re excited to share our progress and get your feedback as we grow.
             </p>
           </div>
 

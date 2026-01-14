@@ -318,7 +318,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
     try {
       let pokemonImageUrl: string | undefined;
-      let sportsImageUrls: string[] = [];
+      const sportsImageUrls: string[] = [];
 
       // Upload Pokemon image if provided
       if (newPokemonImage) {
@@ -414,7 +414,7 @@ export default function ProfilePage() {
     setPrizeMessage("");
     try {
       let pokemonImageUrl: string | undefined;
-      let sportsImageUrls: string[] = [];
+      const sportsImageUrls: string[] = [];
 
       // Upload new Pokemon image if selected
       if (
