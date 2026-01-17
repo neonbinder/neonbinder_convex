@@ -29,7 +29,7 @@ export default function BinderTrackingPage() {
           {/* Hero Section */}
           <div className="text-center py-16">
             <h1 className="text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-neon-green to-neon-blue">
-              Track Your Collection Like It's 1995
+              Track Your Collection Like It&apos;s 1995
             </h1>
             <p className="text-xl text-slate-400 mb-8">
               The totally rad way to catalog, organize, and manage your trading cards
@@ -82,8 +82,8 @@ export default function BinderTrackingPage() {
             <div>
               <h2 className="text-4xl font-bold mb-4 text-neon-green">Snap & Upload</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Dude, it's super easy. Whip out your phone or camera and snap pics of your cards. Upload them to Neon Binder and we'll handle the rest. 
-                No need to be a professional photographer — just point and shoot. We're all about keeping it simple and rad.
+                Dude, it&apos;s super easy. Whip out your phone or camera and snap pics of your cards. Upload them to Neon Binder and we&apos;ll handle the rest. 
+                No need to be a professional photographer — just point and shoot. We&apos;re all about keeping it simple and rad.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
@@ -97,7 +97,7 @@ export default function BinderTrackingPage() {
                   <span className="text-neon-green font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Batch Upload</h4>
-                    <p>Upload multiple cards at once and we'll process them all in one go.</p>
+                    <p>Upload multiple cards at once and we&apos;ll process them all in one go.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -147,14 +147,14 @@ export default function BinderTrackingPage() {
               <h2 className="text-4xl font-bold mb-4 text-neon-blue">We Find Your Cards</h2>
               <p className="text-lg text-slate-300 mb-6">
                 This is where the magic happens, my friend. Our insanely comprehensive card set database has got nearly every card ever printed. 
-                We'll automatically match your photos to official data — player names, card numbers, year, manufacturer, condition grades, the whole nine yards.
+                We&apos;ll automatically match your photos to official data — player names, card numbers, year, manufacturer, condition grades, the whole nine yards.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
                   <span className="text-neon-blue font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Massive Database</h4>
-                    <p>Thousands of sets spanning decades of card history. We got 'em all.</p>
+                    <p>Thousands of sets spanning decades of card history. We got &apos;em all.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -204,8 +204,8 @@ export default function BinderTrackingPage() {
             <div>
               <h2 className="text-4xl font-bold mb-4 text-neon-yellow">Build It Your Way</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Here's the best part — organize your cards however YOU want. Use our verified manufacturer checklists for instant accuracy or create your own custom binders.
-                By set, by player, by team, by year, by condition... organize them however your collecting heart desires. We'll let you create unlimited custom collections
+                Here&apos;s the best part — organize your cards however YOU want. Use our verified manufacturer checklists for instant accuracy or create your own custom binders.
+                By set, by player, by team, by year, by condition... organize them however your collecting heart desires. We&apos;ll let you create unlimited custom collections
                 and arrange your cards exactly how you like it. No rules. Total freedom.
               </p>
               <div className="space-y-4 text-slate-400">
@@ -286,14 +286,14 @@ export default function BinderTrackingPage() {
                   <span className="text-neon-pink font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Collection Value</h4>
-                    <p>Automatic valuation based on current market data. Know what you're holding.</p>
+                    <p>Automatic valuation based on current market data. Know what you&apos;re holding.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-neon-pink font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Set Completion</h4>
-                    <p>Track percentage complete for each set. See exactly what you're missing.</p>
+                    <p>Track percentage complete for each set. See exactly what you&apos;re missing.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

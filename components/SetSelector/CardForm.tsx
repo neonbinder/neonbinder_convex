@@ -1,5 +1,3 @@
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { useState } from "react";
 import NeonButton from "../modules/NeonButton";
 import type { GenericId } from "convex/values";
@@ -8,7 +6,7 @@ export default function CardForm({
   setVariantId,
   onDone,
 }: {
-  setVariantId: GenericId<"setVariants">;
+  setVariantId: GenericId<"selectorOptions">;
   onDone?: () => void;
 }) {
   const [cardNumber, setCardNumber] = useState("");
@@ -17,34 +15,27 @@ export default function CardForm({
   const [position, setPosition] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const createCard = useMutation(api.myFunctions.createCard);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cardNumber) return;
-    try {
-      await createCard({
-        setVariantId,
-        cardNumber,
-        playerName: playerName || undefined,
-        team: team || undefined,
-        position: position || undefined,
-        description: description || undefined,
-        imageUrl: imageUrl || undefined,
-      });
-      setCardNumber("");
-      setPlayerName("");
-      setTeam("");
-      setPosition("");
-      setDescription("");
-      setImageUrl("");
-      onDone?.();
-    } catch (error) {
-      console.error("Error creating card:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Error details:", errorMessage);
-    }
+    // TODO: Implement createCard mutation in Convex
+    console.log("Card creation not yet implemented", {
+      setVariantId,
+      cardNumber,
+      playerName: playerName || undefined,
+      team: team || undefined,
+      position: position || undefined,
+      description: description || undefined,
+      imageUrl: imageUrl || undefined,
+    });
+    setCardNumber("");
+    setPlayerName("");
+    setTeam("");
+    setPosition("");
+    setDescription("");
+    setImageUrl("");
+    onDone?.();
   };
 
   return (

@@ -68,7 +68,7 @@ export default function AiCardIdentificationPage() {
               <h2 className="text-4xl font-bold mb-4 text-neon-green">Instant Recognition</h2>
               <p className="text-lg text-slate-300 mb-6">
                 Snap a photo and boom — our AI matches your card against verified manufacturer databases instantly. No waiting around, no manual searching.
-                We're talking lightning-fast recognition that just works. Your card is identified in seconds with gnarly accuracy.
+                We&apos;re talking lightning-fast recognition that just works. Your card is identified in seconds with gnarly accuracy.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
@@ -89,7 +89,7 @@ export default function AiCardIdentificationPage() {
                   <span className="text-neon-green font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Insane Accuracy</h4>
-                    <p>Gets it right almost every time. Sick recognition tech you'll love.</p>
+                    <p>Gets it right almost every time. Sick recognition tech you&apos;ll love.</p>
                   </div>
                 </div>
               </div>
@@ -129,7 +129,7 @@ export default function AiCardIdentificationPage() {
             <div className="md:order-1">
               <h2 className="text-4xl font-bold mb-4 text-neon-blue">Complete Card Data</h2>
               <p className="text-lg text-slate-300 mb-6">
-                The AI doesn't just identify the card — it extracts everything about it. Player name, card number, set, year, manufacturer,
+                The AI doesn&apos;t just identify the card — it extracts everything about it. Player name, card number, set, year, manufacturer,
                 condition grade, rarity, and way more. All the details you need are pulled automatically. You get a complete picture of every card.
               </p>
               <div className="space-y-4 text-slate-400">
@@ -188,22 +188,22 @@ export default function AiCardIdentificationPage() {
             <div>
               <h2 className="text-4xl font-bold mb-4 text-neon-yellow">Accuracy & Verification</h2>
               <p className="text-lg text-slate-300 mb-6">
-                The AI is seriously accurate — we're talking 99%+ on most cards. But you're in control. Double-check any identification,
-                make manual corrections if you want, and verify everything before it goes in your collection. You've got total power to fix anything.
+                The AI is seriously accurate — we&apos;re talking 99%+ on most cards. But you&apos;re in control. Double-check any identification,
+                make manual corrections if you want, and verify everything before it goes in your collection. You&apos;ve got total power to fix anything.
               </p>
               <div className="space-y-4 text-slate-400">
                 <div className="flex items-start gap-3">
                   <span className="text-neon-yellow font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Highly Accurate</h4>
-                    <p>99%+ accuracy on card identification. That's rad precision.</p>
+                    <p>99%+ accuracy on card identification. That&apos;s rad precision.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-neon-yellow font-bold text-xl">▸</span>
                   <div>
                     <h4 className="font-semibold text-slate-300">Manual Verification</h4>
-                    <p>Review and verify every ID before it's added to your collection.</p>
+                    <p>Review and verify every ID before it&apos;s added to your collection.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -247,7 +247,7 @@ export default function AiCardIdentificationPage() {
             <div className="md:order-1">
               <h2 className="text-4xl font-bold mb-4 text-neon-pink">Machine Learning</h2>
               <p className="text-lg text-slate-300 mb-6">
-                Here's where it gets sick — the system learns from every single correction you make. Catch a misidentification? Fix it,
+                Here&apos;s where it gets sick — the system learns from every single correction you make. Catch a misidentification? Fix it,
                 and the AI gets smarter. Over time, our model improves constantly, becoming more accurate for your specific collection type.
                 The more you use it, the gnarlier it gets.
               </p>

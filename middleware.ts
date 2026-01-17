@@ -12,14 +12,7 @@ const isPublicRoute = createRouteMatcher([
   '/about',
 ])
 
-const clerkHandler = clerkMiddleware(async (auth, req) => {
-  // Protect all routes except public ones
-  if (!isPublicRoute(req)) {
-    await auth.protect()
-  }
-})
-
-export default function middleware(req: NextRequest) {
+export default clerkMiddleware(async (auth, req) => {
   // In development, fix the x-forwarded-host header if it's mismatched
   if (process.env.NODE_ENV === 'development') {
     const origin = req.headers.get('origin')
@@ -39,8 +32,11 @@ export default function middleware(req: NextRequest) {
     }
   }
 
-  return clerkHandler(req)
-}
+  // Protect all routes except public ones
+  if (!isPublicRoute(req)) {
+    await auth.protect()
+  }
+})
 
 export const config = {
   matcher: [
