@@ -12,7 +12,7 @@ class SentryExampleAPIError extends Error {
 
 // A faulty API route to test Sentry's error monitoring
 
-export function GET(_request: Request) {
+export function GET() {
   // Generate a request ID for correlation across systems
   const requestId = crypto.randomUUID();
 
