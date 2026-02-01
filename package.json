@@ -29,7 +29,7 @@
     "convex": "^1.27.1",
     "convex-helpers": "^0.1.104",
     "crypto-js": "^4.2.0",
-    "next": "15.2.8",
+    "next": "^15.2.8",
     "playwright": "^1.53.1",
     "posthog-js": "^1.280.1",
     "posthog-node": "^5.10.3",

@@ -47,7 +47,7 @@ export default function AboutPage() {
             <section className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 rounded-2xl p-8 border border-slate-700/50">
               <h2 className="text-2xl font-bold mb-4 text-neon-blue">For Sellers & Dealers</h2>
               <p className="text-lg text-slate-300 leading-relaxed">
-                Neon Binder's paid tier transforms your collection into a cross-platform inventory management system. Sync your 
+                Neon Binder&apos;s paid tier transforms your collection into a cross-platform inventory management system. Sync your 
                 inventory to multiple marketplaces including eBay, BuySportsCards.com, SportLots.com, and MySlabs.com, all from one 
                 central location. When you list a card, Neon Binder automatically updates inventory across all connected platforms. 
                 When a sale occurs, the platform watches for it and adjusts your inventory accordingly, eliminating the risk of overselling. 
@@ -68,7 +68,7 @@ export default function AboutPage() {
               <h2 className="text-2xl font-bold mb-4 text-neon-pink">Secure Integrations</h2>
               <p className="text-lg text-slate-300 leading-relaxed">
                 To enable marketplace integrations, users authorize Neon Binder to connect with their accounts through secure authentication 
-                tokens. In cases where platforms don't provide API access (such as SportLots), users provide their login credentials which are 
+                tokens. In cases where platforms don&apos;t provide API access (such as SportLots), users provide their login credentials which are 
                 securely stored to automate listing and inventory management.
               </p>
             </section>

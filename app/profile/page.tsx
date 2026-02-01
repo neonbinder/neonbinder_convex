@@ -1029,21 +1029,22 @@ export default function ProfilePage() {
                     </label>
                   </div>
                 </div>
-                {(() => {
-                  const preview = editingPrizeId
-                    ? editPokemonImagePreview
-                    : newPokemonImagePreview;
-                  return preview ? (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium mb-2">Pokémon Preview:</p>
-                      <img
-                        src={preview}
-                        alt="Pokemon preview"
-                        className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
-                      />
-                    </div>
-                  ) : null;
-                })()}
+                {(editingPrizeId
+                  ? editPokemonImagePreview
+                  : newPokemonImagePreview) && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-2">Pokémon Preview:</p>
+                    <img
+                      src={
+                        (editingPrizeId
+                          ? editPokemonImagePreview
+                          : newPokemonImagePreview) ?? undefined
+                      }
+                      alt="Pokemon preview"
+                      className="h-32 w-32 object-cover rounded-md border border-slate-300 dark:border-slate-600"
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-4">
                 <div>

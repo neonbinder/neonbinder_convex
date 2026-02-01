@@ -1,6 +1,4 @@
 import React from "react";
-import { useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 
 export default function ManufacturerForm({
@@ -11,9 +9,7 @@ export default function ManufacturerForm({
   yearId: GenericId<"selectorOptions">;
   onDone?: () => void;
 }) {
-  const updateSelectorOptions = useAction(
-    api.myFunctions.updateSelectorOptions,
-  );
+  const [message, setMessage] = React.useState<string | null>(null);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
@@ -25,20 +21,17 @@ export default function ManufacturerForm({
         platforms and update the database.
       </p>
 
+      {message && (
+        <div className="p-3 mb-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-md text-amber-800 dark:text-amber-200 text-sm">
+          {message}
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
           onClick={async () => {
-            try {
-              const result = await updateSelectorOptions({
-                level: "manufacturer",
-                // TODO: Look up year value from selectorOptions table using yearId
-                // parentFilters: { year: yearValue },
-              });
-              console.log("Updated manufacturer options:", result);
-              onDone?.();
-            } catch (error) {
-              console.error("Failed to update manufacturer options:", error);
-            }
+            // TODO: Implement proper year value lookup before calling updateSelectorOptions
+            setMessage("Manufacturer sync is not yet fully implemented. Coming soon!");
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         >

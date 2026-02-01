@@ -3,7 +3,8 @@ import NeonButton from "../modules/NeonButton";
 import type { GenericId } from "convex/values";
 
 export default function CardForm({
-  setVariantId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setVariantId: _setVariantId,
   onDone,
 }: {
   setVariantId: GenericId<"selectorOptions">;
@@ -15,13 +16,14 @@ export default function CardForm({
   const [position, setPosition] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cardNumber) return;
     // TODO: Implement createCard mutation in Convex
-    console.log("Card creation not yet implemented", {
-      setVariantId,
+    setError("Card creation is not yet implemented. Coming soon!");
+    console.log("Card form submitted:", {
       cardNumber,
       playerName: playerName || undefined,
       team: team || undefined,
@@ -29,13 +31,6 @@ export default function CardForm({
       description: description || undefined,
       imageUrl: imageUrl || undefined,
     });
-    setCardNumber("");
-    setPlayerName("");
-    setTeam("");
-    setPosition("");
-    setDescription("");
-    setImageUrl("");
-    onDone?.();
   };
 
   return (
@@ -113,6 +108,11 @@ export default function CardForm({
             placeholder="https://example.com/card-image.jpg"
           />
         </div>
+        {error && (
+          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-md text-amber-800 dark:text-amber-200 text-sm">
+            {error}
+          </div>
+        )}
         <div className="flex gap-2">
           <button
             type="submit"
