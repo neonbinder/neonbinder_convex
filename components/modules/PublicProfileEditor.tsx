@@ -548,8 +548,8 @@ export default function PublicProfileEditor() {
 
       {/* BSC Modal */}
       {showBscModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowBscModal(false)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-slate-200 mb-3">Find Your BuySportsCards Seller URL</h3>
             <p className="text-sm text-slate-400 mb-4">
               To find your BuySportsCards seller URL:
@@ -583,8 +583,8 @@ export default function PublicProfileEditor() {
 
       {/* MySlabs Modal */}
       {showMySlabsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowMySlabsModal(false)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-slate-200 mb-3">Find Your MySlabs URL</h3>
             <p className="text-sm text-slate-400 mb-4">
               To find your MySlabs URL:
