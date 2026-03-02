@@ -57,6 +57,8 @@ export default function PublicProfileEditor() {
   const [saveMessage, setSaveMessage] = useState("");
   const [saveMessageType, setSaveMessageType] = useState<"success" | "error">("success");
   const [savedUsername, setSavedUsername] = useState<string | null>(null);
+  const [showBscModal, setShowBscModal] = useState(false);
+  const [showMySlabsModal, setShowMySlabsModal] = useState(false);
 
   // Username availability
   const debouncedUsername = useDebounce(username, 400);
@@ -183,12 +185,61 @@ export default function PublicProfileEditor() {
   };
 
   const inputClass =
-    "w-full px-3 py-2 border border-slate-700 rounded-md bg-slate-900 text-foreground focus:outline-none focus:ring-2 focus:ring-[#00D558]";
+    "w-full px-3 py-2 border border-slate-700 rounded-md bg-slate-900 text-foreground focus:outline-none focus:ring-2 focus:ring-[#00C2FF]";
 
   const labelClass = "block text-sm font-medium mb-1 text-slate-300";
 
   const isOwnUsername = existingProfile?.username === debouncedUsername;
   const showAvailability = debouncedUsername.length > 0 && !isOwnUsername;
+
+  // URL inference functions
+  const inferredUrls = {
+    ebay: () => `https://www.ebay.com/str/${username}`,
+    buySportsCards: () => `https://www.buysportscards.com/sellers/${username}`,
+    sportlots: () => `https://sportlots.com/dealers/?dealer=${username}`,
+    mySlabs: () => `https://www.myslabs.com/${username}`,
+    myCardPost: () => `https://www.mycardpost.com/${username}`,
+    twitter: () => `https://x.com/${username}`,
+    instagram: () => `https://www.instagram.com/${username}`,
+    tiktok: () => `https://www.tiktok.com/@${username}`,
+    youtube: () => `https://www.youtube.com/@${username}`,
+    facebook: () => `https://www.facebook.com/${username}`,
+    threads: () => `https://www.threads.net/@${username}`,
+    paypal: () => `paypal.me/${username}`,
+    venmo: () => `venmo.com/${username}`,
+    cashApp: () => `cash.app/${username}`,
+  };
+
+  const canInferUrl = username.length > 0;
+
+  const FillButton = ({ onClick, url }: { onClick: () => void; url: string }) => (
+    <button
+      onClick={onClick}
+      disabled={!canInferUrl}
+      className="text-xs text-[#00C2FF] hover:text-[#00C2FF]/80 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors break-all text-right"
+      title={canInferUrl ? "Click to fill with inferred URL" : "Enter a username first"}
+    >
+      {url}
+    </button>
+  );
+
+  const BscButton = () => (
+    <button
+      onClick={() => setShowBscModal(true)}
+      className="text-xs text-[#00C2FF] hover:text-[#00C2FF]/80 transition-colors"
+    >
+      Find my BSC url
+    </button>
+  );
+
+  const MySlabsButton = () => (
+    <button
+      onClick={() => setShowMySlabsModal(true)}
+      className="text-xs text-[#00C2FF] hover:text-[#00C2FF]/80 transition-colors"
+    >
+      Find my MySlabs url
+    </button>
+  );
 
   return (
     <div className="space-y-8">
@@ -216,7 +267,7 @@ export default function PublicProfileEditor() {
                 {usernameAvailable === undefined ? (
                   <span className="text-slate-400">checking…</span>
                 ) : usernameAvailable ? (
-                  <span className="text-[#00D558]">available</span>
+                  <span className="text-[#00C2FF]">available</span>
                 ) : (
                   <span className="text-[#FF2EB3]">taken</span>
                 )}
@@ -307,7 +358,7 @@ export default function PublicProfileEditor() {
               type="text"
               value={brandColor1}
               onChange={(e) => setBrandColor1(e.target.value)}
-              className="w-28 px-2 py-1 border border-slate-700 rounded bg-slate-900 text-sm font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#00D558]"
+              className="w-28 px-2 py-1 border border-slate-700 rounded bg-slate-900 text-sm font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
               placeholder="#00D558"
             />
           </div>
@@ -323,7 +374,7 @@ export default function PublicProfileEditor() {
               type="text"
               value={brandColor2}
               onChange={(e) => setBrandColor2(e.target.value)}
-              className="w-28 px-2 py-1 border border-slate-700 rounded bg-slate-900 text-sm font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#00D558]"
+              className="w-28 px-2 py-1 border border-slate-700 rounded bg-slate-900 text-sm font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
               placeholder="#A44AFF"
             />
           </div>
@@ -340,14 +391,23 @@ export default function PublicProfileEditor() {
       <div className="space-y-4">
         <h3 className="font-semibold text-slate-200">Marketplace Links</h3>
         {[
-          { id: "pub-ebay", label: "eBay Store URL", value: ebayUrl, setter: setEbayUrl, placeholder: "https://www.ebay.com/str/yourstore" },
-          { id: "pub-bsc", label: "BuySportsCards URL", value: buySportsCardsUrl, setter: setBuySportsCardsUrl, placeholder: "https://www.buysportscards.com/sellers/..." },
-          { id: "pub-sportlots", label: "Sportlots URL", value: sportlotsUrl, setter: setSportlotsUrl, placeholder: "https://www.sportlots.com/..." },
-          { id: "pub-myslabs", label: "MySlabs URL", value: mySlabsUrl, setter: setMySlabsUrl, placeholder: "https://www.myslabs.com/..." },
-          { id: "pub-mycardpost", label: "MyCardPost URL", value: myCardPostUrl, setter: setMyCardPostUrl, placeholder: "https://www.mycardpost.com/..." },
-        ].map(({ id, label, value, setter, placeholder }) => (
+          { id: "pub-ebay", label: "eBay Store URL", value: ebayUrl, setter: setEbayUrl, placeholder: "https://www.ebay.com/str/yourstore", inferKey: "ebay" as const, buttonType: "fill" },
+          { id: "pub-bsc", label: "BuySportsCards URL", value: buySportsCardsUrl, setter: setBuySportsCardsUrl, placeholder: "https://www.buysportscards.com/sellers/...", inferKey: "buySportsCards" as const, buttonType: "bsc" },
+          { id: "pub-sportlots", label: "Sportlots URL", value: sportlotsUrl, setter: setSportlotsUrl, placeholder: "https://www.sportlots.com/...", inferKey: "sportlots" as const, buttonType: "fill" },
+          { id: "pub-myslabs", label: "MySlabs URL", value: mySlabsUrl, setter: setMySlabsUrl, placeholder: "https://www.myslabs.com/...", inferKey: "mySlabs" as const, buttonType: "myslabs" },
+          { id: "pub-mycardpost", label: "MyCardPost URL", value: myCardPostUrl, setter: setMyCardPostUrl, placeholder: "https://www.mycardpost.com/...", inferKey: "myCardPost" as const, buttonType: "fill" },
+        ].map(({ id, label, value, setter, placeholder, inferKey, buttonType }) => (
           <div key={id}>
-            <label htmlFor={id} className={labelClass}>{label}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor={id} className={labelClass}>{label}</label>
+              {buttonType === "bsc" ? (
+                <BscButton />
+              ) : buttonType === "myslabs" ? (
+                <MySlabsButton />
+              ) : (
+                <FillButton onClick={() => setter(inferredUrls[inferKey]())} url={inferredUrls[inferKey]()} />
+              )}
+            </div>
             <input
               id={id}
               type="url"
@@ -364,12 +424,15 @@ export default function PublicProfileEditor() {
       <div className="space-y-4">
         <h3 className="font-semibold text-slate-200">Payment Handles</h3>
         <div>
-          <label htmlFor="pub-paypal" className={labelClass}>
-            PayPal username{" "}
-            {paypalUsername && (
-              <span className="text-slate-500 text-xs">→ paypal.me/{paypalUsername}</span>
-            )}
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="pub-paypal" className={labelClass}>
+              PayPal username{" "}
+              {paypalUsername && (
+                <span className="text-slate-500 text-xs">→ paypal.me/{paypalUsername}</span>
+              )}
+            </label>
+            <FillButton onClick={() => setPaypalUsername(username)} url={inferredUrls.paypal()} />
+          </div>
           <input
             id="pub-paypal"
             type="text"
@@ -380,12 +443,15 @@ export default function PublicProfileEditor() {
           />
         </div>
         <div>
-          <label htmlFor="pub-venmo" className={labelClass}>
-            Venmo username{" "}
-            {venmoUsername && (
-              <span className="text-slate-500 text-xs">→ venmo.com/{venmoUsername}</span>
-            )}
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="pub-venmo" className={labelClass}>
+              Venmo username{" "}
+              {venmoUsername && (
+                <span className="text-slate-500 text-xs">→ venmo.com/{venmoUsername}</span>
+              )}
+            </label>
+            <FillButton onClick={() => setVenmoUsername(username)} url={inferredUrls.venmo()} />
+          </div>
           <input
             id="pub-venmo"
             type="text"
@@ -396,12 +462,15 @@ export default function PublicProfileEditor() {
           />
         </div>
         <div>
-          <label htmlFor="pub-cashapp" className={labelClass}>
-            Cash App username{" "}
-            {cashAppUsername && (
-              <span className="text-slate-500 text-xs">→ cash.app/${cashAppUsername}</span>
-            )}
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="pub-cashapp" className={labelClass}>
+              Cash App username{" "}
+              {cashAppUsername && (
+                <span className="text-slate-500 text-xs">→ cash.app/${cashAppUsername}</span>
+              )}
+            </label>
+            <FillButton onClick={() => setCashAppUsername(username)} url={inferredUrls.cashApp()} />
+          </div>
           <input
             id="pub-cashapp"
             type="text"
@@ -417,15 +486,18 @@ export default function PublicProfileEditor() {
       <div className="space-y-4">
         <h3 className="font-semibold text-slate-200">Social Media</h3>
         {[
-          { id: "pub-twitter", label: "Twitter / X URL", value: twitterUrl, setter: setTwitterUrl, placeholder: "https://x.com/yourhandle" },
-          { id: "pub-instagram", label: "Instagram URL", value: instagramUrl, setter: setInstagramUrl, placeholder: "https://www.instagram.com/yourhandle" },
-          { id: "pub-tiktok", label: "TikTok URL", value: tiktokUrl, setter: setTiktokUrl, placeholder: "https://www.tiktok.com/@yourhandle" },
-          { id: "pub-youtube", label: "YouTube URL", value: youtubeUrl, setter: setYoutubeUrl, placeholder: "https://www.youtube.com/@yourchannel" },
-          { id: "pub-facebook", label: "Facebook URL", value: facebookUrl, setter: setFacebookUrl, placeholder: "https://www.facebook.com/yourpage" },
-          { id: "pub-threads", label: "Threads URL", value: threadsUrl, setter: setThreadsUrl, placeholder: "https://www.threads.net/@yourhandle" },
-        ].map(({ id, label, value, setter, placeholder }) => (
+          { id: "pub-twitter", label: "Twitter / X URL", value: twitterUrl, setter: setTwitterUrl, placeholder: "https://x.com/yourhandle", inferKey: "twitter" as const },
+          { id: "pub-instagram", label: "Instagram URL", value: instagramUrl, setter: setInstagramUrl, placeholder: "https://www.instagram.com/yourhandle", inferKey: "instagram" as const },
+          { id: "pub-tiktok", label: "TikTok URL", value: tiktokUrl, setter: setTiktokUrl, placeholder: "https://www.tiktok.com/@yourhandle", inferKey: "tiktok" as const },
+          { id: "pub-youtube", label: "YouTube URL", value: youtubeUrl, setter: setYoutubeUrl, placeholder: "https://www.youtube.com/@yourchannel", inferKey: "youtube" as const },
+          { id: "pub-facebook", label: "Facebook URL", value: facebookUrl, setter: setFacebookUrl, placeholder: "https://www.facebook.com/yourpage", inferKey: "facebook" as const },
+          { id: "pub-threads", label: "Threads URL", value: threadsUrl, setter: setThreadsUrl, placeholder: "https://www.threads.net/@yourhandle", inferKey: "threads" as const },
+        ].map(({ id, label, value, setter, placeholder, inferKey }) => (
           <div key={id}>
-            <label htmlFor={id} className={labelClass}>{label}</label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor={id} className={labelClass}>{label}</label>
+              <FillButton onClick={() => setter(inferredUrls[inferKey]())} url={inferredUrls[inferKey]()} />
+            </div>
             <input
               id={id}
               type="url"
@@ -439,7 +511,7 @@ export default function PublicProfileEditor() {
       </div>
 
       {/* Save */}
-      <div className="space-y-3">
+      <div>
         <NeonButton
           onClick={handleSave}
           disabled={isSaving}
@@ -450,9 +522,9 @@ export default function PublicProfileEditor() {
 
         {saveMessage && (
           <div
-            className={`p-3 rounded-md text-sm ${
+            className={`mt-8 p-3 rounded-md text-sm ${
               saveMessageType === "success"
-                ? "bg-green-900/30 text-green-300 border border-green-800"
+                ? "bg-purple-900/30 text-purple-300 border border-purple-800"
                 : "bg-red-900/30 text-red-300 border border-red-800"
             }`}
           >
@@ -473,6 +545,76 @@ export default function PublicProfileEditor() {
           </div>
         )}
       </div>
+
+      {/* BSC Modal */}
+      {showBscModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowBscModal(false)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-200 mb-3">Find Your BuySportsCards Seller URL</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              To find your BuySportsCards seller URL:
+            </p>
+            <ol className="text-sm text-slate-400 space-y-2 mb-6 list-decimal list-inside">
+              <li>Visit BuySportsCards sellers page</li>
+              <li>Navigate to your seller profile</li>
+              <li>Click the &quot;Share Seller&quot; button</li>
+              <li>Copy the URL from the share dialog</li>
+              <li>Paste it into the field above</li>
+            </ol>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  window.open("https://www.buysportscards.com/sellers", "_blank");
+                }}
+                className="flex-1 px-4 py-2 rounded-md bg-[#00C2FF] text-black font-medium hover:bg-[#00C2FF]/90 transition-colors"
+              >
+                Open BuySportsCards
+              </button>
+              <button
+                onClick={() => setShowBscModal(false)}
+                className="flex-1 px-4 py-2 rounded-md bg-slate-700 text-slate-200 font-medium hover:bg-slate-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MySlabs Modal */}
+      {showMySlabsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowMySlabsModal(false)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-200 mb-3">Find Your MySlabs URL</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              To find your MySlabs URL:
+            </p>
+            <ol className="text-sm text-slate-400 space-y-2 mb-6 list-decimal list-inside">
+              <li>Go to your MySlabs account settings</li>
+              <li>Scroll to the bottom of the page</li>
+              <li>Find your profile URL</li>
+              <li>Copy the URL</li>
+              <li>Paste it into the field above</li>
+            </ol>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  window.open("https://www.myslabs.com/account/", "_blank");
+                }}
+                className="flex-1 px-4 py-2 rounded-md bg-[#00C2FF] text-black font-medium hover:bg-[#00C2FF]/90 transition-colors"
+              >
+                Open MySlabs Account
+              </button>
+              <button
+                onClick={() => setShowMySlabsModal(false)}
+                className="flex-1 px-4 py-2 rounded-md bg-slate-700 text-slate-200 font-medium hover:bg-slate-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
