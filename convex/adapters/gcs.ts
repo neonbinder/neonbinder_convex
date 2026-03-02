@@ -99,6 +99,74 @@ export const uploadPrizeImage = action({
 });
 
 /**
+ * Upload a profile photo to Vercel Blob Storage
+ * Overwrites any existing photo for this user (fixed filename).
+ */
+export const uploadProfilePhoto = action({
+  args: {
+    imageBase64: v.string(), // Base64 encoded image data (including data:image/... prefix)
+  },
+  returns: v.object({
+    success: v.boolean(),
+    imageUrl: v.optional(v.string()),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) {
+      return {
+        success: false,
+        message: "Not authenticated",
+      };
+    }
+
+    try {
+      const { put } = await import("@vercel/blob");
+
+      // Check if BLOB_READ_WRITE_TOKEN is available
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        return {
+          success: false,
+          message: "Vercel Blob storage not configured",
+        };
+      }
+
+      // Parse the base64 data URL
+      const dataUrlMatch = args.imageBase64.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!dataUrlMatch) {
+        return {
+          success: false,
+          message: "Invalid image format. Must be a data URL with base64 encoding.",
+        };
+      }
+
+      const [, extension, base64Data] = dataUrlMatch;
+      const imageBuffer = Buffer.from(base64Data, "base64");
+
+      // Upload to Vercel Blob with userId in path
+      const filename = `profile-photos/${userId}/profile-photo.${extension}`;
+
+      const blob = await put(filename, imageBuffer, {
+        contentType: `image/${extension}`,
+        access: "public",
+      });
+
+      return {
+        success: true,
+        imageUrl: blob.url,
+        message: "Profile photo uploaded successfully",
+      };
+    } catch (error) {
+      console.error("Failed to upload profile photo to Vercel Blob:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to upload photo",
+      };
+    }
+  },
+});
+
+/**
  * Delete a prize image from Google Cloud Storage
  */
 export const deletePrizeImage = action({

@@ -22,6 +22,7 @@ import type * as adapters_types from "../adapters/types.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as publicProfile from "../publicProfile.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
   myFunctions: typeof myFunctions;
+  publicProfile: typeof publicProfile;
   userProfile: typeof userProfile;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
