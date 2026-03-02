@@ -557,7 +557,7 @@ export default function PublicProfileEditor() {
             <ol className="text-sm text-slate-400 space-y-2 mb-6 list-decimal list-inside">
               <li>Visit BuySportsCards sellers page</li>
               <li>Navigate to your seller profile</li>
-              <li>Click the "Share Seller" button</li>
+              <li>Click the &quot;Share Seller&quot; button</li>
               <li>Copy the URL from the share dialog</li>
               <li>Paste it into the field above</li>
             </ol>
