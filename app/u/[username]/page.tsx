@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { use } from "react";
+import React, { use } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
@@ -164,7 +164,7 @@ export default function PublicProfilePage({
     { href: profile.youtubeUrl, Icon: YouTubeIcon, label: "YouTube" },
     { href: profile.facebookUrl, Icon: FacebookIcon, label: "Facebook" },
     { href: profile.threadsUrl, Icon: ThreadsIcon, label: "Threads" },
-  ].filter((l): l is { href: string; Icon: () => JSX.Element; label: string } => !!l.href);
+  ].filter((l): l is { href: string; Icon: () => React.ReactElement; label: string } => !!l.href);
 
   return (
     <div
