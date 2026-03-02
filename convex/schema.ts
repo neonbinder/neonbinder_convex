@@ -68,6 +68,38 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // Public profiles for the Linktree-style collector page at /u/[username]
+  publicProfiles: defineTable({
+    userId: v.string(),             // Clerk user ID
+    username: v.string(),           // URL slug, unique, lowercase a-z0-9-
+    displayName: v.optional(v.string()),
+    photoUrl: v.optional(v.string()),
+    tagline: v.optional(v.string()),
+    brandColor1: v.optional(v.string()),   // hex e.g. "#00D558"
+    brandColor2: v.optional(v.string()),   // hex e.g. "#A44AFF"
+    // Marketplace full URLs
+    ebayUrl: v.optional(v.string()),
+    buySportsCardsUrl: v.optional(v.string()),
+    sportlotsUrl: v.optional(v.string()),
+    mySlabsUrl: v.optional(v.string()),
+    myCardPostUrl: v.optional(v.string()),
+    // Payment handles (links constructed at render time)
+    paypalUsername: v.optional(v.string()),
+    venmoUsername: v.optional(v.string()),
+    cashAppUsername: v.optional(v.string()),
+    // Social media full URLs
+    twitterUrl: v.optional(v.string()),
+    instagramUrl: v.optional(v.string()),
+    tiktokUrl: v.optional(v.string()),
+    youtubeUrl: v.optional(v.string()),
+    facebookUrl: v.optional(v.string()),
+    threadsUrl: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_username", ["username"]),
+
   // Prize Pool - stores prizes for the wheel of fortune spin
   prizePool: defineTable({
     userId: v.string(), // Clerk user ID as string
