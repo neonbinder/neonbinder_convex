@@ -1,0 +1,11 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/dashboard
+name: View Collection (Dashboard)
+tags:
+  - smoke
+  - dashboard
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+- assertVisible: "COMING SOON"

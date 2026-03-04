@@ -1,0 +1,11 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/dashboard
+name: Sign In
+tags:
+  - smoke
+  - auth
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+- assertVisible: "Sign out"

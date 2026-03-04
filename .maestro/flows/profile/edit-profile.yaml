@@ -1,0 +1,15 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+name: Edit Public Profile
+tags:
+  - profile
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 15000
+- assertVisible: "Public Profile"
+- assertVisible: "Basic Info"
+- scrollUntilVisible:
+    element:
+      text: "Save Public Profile"
+- assertVisible: "Save Public Profile"

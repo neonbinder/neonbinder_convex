@@ -1,0 +1,57 @@
+url: ${APP_URL || "http://localhost:3000"}
+name: Collection Tracking Feature Page
+tags:
+  - marketing
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 30000
+
+# Scroll to and tap the Collection Tracking card
+- scrollUntilVisible:
+    element:
+      text: ".*Collection Tracking.*"
+- tapOn:
+    text: ".*Collection Tracking.*"
+- extendedWaitUntil:
+    visible: "Snap & Upload"
+    timeout: 15000
+
+# Four feature sections
+- assertVisible: "Snap & Upload"
+- scrollUntilVisible:
+    element:
+      text: "We Find Your Cards"
+- assertVisible: "We Find Your Cards"
+- scrollUntilVisible:
+    element:
+      text: "Build It Your Way"
+- assertVisible: "Build It Your Way"
+- scrollUntilVisible:
+    element:
+      text: "Track Everything"
+- assertVisible: "Track Everything"
+
+# CTA: verify Get Started button opens Clerk dialog
+- scrollUntilVisible:
+    element:
+      text: "Get Started"
+- assertVisible: "Get Started"
+- tapOn: "Get Started"
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 10000
+- assertVisible: "Create your account"
+
+# Dismiss dialog and navigate back to home
+- tapOn:
+    point: "5%, 50%"
+- extendedWaitUntil:
+    notVisible: "Create your account"
+    timeout: 5000
+- tapOn: "Back"
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 10000
+- assertVisible: "Sign In"

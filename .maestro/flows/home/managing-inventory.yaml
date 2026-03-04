@@ -1,0 +1,58 @@
+url: ${APP_URL || "http://localhost:3000"}
+name: Managing Inventory Feature Page
+tags:
+  - marketing
+  - home
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 30000
+
+# Scroll to and tap the Inventory card to navigate
+- scrollUntilVisible:
+    element:
+      text: ".*Multiple Inventory.*"
+- tapOn:
+    text: ".*Multiple Inventory.*"
+- extendedWaitUntil:
+    visible: "One Upload, Multiple Platforms"
+    timeout: 15000
+
+# Four feature sections
+- assertVisible: "One Upload, Multiple Platforms"
+- scrollUntilVisible:
+    element:
+      text: "Real-Time Inventory Control"
+- assertVisible: "Real-Time Inventory Control"
+- scrollUntilVisible:
+    element:
+      text: "Sales Intelligence"
+- assertVisible: "Sales Intelligence"
+- scrollUntilVisible:
+    element:
+      text: "Dominate the Card Show"
+- assertVisible: "Dominate the Card Show"
+
+# CTA: verify Get Started button opens Clerk dialog
+- scrollUntilVisible:
+    element:
+      text: "Get Started"
+- assertVisible: "Get Started"
+- tapOn: "Get Started"
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 10000
+- assertVisible: "Create your account"
+
+# Dismiss dialog and navigate back to home
+- tapOn:
+    point: "5%, 50%"
+- extendedWaitUntil:
+    notVisible: "Create your account"
+    timeout: 5000
+- tapOn: "Back"
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 10000
+- assertVisible: "Sign In"
