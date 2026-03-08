@@ -12,8 +12,10 @@ set -e
 MAESTRO="$HOME/.maestro/bin/maestro"
 CONFIG=".maestro/config.yaml"
 APP_URL="${APP_URL:-http://localhost:3000}"
+# Unique username per run to avoid "already taken" in profile flows
+TEST_USERNAME="${TEST_USERNAME:-neontester_$(date +%s)}"
 # --platform web required so launchApp navigates to each flow's url: (config cannot set platform)
-ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL")
+ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME")
 TAG="${1:-}"
 
 # Discover flows: filter by tag if provided, otherwise find all yaml files.
