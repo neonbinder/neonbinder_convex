@@ -1,5 +1,5 @@
 import React from "react";
-import NextLink from "next/link";
+import { Link as RouterLink } from "react-router";
 
 export interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   children?: React.ReactNode;
@@ -36,11 +36,11 @@ export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(
       );
     }
 
-    // Otherwise use Next.js Link for navigation
+    // Otherwise use React Router Link for navigation
     return (
-      <NextLink href={href} className={classes} ref={ref} style={style} {...props}>
+      <RouterLink to={href} className={classes} ref={ref} style={style} {...props}>
         {children}
-      </NextLink>
+      </RouterLink>
     );
   },
 );

@@ -1,11 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
-"use client";
-
-import React, { use } from "react";
+import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import Link from "next/link";
-import Image from "next/image";
+import { Link, useParams } from "react-router";
 
 // — Inline SVG social icons —
 
@@ -108,14 +104,10 @@ function ProfileLinkButton({
 
 // — Page —
 
-export default function PublicProfilePage({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
-  const { username } = use(params);
+export default function PublicProfilePage() {
+  const { username } = useParams<{ username: string }>();
   const profile = useQuery(api.publicProfile.getPublicProfileByUsername, {
-    username,
+    username: username!,
   });
 
   const color1 = profile?.brandColor1 ?? "#0a0a0a";
@@ -141,7 +133,7 @@ export default function PublicProfilePage({
         <h1 className="text-2xl font-bold">Profile not found</h1>
         <p className="text-slate-400">
           Create yours at{" "}
-          <Link href="/" className="underline text-white hover:opacity-80">
+          <Link to="/" className="underline text-white hover:opacity-80">
             NeonBinder
           </Link>
           .
@@ -300,7 +292,7 @@ export default function PublicProfilePage({
 
           {/* Footer */}
           <div className="flex flex-col items-center gap-3 mt-8">
-            <Image
+            <img
               src="/logo.png"
               alt="NeonBinder"
               width={40}

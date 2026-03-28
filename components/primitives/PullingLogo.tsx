@@ -1,5 +1,4 @@
 import React from "react";
-import Image from "next/image";
 
 export interface PullingLogoProps {
   size?: "small" | "medium" | "large";
@@ -25,7 +24,7 @@ export const PullingLogo = React.forwardRef<HTMLDivElement, PullingLogoProps>(
 
     return (
       <div ref={ref} className={animateClass}>
-        <Image
+        <img
           src="/logo.png"
           alt="Neon Binder"
           width={width}

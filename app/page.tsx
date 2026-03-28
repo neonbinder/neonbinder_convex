@@ -1,19 +1,17 @@
-"use client";
-
-import { useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router";
 import { useEffect } from "react";
 import LandingPage from "./landing";
 
 export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      router.push("/dashboard");
+      navigate("/dashboard");
     }
-  }, [isLoaded, isSignedIn, router]);
+  }, [isLoaded, isSignedIn, navigate]);
 
   // Show loading state while checking auth
   if (!isLoaded) {

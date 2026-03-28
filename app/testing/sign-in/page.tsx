@@ -1,15 +1,13 @@
-"use client";
-
-import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useAuth, useSignIn } from "@clerk/clerk-react";
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigate, useSearchParams } from "react-router";
 
 // Inner component that uses useSearchParams (must be inside Suspense for Next.js static generation).
 function TestingSignInContent() {
   const { isSignedIn } = useAuth();
   const { signIn, setActive, isLoaded } = useSignIn();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
   const [status, setStatus] = useState("Initializing...");
 
@@ -19,11 +17,11 @@ function TestingSignInContent() {
     // Already signed in — redirect immediately, no API calls.
     if (isSignedIn) {
       setStatus("Already signed in — redirecting...");
-      router.push(redirect);
+      navigate(redirect);
       return;
     }
 
-    if (process.env.NEXT_PUBLIC_CLERK_TESTING_ENABLED !== "true") {
+    if (import.meta.env.VITE_CLERK_TESTING_ENABLED !== "true") {
       setStatus("Testing mode is not enabled in this environment.");
       return;
     }
@@ -100,7 +98,7 @@ function TestingSignInContent() {
 
             if (result.status === "complete") {
               await setActive!({ session: result.createdSessionId });
-              router.push(redirect);
+              navigate(redirect);
               return;
             }
             setStatus(`Unexpected sign-in status: ${result.status}`);
@@ -120,7 +118,7 @@ function TestingSignInContent() {
             // Another tab/flow already signed in with this token — redirect.
             if (isSessionExists) {
               setStatus("Session exists — redirecting...");
-              router.push(redirect);
+              navigate(redirect);
               return;
             }
 
@@ -151,7 +149,7 @@ function TestingSignInContent() {
 
     autoSignIn();
     return () => ac.abort();
-  }, [isLoaded, signIn, isSignedIn, redirect, router, setActive]);
+  }, [isLoaded, signIn, isSignedIn, redirect, navigate, setActive]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
