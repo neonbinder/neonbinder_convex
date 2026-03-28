@@ -1,0 +1,95 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Custom Entry Survives Re-Sync
+tags:
+  - set-selector
+  - regression
+---
+# A user adds a custom sport entry, then syncs sports from marketplaces.
+# After the sync completes, the custom entry must still be visible in the list.
+# This verifies that marketplace sync does not delete or overwrite user-created
+# custom entries.
+#
+# This test also confirms the "Custom" badge is shown on custom entries
+# both before and after a re-sync.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# ============================================================
+# STEP 1 — Add a custom sport entry
+# ============================================================
+
+# Tap "+ Custom" in the Sports column to open the custom entry form
+- tapOn: "+ Custom"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+
+# Type a unique custom sport name that will be easy to find after re-sync
+- tapOn: "Enter custom value..."
+- inputText: "TestCustomSport"
+- tapOn:
+    text: "Add"
+    index: 0
+
+# The form should close and "TestCustomSport" should appear in the list
+- extendedWaitUntil:
+    visible: "TestCustomSport"
+    timeout: 10000
+
+# Verify the "Custom" badge is shown next to the entry
+- assertVisible: "Custom"
+
+# ============================================================
+# STEP 2 — Re-sync sports from marketplaces
+# ============================================================
+
+# Trigger a marketplace sync for sports
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+
+# ============================================================
+# STEP 3 — Verify custom entry still exists after re-sync
+# ============================================================
+
+# The custom sport entry must still be visible in the list
+- scrollUntilVisible:
+    element:
+      text: "TestCustomSport"
+    timeout: 10000
+- assertVisible: "TestCustomSport"
+
+# The "Custom" badge must still be shown on the entry
+- assertVisible: "Custom"
+
+# Marketplace-synced entries (BSC, SL) should also be present alongside it
+- assertVisible: "BSC"
+- assertVisible: "SL"

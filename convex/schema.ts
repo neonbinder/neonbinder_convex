@@ -50,8 +50,32 @@ export default defineSchema({
     }),
     parentId: v.optional(v.id("selectorOptions")), // For hierarchical relationships
     children: v.optional(v.array(v.id("selectorOptions"))), // Child options
+    isCustom: v.optional(v.boolean()), // Distinguishes user-added entries from marketplace data
+    createdByUserId: v.optional(v.string()), // Audit trail for custom entries
     lastUpdated: v.number(),
-  }).index("by_level", ["level"]).index("by_parent", ["parentId"]).index("by_value", ["value"]),
+  })
+    .index("by_level", ["level"])
+    .index("by_parent", ["parentId"])
+    .index("by_value", ["value"])
+    .index("by_level_and_parent", ["level", "parentId"]),
+
+  // Card Checklist - stores individual cards within a set variant
+  cardChecklist: defineTable({
+    selectorOptionId: v.id("selectorOptions"), // Points to variant-level option
+    cardNumber: v.string(),
+    cardName: v.string(),
+    team: v.optional(v.string()),
+    attributes: v.optional(v.array(v.string())), // ["RC", "AU", "SP"]
+    platformData: v.object({
+      bsc: v.optional(v.string()),
+      sportlots: v.optional(v.string()),
+    }),
+    isCustom: v.optional(v.boolean()),
+    sortOrder: v.number(),
+    lastUpdated: v.number(),
+  })
+    .index("by_selector_option", ["selectorOptionId"])
+    .index("by_selector_option_and_number", ["selectorOptionId", "cardNumber"]),
 
   // Set Selections - stores user's selected set parameters
   setSelections: defineTable({

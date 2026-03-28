@@ -20,7 +20,7 @@ export default function YearSelector({
   return (
     <EntitySelector
       title="Years"
-      query={api.myFunctions.getSelectorOptions}
+      query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "year", parentId: sportId }}
       selectedId={selectedYearId as string | null}
       onSelect={(id) => onYearSelect(id as GenericId<"selectorOptions">)}

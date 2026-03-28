@@ -160,8 +160,8 @@ export const testCredentials = action({
     details: v.optional(v.string()),
   }),
   handler: async (ctx): Promise<{ success: boolean; message: string; details?: string }> => {
-    // Get stored credentials
-    const credentials: { username: string; password: string; site: string; userId: string; createdAt: string } | null = await ctx.runAction(api.adapters.secret_manager.getSiteCredentials, {
+    // Get credential metadata (no secrets)
+    const credentials = await ctx.runAction(api.credentials.getSiteCredentials, {
       site: "ebay",
     });
 

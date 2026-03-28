@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/solid";
 import { FunctionReference } from "convex/server";
+
+type SelectorItem = { _id: string; [key: string]: unknown };
 
 type EntitySelectorProps = {
   title: string;
@@ -10,13 +13,25 @@ type EntitySelectorProps = {
   onSelect: (id: string) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
-  getDisplayName: (item: { _id: string; [key: string]: unknown }) => string;
-  getDescription?: (item: {
-    _id: string;
-    [key: string]: unknown;
-  }) => string | undefined;
+  getDisplayName: (item: SelectorItem) => string;
+  getDescription?: (item: SelectorItem) => string | undefined;
   selectedColor: string;
 };
+
+function isCustom(item: SelectorItem): boolean {
+  return item.isCustom === true;
+}
+
+function getPlatformData(item: SelectorItem): {
+  sportlots?: string;
+  bsc?: string | string[];
+} | null {
+  const pd = item.platformData;
+  if (pd && typeof pd === "object") {
+    return pd as { sportlots?: string; bsc?: string | string[] };
+  }
+  return null;
+}
 
 export default function EntitySelector({
   title,
@@ -31,8 +46,10 @@ export default function EntitySelector({
   selectedColor,
 }: EntitySelectorProps) {
   const items = useQuery(query, queryArgs);
+  const [searchFilter, setSearchFilter] = useState("");
+
   const selected = items?.find(
-    (item: { _id: string; [key: string]: unknown }) => item._id === selectedId,
+    (item: SelectorItem) => item._id === selectedId,
   );
 
   if (!items) return <div>Loading {title.toLowerCase()}...</div>;
@@ -42,18 +59,24 @@ export default function EntitySelector({
     const nameA = getDisplayName(a);
     const nameB = getDisplayName(b);
 
-    // Check if both values are numbers (for years)
     const numA = Number(nameA);
     const numB = Number(nameB);
 
     if (!isNaN(numA) && !isNaN(numB)) {
-      // Sort numbers in descending order (newest first)
       return numB - numA;
     } else {
-      // Sort strings alphabetically
       return nameA.localeCompare(nameB);
     }
   });
+
+  // Apply search filter
+  const filteredItems = searchFilter
+    ? sortedItems.filter((item) =>
+        getDisplayName(item)
+          .toLowerCase()
+          .includes(searchFilter.toLowerCase()),
+      )
+    : sortedItems;
 
   if (selectedId && selected && !expanded) {
     return (
@@ -61,18 +84,20 @@ export default function EntitySelector({
         className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(true)}
       >
-        <div>
+        <div className="flex items-center gap-2">
           <div className="font-semibold">{getDisplayName(selected)}</div>
-          {getDescription && getDescription(selected) && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {getDescription(selected)}
-            </div>
+          {isCustom(selected) && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+              Custom
+            </span>
           )}
         </div>
         <ChevronDownIcon className="w-5 h-5 text-gray-500" />
       </div>
     );
   }
+
+  const showSearch = sortedItems.length > 8;
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
@@ -88,28 +113,70 @@ export default function EntitySelector({
           </button>
         )}
       </div>
-      <div className="space-y-2">
-        {sortedItems.map((item: { _id: string; [key: string]: unknown }) => (
-          <button
-            key={item._id}
-            onClick={() => {
-              onSelect(item._id);
-              setExpanded(false);
-            }}
-            className={`w-full text-left p-3 rounded-md border transition-colors ${
-              selectedId === item._id
-                ? `${selectedColor}`
-                : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
-            }`}
-          >
-            <div className="font-semibold">{getDisplayName(item)}</div>
-            {getDescription && getDescription(item) && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {getDescription(item)}
-              </div>
-            )}
-          </button>
-        ))}
+      {showSearch && (
+        <input
+          type="text"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm"
+          placeholder={`Search ${title.toLowerCase()}...`}
+        />
+      )}
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        {filteredItems.length === 0 ? (
+          <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+            {searchFilter
+              ? "No matches found"
+              : `No ${title.toLowerCase()} available. Sync from marketplaces to populate.`}
+          </div>
+        ) : (
+          filteredItems.map((item: SelectorItem) => {
+            const pd = getPlatformData(item);
+            return (
+              <button
+                key={item._id}
+                onClick={() => {
+                  onSelect(item._id);
+                  setExpanded(false);
+                  setSearchFilter("");
+                }}
+                className={`w-full text-left p-3 rounded-md border transition-colors ${
+                  selectedId === item._id
+                    ? `${selectedColor}`
+                    : isCustom(item)
+                      ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
+                      : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">
+                    {getDisplayName(item)}
+                  </span>
+                  {isCustom(item) && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                      Custom
+                    </span>
+                  )}
+                  {pd?.sportlots && (
+                    <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+                      SL
+                    </span>
+                  )}
+                  {pd?.bsc && (
+                    <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+                      BSC
+                    </span>
+                  )}
+                </div>
+                {getDescription && getDescription(item) && (
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {getDescription(item)}
+                  </div>
+                )}
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );

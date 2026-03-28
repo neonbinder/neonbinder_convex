@@ -9,13 +9,25 @@
 
 set -e
 
+# Load .env.test if it exists (won't override vars already set in the environment)
+if [ -f .env.test ]; then
+  set -a
+  source .env.test
+  set +a
+fi
+
 MAESTRO="$HOME/.maestro/bin/maestro"
 CONFIG=".maestro/config.yaml"
 APP_URL="${APP_URL:-http://localhost:3000}"
 # Unique username per run to avoid "already taken" in profile flows
 TEST_USERNAME="${TEST_USERNAME:-neontester_$(date +%s)}"
+# Credential env vars (real credentials for dev@neonbinder.io accounts)
+SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
+SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
+BSC_USERNAME="${BSC_USERNAME:-}"
+BSC_PASSWORD="${BSC_PASSWORD:-}"
 # --platform web required so launchApp navigates to each flow's url: (config cannot set platform)
-ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME")
+ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME" -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD" -e "BSC_USERNAME=$BSC_USERNAME" -e "BSC_PASSWORD=$BSC_PASSWORD")
 TAG="${1:-}"
 
 # Discover flows: filter by tag if provided, otherwise find all yaml files.

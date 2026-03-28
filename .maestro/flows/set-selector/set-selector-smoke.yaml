@@ -1,0 +1,53 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+name: Set Selector Smoke Test
+tags:
+  - smoke
+  - set-selector
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+
+# --- Set up marketplace credentials for the test user ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# Navigate to the Set Selector page
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# Verify the Sport selector column is present
+- assertVisible: "Sports"
+
+# Verify the sync and custom buttons are present
+- assertVisible: "Sync Sports"
+- assertVisible: "\\+ Custom"
+
+# Trigger a marketplace sync for Sports
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync from Marketplaces"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for sync to complete — form closes on success
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 30000
+
+# Verify sports were synced from both platforms
+# Entries from both BSC and SportLots should show their respective badges
+- assertVisible: "BSC"
+- assertVisible: "SL"

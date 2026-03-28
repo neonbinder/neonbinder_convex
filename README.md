@@ -13,36 +13,13 @@ After the initial setup (<2 minutes) you'll have a working full-stack app using:
 
 ## Google Cloud Secret Manager Setup
 
-This project uses Google Cloud Secret Manager to securely store user credentials for various sports card platforms. To set up:
+This project uses Google Cloud Secret Manager to securely store user credentials for various sports card platforms. Service accounts and IAM permissions are managed by Terraform in `neonbinder_terraform/`. See `CLAUDE.md` at the repo root for the full service account reference.
 
-1. **Install Google Cloud CLI** and authenticate:
-   ```bash
-   gcloud auth login
-   gcloud config set project neonbinder
-   ```
-
-2. **Enable Secret Manager API**:
-   ```bash
-   gcloud services enable secretmanager.googleapis.com
-   ```
-
-3. **Create Service Account** (already done):
-   ```bash
-   gcloud iam service-accounts create neonbinder-convex --display-name="NeonBinder Convex Backend"
-   gcloud projects add-iam-policy-binding neonbinder --member="serviceAccount:neonbinder-convex@neonbinder.iam.gserviceaccount.com" --role="roles/secretmanager.admin"
-   ```
-
-4. **Download Service Account Key** (already done):
-   ```bash
-   gcloud iam service-accounts keys create ~/.config/gcloud/neonbinder-convex-key.json --iam-account=neonbinder-convex@neonbinder.iam.gserviceaccount.com
-   ```
-
-5. **Set Environment Variable** for local development:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/gcloud/neonbinder-convex-key.json"
-   ```
-
-For production deployment, you'll need to configure the service account credentials in your Convex deployment environment.
+For local development, use SA impersonation (org policy blocks key creation):
+```bash
+gcloud auth application-default login \
+  --impersonate-service-account=neonbinder-convex@neonbinder.iam.gserviceaccount.com
+```
 
 ## Browser Service Requirement
 

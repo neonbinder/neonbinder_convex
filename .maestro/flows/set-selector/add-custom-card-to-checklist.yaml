@@ -1,0 +1,168 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Add Custom Card to Checklist
+tags:
+  - set-selector
+  - regression
+---
+# A user manually adds a card to the checklist using the "Add Card" form.
+# This covers the scenario where a card is missing from marketplace data
+# and the user wants to track it anyway.
+#
+# The test verifies:
+# - The "Add Card" button opens the add card form
+# - Filling in card number and player name then tapping "Add" saves the card
+# - The new card appears in the checklist with a "Custom" badge
+# - The card shows the card number and player name the user entered
+#
+# Prerequisites: BSC and SL credentials in env vars, and a synced variant
+# with a populated checklist (or an empty one is fine — "Add Card" is always
+# visible regardless of checklist state).
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Set up credentials ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Sync and drill down to a variant (same path as other regression tests) ---
+
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Sync Year Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Sync Manufacturer Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Sync Set Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Set Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: "Sync Set Variant Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# CARDS COLUMN — Add a custom card
+# ============================================================
+
+# Wait for the Cards column to appear
+- extendedWaitUntil:
+    visible: "Cards"
+    timeout: 10000
+
+# The "Add Card" button should be visible at the bottom of the Cards panel
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
+- tapOn: "Add Card"
+
+# The add card form opens — the card number input has autoFocus so it is
+# already focused when the form appears. "Player name" becomes visible as
+# the second field label text.
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+
+# The card number field is auto-focused — type directly into it
+- inputText: "999"
+
+# Move to the player name field and type
+- tapOn: "Player name"
+- inputText: "Test Player"
+
+# Submit the form
+- tapOn: "Add"
+
+# ============================================================
+# Verify the new card appears in the checklist
+# ============================================================
+
+# The add form should close and the card should appear in the list
+- extendedWaitUntil:
+    visible: "#999"
+    timeout: 10000
+
+- assertVisible: "Test Player"
+
+# The card should have a "Custom" badge because it was manually added
+- assertVisible: "Custom"
+
+# The "Add Card" button should be available again for further additions
+- assertVisible: "Add Card"
