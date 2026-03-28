@@ -23,6 +23,7 @@ import ManagingInventory from "@/app/managing-inventory/page";
 import SignInPage from "@/app/signin/[[...sign-in]]/page";
 import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
 import PublicProfile from "@/app/u/[username]/page";
+import SalePage from "@/app/u/[username]/sale/page";
 import TestSignIn from "@/app/testing/sign-in/page";
 import Dashboard from "@/app/dashboard/page";
 import Profile from "@/app/profile/page";
@@ -47,6 +48,7 @@ const SentryErrorBoundary = Sentry.withErrorBoundary(
           <Route path="/managing-inventory" element={<ManagingInventory />} />
           <Route path="/signin/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
+          <Route path="/u/:username/sale" element={<SalePage />} />
           <Route path="/u/:username" element={<PublicProfile />} />
           <Route path="/testing/sign-in" element={<TestSignIn />} />
 
