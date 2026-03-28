@@ -1,25 +1,20 @@
-/* eslint-disable @next/next/no-img-element */
-"use client";
-
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { useFeatureFlagEnabled } from "posthog-js/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import NeonButton from "../../components/modules/NeonButton";
 import PublicProfileEditor from "../../components/modules/PublicProfileEditor";
-import Image from "next/image";
 
 const SUPPORTED_SITES = [
   { key: "buysportscards", label: "BuySportsCards" },
-  { key: "ebay", label: "eBay" },
   { key: "sportlots", label: "Sportlots" },
-  // Add more sites here as needed
+  // Add more sites here as needed (eBay coming soon)
 ];
 
 export default function ProfilePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [selectedSite, setSelectedSite] = useState(SUPPORTED_SITES[0].key);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +28,7 @@ export default function ProfilePage() {
   );
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   // Prize Pool state
   const [newPrizeName, setNewPrizeName] = useState("");
@@ -65,25 +61,16 @@ export default function ProfilePage() {
   const [sportsDragActive, setSportsDragActive] = useState(false);
 
   // Actions and Mutations
-  const storeCredentials = useAction(
-    api.adapters.secret_manager.storeSiteCredentials,
-  );
+  const storeCredentials = useAction(api.credentials.storeSiteCredentials);
   const updateCredentialStatus = useMutation(
     api.userProfile.updateSiteCredentialStatus,
   );
   const removeCredentialStatus = useMutation(
     api.userProfile.removeSiteCredentialStatus,
   );
-  const deleteSiteCredentials = useAction(
-    api.adapters.secret_manager.deleteSiteCredentials,
-  );
-  const getSiteCredentials = useAction(
-    api.adapters.secret_manager.getSiteCredentials,
-  );
-  const testSiteCredentials = useAction(
-    api.adapters.secret_manager.testSiteCredentials,
-  );
-
+  const deleteSiteCredentials = useAction(api.credentials.deleteSiteCredentials);
+  const getSiteCredentials = useAction(api.credentials.getSiteCredentials);
+  const testSiteCredentials = useAction(api.credentials.testSiteCredentials);
   // Prize Pool mutations and queries
   const createPrize = useMutation(api.userProfile.createPrize);
   const updatePrize = useMutation(api.userProfile.updatePrize);
@@ -96,17 +83,11 @@ export default function ProfilePage() {
   const siteMeta = SUPPORTED_SITES.find((s) => s.key === selectedSite);
 
   // Feature flags for GCP-dependent features
-  const isCredentialsEnabled = useFeatureFlagEnabled("credentials-management-enabled");
   const isPrizeImagesEnabled = useFeatureFlagEnabled("prize-images-enabled");
   const hasStoredCredentials =
     profile?.siteCredentials?.some(
       (cred) => cred.site === selectedSite && cred.hasCredentials,
     ) || false;
-
-  // Debug logging
-  console.log("[ProfilePage] profile:", profile);
-  console.log("[ProfilePage] selectedSite:", selectedSite);
-  console.log("[ProfilePage] hasStoredCredentials:", hasStoredCredentials);
 
   // Set mounted flag after hydration
   useEffect(() => {
@@ -132,11 +113,11 @@ export default function ProfilePage() {
       setIsLoading(true);
       try {
         const creds = await getSiteCredentials({ site: selectedSite });
-        console.log("[ProfilePage] getSiteCredentials result:", creds);
         setIsAuthenticated(!!creds);
-      } catch (err) {
-        console.log("[ProfilePage] getSiteCredentials error:", err);
-        setIsAuthenticated(false);
+      } catch {
+        // If the browser service is unreachable, trust the stored profile flag
+        // rather than showing a confusing unauthenticated state
+        setIsAuthenticated(true);
       } finally {
         setIsLoading(false);
       }
@@ -154,14 +135,11 @@ export default function ProfilePage() {
     setIsLoading(true);
     setMessage("");
     try {
-      console.log("[handleSaveCredentials] Calling storeCredentials action");
-      // Store credentials in Secret Manager
       const secretResult = await storeCredentials({
         site: selectedSite,
         username,
         password,
       });
-      console.log("[handleSaveCredentials] Result:", secretResult);
       if (!secretResult.success) {
         throw new Error(secretResult.message);
       }
@@ -171,7 +149,7 @@ export default function ProfilePage() {
         hasCredentials: true,
       });
       setMessage(
-        `Credentials saved successfully! Your credentials have been securely stored in Google Cloud Secret Manager for ${siteMeta?.label}.`,
+        `Credentials saved successfully! Your credentials have been securely encrypted and stored for ${siteMeta?.label}.`,
       );
       setMessageType("success");
       setIsAuthenticated(true);
@@ -198,21 +176,7 @@ export default function ProfilePage() {
     setMessage(`Testing stored credentials with ${siteMeta?.label}...`);
     setMessageDetails(undefined);
     try {
-      // Test credentials using the platform-specific test action
-      console.log("Testing credentials for site:", selectedSite);
-
-      // For BuySportsCards, show a note about the browser service
-      if (selectedSite === "buysportscards") {
-        console.log(
-          "Note: BuySportsCards requires the browser service to be running locally at http://localhost:8080",
-        );
-        console.log(
-          'If you see an error about the browser service, please run "npm start" in the neonbinder_browser directory',
-        );
-      }
-
       const testResult = await testSiteCredentials({ site: selectedSite });
-      console.log("Test credentials result:", testResult);
 
       if (testResult.success) {
         setMessage(testResult.message);
@@ -240,20 +204,16 @@ export default function ProfilePage() {
     }
   };
 
-  const handleClearCredentials = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to clear your ${siteMeta?.label} credentials?`,
-      )
-    ) {
-      return;
-    }
+  const handleClearCredentials = () => {
+    setConfirmingClear(true);
+  };
+
+  const handleConfirmClear = async () => {
+    setConfirmingClear(false);
     setIsLoading(true);
     setMessage("");
     try {
-      // Delete from Secret Manager
       await deleteSiteCredentials({ site: selectedSite });
-      // Remove from user profile
       await removeCredentialStatus({ site: selectedSite });
       setUsername("");
       setPassword("");
@@ -681,10 +641,10 @@ export default function ProfilePage() {
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
         <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Neon Binder" width={40} height={40} />
+          <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
           <span className="neon-header">Neon Binder</span>
         </div>
-        <NeonButton onClick={() => router.push("/")}>Back to Home</NeonButton>
+        <NeonButton onClick={() => navigate("/")}>Back to Home</NeonButton>
       </header>
       <main className="p-8 max-w-2xl mx-auto">
         <div className="space-y-8">
@@ -706,11 +666,10 @@ export default function ProfilePage() {
             <PublicProfileEditor />
           </section>
 
-          {/* Site Selector and Credentials Section - Feature Flagged */}
-          {isCredentialsEnabled ? (
-            <>
+          {/* Credentials Section */}
+          <section className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
               {/* Site Selector */}
-              <div className="mb-6">
+              <div>
                 <label
                   htmlFor="site-select"
                   className="block text-sm font-medium mb-2"
@@ -730,23 +689,21 @@ export default function ProfilePage() {
                   ))}
                 </select>
               </div>
-              {/* Credentials Section */}
-          <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
             <div>
               <h2 className="text-xl font-semibold mb-2">
                 {siteMeta?.label} Credentials
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Enter your {siteMeta?.label} login credentials to enable
-                automatic authentication. Your credentials are securely stored
-                in Google Cloud Secret Manager.
+                Enter your {siteMeta?.label} login credentials to enable automatic authentication. Your credentials are securely encrypted and stored.
               </p>
             </div>
+
+            {/* Credentials UI - same for all sites including BSC */}
             {/* If credentials are stored and not in edit mode, show summary and buttons */}
             {hasStoredCredentials && !editMode ? (
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded-md">
-                  <strong>💾 Credentials saved for {siteMeta?.label}</strong>
+                  <strong>Credentials saved for {siteMeta?.label}</strong>
                   <p className="text-sm mt-1">
                     Your credentials are securely stored. You can edit or test
                     them below.
@@ -789,11 +746,11 @@ export default function ProfilePage() {
                     </label>
                     <input
                       id="username"
-                      type="email"
+                      type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder={`Enter your ${siteMeta?.label} email`}
+                      placeholder={`Enter your ${siteMeta?.label} username or email`}
                     />
                   </div>
                   <div>
@@ -812,6 +769,11 @@ export default function ProfilePage() {
                       placeholder={`Enter your ${siteMeta?.label} password`}
                     />
                   </div>
+                  {selectedSite === "sportlots" && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      We recommend using a unique password for your SportLots account.
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <NeonButton
@@ -849,6 +811,29 @@ export default function ProfilePage() {
                 )}
               </>
             )}
+            {confirmingClear && (
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                <p className="text-amber-800 dark:text-amber-200 font-medium mb-3">
+                  Are you sure you want to clear your {siteMeta?.label} credentials?
+                </p>
+                <div className="flex gap-3">
+                  <NeonButton
+                    onClick={handleConfirmClear}
+                    disabled={isLoading}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {isLoading ? "Clearing..." : "Yes, Clear"}
+                  </NeonButton>
+                  <NeonButton
+                    onClick={() => setConfirmingClear(false)}
+                    disabled={isLoading}
+                    className="bg-slate-600 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </NeonButton>
+                </div>
+              </div>
+            )}
             {message && (
               <div
                 className={`p-4 rounded-md ${
@@ -874,52 +859,31 @@ export default function ProfilePage() {
             )}
             {hasStoredCredentials && !isAuthenticated && (
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded-md">
-                <strong>💾 Credentials Stored</strong>
+                <strong>Credentials Stored</strong>
                 <p className="text-sm mt-1">
                   Your credentials are saved. Click &quot;Test Stored
                   Credentials&quot; to verify they work.
                 </p>
               </div>
             )}
-          </div>
 
               {/* Security Information */}
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mt-5">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                  🔒 Security Information
+                  Security Information
                 </h3>
                 <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                   <li>
-                    • Your credentials are securely stored in Google Cloud Secret
-                    Manager
+                    • Your credentials are securely encrypted and stored
                   </li>
                   <li>
-                    • Credentials are encrypted and only accessible to your account
+                    • Credentials are only accessible to your account
                   </li>
                   <li>• We never share your credentials with third parties</li>
                   <li>• You can clear your credentials at any time</li>
-                  <li>• Test button uses stored credentials from Secret Manager</li>
                 </ul>
               </div>
-            </>
-          ) : (
-            <div className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
-              <div>
-                <h2 className="text-xl font-semibold mb-2">Platform Credentials</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Secure credential management for marketplace platforms.
-                </p>
-              </div>
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
-                <p className="text-amber-800 dark:text-amber-200 font-medium">
-                  🚀 Coming Soon!
-                </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  Secure credential storage for marketplace platforms is coming in a future update.
-                </p>
-              </div>
-            </div>
-          )}
+          </section>
 
           {/* Prize Pool Section - Feature Flagged */}
           {isPrizeImagesEnabled ? (

@@ -1,0 +1,200 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Edit and Delete a Card from the Checklist
+tags:
+  - set-selector
+  - regression
+---
+# A user edits an existing card's player name and team, saves the change,
+# then deletes the card from the checklist.
+#
+# The test verifies:
+# - Hovering a card row reveals "Edit" and "Del" actions
+# - Tapping "Edit" opens an inline edit form with the current values
+# - Saving updates the card name shown in the list
+# - Tapping "Del" shows a "Confirm?" prompt
+# - Confirming the delete removes the card from the list
+#
+# This test adds its own custom card first so it has full control over
+# what it edits and deletes without relying on marketplace-synced data.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Credentials ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Drill down to the Cards column ---
+
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Sync Year Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Sync Manufacturer Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Sync Set Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Set Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: "Sync Set Variant Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Cards"
+    timeout: 10000
+
+# --- Add a custom card to edit/delete ---
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+# The card number input has autoFocus — type directly into it
+- inputText: "777"
+- tapOn: "Player name"
+- inputText: "Edit Test Player"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Edit Test Player"
+    timeout: 10000
+
+# ============================================================
+# EDIT the card
+# ============================================================
+
+# Hover the card row to reveal the "Edit" action
+# On web, we tap the "Edit" button that becomes visible on hover/focus
+- tapOn: "Edit"
+
+# The inline edit form opens with current values populated.
+# The card name input shows the existing name — wait for the edit form heading.
+- extendedWaitUntil:
+    visible: "Card name"
+    timeout: 5000
+
+# Tap the card name input (it shows "Card name" as placeholder) to focus it,
+# then clear the existing value and type the new name
+- tapOn: "Card name"
+- clearText
+- inputText: "Renamed Player"
+
+# Tap the team input and enter a team name
+- tapOn: "Team"
+- inputText: "Red Sox"
+
+# Save the edit
+- tapOn: "Save"
+
+# ============================================================
+# Verify the edit was saved
+# ============================================================
+
+# The inline form should close and the updated name should appear
+- extendedWaitUntil:
+    visible: "Renamed Player"
+    timeout: 10000
+- assertVisible: "Red Sox"
+
+# ============================================================
+# DELETE the card
+# ============================================================
+
+# Tap the "Del" button on the card row
+- tapOn: "Del"
+
+# A "Confirm?" prompt replaces the "Del" button
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+
+# Confirm the deletion
+- tapOn: "Confirm?"
+
+# ============================================================
+# Verify the card was removed from the list
+# ============================================================
+
+# The card should no longer appear in the checklist
+- extendedWaitUntil:
+    notVisible: "Renamed Player"
+    timeout: 10000

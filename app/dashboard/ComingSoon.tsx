@@ -1,16 +1,14 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useNavigate } from "react-router";
+import { useAuth } from "@clerk/clerk-react";
 import { Link, NeonHeader } from "../../components/primitives";
 import { BindersIcon, ConvertIcon, MaximizeIcon } from "../../components/icons";
 
 export default function ComingSoon() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { isSignedIn } = useAuth();
 
   const handleProfileClick = () => {
-    router.push("/profile");
+    navigate("/profile");
   };
 
   return (

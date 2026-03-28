@@ -1,0 +1,58 @@
+url: ${APP_URL || "http://localhost:3000"}
+name: AI Card Identification Feature Page
+tags:
+  - marketing
+  - home
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 30000
+
+# Scroll to and tap the AI card to navigate
+- scrollUntilVisible:
+    element:
+      text: ".*AI-Based.*"
+- tapOn:
+    text: ".*AI-Based.*"
+- extendedWaitUntil:
+    visible: "Instant Recognition"
+    timeout: 15000
+
+# Four feature sections
+- assertVisible: "Instant Recognition"
+- scrollUntilVisible:
+    element:
+      text: "Complete Card Data"
+- assertVisible: "Complete Card Data"
+- scrollUntilVisible:
+    element:
+      text: "Accuracy & Verification"
+- assertVisible: "Accuracy & Verification"
+- scrollUntilVisible:
+    element:
+      text: "Machine Learning"
+- assertVisible: "Machine Learning"
+
+# CTA: verify Get Started button opens Clerk dialog
+- scrollUntilVisible:
+    element:
+      text: "Get Started"
+- assertVisible: "Get Started"
+- tapOn: "Get Started"
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 10000
+- assertVisible: "Create your account"
+
+# Dismiss dialog and navigate back to home
+- tapOn:
+    point: "5%, 50%"
+- extendedWaitUntil:
+    notVisible: "Create your account"
+    timeout: 5000
+- tapOn: "Back"
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 10000
+- assertVisible: "Sign In"

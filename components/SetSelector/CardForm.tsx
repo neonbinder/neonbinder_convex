@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import NeonButton from "../modules/NeonButton";
 import type { GenericId } from "convex/values";
 
 export default function CardForm({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setVariantId: _setVariantId,
+  setVariantId,
   onDone,
 }: {
   setVariantId: GenericId<"selectorOptions">;
@@ -13,24 +14,43 @@ export default function CardForm({
   const [cardNumber, setCardNumber] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [team, setTeam] = useState("");
-  const [position, setPosition] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [attributes, setAttributes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cardNumber) return;
-    // TODO: Implement createCard mutation in Convex
-    setError("Card creation is not yet implemented. Coming soon!");
-    console.log("Card form submitted:", {
-      cardNumber,
-      playerName: playerName || undefined,
-      team: team || undefined,
-      position: position || undefined,
-      description: description || undefined,
-      imageUrl: imageUrl || undefined,
-    });
+    if (!cardNumber.trim()) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      await addCustomCard({
+        selectorOptionId: setVariantId,
+        cardNumber: cardNumber.trim(),
+        cardName: playerName.trim() || `Card #${cardNumber.trim()}`,
+        team: team.trim() || undefined,
+        attributes: attributes.trim()
+          ? attributes
+              .split(",")
+              .map((a) => a.trim())
+              .filter(Boolean)
+          : undefined,
+      });
+      setCardNumber("");
+      setPlayerName("");
+      setTeam("");
+      setAttributes("");
+      onDone?.();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to add card",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -38,7 +58,9 @@ export default function CardForm({
       <h2 className="text-xl font-semibold mb-4">Add Card</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Card Number</label>
+          <label className="block text-sm font-medium mb-2">
+            Card Number
+          </label>
           <input
             type="text"
             value={cardNumber}
@@ -50,7 +72,7 @@ export default function CardForm({
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">
-            Player Name (optional)
+            Player Name
           </label>
           <input
             type="text"
@@ -74,52 +96,25 @@ export default function CardForm({
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">
-            Position (optional)
+            Attributes (comma-separated)
           </label>
           <input
             type="text"
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
+            value={attributes}
+            onChange={(e) => setAttributes(e.target.value)}
             className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-            placeholder="e.g., CF, P, C"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Description (optional)
-          </label>
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-            placeholder="e.g., Rookie card, All-Star"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Image URL (optional)
-          </label>
-          <input
-            type="url"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-            placeholder="https://example.com/card-image.jpg"
+            placeholder="e.g., RC, AU, SP"
           />
         </div>
         {error && (
-          <div className="p-3 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-md text-amber-800 dark:text-amber-200 text-sm">
+          <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
             {error}
           </div>
         )}
         <div className="flex gap-2">
-          <button
-            type="submit"
-            className="flex-1 bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors"
-          >
-            Add Card
-          </button>
+          <NeonButton type="submit" disabled={saving}>
+            {saving ? "Adding..." : "Add Card"}
+          </NeonButton>
           <NeonButton cancel onClick={onDone}>
             Cancel
           </NeonButton>

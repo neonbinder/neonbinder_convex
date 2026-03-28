@@ -250,7 +250,7 @@ export default function PublicProfileEditor() {
         {/* Username */}
         <div>
           <label htmlFor="pub-username" className={labelClass}>
-            Username <span className="text-slate-500 text-xs">(neonbinder.com/u/[username])</span>
+            Username <span className="text-slate-500 text-xs">(neonbinder.com/u/username)</span>
           </label>
           <div className="relative">
             <input
@@ -261,6 +261,9 @@ export default function PublicProfileEditor() {
               className={inputClass}
               placeholder="e.g. coolcardcollector"
               autoComplete="off"
+              data-lpignore="true"
+              data-1p-ignore
+              data-form-type="other"
             />
             {showAvailability && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium">

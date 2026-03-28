@@ -1,0 +1,150 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Card Checklist Sync — Fetch Cards from Marketplaces
+tags:
+  - set-selector
+  - regression
+---
+# This test verifies that a user can drill down to a set variant and then
+# use "Fetch from Marketplaces" to populate the card checklist.
+# It confirms that individual card entries appear with card numbers and names,
+# and that platform badges (BSC / SL) are shown on synced cards.
+#
+# Prerequisites: BSC and SL credentials must be available in env vars.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Sync and select sport ---
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# --- Sync and select year ---
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Sync Year Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+# --- Sync and select manufacturer ---
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Sync Manufacturer Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+# --- Sync and select set ---
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Sync Set Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync and select variant ---
+- extendedWaitUntil:
+    visible: "Set Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: "Sync Set Variant Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# CARDS CHECKLIST SYNC
+# ============================================================
+
+# The Cards panel appears after selecting a variant
+- extendedWaitUntil:
+    visible: "Cards"
+    timeout: 10000
+
+# The empty state shows "No cards in this checklist yet." and a fetch button
+- assertVisible: "No cards in this checklist yet."
+- assertVisible: "Fetch from Marketplaces"
+
+# Tap "Fetch from Marketplaces" to pull the card list from BSC / SL
+- tapOn: "Fetch from Marketplaces"
+
+# While fetching, the button label changes to "Fetching..."
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 5000
+
+# Wait for the fetch to finish — the button disappears and card rows appear
+- extendedWaitUntil:
+    notVisible: "Fetching..."
+    timeout: 60000
+
+# Verify that at least one card entry appeared (cards show "#NNN" numbers)
+- assertVisible: ".*#[0-9].*"
+
+# Verify the "Refresh" button is now available (replaces the fetch button
+# once the checklist is populated)
+- assertVisible: "Refresh"
+
+# Verify platform badges are shown on at least one card
+- assertVisible: "BSC"

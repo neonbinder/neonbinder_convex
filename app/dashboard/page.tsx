@@ -1,5 +1,3 @@
-"use client";
-
 import {
   useAuth,
   SignInButton,
@@ -7,10 +5,9 @@ import {
   SignedIn,
   SignedOut,
   UserButton,
-} from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+} from "@clerk/clerk-react";
+import { useNavigate } from "react-router";
 import ComingSoon from "./ComingSoon";
-import Image from "next/image";
 import NeonButton from "../../components/modules/NeonButton";
 
 export default function DashboardPage() {
@@ -18,7 +15,7 @@ export default function DashboardPage() {
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
         <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Neon Binder" width={40} height={40} />
+          <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
           <span className="neon-header">Neon Binder</span>
         </div>
         <div className="flex items-center gap-3">
@@ -42,7 +39,7 @@ export default function DashboardPage() {
 
 function ProfileButton() {
   const { isSignedIn } = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   if (!isSignedIn) {
     return null;
@@ -50,7 +47,7 @@ function ProfileButton() {
 
   return (
     <button
-      onClick={() => router.push("/profile")}
+      onClick={() => navigate("/profile")}
       className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       title="Profile Settings"
     >
@@ -74,11 +71,11 @@ function ProfileButton() {
 
 function SignOutButton() {
   const { isSignedIn, signOut } = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/");
+    navigate("/");
   };
 
   return (

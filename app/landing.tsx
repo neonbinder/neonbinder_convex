@@ -1,31 +1,28 @@
-"use client";
-
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { useNavigate } from "react-router";
 import { NeonHeader, PullingLogo } from "../components/primitives";
 import { BindersIcon } from "../components/icons";
 
 export default function LandingPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleBindersClick = () => {
-    router.push("/binder-tracking");
+    navigate("/binder-tracking");
   };
 
   const handleAiIdentificationClick = () => {
-    router.push("/ai-card-identification");
+    navigate("/ai-card-identification");
   };
 
   const handleManagingInventoryClick = () => {
-    router.push("/managing-inventory");
+    navigate("/managing-inventory");
   };
 
   return (
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
         <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Neon Binder" width={40} height={40} />
+          <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
           <span className="neon-header">Neon Binder</span>
         </div>
         <div className="flex items-center gap-3">

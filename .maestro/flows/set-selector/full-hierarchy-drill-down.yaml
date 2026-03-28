@@ -1,0 +1,185 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Full Hierarchy Drill-Down — Sport to Cards Column
+tags:
+  - set-selector
+  - regression
+---
+# This test walks a user all the way through every level of the set hierarchy:
+# Sport → Year → Manufacturer → Set → Set Variant → Cards column.
+# It syncs each level from marketplaces and verifies the next column appears
+# before drilling down. This is the core "happy path" of the set selector.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# Navigate to the set selector after credential setup
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 1 — SPORT
+# ============================================================
+
+# The Sports column should be the only column visible on load
+- assertVisible: "Sports"
+- assertVisible: "Sync Sports"
+
+# Sync sports from marketplaces
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close (success dismisses the form automatically)
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+
+# Verify platform badges appear on the synced sport entries
+- assertVisible: "BSC"
+- assertVisible: "SL"
+
+# Select "Baseball" as the sport (a sport expected to exist on both platforms)
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# ============================================================
+# LEVEL 2 — YEAR
+# ============================================================
+
+# After selecting a sport, the Years column should appear
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+
+# Sync years for the selected sport
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Sync Year Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+
+# Verify year entries appear (years are numeric — look for a 4-digit year)
+- assertVisible: ".*20[0-9][0-9].*"
+
+# Select any visible year
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+# ============================================================
+# LEVEL 3 — MANUFACTURER
+# ============================================================
+
+# The Manufacturers column should appear after selecting a year
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+
+# Sync manufacturers
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Sync Manufacturer Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+
+# Select the first available manufacturer
+- tapOn:
+    text: "Topps"
+    index: 0
+
+# ============================================================
+# LEVEL 4 — SET
+# ============================================================
+
+# The Sets column should appear after selecting a manufacturer
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+
+# Sync sets
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Sync Set Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+
+# Select the first set in the list
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# LEVEL 5 — SET VARIANT
+# ============================================================
+
+# The Set Variants column should appear after selecting a set
+- extendedWaitUntil:
+    visible: "Set Variants"
+    timeout: 10000
+
+# Sync set variants
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: "Sync Set Variant Options"
+    timeout: 5000
+- tapOn: "Sync from Marketplaces"
+
+# Wait for the sync form to close
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+
+# Select the first variant (e.g., "Base" is common on both platforms)
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# LEVEL 6 — CARDS COLUMN
+# ============================================================
+
+# After selecting a variant, the Cards column should appear on screen
+- extendedWaitUntil:
+    visible: "Cards"
+    timeout: 10000
+
+# The Cards panel shows either a checklist or the "Fetch from Marketplaces" button
+# Verify at least one of these is present
+- assertVisible: ".*[Ff]etch from [Mm]arketplaces|Add Card|Refresh.*"

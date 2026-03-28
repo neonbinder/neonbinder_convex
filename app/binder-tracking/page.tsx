@@ -1,24 +1,21 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { SignUpButton } from "@clerk/nextjs";
+import { useNavigate } from "react-router";
+import { SignUpButton } from "@clerk/clerk-react";
 
 export default function BinderTrackingPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   return (
     <>
       <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
         <button
-          onClick={() => router.back()}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-slate-700 transition-colors"
         >
           <span className="text-xl">←</span>
           <span>Back</span>
         </button>
         <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Neon Binder" width={40} height={40} />
+          <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
           <span className="neon-header">Neon Binder</span>
         </div>
         <div className="w-20" />

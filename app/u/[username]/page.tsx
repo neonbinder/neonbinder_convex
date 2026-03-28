@@ -1,11 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
-"use client";
-
-import React, { use } from "react";
+import React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import Link from "next/link";
-import Image from "next/image";
+import { Link, useParams } from "react-router";
 
 // — Inline SVG social icons —
 
@@ -95,21 +91,24 @@ function ProfileLinkButton({
         boxShadow: `0 0 12px #00D55899`,
       }}
     >
-      {domain && <div className="absolute left-8"><CompanyIcon domain={domain} /></div>}
+      {domain && (
+        <div className="absolute left-8">
+          <CompanyIcon domain={domain} />
+        </div>
+      )}
       <span>{label}</span>
+      <span className="sr-only">{href}</span>
     </a>
   );
 }
 
 // — Page —
 
-export default function PublicProfilePage({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
-  const { username } = use(params);
-  const profile = useQuery(api.publicProfile.getPublicProfileByUsername, { username });
+export default function PublicProfilePage() {
+  const { username } = useParams<{ username: string }>();
+  const profile = useQuery(api.publicProfile.getPublicProfileByUsername, {
+    username: username!,
+  });
 
   const color1 = profile?.brandColor1 ?? "#0a0a0a";
   const color2 = profile?.brandColor2 ?? "#1a1a2e";
@@ -134,7 +133,7 @@ export default function PublicProfilePage({
         <h1 className="text-2xl font-bold">Profile not found</h1>
         <p className="text-slate-400">
           Create yours at{" "}
-          <Link href="/" className="underline text-white hover:opacity-80">
+          <Link to="/" className="underline text-white hover:opacity-80">
             NeonBinder
           </Link>
           .
@@ -145,17 +144,47 @@ export default function PublicProfilePage({
 
   const marketplaceLinks = [
     { href: profile.ebayUrl, label: "eBay", domain: "ebay.com" },
-    { href: profile.buySportsCardsUrl, label: "BuySportsCards", domain: "buysportscards.com" },
+    {
+      href: profile.buySportsCardsUrl,
+      label: "BuySportsCards",
+      domain: "buysportscards.com",
+    },
     { href: profile.sportlotsUrl, label: "Sportlots", domain: "sportlots.com" },
     { href: profile.mySlabsUrl, label: "MySlabs", domain: "myslabs.com" },
-    { href: profile.myCardPostUrl, label: "MyCardPost", domain: "mycardpost.com" },
-  ].filter((l): l is { href: string; label: string; domain: string } => !!l.href);
+    {
+      href: profile.myCardPostUrl,
+      label: "MyCardPost",
+      domain: "mycardpost.com",
+    },
+  ].filter(
+    (l): l is { href: string; label: string; domain: string } => !!l.href,
+  );
 
   const paymentLinks = [
-    { href: profile.paypalUsername ? `https://paypal.me/${profile.paypalUsername}` : undefined, label: "PayPal", domain: "paypal.com" },
-    { href: profile.venmoUsername ? `https://venmo.com/${profile.venmoUsername}` : undefined, label: "Venmo", domain: "venmo.com" },
-    { href: profile.cashAppUsername ? `https://cash.app/$${profile.cashAppUsername}` : undefined, label: "Cash App", domain: "cash.app" },
-  ].filter((l): l is { href: string; label: string; domain: string } => !!l.href);
+    {
+      href: profile.paypalUsername
+        ? `https://paypal.me/${profile.paypalUsername}`
+        : undefined,
+      label: "PayPal",
+      domain: "paypal.com",
+    },
+    {
+      href: profile.venmoUsername
+        ? `https://venmo.com/${profile.venmoUsername}`
+        : undefined,
+      label: "Venmo",
+      domain: "venmo.com",
+    },
+    {
+      href: profile.cashAppUsername
+        ? `https://cash.app/$${profile.cashAppUsername}`
+        : undefined,
+      label: "Cash App",
+      domain: "cash.app",
+    },
+  ].filter(
+    (l): l is { href: string; label: string; domain: string } => !!l.href,
+  );
 
   const socialLinks = [
     { href: profile.twitterUrl, Icon: TwitterIcon, label: "Twitter/X" },
@@ -164,13 +193,13 @@ export default function PublicProfilePage({
     { href: profile.youtubeUrl, Icon: YouTubeIcon, label: "YouTube" },
     { href: profile.facebookUrl, Icon: FacebookIcon, label: "Facebook" },
     { href: profile.threadsUrl, Icon: ThreadsIcon, label: "Threads" },
-  ].filter((l): l is { href: string; Icon: () => React.ReactElement; label: string } => !!l.href);
+  ].filter(
+    (l): l is { href: string; Icon: () => React.ReactElement; label: string } =>
+      !!l.href,
+  );
 
   return (
-    <div
-      className="min-h-screen py-12 px-4"
-      style={{ background: "#0a0a0a" }}
-    >
+    <div className="min-h-screen py-12 px-4" style={{ background: "#0a0a0a" }}>
       <div className="max-w-md mx-auto">
         {/* Card */}
         <div className="bg-black/50 backdrop-blur-sm rounded-2xl py-12 px-6 flex flex-col items-center gap-4 text-center">
@@ -184,19 +213,29 @@ export default function PublicProfilePage({
           ) : (
             <div
               className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white"
-              style={{ background: `linear-gradient(135deg, ${color1}, ${color2})`, border: "2px solid rgba(255,255,255,0.2)" }}
+              style={{
+                background: `linear-gradient(135deg, ${color1}, ${color2})`,
+                border: "2px solid rgba(255,255,255,0.2)",
+              }}
             >
-              {(profile.displayName ?? profile.username).charAt(0).toUpperCase()}
+              {(profile.displayName ?? profile.username)
+                .charAt(0)
+                .toUpperCase()}
             </div>
           )}
 
           {/* Name + tagline */}
           <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Neon', sans-serif" }}>
+            <h1
+              className="text-2xl font-bold text-white"
+              style={{ fontFamily: "'Neon', sans-serif" }}
+            >
               {profile.displayName ?? profile.username}
             </h1>
             {profile.tagline && (
-              <p className="text-slate-300 mt-1 text-sm font-['Lexend']">{profile.tagline}</p>
+              <p className="text-slate-300 mt-1 text-sm font-['Lexend']">
+                {profile.tagline}
+              </p>
             )}
           </div>
 
@@ -245,6 +284,7 @@ export default function PublicProfilePage({
                   className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
                 >
                   <Icon />
+                  <span className="sr-only">{href}</span>
                 </a>
               ))}
             </div>
@@ -252,7 +292,7 @@ export default function PublicProfilePage({
 
           {/* Footer */}
           <div className="flex flex-col items-center gap-3 mt-8">
-            <Image
+            <img
               src="/logo.png"
               alt="NeonBinder"
               width={40}
@@ -261,7 +301,10 @@ export default function PublicProfilePage({
             />
             <p className="text-xs text-slate-500">
               Powered by{" "}
-              <Link href="/" className="underline hover:text-slate-300 transition-colors">
+              <Link
+                href="/"
+                className="underline hover:text-slate-300 transition-colors"
+              >
                 NeonBinder
               </Link>
             </p>

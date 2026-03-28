@@ -1,0 +1,92 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Set Selector Empty State — No Options Available
+tags:
+  - set-selector
+  - regression
+---
+# This test verifies the empty state message that appears when the Sports
+# column has no entries yet (nothing has been synced or added manually).
+#
+# Rather than clearing all data (which would affect other users in shared
+# environments), this test looks for the empty-state text on a fresh
+# account or accepts that the list might already be populated.
+# The primary goal is to confirm the page loads correctly and that
+# the empty state text matches what the code renders.
+#
+# Note: This test is most meaningful on a freshly-created test account.
+# On an account with existing data it still validates the page layout.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# Page loads and shows the Sports column header + action buttons
+# ============================================================
+
+# The Sports column is always visible even when empty
+- assertVisible: "Sports"
+
+# The "Sync Sports" and "+ Custom" buttons are always present
+- assertVisible: "Sync Sports"
+- assertVisible: "+ Custom"
+
+# If the list is empty, the empty-state message should be visible
+# Text from EntitySelector: "No sports available. Sync from marketplaces to populate."
+- runFlow:
+    when:
+      notVisible: "BSC"
+    commands:
+      - assertVisible: ".*[Nn]o sports available.*"
+
+# ============================================================
+# Columns downstream of Sports must NOT be visible yet
+# ============================================================
+
+# Years, Manufacturers, Sets, Set Variants, and Cards columns only appear
+# after their parent level has been selected. On an empty page none of
+# these should be visible.
+- assertNotVisible: "Years"
+- assertNotVisible: "Manufacturers"
+# "Sync Sets" is the button label for the Sets column — checking for it
+# is more precise than "Sets" which could match "Set Selector" in the heading
+- assertNotVisible: "Sync Sets"
+- assertNotVisible: "Set Variants"
+- assertNotVisible: "Cards"
+
+# ============================================================
+# Cancel button in sync form returns user to idle state
+# ============================================================
+
+# Open the sync form
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sport Options"
+    timeout: 5000
+
+# Verify the heading and description are shown
+- assertVisible: "Sync Sport Options"
+- assertVisible: "Fetch the latest sport options from all connected platforms."
+
+# Cancel — should return to the idle state showing "Sync Sports"
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 5000
+- assertVisible: "Sync Sports"
+
+# ============================================================
+# Cancel button in custom entry form returns user to idle state
+# ============================================================
+
+- tapOn: "+ Custom"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    visible: "+ Custom"
+    timeout: 5000
+- assertVisible: "+ Custom"

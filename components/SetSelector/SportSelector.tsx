@@ -18,7 +18,7 @@ export default function SportSelector({
   return (
     <EntitySelector
       title="Sports"
-      query={api.myFunctions.getSelectorOptions}
+      query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "sport" }}
       selectedId={selectedSportId as string | null}
       onSelect={(id) => onSportSelect(id as GenericId<"selectorOptions">)}

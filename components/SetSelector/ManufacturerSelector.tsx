@@ -20,7 +20,7 @@ export default function ManufacturerSelector({
   return (
     <EntitySelector
       title="Manufacturers"
-      query={api.myFunctions.getSelectorOptions}
+      query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "manufacturer", parentId: yearId }}
       selectedId={selectedManufacturerId as string | null}
       onSelect={(id) =>

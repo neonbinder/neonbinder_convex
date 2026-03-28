@@ -3,22 +3,20 @@
 import type { GenericId } from "convex/values";
 import { useState } from "react";
 
-// Import the new selector components
 import SportSelector from "../SetSelector/SportSelector";
 import YearSelector from "../SetSelector/YearSelector";
 import ManufacturerSelector from "../SetSelector/ManufacturerSelector";
 import SetSelectorComponent from "../SetSelector/SetSelector";
 import SetVariantSelector from "../SetSelector/SetVariantSelector";
 
-// Import the form components
 import { SportForm } from "../SetSelector/SportForm";
 import YearForm from "../SetSelector/YearForm";
 import ManufacturerForm from "../SetSelector/ManufacturerForm";
 import SetForm from "../SetSelector/SetForm";
 import SetVariantForm from "../SetSelector/SetVariantForm";
 
-// Import the EntityColumn component
 import EntityColumn from "../SetSelector/EntityColumn";
+import CardChecklist from "../SetSelector/CardChecklist";
 
 export default function SetSelector() {
   const [selectedSportId, setSelectedSportId] =
@@ -27,20 +25,17 @@ export default function SetSelector() {
     useState<GenericId<"selectorOptions"> | null>(null);
   const [selectedManufacturerId, setSelectedManufacturerId] =
     useState<GenericId<"selectorOptions"> | null>(null);
-  const [selectedSetId, setSelectedSetId] = useState<GenericId<"selectorOptions"> | null>(
-    null,
-  );
+  const [selectedSetId, setSelectedSetId] =
+    useState<GenericId<"selectorOptions"> | null>(null);
   const [selectedVariantId, setSelectedVariantId] =
     useState<GenericId<"selectorOptions"> | null>(null);
 
-  // Expanded state for each selector
   const [sportExpanded, setSportExpanded] = useState(false);
   const [yearExpanded, setYearExpanded] = useState(false);
   const [manufacturerExpanded, setManufacturerExpanded] = useState(false);
   const [setExpanded, setSetExpanded] = useState(false);
   const [variantExpanded, setVariantExpanded] = useState(false);
 
-  // Reset downstream selections when a parent changes
   const handleSportSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedSportId(id);
     setSelectedYearId(null);
@@ -82,8 +77,9 @@ export default function SetSelector() {
             />
           }
           renderForm={(onDone) => <SportForm onDone={onDone} />}
-          addButtonText="Add Sport"
+          addButtonText="Sync Sports"
           isVisible={true}
+          level="sport"
         />
 
         {/* Year Column */}
@@ -100,8 +96,10 @@ export default function SetSelector() {
           renderForm={(onDone) => (
             <YearForm sportId={selectedSportId!} onDone={onDone} />
           )}
-          addButtonText="Add Year"
+          addButtonText="Sync Years"
           isVisible={!!selectedSportId}
+          level="year"
+          parentId={selectedSportId || undefined}
         />
 
         {/* Manufacturer Column */}
@@ -118,8 +116,10 @@ export default function SetSelector() {
           renderForm={(onDone) => (
             <ManufacturerForm yearId={selectedYearId!} onDone={onDone} />
           )}
-          addButtonText="Add Manufacturer"
+          addButtonText="Sync Manufacturers"
           isVisible={!!selectedYearId}
+          level="manufacturer"
+          parentId={selectedYearId || undefined}
         />
 
         {/* Set Column */}
@@ -134,10 +134,15 @@ export default function SetSelector() {
             />
           }
           renderForm={(onDone) => (
-            <SetForm manufacturerId={selectedManufacturerId!} onDone={onDone} />
+            <SetForm
+              manufacturerId={selectedManufacturerId!}
+              onDone={onDone}
+            />
           )}
-          addButtonText="Add Set"
+          addButtonText="Sync Sets"
           isVisible={!!selectedManufacturerId}
+          level="setName"
+          parentId={selectedManufacturerId || undefined}
         />
 
         {/* Set Variant Column */}
@@ -154,24 +159,14 @@ export default function SetSelector() {
           renderForm={(onDone) => (
             <SetVariantForm setId={selectedSetId!} onDone={onDone} />
           )}
-          addButtonText="Add Variant"
+          addButtonText="Sync Variants"
           isVisible={!!selectedSetId}
+          level="variantType"
+          parentId={selectedSetId || undefined}
         />
 
         {/* Cards Column */}
-        {selectedVariantId && (
-          <div className="min-w-[260px] flex flex-col gap-4">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Cards</h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Card management coming soon...
-              </p>
-            </div>
-            <button className="bg-neon-green text-white py-2 px-4 rounded-md hover:bg-neon-yellow hover:text-black transition-colors">
-              Add Card
-            </button>
-          </div>
-        )}
+        {selectedVariantId && <CardChecklist variantId={selectedVariantId} />}
       </div>
     </div>
   );

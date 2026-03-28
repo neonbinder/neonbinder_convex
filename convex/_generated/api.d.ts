@@ -15,14 +15,16 @@ import type * as adapters_gcs from "../adapters/gcs.js";
 import type * as adapters_index from "../adapters/index.js";
 import type * as adapters_mycardpost from "../adapters/mycardpost.js";
 import type * as adapters_myslabs from "../adapters/myslabs.js";
-import type * as adapters_secret_manager from "../adapters/secret_manager.js";
 import type * as adapters_sportlots from "../adapters/sportlots.js";
 import type * as adapters_testBscSetParameters from "../adapters/testBscSetParameters.js";
 import type * as adapters_types from "../adapters/types.js";
 import type * as auth from "../auth.js";
+import type * as credentials from "../credentials.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as posthog from "../posthog.js";
 import type * as publicProfile from "../publicProfile.js";
+import type * as selectorOptions from "../selectorOptions.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -47,14 +49,16 @@ declare const fullApi: ApiFromModules<{
   "adapters/index": typeof adapters_index;
   "adapters/mycardpost": typeof adapters_mycardpost;
   "adapters/myslabs": typeof adapters_myslabs;
-  "adapters/secret_manager": typeof adapters_secret_manager;
   "adapters/sportlots": typeof adapters_sportlots;
   "adapters/testBscSetParameters": typeof adapters_testBscSetParameters;
   "adapters/types": typeof adapters_types;
   auth: typeof auth;
+  credentials: typeof credentials;
   http: typeof http;
   myFunctions: typeof myFunctions;
+  posthog: typeof posthog;
   publicProfile: typeof publicProfile;
+  selectorOptions: typeof selectorOptions;
   userProfile: typeof userProfile;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

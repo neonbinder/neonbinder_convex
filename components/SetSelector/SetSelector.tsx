@@ -20,7 +20,7 @@ export default function SetSelector({
   return (
     <EntitySelector
       title="Sets"
-      query={api.myFunctions.getSelectorOptions}
+      query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "setName", parentId: manufacturerId }}
       selectedId={selectedSetId as string | null}
       onSelect={(id) => onSetSelect(id as GenericId<"selectorOptions">)}

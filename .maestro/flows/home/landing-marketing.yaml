@@ -1,0 +1,34 @@
+url: ${APP_URL || "http://localhost:3000"}
+name: Landing Page Marketing Content
+tags:
+  - marketing
+  - home
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 30000
+
+# Free Tier section
+- scrollUntilVisible:
+    element:
+      text: ".*Free Tier.*"
+- assertVisible:
+    text: ".*Free Tier.*"
+
+# Feature detail sections (3-up grid)
+- scrollUntilVisible:
+    element:
+      text: ".*Collection Tracking.*"
+- assertVisible:
+    text: ".*Collection Tracking.*"
+- assertVisible:
+    text: ".*AI.*"
+- assertVisible:
+    text: ".*Inventory.*"
+
+# How It Works section
+- scrollUntilVisible:
+    element:
+      text: "How It Works"
+- assertVisible: "How It Works"

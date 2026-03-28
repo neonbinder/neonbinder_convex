@@ -20,7 +20,7 @@ export default function SetVariantSelector({
   return (
     <EntitySelector
       title="Set Variants"
-      query={api.myFunctions.getSelectorOptions}
+      query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "variantType", parentId: setId }}
       selectedId={selectedVariantId as string | null}
       onSelect={(id) => onVariantSelect(id as GenericId<"selectorOptions">)}

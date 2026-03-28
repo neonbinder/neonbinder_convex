@@ -15,7 +15,7 @@ echo "Starting Convex dev server..."
 # If you need to provide a deploy key, set CONVEX_DEPLOY_KEY in the environment or .env.local.
 
 if [ -f ".env.convex" ]; then
-  dotenv -e .env.convex -- convex dev
+  npx dotenv-cli -e .env.convex -- npx convex dev
 else
   npx convex dev
 fi

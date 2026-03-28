@@ -1,0 +1,11 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+name: View Profile
+tags:
+  - smoke
+  - profile
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 45000
+- assertVisible: "Public Profile"

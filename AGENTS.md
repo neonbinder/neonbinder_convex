@@ -1524,3 +1524,10 @@ NeonBinder blends a **90s hobby-shop neon aesthetic** with **modern minimalism**
 - [ ] `className` passthrough for Fusion control.  
 - [ ] Include focus/aria accessibility support.  
 - [ ] Use **Lexend** + **NeonBinder tokens** only (no hard-coded colors).  
+
+# E2E Testing
+- All plans should include everything needed to build
+- Plans should always include a Maestro test file to validate the functionality
+- When writing code we should only ever update the Maestro file if the text on the screen is slightly different that it would require us to udpate a matcher. 
+- If flow changes while writing code and it breaks a test only update it with permission from the user and an explination of why it broke
+- No code change should be considered finished without running `npm run test:e2e:single` for each test associated with this code change and `npm run test:e2e:smoke` once to validate no regression
