@@ -109,6 +109,7 @@ export default defineSchema({
     myCardPostUrl: v.optional(v.string()),
     // Payment handles (links constructed at render time)
     paypalUsername: v.optional(v.string()),
+    paypalEmail: v.optional(v.string()),     // PayPal email for G&S payments
     venmoUsername: v.optional(v.string()),
     cashAppUsername: v.optional(v.string()),
     // Social media full URLs

@@ -165,7 +165,14 @@ export default function PublicProfilePage() {
       href: profile.paypalUsername
         ? `https://paypal.me/${profile.paypalUsername}`
         : undefined,
-      label: "PayPal",
+      label: "PayPal (F&F)",
+      domain: "paypal.com",
+    },
+    {
+      href: profile.paypalEmail
+        ? `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(profile.paypalEmail)}`
+        : undefined,
+      label: "PayPal (G&S)",
       domain: "paypal.com",
     },
     {

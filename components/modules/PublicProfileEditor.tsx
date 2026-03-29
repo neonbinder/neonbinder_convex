@@ -41,6 +41,7 @@ export default function PublicProfileEditor() {
 
   // Payment handles
   const [paypalUsername, setPaypalUsername] = useState("");
+  const [paypalEmail, setPaypalEmail] = useState("");
   const [venmoUsername, setVenmoUsername] = useState("");
   const [cashAppUsername, setCashAppUsername] = useState("");
 
@@ -85,6 +86,7 @@ export default function PublicProfileEditor() {
       setMySlabsUrl(existingProfile.mySlabsUrl ?? "");
       setMyCardPostUrl(existingProfile.myCardPostUrl ?? "");
       setPaypalUsername(existingProfile.paypalUsername ?? "");
+      setPaypalEmail(existingProfile.paypalEmail ?? "");
       setVenmoUsername(existingProfile.venmoUsername ?? "");
       setCashAppUsername(existingProfile.cashAppUsername ?? "");
       setTwitterUrl(existingProfile.twitterUrl ?? "");
@@ -162,6 +164,7 @@ export default function PublicProfileEditor() {
         mySlabsUrl: mySlabsUrl || undefined,
         myCardPostUrl: myCardPostUrl || undefined,
         paypalUsername: paypalUsername || undefined,
+        paypalEmail: paypalEmail || undefined,
         venmoUsername: venmoUsername || undefined,
         cashAppUsername: cashAppUsername || undefined,
         twitterUrl: twitterUrl || undefined,
@@ -429,7 +432,7 @@ export default function PublicProfileEditor() {
         <div>
           <div className="flex items-center justify-between mb-1">
             <label htmlFor="pub-paypal" className={labelClass}>
-              PayPal username{" "}
+              PayPal username (Friends & Family){" "}
               {paypalUsername && (
                 <span className="text-slate-500 text-xs">→ paypal.me/{paypalUsername}</span>
               )}
@@ -443,6 +446,20 @@ export default function PublicProfileEditor() {
             onChange={(e) => setPaypalUsername(e.target.value)}
             className={inputClass}
             placeholder="yourpaypalname"
+          />
+        </div>
+        <div>
+          <label htmlFor="pub-paypal-email" className={labelClass}>
+            PayPal email (Goods & Services){" "}
+            <span className="text-slate-500 text-xs">Buyer-protected payments</span>
+          </label>
+          <input
+            id="pub-paypal-email"
+            type="email"
+            value={paypalEmail}
+            onChange={(e) => setPaypalEmail(e.target.value)}
+            className={inputClass}
+            placeholder="your@email.com"
           />
         </div>
         <div>

@@ -168,9 +168,16 @@ export default function SalePage() {
   const paymentLinks = [
     {
       href: profile.paypalUsername
-        ? `https://paypal.me/${profile.paypalUsername}/${saleTotal}`
+        ? `https://paypal.me/${profile.paypalUsername}/${saleTotal.toFixed(2)}`
         : undefined,
-      label: "PayPal",
+      label: "PayPal (F&F)",
+      domain: "paypal.com",
+    },
+    {
+      href: profile.paypalEmail
+        ? `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(profile.paypalEmail)}&amount=${saleTotal.toFixed(2)}&item_name=Card+Show+Purchase&no_shipping=1`
+        : undefined,
+      label: "PayPal (G&S)",
       domain: "paypal.com",
     },
     {
