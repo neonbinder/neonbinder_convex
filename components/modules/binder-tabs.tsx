@@ -24,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Collection",
-    path: "/set-selector",
+    path: "/managing-inventory",
     icon: RectangleStackIcon,
     glowClass: "binder-tab-glow-blue",
     activeColor: "text-neon-blue",

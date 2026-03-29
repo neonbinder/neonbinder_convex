@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
 import { NAV_ITEMS } from "./binder-tabs";
 
@@ -8,10 +8,13 @@ interface MobileNavProps {
 
 export default function MobileNav({ onClose }: MobileNavProps) {
   const location = useLocation();
+  const initialPathname = useRef(location.pathname);
 
-  // Close on route change
+  // Close on route change (skip initial mount)
   useEffect(() => {
-    onClose();
+    if (location.pathname !== initialPathname.current) {
+      onClose();
+    }
   }, [location.pathname, onClose]);
 
   return (
