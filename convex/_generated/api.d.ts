@@ -24,6 +24,7 @@ import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as posthog from "../posthog.js";
 import type * as publicProfile from "../publicProfile.js";
+import type * as resolveRedirect from "../resolveRedirect.js";
 import type * as selectorOptions from "../selectorOptions.js";
 import type * as userProfile from "../userProfile.js";
 
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   myFunctions: typeof myFunctions;
   posthog: typeof posthog;
   publicProfile: typeof publicProfile;
+  resolveRedirect: typeof resolveRedirect;
   selectorOptions: typeof selectorOptions;
   userProfile: typeof userProfile;
 }>;

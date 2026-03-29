@@ -2,12 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import path from "path";
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    basicSsl(),
     sentryVitePlugin({
       org: "neon-binder",
       project: "javascript-nextjs",

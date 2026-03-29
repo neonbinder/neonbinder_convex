@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from "react";
-import { useQuery } from "convex/react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams, useLocation, Link } from "react-router";
 import { useSaleTotal } from "@/src/hooks/useSaleTotal";
+import QrScanner from "qr-scanner";
 
 function CompanyIcon({ domain }: { domain: string }) {
   return (
@@ -99,6 +100,118 @@ function PaymentLinkButton({
   );
 }
 
+function parseAmtFromUrl(urlString: string): number | null {
+  try {
+    const url = new URL(urlString);
+    const amt = url.searchParams.get("amt");
+    const amount = amt ? parseFloat(amt) : 0;
+    if (!isNaN(amount) && amount > 0) return amount;
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
+
+function QrScannerModal({
+  isOpen,
+  onClose,
+  onScan,
+  resolveRedirect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onScan: (amount: number) => void;
+  resolveRedirect: (args: { url: string }) => Promise<string>;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
+  const resolvingRef = useRef(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !videoRef.current) return;
+
+    const scanner = new QrScanner(
+      videoRef.current,
+      async (result) => {
+        if (resolvingRef.current) return;
+
+        const directAmount = parseAmtFromUrl(result.data);
+        if (directAmount !== null) {
+          onScan(directAmount);
+          onClose();
+          return;
+        }
+
+        // If it's a URL but no amt, try resolving the redirect
+        try {
+          new URL(result.data); // validate it's a URL
+        } catch {
+          return; // not a URL, ignore
+        }
+
+        resolvingRef.current = true;
+        setStatus("Pulling card from the binder...");
+        try {
+          const finalUrl = await resolveRedirect({ url: result.data });
+          const amount = parseAmtFromUrl(finalUrl);
+          if (amount !== null) {
+            onScan(amount);
+            onClose();
+          } else {
+            setStatus("No amount found in QR code");
+            setTimeout(() => setStatus(null), 2000);
+          }
+        } catch {
+          setStatus("Failed to read QR code link");
+          setTimeout(() => setStatus(null), 2000);
+        } finally {
+          resolvingRef.current = false;
+        }
+      },
+      {
+        preferredCamera: "environment",
+        highlightScanRegion: true,
+      },
+    );
+
+    scannerRef.current = scanner;
+    scanner.start();
+
+    return () => {
+      scanner.stop();
+      scanner.destroy();
+      scannerRef.current = null;
+    };
+  }, [isOpen, onScan, onClose, resolveRedirect]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <div className="flex items-center justify-between p-4">
+        <span className="text-white font-semibold">Scan QR Code</span>
+        <button
+          onClick={onClose}
+          className="text-white text-sm px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+      <div className="flex-1 flex items-center justify-center">
+        <video ref={videoRef} className="w-full h-full object-cover" />
+      </div>
+      {status && (
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+          <span className="bg-black/80 text-white text-sm px-4 py-2 rounded-full">
+            {status}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SalePage() {
   const { username } = useParams<{ username: string }>();
   const location = useLocation();
@@ -106,12 +219,25 @@ export default function SalePage() {
     username: username!,
   });
 
+  const resolveRedirect = useAction(api.resolveRedirect.resolveRedirect);
   const { saleTotal, addAmount, reset } = useSaleTotal(username!);
   const processedSearchRef = useRef<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const handlePaymentClick = () => {
     reset();
   };
+
+  const handleScan = useCallback(
+    (amount: number) => {
+      addAmount(amount);
+    },
+    [addAmount],
+  );
+
+  const closeScannerModal = useCallback(() => {
+    setScannerOpen(false);
+  }, []);
 
   // Add amount from query param to running total
   useEffect(() => {
@@ -212,6 +338,14 @@ export default function SalePage() {
               ${(saleTotal || 0).toFixed(2)}
             </div>
           </div>
+
+          {/* Add Card button */}
+          <button
+            onClick={() => setScannerOpen(true)}
+            className="w-full py-3 px-5 rounded-full font-semibold text-white border-2 border-white/30 hover:border-white/60 transition-colors cursor-pointer"
+          >
+            + Add Card
+          </button>
 
           {/* Payment buttons */}
           {paymentLinks.length > 0 ? (
@@ -336,6 +470,13 @@ export default function SalePage() {
           </div>
         </div>
       </div>
+
+      <QrScannerModal
+        isOpen={scannerOpen}
+        onClose={closeScannerModal}
+        onScan={handleScan}
+        resolveRedirect={resolveRedirect}
+      />
     </div>
   );
 }
