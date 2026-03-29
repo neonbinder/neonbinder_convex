@@ -25,7 +25,7 @@ export default function BinderHeader({
     <header className="sticky top-0 z-20 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
       <div className="flex items-center gap-2">
         <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
-        <span className="neon-header">Neon Binder</span>
+        <span className="neon-header neon-header-sm">Neon Binder</span>
       </div>
       <div className="flex items-center gap-3">
         <SignedIn>

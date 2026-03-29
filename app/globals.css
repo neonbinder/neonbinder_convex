@@ -38,6 +38,16 @@ body {
   font-family: 'Neon', sans-serif;
   font-size: 30px;
 }
+
+.neon-header-sm {
+  font-size: 20px;
+}
+
+@media (min-width: 1024px) {
+  .neon-header-sm {
+    font-size: 30px;
+  }
+}
 .dark, .dark-theme {
   --green-1: #060c07;
   --green-2: #111a12;
