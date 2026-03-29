@@ -66,8 +66,25 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {/* Card Show Sales — Available Today */}
+          <button
+            onClick={handleManagingInventoryClick}
+            className="w-full my-16 p-8 rounded-lg bg-gradient-to-r from-pink-900/30 to-green-900/30 border border-pink-500/40 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20 transition-all cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">📱</span>
+              <h3 className="text-2xl font-bold">Card Show Sales</h3>
+              <span className="ml-auto px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-green-500 text-black">
+                Available Today
+              </span>
+            </div>
+            <p className="text-lg text-slate-300">
+              Slap a QR code on each card, and buyers scan to see what they owe. Running total adds up as they shop, then they pay you instantly through PayPal, Venmo, or Cash App. No app download, no awkward math, no fumbling with change. That&apos;s how you run a table, dude.
+            </p>
+          </button>
+
           {/* Features Section */}
-          <div className="grid md:grid-cols-3 gap-8 my-16">
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
             <button
               onClick={handleBindersClick}
               className="p-6 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-green-500 dark:hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20 transition-all cursor-pointer text-left"
