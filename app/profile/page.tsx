@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { useFeatureFlagEnabled } from "posthog-js/react";
 import { api } from "../../convex/_generated/api";
@@ -14,7 +13,6 @@ const SUPPORTED_SITES = [
 ];
 
 export default function ProfilePage() {
-  const navigate = useNavigate();
   const [selectedSite, setSelectedSite] = useState(SUPPORTED_SITES[0].key);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -638,16 +636,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <>
-      <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
-          <span className="neon-header">Neon Binder</span>
-        </div>
-        <NeonButton onClick={() => navigate("/")}>Back to Home</NeonButton>
-      </header>
-      <main className="p-8 max-w-2xl mx-auto">
-        <div className="space-y-8">
+      <div className="space-y-8">
           <div>
             <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
             <p className="text-muted-foreground">
@@ -1289,7 +1278,5 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
-      </main>
-    </>
   );
 }
