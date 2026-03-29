@@ -12,6 +12,7 @@ import ConvexClientProvider from "@/components/modules/ConvexClientProvider";
 import * as Sentry from "@sentry/react";
 
 import ProtectedLayout from "@/src/layouts/ProtectedLayout";
+import BinderLayout from "@/src/layouts/binder-layout";
 
 // Pages
 import Home from "@/app/page";
@@ -29,6 +30,7 @@ import Dashboard from "@/app/dashboard/page";
 import Profile from "@/app/profile/page";
 import SetSelector from "@/app/set-selector/page";
 import DesignPrimitives from "@/app/design/primitives/page";
+import QrCode from "@/app/qr-code/page";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -52,12 +54,15 @@ const SentryErrorBoundary = Sentry.withErrorBoundary(
           <Route path="/u/:username" element={<PublicProfile />} />
           <Route path="/testing/sign-in" element={<TestSignIn />} />
 
-          {/* Protected routes */}
+          {/* Protected routes — wrapped in binder shell */}
           <Route element={<ProtectedLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/set-selector" element={<SetSelector />} />
-            <Route path="/design/primitives" element={<DesignPrimitives />} />
+            <Route element={<BinderLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/set-selector" element={<SetSelector />} />
+              <Route path="/qr-code" element={<QrCode />} />
+              <Route path="/design/primitives" element={<DesignPrimitives />} />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>
