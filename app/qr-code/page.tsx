@@ -1,42 +1,77 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+"use client";
+
+import { useState, useRef, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import NeonButton from "../../components/modules/NeonButton";
+import {
+  QrCodeSvg,
+  BinderFinderPattern,
+} from "../../components/modules/QrCode";
 import {
   QrCodeIcon,
   ArrowDownTrayIcon,
   PrinterIcon,
 } from "@heroicons/react/24/outline";
 
-function generateAmountImage(amount: string): string {
-  const canvas = document.createElement("canvas");
-  const text = `$${amount}`;
 
-  // High-res canvas for print clarity (3x scale)
-  // Size the canvas tightly around the text with minimal padding
-  const scale = 3;
-  const fontSize = 56 * scale;
-  const vPad = 6 * scale;
-  canvas.width = Math.max(120, text.length * 34 + 24) * scale;
-  canvas.height = fontSize + vPad * 2;
+async function downloadSvgAsPng(
+  svgElement: SVGSVGElement,
+  filename: string,
+  scale = 3,
+) {
+  // Clone the SVG and embed font CSS so text renders in the isolated blob context
+  const clone = svgElement.cloneNode(true) as SVGSVGElement;
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@700&family=Geist:wght@700&display=swap');`;
+  clone.insertBefore(style, clone.firstChild);
 
-  const ctx = canvas.getContext("2d")!;
-  const radius = 10 * scale;
+  const svgData = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
 
-  // White pill background for print contrast
-  ctx.fillStyle = "#FFFFFF";
-  ctx.beginPath();
-  ctx.roundRect(0, 0, canvas.width, canvas.height, radius);
-  ctx.fill();
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = svgElement.viewBox.baseVal.width * scale;
+    canvas.height = svgElement.viewBox.baseVal.height * scale;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
 
-  // Dollar amount text in black — Impact for max readability at small sizes
-  ctx.fillStyle = "#000000";
-  ctx.font = `${fontSize}px Impact, Arial Black, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(pngBlob);
+      a.download = `${filename}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }, "image/png");
+  };
+  img.src = url;
+}
 
-  return canvas.toDataURL("image/png");
+function printSvg(svgElement: SVGSVGElement, title: string) {
+  const svgData = new XMLSerializer().serializeToString(svgElement);
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@700&family=Geist:wght@700&display=swap" rel="stylesheet" />
+      </head>
+      <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh">
+        <div style="width:min(100vw,100vh);height:min(100vw,100vh)">${svgData}</div>
+        <style>svg{width:100%;height:100%}@page{margin:0;size:auto}</style>
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.onload = () => {
+    win.print();
+    win.close();
+  };
 }
 
 export default function QrCodePage() {
@@ -44,107 +79,33 @@ export default function QrCodePage() {
   const [amount, setAmount] = useState("");
   const [generatedAmount, setGeneratedAmount] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
-  const qrRef = useRef<HTMLDivElement>(null);
-  const qrInstanceRef = useRef<any>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = useCallback(() => {
     if (!myProfile?.username || !amount) return;
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0 || parsedAmount > 9999.99)
       return;
 
-    const formatted = parsedAmount % 1 === 0
-      ? parsedAmount.toString()
-      : parsedAmount.toFixed(2);
+    const formatted =
+      parsedAmount % 1 === 0
+        ? parsedAmount.toString()
+        : parsedAmount.toFixed(2);
     const url = `https://neonbinder.io/u/${myProfile.username}/sale?amt=${formatted}`;
 
     setGeneratedAmount(formatted);
     setGeneratedUrl(url);
-
-    const amountImage = generateAmountImage(formatted);
-
-    // Dynamic import to avoid SSR issues
-    const QRCodeStyling = (await import("qr-code-styling")).default;
-
-    if (qrInstanceRef.current) {
-      qrInstanceRef.current.update({
-        data: url,
-        image: amountImage,
-      });
-    } else {
-      const qrCode = new QRCodeStyling({
-        width: 800,
-        height: 800,
-        type: "canvas",
-        data: url,
-        image: amountImage,
-        margin: 8,
-        dotsOptions: {
-          color: "#000000",
-          type: "dots",
-        },
-        backgroundOptions: {
-          color: "#FFFFFF",
-        },
-        cornersSquareOptions: {
-          color: "#000000",
-          type: "extra-rounded",
-        },
-        cornersDotOptions: {
-          color: "#00D558",
-          type: "dot",
-        },
-        imageOptions: {
-          crossOrigin: "anonymous",
-          margin: 4,
-          imageSize: 0.35,
-          hideBackgroundDots: true,
-        },
-        qrOptions: {
-          errorCorrectionLevel: "H",
-        },
-      });
-
-      qrInstanceRef.current = qrCode;
-
-      if (qrRef.current) {
-        qrRef.current.innerHTML = "";
-        qrCode.append(qrRef.current);
-      }
-    }
   }, [myProfile?.username, amount]);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      qrInstanceRef.current = null;
-    };
-  }, []);
-
   const handleDownload = () => {
-    qrInstanceRef.current?.download({
-      name: `neonbinder-qr-${generatedAmount}`,
-      extension: "png",
-    });
+    if (!svgRef.current || !generatedAmount) return;
+    downloadSvgAsPng(svgRef.current, `neonbinder-qr-${generatedAmount}`);
   };
 
-  const handlePrint = async () => {
-    if (!qrInstanceRef.current) return;
-    const blob = await qrInstanceRef.current.getRawData("png");
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`
-      <html>
-        <head><title>NeonBinder QR - $${generatedAmount}</title></head>
-        <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh">
-          <img src="${url}" style="max-width:100%;max-height:100vh" onload="window.print();window.close()" />
-        </body>
-      </html>
-    `);
-    win.document.close();
+  const handlePrint = () => {
+    if (!svgRef.current || !generatedAmount) return;
+    printSvg(svgRef.current, `NeonBinder QR - $${generatedAmount}`);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -230,13 +191,23 @@ export default function QrCodePage() {
       </NeonButton>
 
       {/* QR Code display */}
-      {generatedUrl && (
+      {generatedUrl && generatedAmount && (
         <div className="flex flex-col items-center gap-6">
           <div
-            ref={qrRef}
-            className="rounded-2xl p-4 bg-white border border-neon-green/30 [&_canvas]:w-[280px] [&_canvas]:h-[280px]"
+            className="rounded-2xl p-4 bg-white border border-neon-green/30"
             style={{ boxShadow: "0 0 20px rgba(0, 213, 88, 0.15)" }}
-          />
+          >
+            <QrCodeSvg
+              ref={svgRef}
+              data={generatedUrl}
+              size={800}
+              centerText={generatedAmount}
+              dotShape="star"
+              dotScale={0.85}
+              finderPattern={BinderFinderPattern}
+              className="w-[280px] h-[280px]"
+            />
+          </div>
 
           <p className="text-xs text-gray-500 break-all max-w-xs text-center">
             {generatedUrl}
