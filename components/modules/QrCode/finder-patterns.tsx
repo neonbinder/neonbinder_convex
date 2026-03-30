@@ -172,7 +172,7 @@ export function BinderFinderPattern({
   return (
     <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
       {/* Main binder body — fills 7×7 zone */}
-      <rect x={x} y={y} width={size} height={size} rx={bodyR} fill={color} />
+      <rect x={x} y={y} width={size} height={size} rx={bodyR} fill="#00D558" />
 
       {/* 4 binding rings — capsules crossing the spine */}
       {ringYOffsets.map((ry, i) => (
@@ -183,7 +183,7 @@ export function BinderFinderPattern({
           width={ringW}
           height={ringH}
           rx={ringR}
-          fill={color}
+          fill="#00D558"
         />
       ))}
 
@@ -196,13 +196,13 @@ export function BinderFinderPattern({
         fill="#FFFFFF"
       />
 
-      {/* Inner dark center (3×3) */}
+      {/* Inner center (3×3) — NeonBinder blue */}
       <rect
         x={x + unit * 2}
         y={y + unit * 2}
         width={unit * 3}
         height={unit * 3}
-        fill={color}
+        fill="#00B7FF"
       />
 
       {/* Clasp — white square notch in the right border */}
