@@ -2,6 +2,7 @@ import { NavLink } from "react-router";
 import {
   HomeIcon,
   RectangleStackIcon,
+  ArchiveBoxIcon,
   QrCodeIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
@@ -24,10 +25,17 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Collection",
-    path: "/managing-inventory",
+    path: "/collection",
     icon: RectangleStackIcon,
     glowClass: "binder-tab-glow-blue",
     activeColor: "text-neon-blue",
+  },
+  {
+    label: "Inventory",
+    path: "/inventory",
+    icon: ArchiveBoxIcon,
+    glowClass: "binder-tab-glow-yellow",
+    activeColor: "text-neon-yellow",
   },
   {
     label: "QR Code",
@@ -45,7 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const STAGGER_OFFSETS = [0, 6, 12, 18];
+const STAGGER_OFFSETS = [0, 6, 12, 18, 24];
 
 export default function BinderTabs() {
   return (

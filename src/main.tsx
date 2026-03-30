@@ -31,6 +31,8 @@ import Profile from "@/app/profile/page";
 import SetSelector from "@/app/set-selector/page";
 import DesignPrimitives from "@/app/design/primitives/page";
 import QrCode from "@/app/qr-code/page";
+import Collection from "@/app/collection/page";
+import Inventory from "@/app/inventory/page";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -58,6 +60,8 @@ const SentryErrorBoundary = Sentry.withErrorBoundary(
           <Route element={<ProtectedLayout />}>
             <Route element={<BinderLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/collection" element={<Collection />} />
+              <Route path="/inventory" element={<Inventory />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/set-selector" element={<SetSelector />} />
               <Route path="/qr-code" element={<QrCode />} />

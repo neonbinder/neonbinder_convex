@@ -42,15 +42,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const variantClasses = {
-      default: "bg-neon-green text-white hover:bg-neon-green/90",
-      primary: "bg-neon-green text-white hover:bg-neon-green/90",
+      default: "bg-neon-green text-black hover:bg-neon-green/85",
+      primary: "bg-neon-green text-black hover:bg-neon-green/85",
       destructive: "bg-neon-pink text-white hover:bg-neon-pink/90",
       outline:
         "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50",
       subtle: "bg-slate-100 text-slate-900 hover:bg-slate-200",
       ghost: "text-slate-900 hover:bg-slate-100",
       link: "text-slate-900 underline-offset-4 hover:underline",
-      withIcon: "bg-neon-green text-white hover:bg-neon-green/90",
+      withIcon: "bg-neon-green text-black hover:bg-neon-green/85",
       justIcon: "p-2 text-slate-900 hover:bg-slate-100",
       justIconCircle: "p-2 rounded-full text-slate-900 hover:bg-slate-100",
       loading: "bg-slate-600 text-white",

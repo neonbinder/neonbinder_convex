@@ -21,7 +21,19 @@ export default function NeonButton({
     colorClass = "blue";
   }
   return (
-    <Button {...props} color={colorClass}>
+    <Button
+      {...props}
+      color={colorClass}
+      style={{
+        backgroundColor: cancel
+          ? "#FF2E9A"
+          : secondary
+            ? "#00C2FF"
+            : "#00D558",
+        color: cancel || secondary ? "white" : "black",
+        ...props.style,
+      }}
+    >
       {children}
     </Button>
   );
