@@ -362,6 +362,9 @@ body {
 .binder-tab-glow-blue {
   box-shadow: 0 0 12px 2px rgba(0, 194, 255, 0.4), inset 0 0 8px rgba(0, 194, 255, 0.1);
 }
+.binder-tab-glow-yellow {
+  box-shadow: 0 0 12px 2px rgba(255, 230, 0, 0.4), inset 0 0 8px rgba(255, 230, 0, 0.1);
+}
 .binder-tab-glow-pink {
   box-shadow: 0 0 12px 2px rgba(255, 46, 154, 0.4), inset 0 0 8px rgba(255, 46, 154, 0.1);
 }

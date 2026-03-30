@@ -46,7 +46,7 @@ export default function LandingPage() {
             </p>
             <div className="flex gap-4 justify-center">
               <SignInButton mode="modal">
-                <button className="px-8 py-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-semibold transition-colors">
+                <button className="px-8 py-4 rounded-lg bg-neon-green hover:bg-neon-green/85 text-black text-lg font-semibold transition-colors">
                   Get Started
                 </button>
               </SignInButton>
@@ -205,7 +205,7 @@ export default function LandingPage() {
             </p>
             <div className="flex gap-4 justify-center">
               <SignUpButton mode="modal">
-                <button className="px-8 py-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-semibold transition-colors">
+                <button className="px-8 py-4 rounded-lg bg-neon-green hover:bg-neon-green/85 text-black text-lg font-semibold transition-colors">
                   Create Free Account
                 </button>
               </SignUpButton>

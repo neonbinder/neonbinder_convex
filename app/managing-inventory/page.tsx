@@ -308,7 +308,7 @@ export default function ManagingInventoryPage() {
               Manage your entire inventory from one place and sell across all platforms simultaneously. One upload, total control, maximum reach.
             </p>
             <SignUpButton mode="modal">
-              <button className="px-8 py-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-semibold transition-colors">
+              <button className="px-8 py-4 rounded-lg bg-neon-green hover:bg-neon-green/85 text-black text-lg font-semibold transition-colors">
                 Get Started
               </button>
             </SignUpButton>

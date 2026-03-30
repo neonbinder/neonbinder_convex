@@ -281,7 +281,7 @@ export default function AiCardIdentificationPage() {
               Let the AI handle the heavy lifting while you focus on collecting. Lightning-fast, accurate identification for every card in your collection.
             </p>
             <SignUpButton mode="modal">
-              <button className="px-8 py-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-semibold transition-colors">
+              <button className="px-8 py-4 rounded-lg bg-neon-green hover:bg-neon-green/85 text-black text-lg font-semibold transition-colors">
                 Get Started
               </button>
             </SignUpButton>

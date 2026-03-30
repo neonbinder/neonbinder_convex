@@ -147,6 +147,57 @@ export const upsertPublicProfile = mutation({
 });
 
 /**
+ * Get the current user's profile completeness as a percentage.
+ * Tracks which optional fields are filled out.
+ */
+export const getProfileCompleteness = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) return 0;
+
+    const profile = await ctx.db
+      .query("publicProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!profile) return 0;
+
+    // Fields that count toward profile completeness
+    const trackedFields = [
+      "displayName",
+      "photoUrl",
+      "tagline",
+      "brandColor1",
+      "brandColor2",
+      "ebayUrl",
+      "buySportsCardsUrl",
+      "sportlotsUrl",
+      "mySlabsUrl",
+      "myCardPostUrl",
+      "paypalUsername",
+      "paypalEmail",
+      "venmoUsername",
+      "cashAppUsername",
+      "twitterUrl",
+      "instagramUrl",
+      "tiktokUrl",
+      "youtubeUrl",
+      "facebookUrl",
+      "threadsUrl",
+    ] as const;
+
+    const filled = trackedFields.filter(
+      (field) => profile[field] !== undefined && profile[field] !== ""
+    ).length;
+
+    // username is required and always set, so count it as +1 filled / +1 total
+    return Math.round(((filled + 1) / (trackedFields.length + 1)) * 100);
+  },
+});
+
+/**
  * Fetch a public profile by username — no auth required, omits userId
  */
 export const getPublicProfileByUsername = query({

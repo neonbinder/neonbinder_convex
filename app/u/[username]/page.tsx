@@ -248,57 +248,75 @@ export default function PublicProfilePage() {
 
           {/* Marketplace buttons */}
           {marketplaceLinks.length > 0 && (
-            <div className="w-full mt-4 space-y-3">
-              {marketplaceLinks.map(({ href, label, domain }) => (
-                <ProfileLinkButton
-                  key={label}
-                  href={href}
-                  label={label}
-                  color1={color1}
-                  color2={color2}
-                  domain={domain}
-                />
-              ))}
+            <div className="w-full mt-6">
+              <div className="border-t border-white/10 pt-6">
+                <h2 className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-4">
+                  Marketplace Stores
+                </h2>
+                <div className="space-y-3">
+                  {marketplaceLinks.map(({ href, label, domain }) => (
+                    <ProfileLinkButton
+                      key={label}
+                      href={href}
+                      label={label}
+                      color1={color1}
+                      color2={color2}
+                      domain={domain}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Payment buttons */}
           {paymentLinks.length > 0 && (
-            <div className="w-full space-y-3">
-              {paymentLinks.map(({ href, label, domain }) => (
-                <ProfileLinkButton
-                  key={label}
-                  href={href}
-                  label={label}
-                  color1={color1}
-                  color2={color2}
-                  domain={domain}
-                />
-              ))}
+            <div className="w-full mt-6">
+              <div className="border-t border-white/10 pt-6">
+                <h2 className="text-xs uppercase tracking-widest text-slate-400 font-semibold mb-4">
+                  Payment Methods
+                </h2>
+                <div className="space-y-3">
+                  {paymentLinks.map(({ href, label, domain }) => (
+                    <ProfileLinkButton
+                      key={label}
+                      href={href}
+                      label={label}
+                      color1={color1}
+                      color2={color2}
+                      domain={domain}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Social icons */}
           {socialLinks.length > 0 && (
-            <div className="flex gap-3 flex-wrap justify-center mt-2">
-              {socialLinks.map(({ href, Icon, label }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-                >
-                  <Icon />
-                  <span className="sr-only">{href}</span>
-                </a>
-              ))}
+            <div className="w-full mt-6">
+              <div className="border-t border-white/10 pt-6">
+                <div className="flex gap-3 flex-wrap justify-center">
+                  {socialLinks.map(({ href, Icon, label }) => (
+                    <a
+                      key={label}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={label}
+                      className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                    >
+                      <Icon />
+                      <span className="sr-only">{href}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Footer */}
-          <div className="flex flex-col items-center gap-3 mt-8">
+          <div className="flex flex-col items-center gap-3 mt-8 pt-6 border-t border-white/10 w-full">
             <img
               src="/logo.png"
               alt="NeonBinder"

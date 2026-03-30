@@ -63,7 +63,7 @@ export default function CardChecklistItem({ card }: CardChecklistItemProps) {
         <div className="flex gap-1">
           <button
             onClick={handleSave}
-            className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+            className="px-2 py-1 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
           >
             Save
           </button>
