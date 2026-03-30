@@ -1,11 +1,19 @@
 import { useNavigate } from "react-router";
 import { useAuth } from "@clerk/clerk-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Link, NeonHeader } from "../primitives";
 import { BindersIcon, ConvertIcon, MaximizeIcon } from "../icons";
 
 export default function ComingSoon() {
   const navigate = useNavigate();
   const { isSignedIn } = useAuth();
+  const completeness = useQuery(api.publicProfile.getProfileCompleteness);
+  const percent = completeness ?? 0;
+  const totalBlocks = 15;
+  const filledBlocks = Math.round((percent / 100) * totalBlocks);
+  const progressBar =
+    "▓".repeat(filledBlocks) + "░".repeat(totalBlocks - filledBlocks);
 
   const handleProfileClick = () => {
     navigate("/profile");
@@ -113,7 +121,7 @@ export default function ComingSoon() {
         {/* 90s Footer Elements */}
         <div className="mt-16 pt-8 border-t-4 border-neon-purple space-y-3">
           <p className="text-lg font-bold text-neon-pink animate-pulse" style={{ fontFamily: "'Lexend', sans-serif" }}>
-            ▓▓▓▓▓▓▓░░░░░░░░ 35% Complete
+            {progressBar} {percent}% Complete
           </p>
           <p className="text-sm text-white" style={{ fontFamily: "'Lexend', sans-serif" }}>
             Built with retro vibes for the modern collector
