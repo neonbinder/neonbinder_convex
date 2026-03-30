@@ -12,8 +12,9 @@ export default function ComingSoon() {
   const percent = completeness ?? 0;
   const totalBlocks = 15;
   const filledBlocks = Math.round((percent / 100) * totalBlocks);
+  const clampedFilledBlocks = Math.min(Math.max(filledBlocks, 0), totalBlocks);
   const progressBar =
-    "▓".repeat(filledBlocks) + "░".repeat(totalBlocks - filledBlocks);
+    "▓".repeat(clampedFilledBlocks) + "░".repeat(totalBlocks - clampedFilledBlocks);
 
   const handleProfileClick = () => {
     navigate("/profile");
