@@ -11,14 +11,18 @@ const BSC_API_BASE = "https://api-prod.buysportscards.com";
 const BSC_FILTERS_PATH = "/search/bulk-upload/filters";
 
 // Map our levels to BSC API aggregation keys. BSC does NOT expose a
-// `manufacturer` aggregation — manufacturer is embedded in setName. Leaving
-// it out means fetchAggregatedOptions will simply get no BSC contribution
-// at the manufacturer level, which is correct.
+// NeonBinder → BSC facet mapping. NB's hierarchy differs from BSC's:
+//   NB manufacturer  → SL only (no BSC facet)
+//   NB setName       → BSC "setName" (e.g. "Topps")
+//   NB variantType   → BSC "variant" (Base/Insert/Parallel)
+//   NB insert        → BSC "variantName" (specific variant names)
+//   NB parallel      → NB only (no BSC facet)
 const LEVEL_TO_BSC_FACET: Record<string, string> = {
   sport: "sport",
   year: "year",
   setName: "setName",
   variantType: "variant",
+  insert: "variantName",
 };
 
 // Browser-mimicking headers required by the BSC API (without these CloudFront
@@ -125,13 +129,12 @@ export const fetchBscSelectorOptions = action({
       }
 
       // Build nested filters matching the BSC bulk-upload/filters shape.
-      // BSC expects `{ filters: { sport: [...], year: [...], setName: [...], variant: [...] } }`.
-      // Manufacturer is not a BSC facet — it's embedded in setName — so we
-      // drop that parent filter rather than sending an invalid key.
+      // NB levels are mapped to BSC facets via LEVEL_TO_BSC_FACET.
+      // Levels without a BSC facet (manufacturer, parallel) are skipped.
       const filters: Record<string, string[]> = {};
 
       if (args.platformFilters) {
-        // Use pre-resolved BSC slugs — map level names to BSC facet keys
+        // Use pre-resolved BSC slugs — map NB level names to BSC facet keys
         for (const [lvl, values] of Object.entries(args.platformFilters)) {
           const facet = LEVEL_TO_BSC_FACET[lvl];
           if (facet) {
@@ -147,6 +150,7 @@ export const fetchBscSelectorOptions = action({
         if (args.parentFilters.year) {
           filters.year = [args.parentFilters.year];
         }
+        // manufacturer has no BSC facet — SL only
         if (args.parentFilters.setName) {
           filters.setName = [args.parentFilters.setName];
         }
@@ -276,6 +280,7 @@ export const fetchBscChecklist = action({
         if (args.parentFilters.year) {
           filters.year = [args.parentFilters.year];
         }
+        // manufacturer has no BSC facet — SL only
         if (args.parentFilters.setName) {
           filters.setName = [args.parentFilters.setName];
         }

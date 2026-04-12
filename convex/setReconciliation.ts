@@ -1,0 +1,413 @@
+import { action, mutation } from "./_generated/server";
+import { v } from "convex/values";
+import { api, internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
+import { getCurrentUserId, requireAdmin } from "./auth";
+
+// ===== LEVEL VALIDATOR =====
+const levelValidator = v.union(
+  v.literal("sport"),
+  v.literal("year"),
+  v.literal("manufacturer"),
+  v.literal("setName"),
+  v.literal("variantType"),
+  v.literal("insert"),
+  v.literal("parallel"),
+);
+
+const metadataValidator = v.optional(v.object({
+  cardNumberPrefix: v.optional(v.string()),
+  isInsert: v.optional(v.boolean()),
+  isParallel: v.optional(v.boolean()),
+}));
+
+// ===== MATCHING HELPERS =====
+
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array(n + 1).fill(0),
+  );
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+type PlatformItem = { value: string; platformValue: string };
+
+type MatchedPair = {
+  displayName: string;
+  bsc: PlatformItem;
+  sl: PlatformItem;
+  confidence: number;
+};
+
+function computeMatches(
+  bscItems: PlatformItem[],
+  slItems: PlatformItem[],
+): {
+  autoMatched: MatchedPair[];
+  unmatchedBsc: PlatformItem[];
+  unmatchedSl: PlatformItem[];
+} {
+  const autoMatched: MatchedPair[] = [];
+  const remainingBsc = [...bscItems];
+  const remainingSl = [...slItems];
+
+  // Pass 1: Exact match on normalized strings
+  for (let i = remainingBsc.length - 1; i >= 0; i--) {
+    const bscNorm = normalizeForMatch(remainingBsc[i].value);
+    const slIndex = remainingSl.findIndex(
+      (sl) => normalizeForMatch(sl.value) === bscNorm,
+    );
+    if (slIndex !== -1) {
+      autoMatched.push({
+        displayName: remainingBsc[i].value,
+        bsc: remainingBsc[i],
+        sl: remainingSl[slIndex],
+        confidence: 1.0,
+      });
+      remainingBsc.splice(i, 1);
+      remainingSl.splice(slIndex, 1);
+    }
+  }
+
+  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.25
+  const MAX_RATIO = 0.25;
+  for (let i = remainingBsc.length - 1; i >= 0; i--) {
+    const bscNorm = normalizeForMatch(remainingBsc[i].value);
+    let bestSlIndex = -1;
+    let bestRatio = Infinity;
+
+    for (let j = 0; j < remainingSl.length; j++) {
+      const slNorm = normalizeForMatch(remainingSl[j].value);
+      const maxLen = Math.max(bscNorm.length, slNorm.length);
+      if (maxLen === 0) continue;
+      const ratio = levenshteinDistance(bscNorm, slNorm) / maxLen;
+      if (ratio < bestRatio) {
+        bestRatio = ratio;
+        bestSlIndex = j;
+      }
+    }
+
+    if (bestSlIndex !== -1 && bestRatio < MAX_RATIO) {
+      autoMatched.push({
+        displayName: remainingBsc[i].value,
+        bsc: remainingBsc[i],
+        sl: remainingSl[bestSlIndex],
+        confidence: 1 - bestRatio,
+      });
+      remainingBsc.splice(i, 1);
+      remainingSl.splice(bestSlIndex, 1);
+    }
+  }
+
+  return {
+    autoMatched,
+    unmatchedBsc: remainingBsc,
+    unmatchedSl: remainingSl,
+  };
+}
+
+// ===== ACTIONS =====
+
+export const fetchRawOptions = action({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    parentFilters: v.optional(
+      v.object({
+        sport: v.optional(v.string()),
+        year: v.optional(v.string()),
+        manufacturer: v.optional(v.string()),
+        setName: v.optional(v.string()),
+        variantType: v.optional(v.string()),
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    bscOptions: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    slOptions: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    autoMatched: v.array(v.object({
+      displayName: v.string(),
+      bsc: v.object({ value: v.string(), platformValue: v.string() }),
+      sl: v.object({ value: v.string(), platformValue: v.string() }),
+      confidence: v.number(),
+    })),
+    unmatchedBsc: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    unmatchedSl: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    message: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    try {
+      const { level, parentId, parentFilters } = args;
+
+      console.log(
+        `[fetchRawOptions] Fetching ${level} options with filters:`,
+        parentFilters,
+      );
+
+      // Build platform-specific filters from the ancestor chain
+      let slPlatformFilters: Record<string, string> | undefined;
+      let bscPlatformFilters: Record<string, string[]> | undefined;
+
+      if (parentId) {
+        const chain = await ctx.runQuery(
+          api.selectorOptions.getAncestorChain,
+          { id: parentId },
+        );
+
+        slPlatformFilters = {};
+        bscPlatformFilters = {};
+
+        for (const ancestor of chain) {
+          const lvl = ancestor.level;
+          if (ancestor.platformData?.sportlots) {
+            slPlatformFilters[lvl] = ancestor.platformData.sportlots;
+          }
+          if (ancestor.platformData?.bsc) {
+            const bscVal = ancestor.platformData.bsc;
+            bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          } else if (ancestor.value) {
+            // Fall back to display value when no BSC slug stored
+            bscPlatformFilters[lvl] = [ancestor.value.toLowerCase()];
+          }
+        }
+
+        console.log(
+          `[fetchRawOptions] Resolved platform filters — SL:`,
+          slPlatformFilters,
+          `BSC:`,
+          bscPlatformFilters,
+        );
+      }
+
+      let bscOptions: PlatformItem[] = [];
+      let slOptions: PlatformItem[] = [];
+      const platformErrors: Record<string, string> = {};
+
+      // Fetch from SportLots
+      try {
+        const result = await ctx.runAction(
+          api.adapters.sportlots.fetchSportLotsSelectorOptions,
+          {
+            level,
+            parentFilters: parentFilters || {},
+            ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
+          },
+        );
+        if (result.success && result.options) {
+          slOptions = result.options;
+        } else if (!result.success) {
+          platformErrors.sportlots = result.message || "Unknown error";
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        platformErrors.sportlots = msg;
+        console.error(`[fetchRawOptions] SportLots error:`, error);
+      }
+
+      // Fetch from BSC
+      try {
+        const result = await ctx.runAction(
+          api.adapters.buysportscards.fetchBscSelectorOptions,
+          {
+            level,
+            parentFilters: parentFilters || {},
+            ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
+          },
+        );
+        if (result.success && result.options) {
+          bscOptions = result.options;
+        } else if (!result.success) {
+          platformErrors.bsc = result.message || "Unknown error";
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        platformErrors.bsc = msg;
+        console.error(`[fetchRawOptions] BSC error:`, error);
+      }
+
+      // Log adapter errors to PostHog
+      if (Object.keys(platformErrors).length > 0) {
+        let userId = "anonymous";
+        try {
+          userId = await getCurrentUserId(ctx) || "anonymous";
+        } catch {
+          // auth context may not be available
+        }
+        await ctx.runAction(internal.posthog.captureEvent, {
+          distinctId: userId,
+          event: "set_reconciliation_fetch_failed",
+          properties: {
+            level,
+            platformErrors,
+            parentFilters: parentFilters || {},
+          },
+        }).catch((err: unknown) => {
+          console.error("[fetchRawOptions] Failed to send PostHog event:", err);
+        });
+      }
+
+      // Run matching algorithm
+      const { autoMatched, unmatchedBsc, unmatchedSl } = computeMatches(
+        bscOptions,
+        slOptions,
+      );
+
+      const warningSuffix =
+        Object.keys(platformErrors).length > 0
+          ? ` (Warnings: ${Object.entries(platformErrors)
+              .map(([plat, err]) => `${plat}: ${err}`)
+              .join("; ")})`
+          : "";
+
+      return {
+        success: true,
+        bscOptions,
+        slOptions,
+        autoMatched,
+        unmatchedBsc,
+        unmatchedSl,
+        message: `BSC: ${bscOptions.length}, SL: ${slOptions.length}, Auto-matched: ${autoMatched.length}${warningSuffix}`,
+      };
+    } catch (error) {
+      console.error(`[fetchRawOptions] Error:`, error);
+      return {
+        success: false,
+        bscOptions: [],
+        slOptions: [],
+        autoMatched: [],
+        unmatchedBsc: [],
+        unmatchedSl: [],
+        message: `Failed to fetch options: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+    }
+  },
+});
+
+// ===== MUTATIONS =====
+
+export const storeReconciledOptions = mutation({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    reconciledItems: v.array(
+      v.object({
+        value: v.string(),
+        platformData: v.object({
+          bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+          sportlots: v.optional(v.string()),
+        }),
+        metadata: metadataValidator,
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    optionsCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const { level, parentId, reconciledItems } = args;
+
+    // Get existing options for this level and parent
+    const existingOptions = await ctx.db
+      .query("selectorOptions")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", level).eq("parentId", parentId),
+      )
+      .collect();
+
+    const existingByValue = new Map<string, (typeof existingOptions)[0]>();
+    for (const opt of existingOptions) {
+      existingByValue.set(opt.value.toLowerCase().trim(), opt);
+    }
+
+    const processedValues = new Set<string>();
+    const insertedIds: Id<"selectorOptions">[] = [];
+
+    for (const item of reconciledItems) {
+      const normalizedValue = item.value.toLowerCase().trim();
+      processedValues.add(normalizedValue);
+
+      const existing = existingByValue.get(normalizedValue);
+      if (existing) {
+        const patch: Record<string, unknown> = {
+          platformData: item.platformData,
+          lastUpdated: Date.now(),
+        };
+        if (item.metadata) {
+          patch.metadata = { ...(existing.metadata || {}), ...item.metadata };
+        }
+        await ctx.db.patch(existing._id, patch);
+        insertedIds.push(existing._id);
+      } else {
+        const id = await ctx.db.insert("selectorOptions", {
+          level,
+          value: item.value,
+          platformData: item.platformData,
+          parentId,
+          children: [],
+          metadata: item.metadata,
+          lastUpdated: Date.now(),
+        });
+        insertedIds.push(id);
+      }
+    }
+
+    // Delete old non-custom options that weren't in the reconciled set
+    if (reconciledItems.length > 0) {
+      for (const existing of existingOptions) {
+        const normalizedValue = existing.value.toLowerCase().trim();
+        if (!processedValues.has(normalizedValue) && !existing.isCustom) {
+          await ctx.db.delete(existing._id);
+        }
+      }
+    }
+
+    // Update parent's children array
+    if (parentId && insertedIds.length > 0) {
+      const customIds = existingOptions
+        .filter(
+          (o) =>
+            o.isCustom &&
+            !processedValues.has(o.value.toLowerCase().trim()),
+        )
+        .map((o) => o._id);
+      await ctx.db.patch(parentId, {
+        children: [...insertedIds, ...customIds],
+      });
+    }
+
+    return {
+      success: true,
+      message: `Successfully stored ${insertedIds.length} reconciled ${level} options`,
+      optionsCount: insertedIds.length,
+    };
+  },
+});

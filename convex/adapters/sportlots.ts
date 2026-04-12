@@ -139,13 +139,15 @@ export const fetchSportLotsSelectorOptions = action({
         };
       }
 
-      // variantType level: SportLots doesn't have variants in its flow
-      if (args.level === "variantType") {
+      // setName and variantType: BSC-only levels in NB's hierarchy.
+      // SL doesn't have separate set or variant-type concepts.
+      if (args.level === "setName" || args.level === "variantType") {
         return { success: true, options: [] };
       }
 
-      // setName level: uses the multi-page dealsets flow
-      if (args.level === "setName") {
+      // insert level (NB "Variant"): SL's dealsets.tpl set list maps here.
+      // SL combines set+variant into a flat list of set names.
+      if (args.level === "insert") {
         return await fetchSetNames(ctx, sessionCookie, args.parentFilters, args.platformFilters);
       }
 

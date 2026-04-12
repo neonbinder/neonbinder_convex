@@ -15,6 +15,12 @@ const levelValidator = v.union(
   v.literal("parallel"),
 );
 
+const metadataValidator = v.optional(v.object({
+  cardNumberPrefix: v.optional(v.string()),
+  isInsert: v.optional(v.boolean()),
+  isParallel: v.optional(v.boolean()),
+}));
+
 type Level =
   | "sport"
   | "year"
@@ -45,6 +51,7 @@ export const getSelectorOptions = query({
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
       createdByUserId: v.optional(v.string()),
+      metadata: metadataValidator,
       lastUpdated: v.number(),
     }),
   ),
@@ -87,6 +94,7 @@ export const getSelectorOptionById = query({
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
       createdByUserId: v.optional(v.string()),
+      metadata: metadataValidator,
       lastUpdated: v.number(),
     }),
   ),
@@ -117,6 +125,7 @@ export const findByLevelAndValue = query({
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
       createdByUserId: v.optional(v.string()),
+      metadata: metadataValidator,
       lastUpdated: v.number(),
     }),
   ),
@@ -523,6 +532,30 @@ export const deleteCard = mutation({
   },
 });
 
+export const updateSelectorOptionMetadata = mutation({
+  args: {
+    id: v.id("selectorOptions"),
+    metadata: v.object({
+      cardNumberPrefix: v.optional(v.string()),
+      isInsert: v.optional(v.boolean()),
+      isParallel: v.optional(v.boolean()),
+    }),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Selector option not found");
+    }
+    await ctx.db.patch(args.id, {
+      metadata: { ...(existing.metadata || {}), ...args.metadata },
+      lastUpdated: Date.now(),
+    });
+    return null;
+  },
+});
+
 // ===== ADMIN UTILITIES =====
 
 /**
@@ -594,6 +627,9 @@ export const fetchAggregatedOptions = action({
 
       // Build platform-specific filters from the ancestor chain so each
       // adapter receives its own slugs instead of display labels.
+      // When an ancestor has no platformData for a given platform, fall back
+      // to the display value — this handles cross-platform levels (e.g. year
+      // may only have SL slug but BSC still needs the year filter).
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
 
@@ -614,6 +650,9 @@ export const fetchAggregatedOptions = action({
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
             bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          } else if (ancestor.value) {
+            // Fall back to display value (e.g. year "2022") when no BSC slug stored
+            bscPlatformFilters[lvl] = [ancestor.value.toLowerCase()];
           }
         }
 
@@ -781,6 +820,177 @@ export const fetchAggregatedOptions = action({
         success: false,
         message: `Failed to fetch options: ${error instanceof Error ? error.message : "Unknown error"}`,
         optionsCount: 0,
+      };
+    }
+  },
+});
+
+/**
+ * Fetch BSC sets for a sport/year and distribute them across existing
+ * manufacturer parents by matching the set name prefix. Unmatched sets
+ * go under "All Brands".
+ */
+export const syncSetsAcrossManufacturers = action({
+  args: {
+    yearId: v.id("selectorOptions"),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    totalSets: v.number(),
+  }),
+  handler: async (ctx, args): Promise<{ success: boolean; message: string; totalSets: number }> => {
+    await requireAdmin(ctx);
+    try {
+      // 1. Build ancestor chain from yearId to get sport/year values + BSC slugs
+      const chain: Array<{
+        _id: Id<"selectorOptions">;
+        level: Level;
+        value: string;
+        platformData: { bsc?: string | string[]; sportlots?: string };
+      }> = await ctx.runQuery(
+        api.selectorOptions.getAncestorChain,
+        { id: args.yearId },
+      );
+
+      const sportAncestor = chain.find((a: { level: string }) => a.level === "sport");
+      const yearAncestor = chain.find((a: { level: string }) => a.level === "year");
+      if (!sportAncestor || !yearAncestor) {
+        return { success: false, message: "Could not resolve sport/year ancestors", totalSets: 0 };
+      }
+
+      // Build BSC filters (sport + year only)
+      const bscPlatformFilters: Record<string, string[]> = {};
+      if (sportAncestor.platformData?.bsc) {
+        const v = sportAncestor.platformData.bsc;
+        bscPlatformFilters.sport = Array.isArray(v) ? v : [v];
+      } else {
+        bscPlatformFilters.sport = [sportAncestor.value.toLowerCase()];
+      }
+      if (yearAncestor.platformData?.bsc) {
+        const v = yearAncestor.platformData.bsc;
+        bscPlatformFilters.year = Array.isArray(v) ? v : [v];
+      } else {
+        bscPlatformFilters.year = [yearAncestor.value.toLowerCase()];
+      }
+
+      // 2. Fetch sets from BSC
+      const bscResult: { success: boolean; options: Array<{ value: string; platformValue: string }>; message?: string } = await ctx.runAction(
+        api.adapters.buysportscards.fetchBscSelectorOptions,
+        {
+          level: "setName",
+          parentFilters: {
+            sport: sportAncestor.value,
+            year: yearAncestor.value,
+          },
+          platformFilters: bscPlatformFilters,
+        },
+      );
+
+      if (!bscResult.success || bscResult.options.length === 0) {
+        return {
+          success: false,
+          message: bscResult.message || "No sets returned from BSC",
+          totalSets: 0,
+        };
+      }
+
+      console.log(`[syncSetsAcrossManufacturers] BSC returned ${bscResult.options.length} sets`);
+
+      // 3. Get all manufacturers for this year
+      const manufacturers = await ctx.runQuery(
+        api.selectorOptions.getSelectorOptions,
+        { level: "manufacturer", parentId: args.yearId },
+      );
+
+      // Build a lookup: normalized manufacturer name → manufacturer doc
+      const mfrLookup = new Map<string, { _id: Id<"selectorOptions">; value: string }>();
+      let allBrandsId: Id<"selectorOptions"> | null = null;
+
+      for (const mfr of manufacturers) {
+        const norm = mfr.value.toLowerCase().trim();
+        mfrLookup.set(norm, { _id: mfr._id, value: mfr.value });
+        if (norm === "all brands") {
+          allBrandsId = mfr._id;
+        }
+      }
+
+      // Create "All Brands" if it doesn't exist
+      if (!allBrandsId) {
+        allBrandsId = await ctx.runMutation(
+          api.selectorOptions.addCustomSelectorOption,
+          {
+            level: "manufacturer",
+            value: "All Brands",
+            parentId: args.yearId,
+          },
+        );
+      }
+
+      // 4. Match each BSC set to a manufacturer by prefix
+      // Sort manufacturers by name length descending so "Upper Deck" matches
+      // before "Upper" and more specific names win.
+      const sortedMfrs = [...mfrLookup.entries()].sort(
+        (a, b) => b[0].length - a[0].length,
+      );
+
+      const grouped = new Map<string, Array<{ value: string; platformValue: string }>>();
+
+      for (const set of bscResult.options) {
+        const setNameLower = set.value.toLowerCase().trim();
+        let matchedMfrId: string | null = null;
+
+        for (const [mfrName, mfr] of sortedMfrs) {
+          if (mfrName === "all brands") continue;
+          if (setNameLower.startsWith(mfrName + " ") || setNameLower === mfrName) {
+            matchedMfrId = mfr._id;
+            break;
+          }
+        }
+
+        const parentId = matchedMfrId || allBrandsId!;
+        if (!grouped.has(parentId)) {
+          grouped.set(parentId, []);
+        }
+        grouped.get(parentId)!.push(set);
+      }
+
+      // 5. Store sets under each manufacturer
+      let totalStored = 0;
+      for (const [parentId, sets] of grouped) {
+        const result = await ctx.runMutation(
+          api.selectorOptions.storeSelectorOptions,
+          {
+            level: "setName",
+            parentId: parentId as Id<"selectorOptions">,
+            options: sets.map((s) => ({
+              value: s.value,
+              platformData: { bsc: s.platformValue },
+            })),
+          },
+        );
+        totalStored += result.optionsCount;
+      }
+
+      // Build summary
+      const summary: string[] = [];
+      for (const [parentId, sets] of grouped) {
+        const mfr = manufacturers.find((m: { _id: string }) => m._id === parentId);
+        const name = mfr?.value || "All Brands";
+        summary.push(`${name}: ${sets.length}`);
+      }
+
+      return {
+        success: true,
+        message: `Distributed ${totalStored} sets across manufacturers (${summary.join(", ")})`,
+        totalSets: totalStored,
+      };
+    } catch (error) {
+      console.error("[syncSetsAcrossManufacturers] Error:", error);
+      return {
+        success: false,
+        message: `Failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        totalSets: 0,
       };
     }
   },

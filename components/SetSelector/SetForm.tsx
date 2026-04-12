@@ -11,8 +11,8 @@ export default function SetForm({
   manufacturerId: GenericId<"selectorOptions">;
   onDone?: () => void;
 }) {
-  const fetchAggregatedOptions = useAction(
-    api.selectorOptions.fetchAggregatedOptions,
+  const syncSets = useAction(
+    api.selectorOptions.syncSetsAcrossManufacturers,
   );
   const ancestorChain = useQuery(api.selectorOptions.getAncestorChain, {
     id: manufacturerId,
@@ -23,24 +23,14 @@ export default function SetForm({
 
   const sportValue = ancestorChain?.find((a: { level: string }) => a.level === "sport")?.value;
   const yearValue = ancestorChain?.find((a: { level: string }) => a.level === "year")?.value;
-  const manufacturerValue = ancestorChain?.find(
-    (a: { level: string }) => a.level === "manufacturer",
-  )?.value;
+  const yearId = ancestorChain?.find((a: { level: string }) => a.level === "year")?._id;
 
   const doSync = async () => {
-    if (!sportValue || !yearValue || !manufacturerValue) return;
+    if (!yearId) return;
     setLoading(true);
     setMessage(null);
     try {
-      const result = await fetchAggregatedOptions({
-        level: "setName",
-        parentId: manufacturerId,
-        parentFilters: {
-          sport: sportValue,
-          year: yearValue,
-          manufacturer: manufacturerValue,
-        },
-      });
+      const result = await syncSets({ yearId });
       setMessage(result.message);
       if (result.success) {
         onDone?.();
@@ -55,23 +45,23 @@ export default function SetForm({
   };
 
   useEffect(() => {
-    if (sportValue && yearValue && manufacturerValue && !triggered.current) {
+    if (yearId && !triggered.current) {
       triggered.current = true;
       doSync();
     }
-  }, [sportValue, yearValue, manufacturerValue]);
+  }, [yearId]);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">Syncing Set Options</h2>
+      <h2 className="text-xl font-semibold mb-4">Syncing Sets</h2>
 
       {loading && (
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Fetching set options for{" "}
+          Fetching sets for{" "}
           <strong>
-            {yearValue || "..."} {manufacturerValue || ""}
+            {sportValue || "..."} {yearValue || ""}
           </strong>{" "}
-          from all connected platforms...
+          from BSC and distributing across manufacturers...
         </p>
       )}
 
@@ -83,12 +73,14 @@ export default function SetForm({
 
       {!loading && (
         <div className="flex gap-2">
-          {message?.startsWith("Error") && (
-            <NeonButton onClick={doSync}>Retry</NeonButton>
+          {message?.startsWith("Error") || message?.startsWith("Failed") ? (
+            <>
+              <NeonButton onClick={doSync}>Retry</NeonButton>
+              <NeonButton cancel onClick={onDone}>Cancel</NeonButton>
+            </>
+          ) : (
+            <NeonButton cancel onClick={onDone}>Close</NeonButton>
           )}
-          <NeonButton cancel onClick={onDone}>
-            {message?.startsWith("Error") ? "Cancel" : "Close"}
-          </NeonButton>
         </div>
       )}
     </div>

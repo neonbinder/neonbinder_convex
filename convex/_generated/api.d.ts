@@ -26,6 +26,7 @@ import type * as posthog from "../posthog.js";
 import type * as publicProfile from "../publicProfile.js";
 import type * as resolveRedirect from "../resolveRedirect.js";
 import type * as selectorOptions from "../selectorOptions.js";
+import type * as setReconciliation from "../setReconciliation.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   publicProfile: typeof publicProfile;
   resolveRedirect: typeof resolveRedirect;
   selectorOptions: typeof selectorOptions;
+  setReconciliation: typeof setReconciliation;
   userProfile: typeof userProfile;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

@@ -23,16 +23,12 @@ export default function SetVariantForm({
 
   const sportValue = ancestorChain?.find((a: { level: string }) => a.level === "sport")?.value;
   const yearValue = ancestorChain?.find((a: { level: string }) => a.level === "year")?.value;
-  const manufacturerValue = ancestorChain?.find(
-    (a: { level: string }) => a.level === "manufacturer",
-  )?.value;
   const setNameValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "setName",
   )?.value;
 
   const doSync = async () => {
-    if (!sportValue || !yearValue || !manufacturerValue || !setNameValue)
-      return;
+    if (!sportValue || !yearValue || !setNameValue) return;
     setLoading(true);
     setMessage(null);
     try {
@@ -42,7 +38,6 @@ export default function SetVariantForm({
         parentFilters: {
           sport: sportValue,
           year: yearValue,
-          manufacturer: manufacturerValue,
           setName: setNameValue,
         },
       });
@@ -60,29 +55,20 @@ export default function SetVariantForm({
   };
 
   useEffect(() => {
-    if (
-      sportValue &&
-      yearValue &&
-      manufacturerValue &&
-      setNameValue &&
-      !triggered.current
-    ) {
+    if (sportValue && yearValue && setNameValue && !triggered.current) {
       triggered.current = true;
       doSync();
     }
-  }, [sportValue, yearValue, manufacturerValue, setNameValue]);
+  }, [sportValue, yearValue, setNameValue]);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4">
-        Syncing Set Variant Options
-      </h2>
+      <h2 className="text-xl font-semibold mb-4">Syncing Variant Types</h2>
 
       {loading && (
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Fetching variant options for{" "}
-          <strong>{setNameValue || "..."}</strong> from all connected
-          platforms...
+          Fetching variant types for{" "}
+          <strong>{setNameValue || "..."}</strong> from BSC...
         </p>
       )}
 

@@ -52,6 +52,11 @@ export default defineSchema({
     children: v.optional(v.array(v.id("selectorOptions"))), // Child options
     isCustom: v.optional(v.boolean()), // Distinguishes user-added entries from marketplace data
     createdByUserId: v.optional(v.string()), // Audit trail for custom entries
+    metadata: v.optional(v.object({
+      cardNumberPrefix: v.optional(v.string()),   // e.g. "DK-" for Diamond Kings
+      isInsert: v.optional(v.boolean()),
+      isParallel: v.optional(v.boolean()),
+    })),
     lastUpdated: v.number(),
   })
     .index("by_level", ["level"])
