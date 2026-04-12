@@ -12,6 +12,7 @@ module.exports = {
         'neon-yellow': '#FFE600',   // Warning / Accent
         'neon-blue': '#00C2FF',     // Info / Accent
         'neon-purple': '#A44AFF',   // Tabs / UI
+        'neon-orange': '#FF9E00',   // Admin / gated features
         background: {
           DEFAULT: '#000000',  // Main background
         },

@@ -3,7 +3,7 @@
 import { action, ActionCtx } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
-import { getCurrentUserId } from "../auth";
+import { getCurrentUserId, requireAdmin } from "../auth";
 import { Id } from "../_generated/dataModel";
 
 type Level = "sport" | "year" | "manufacturer" | "setName" | "variantType" | "insert" | "parallel";
@@ -125,6 +125,7 @@ export const fetchSportLotsSelectorOptions = action({
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     try {
       const sessionCookie = await getSportLotsCookie(ctx);
       if (!sessionCookie) {
@@ -337,6 +338,7 @@ export const fetchSportLotsChecklist = action({
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     try {
       const sessionCookie = await getSportLotsCookie(ctx);
       if (!sessionCookie) {

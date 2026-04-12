@@ -3,6 +3,7 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
+import { requireAdmin } from "../auth";
 
 // Real BSC filter endpoint (ported from cardlister-server/script-frontend/src/listing-sites/bsc.ts).
 // The earlier www.buysportscards.com URL was a webpage path, not an API — CloudFront returned 403.
@@ -54,6 +55,7 @@ export const getBscToken = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx): Promise<{ success: boolean; token?: string; error?: string }> => {
+    await requireAdmin(ctx);
     try {
       const tokenResult = await ctx.runAction(
         api.credentials.getSiteToken,
@@ -103,6 +105,7 @@ export const fetchBscSelectorOptions = action({
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<{ success: boolean; options: Array<{ value: string; platformValue: string }>; message?: string }> => {
+    await requireAdmin(ctx);
     try {
       // Get BSC token
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
@@ -223,6 +226,7 @@ export const fetchBscChecklist = action({
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<{ success: boolean; cards: Array<{ cardNumber: string; cardName: string; team?: string; platformRef?: string }>; message?: string }> => {
+    await requireAdmin(ctx);
     try {
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
         api.adapters.buysportscards.getBscToken,
@@ -426,6 +430,7 @@ export const getAvailableSetParameters = action({
     ),
   }),
   handler: async (ctx, args): Promise<any> => {
+    await requireAdmin(ctx);
     // Delegate to the new fetchBscSelectorOptions for actual data
     // This wrapper maintains backward compatibility
     const parentFilters: Record<string, string> = {};
