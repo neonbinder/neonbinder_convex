@@ -17,6 +17,36 @@ export async function getCurrentUserId(ctx: any) {
 }
 
 /**
+ * Get the current user's ID plus their role from the Clerk JWT.
+ * Role is sourced from `publicMetadata.role` via a custom claim on the
+ * `convex` JWT template (Clerk Dashboard → JWT Templates → convex → Claims:
+ * `{ "role": "{{user.public_metadata.role}}" }`).
+ */
+export async function getCurrentUserIdentity(
+  ctx: any,
+): Promise<{ userId: string; role: string | null } | null> {
+  if (!ctx.auth) return null;
+  const identity = (await ctx.auth.getUserIdentity()) as
+    | (Record<string, unknown> & { subject?: string; role?: unknown })
+    | null;
+  if (!identity?.subject) return null;
+  const role = typeof identity.role === "string" ? identity.role : null;
+  return { userId: identity.subject, role };
+}
+
+/**
+ * Throws if the caller is not signed in or not an admin. Use on every
+ * admin-only query/mutation/action. Returns the admin's userId so callers
+ * can chain without a second identity lookup.
+ */
+export async function requireAdmin(ctx: any): Promise<string> {
+  const id = await getCurrentUserIdentity(ctx);
+  if (!id) throw new Error("Not authenticated");
+  if (id.role !== "admin") throw new Error("Admin access required");
+  return id.userId;
+}
+
+/**
  * Get Clerk user ID from a JWT token (for actions that run on Node.js)
  * Use this when ctx.auth.getUserIdentity() returns null in actions
  */

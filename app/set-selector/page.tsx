@@ -1,4 +1,5 @@
 import SetSelector from "../../components/modules/SetSelector";
+import AdminTools from "../../components/SetSelector/AdminTools";
 
 export default function SetSelectorPage() {
   return (
@@ -7,6 +8,7 @@ export default function SetSelectorPage() {
       <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
         Build set parameters using marketplace APIs with searchable dropdowns
       </p>
+      <AdminTools />
       <SetSelector />
     </div>
   );

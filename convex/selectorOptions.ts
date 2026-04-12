@@ -2,7 +2,7 @@ import { query, mutation, action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { getCurrentUserId } from "./auth";
+import { getCurrentUserId, requireAdmin } from "./auth";
 
 // ===== LEVEL VALIDATOR (reused across functions) =====
 const levelValidator = v.union(
@@ -49,6 +49,7 @@ export const getSelectorOptions = query({
     }),
   ),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { level, parentId } = args;
 
     if (parentId) {
@@ -90,6 +91,7 @@ export const getSelectorOptionById = query({
     }),
   ),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     return await ctx.db.get(args.id);
   },
 });
@@ -119,6 +121,7 @@ export const findByLevelAndValue = query({
     }),
   ),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const options = await ctx.db
       .query("selectorOptions")
       .withIndex("by_level_and_parent", (q) =>
@@ -141,6 +144,7 @@ export const getAncestorChain = query({
     }),
   ),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const chain: Array<{
       _id: Id<"selectorOptions">;
       level: Level;
@@ -184,6 +188,7 @@ export const getCardChecklist = query({
     }),
   ),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     return await ctx.db
       .query("cardChecklist")
       .withIndex("by_selector_option", (q) =>
@@ -215,6 +220,7 @@ export const storeSelectorOptions = mutation({
     optionsCount: v.number(),
   }),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { level, options, parentId } = args;
 
     // Get existing non-custom options for this level and parent
@@ -310,6 +316,7 @@ export const addCustomSelectorOption = mutation({
   },
   returns: v.id("selectorOptions"),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { level, value, parentId, userId } = args;
 
     // Check for duplicate by normalized value
@@ -375,6 +382,7 @@ export const storeCardChecklist = mutation({
     count: v.number(),
   }),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { selectorOptionId, cards } = args;
 
     // Get existing cards for this variant
@@ -446,6 +454,7 @@ export const addCustomCard = mutation({
   },
   returns: v.id("cardChecklist"),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     // Get current max sort order
     const existing = await ctx.db
       .query("cardChecklist")
@@ -483,6 +492,7 @@ export const updateCard = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const { id, ...updates } = args;
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
@@ -501,8 +511,44 @@ export const deleteCard = mutation({
   args: { id: v.id("cardChecklist") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     await ctx.db.delete(args.id);
     return null;
+  },
+});
+
+// ===== ADMIN UTILITIES =====
+
+/**
+ * Full reset of Set Builder data. Deletes every row in `selectorOptions`
+ * and `cardChecklist`. Intended for dev cleanup between test runs and
+ * gated behind requireAdmin. Convex mutation size limits are fine for
+ * the row counts we see in dev (<1k total); if that changes, refactor
+ * to an action + paginated internal mutation.
+ */
+export const resetSetBuilderData = mutation({
+  args: {},
+  returns: v.object({
+    selectorOptionsDeleted: v.number(),
+    cardChecklistDeleted: v.number(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const allSelectorOptions = await ctx.db.query("selectorOptions").collect();
+    for (const row of allSelectorOptions) {
+      await ctx.db.delete(row._id);
+    }
+
+    const allCards = await ctx.db.query("cardChecklist").collect();
+    for (const row of allCards) {
+      await ctx.db.delete(row._id);
+    }
+
+    return {
+      selectorOptionsDeleted: allSelectorOptions.length,
+      cardChecklistDeleted: allCards.length,
+    };
   },
 });
 
@@ -528,6 +574,10 @@ export const fetchAggregatedOptions = action({
     optionsCount: v.number(),
   }),
   handler: async (ctx, args): Promise<{ success: boolean; message: string; optionsCount: number }> => {
+    // Admin check is outside the try/catch so authorization errors surface
+    // cleanly to the client instead of being rewritten as "Failed to fetch
+    // options: Admin access required" by the generic catch below.
+    await requireAdmin(ctx);
     try {
       const { level, parentId, parentFilters } = args;
 
@@ -668,9 +718,20 @@ export const fetchAggregatedOptions = action({
         },
       );
 
+      // Surface partial-failure warnings in the user-visible message.
+      // Without this, a platform that silently returns zero options looks
+      // indistinguishable from "platform disabled" and regressions go
+      // unnoticed until someone reads the PostHog dashboard.
+      const warningSuffix =
+        Object.keys(platformErrors).length > 0
+          ? ` (Warnings: ${Object.entries(platformErrors)
+              .map(([plat, err]) => `${plat}: ${err}`)
+              .join("; ")})`
+          : "";
+
       return {
         success: result.success,
-        message: result.message,
+        message: result.message + warningSuffix,
         optionsCount: result.optionsCount,
       };
     } catch (error) {

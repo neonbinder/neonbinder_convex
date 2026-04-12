@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}
+url: ${APP_URL || "https://localhost:3000"}
 name: Managing Inventory Feature Page
 tags:
   - marketing

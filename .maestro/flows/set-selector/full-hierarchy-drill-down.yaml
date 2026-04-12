@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
 name: Full Hierarchy Drill-Down — Sport to Cards Column
 tags:
   - set-selector
@@ -28,7 +28,7 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # Navigate to the set selector after credential setup
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 15000

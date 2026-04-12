@@ -13,6 +13,7 @@ import * as Sentry from "@sentry/react";
 
 import ProtectedLayout from "@/src/layouts/ProtectedLayout";
 import BinderLayout from "@/src/layouts/binder-layout";
+import AdminLayout from "@/src/layouts/AdminLayout";
 
 // Pages
 import Home from "@/app/page";
@@ -63,9 +64,12 @@ const SentryErrorBoundary = Sentry.withErrorBoundary(
               <Route path="/collection" element={<Collection />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/set-selector" element={<SetSelector />} />
               <Route path="/qr-code" element={<QrCode />} />
               <Route path="/design/primitives" element={<DesignPrimitives />} />
+              {/* Admin-only routes — redirected to /dashboard for non-admins */}
+              <Route element={<AdminLayout />}>
+                <Route path="/set-selector" element={<SetSelector />} />
+              </Route>
             </Route>
           </Route>
         </Routes>
