@@ -113,6 +113,9 @@ export const fetchSportLotsSelectorOptions = action({
       setName: v.optional(v.string()),
       variantType: v.optional(v.string()),
     }),
+    // Pre-resolved SportLots platform values keyed by level (e.g., { sport: "BB", year: "2024" }).
+    // When provided, these are used directly instead of resolving via DB lookup.
+    platformFilters: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.object({
     success: v.boolean(),
@@ -143,23 +146,26 @@ export const fetchSportLotsSelectorOptions = action({
 
       // setName level: uses the multi-page dealsets flow
       if (args.level === "setName") {
-        return await fetchSetNames(ctx, sessionCookie, args.parentFilters);
+        return await fetchSetNames(ctx, sessionCookie, args.parentFilters, args.platformFilters);
       }
 
       // sport, year, manufacturer: POST to newinven.tpl and parse select options
       const formData = new URLSearchParams();
 
-      // Resolve display values to platform values for parent filters
+      // Use pre-resolved platform slugs when available, otherwise fall back to DB lookup
       if (args.parentFilters.sport) {
-        const platformSport = await resolveSportLotsPlatformValue(ctx, "sport", args.parentFilters.sport);
+        const platformSport = args.platformFilters?.sport
+          ?? await resolveSportLotsPlatformValue(ctx, "sport", args.parentFilters.sport);
         formData.set("sprt", platformSport);
       }
       if (args.parentFilters.year) {
-        const platformYear = await resolveSportLotsPlatformValue(ctx, "year", args.parentFilters.year);
+        const platformYear = args.platformFilters?.year
+          ?? await resolveSportLotsPlatformValue(ctx, "year", args.parentFilters.year);
         formData.set("yr", platformYear);
       }
       if (args.parentFilters.manufacturer) {
-        const platformBrand = await resolveSportLotsPlatformValue(ctx, "manufacturer", args.parentFilters.manufacturer);
+        const platformBrand = args.platformFilters?.manufacturer
+          ?? await resolveSportLotsPlatformValue(ctx, "manufacturer", args.parentFilters.manufacturer);
         formData.set("brd", platformBrand);
       }
 
@@ -233,20 +239,24 @@ async function fetchSetNames(
     year?: string;
     manufacturer?: string;
   },
+  platformFilters?: Record<string, string>,
 ): Promise<{ success: boolean; options: Array<{ value: string; platformValue: string }>; message?: string }> {
-  // Resolve display values to platform values
+  // Use pre-resolved platform slugs when available, otherwise fall back to DB lookup
   let platformSport = "";
   let platformYear = "";
   let platformBrand = "";
 
   if (parentFilters.sport) {
-    platformSport = await resolveSportLotsPlatformValue(ctx, "sport", parentFilters.sport);
+    platformSport = platformFilters?.sport
+      ?? await resolveSportLotsPlatformValue(ctx, "sport", parentFilters.sport);
   }
   if (parentFilters.year) {
-    platformYear = await resolveSportLotsPlatformValue(ctx, "year", parentFilters.year);
+    platformYear = platformFilters?.year
+      ?? await resolveSportLotsPlatformValue(ctx, "year", parentFilters.year);
   }
   if (parentFilters.manufacturer) {
-    platformBrand = await resolveSportLotsPlatformValue(ctx, "manufacturer", parentFilters.manufacturer);
+    platformBrand = platformFilters?.manufacturer
+      ?? await resolveSportLotsPlatformValue(ctx, "manufacturer", parentFilters.manufacturer);
   }
 
   const commonFields: Record<string, string> = {
@@ -324,6 +334,8 @@ async function fetchSetNames(
 export const fetchSportLotsChecklist = action({
   args: {
     parentFilters: v.record(v.string(), v.string()),
+    // Pre-resolved SportLots platform values keyed by level.
+    platformFilters: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.object({
     success: v.boolean(),
@@ -349,11 +361,11 @@ export const fetchSportLotsChecklist = action({
         };
       }
 
-      // Look up the set's platformData.sportlots (the radio button ID) from the database
-      let setRadioId = args.parentFilters.setName || "";
+      // Look up the set's platformData.sportlots (the radio button ID)
+      let setRadioId = args.platformFilters?.setName || args.parentFilters.setName || "";
 
-      // Try to resolve from selectorOptions if it's a display name
-      if (args.parentFilters.setName) {
+      // Fall back to DB lookup if we don't have a pre-resolved platform value
+      if (!args.platformFilters?.setName && args.parentFilters.setName) {
         const platformValue = await resolveSportLotsPlatformValue(
           ctx, "setName", args.parentFilters.setName,
         );

@@ -141,6 +141,10 @@ export const getAncestorChain = query({
       _id: v.id("selectorOptions"),
       level: levelValidator,
       value: v.string(),
+      platformData: v.object({
+        bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlots: v.optional(v.string()),
+      }),
     }),
   ),
   handler: async (ctx, args) => {
@@ -149,6 +153,7 @@ export const getAncestorChain = query({
       _id: Id<"selectorOptions">;
       level: Level;
       value: string;
+      platformData: { bsc?: string | string[]; sportlots?: string };
     }> = [];
     let currentId: Id<"selectorOptions"> | undefined = args.id;
 
@@ -159,6 +164,7 @@ export const getAncestorChain = query({
         _id: option._id,
         level: option.level,
         value: option.value,
+        platformData: option.platformData || {},
       });
       currentId = option.parentId;
     }
@@ -586,6 +592,39 @@ export const fetchAggregatedOptions = action({
         parentFilters,
       );
 
+      // Build platform-specific filters from the ancestor chain so each
+      // adapter receives its own slugs instead of display labels.
+      let slPlatformFilters: Record<string, string> | undefined;
+      let bscPlatformFilters: Record<string, string[]> | undefined;
+
+      if (parentId) {
+        const chain = await ctx.runQuery(
+          api.selectorOptions.getAncestorChain,
+          { id: parentId },
+        );
+
+        slPlatformFilters = {};
+        bscPlatformFilters = {};
+
+        for (const ancestor of chain) {
+          const lvl = ancestor.level;
+          if (ancestor.platformData?.sportlots) {
+            slPlatformFilters[lvl] = ancestor.platformData.sportlots;
+          }
+          if (ancestor.platformData?.bsc) {
+            const bscVal = ancestor.platformData.bsc;
+            bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          }
+        }
+
+        console.log(
+          `[fetchAggregatedOptions] Resolved platform filters — SL:`,
+          slPlatformFilters,
+          `BSC:`,
+          bscPlatformFilters,
+        );
+      }
+
       const allOptions: Array<{
         value: string;
         platformData: {
@@ -603,6 +642,7 @@ export const fetchAggregatedOptions = action({
           {
             level,
             parentFilters: parentFilters || {},
+            ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
           },
         );
         if (sportlotsOptions.success && sportlotsOptions.options) {
@@ -628,6 +668,7 @@ export const fetchAggregatedOptions = action({
           {
             level,
             parentFilters: parentFilters || {},
+            ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
           },
         );
         if (bscOptions.success && bscOptions.options) {
@@ -763,13 +804,25 @@ export const fetchCardChecklist = action({
       );
 
       const filters: Record<string, string> = {};
+      const slPlatformFilters: Record<string, string> = {};
+      const bscPlatformFilters: Record<string, string[]> = {};
+
       for (const ancestor of chain) {
         filters[ancestor.level] = ancestor.value;
+        if (ancestor.platformData?.sportlots) {
+          slPlatformFilters[ancestor.level] = ancestor.platformData.sportlots;
+        }
+        if (ancestor.platformData?.bsc) {
+          const bscVal = ancestor.platformData.bsc;
+          bscPlatformFilters[ancestor.level] = Array.isArray(bscVal) ? bscVal : [bscVal];
+        }
       }
 
       console.log(
         `[fetchCardChecklist] Fetching checklist for:`,
         filters,
+        `SL slugs:`, slPlatformFilters,
+        `BSC slugs:`, bscPlatformFilters,
       );
 
       const allCards: Array<{
@@ -784,7 +837,7 @@ export const fetchCardChecklist = action({
       try {
         const slCards = await ctx.runAction(
           api.adapters.sportlots.fetchSportLotsChecklist,
-          { parentFilters: filters },
+          { parentFilters: filters, platformFilters: slPlatformFilters },
         );
         if (slCards.success && slCards.cards) {
           allCards.push(
@@ -804,7 +857,7 @@ export const fetchCardChecklist = action({
       try {
         const bscCards = await ctx.runAction(
           api.adapters.buysportscards.fetchBscChecklist,
-          { parentFilters: filters },
+          { parentFilters: filters, platformFilters: bscPlatformFilters },
         );
         if (bscCards.success && bscCards.cards) {
           for (const card of bscCards.cards) {

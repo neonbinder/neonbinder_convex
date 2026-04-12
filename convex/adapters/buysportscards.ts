@@ -93,6 +93,9 @@ export const fetchBscSelectorOptions = action({
       setName: v.optional(v.string()),
       variantType: v.optional(v.string()),
     }),
+    // Pre-resolved BSC slugs keyed by level (e.g., { sport: ["basketball"], year: ["2024"] }).
+    // When provided, these are used instead of parentFilters for the BSC API call.
+    platformFilters: v.optional(v.record(v.string(), v.array(v.string()))),
   },
   returns: v.object({
     success: v.boolean(),
@@ -126,17 +129,30 @@ export const fetchBscSelectorOptions = action({
       // Manufacturer is not a BSC facet — it's embedded in setName — so we
       // drop that parent filter rather than sending an invalid key.
       const filters: Record<string, string[]> = {};
-      if (args.parentFilters.sport) {
-        filters.sport = [args.parentFilters.sport];
-      }
-      if (args.parentFilters.year) {
-        filters.year = [args.parentFilters.year];
-      }
-      if (args.parentFilters.setName) {
-        filters.setName = [args.parentFilters.setName];
-      }
-      if (args.parentFilters.variantType) {
-        filters.variant = [args.parentFilters.variantType];
+
+      if (args.platformFilters) {
+        // Use pre-resolved BSC slugs — map level names to BSC facet keys
+        for (const [lvl, values] of Object.entries(args.platformFilters)) {
+          const facet = LEVEL_TO_BSC_FACET[lvl];
+          if (facet) {
+            filters[facet] = values;
+          }
+        }
+      } else {
+        // Fallback: use display labels (only correct for top-level sport sync
+        // where there are no parent filters)
+        if (args.parentFilters.sport) {
+          filters.sport = [args.parentFilters.sport];
+        }
+        if (args.parentFilters.year) {
+          filters.year = [args.parentFilters.year];
+        }
+        if (args.parentFilters.setName) {
+          filters.setName = [args.parentFilters.setName];
+        }
+        if (args.parentFilters.variantType) {
+          filters.variant = [args.parentFilters.variantType];
+        }
       }
 
       const facetKey = LEVEL_TO_BSC_FACET[args.level];
@@ -212,6 +228,8 @@ export const fetchBscSelectorOptions = action({
 export const fetchBscChecklist = action({
   args: {
     parentFilters: v.record(v.string(), v.string()),
+    // Pre-resolved BSC slugs keyed by level (e.g., { sport: ["basketball"] }).
+    platformFilters: v.optional(v.record(v.string(), v.array(v.string()))),
   },
   returns: v.object({
     success: v.boolean(),
@@ -241,22 +259,29 @@ export const fetchBscChecklist = action({
         };
       }
 
-      // Build filters from parent filters
+      // Build filters from pre-resolved BSC slugs, falling back to display labels
       const filters: Record<string, string[]> = {};
-      if (args.parentFilters.sport) {
-        filters.sport = [args.parentFilters.sport.toLowerCase()];
-      }
-      if (args.parentFilters.year) {
-        filters.year = [args.parentFilters.year];
-      }
-      if (args.parentFilters.manufacturer) {
-        filters.manufacturer = [args.parentFilters.manufacturer];
-      }
-      if (args.parentFilters.setName) {
-        filters.setName = [args.parentFilters.setName];
-      }
-      if (args.parentFilters.variantType) {
-        filters.variant = [args.parentFilters.variantType];
+
+      if (args.platformFilters) {
+        for (const [lvl, values] of Object.entries(args.platformFilters)) {
+          const facet = LEVEL_TO_BSC_FACET[lvl];
+          if (facet) {
+            filters[facet] = values;
+          }
+        }
+      } else {
+        if (args.parentFilters.sport) {
+          filters.sport = [args.parentFilters.sport.toLowerCase()];
+        }
+        if (args.parentFilters.year) {
+          filters.year = [args.parentFilters.year];
+        }
+        if (args.parentFilters.setName) {
+          filters.setName = [args.parentFilters.setName];
+        }
+        if (args.parentFilters.variantType) {
+          filters.variant = [args.parentFilters.variantType];
+        }
       }
 
       // TODO(BSC-card-checklist): port this to the real endpoint used by
