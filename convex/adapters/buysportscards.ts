@@ -4,17 +4,44 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 
-const BSC_API_URL =
-  "https://www.buysportscards.com/seller/bulk-upload/results";
+// Real BSC filter endpoint (ported from cardlister-server/script-frontend/src/listing-sites/bsc.ts).
+// The earlier www.buysportscards.com URL was a webpage path, not an API — CloudFront returned 403.
+const BSC_API_BASE = "https://api-prod.buysportscards.com";
+const BSC_FILTERS_PATH = "/search/bulk-upload/filters";
 
-// Map our levels to BSC API filter/facet keys
+// Map our levels to BSC API aggregation keys. BSC does NOT expose a
+// `manufacturer` aggregation — manufacturer is embedded in setName. Leaving
+// it out means fetchAggregatedOptions will simply get no BSC contribution
+// at the manufacturer level, which is correct.
 const LEVEL_TO_BSC_FACET: Record<string, string> = {
   sport: "sport",
   year: "year",
-  manufacturer: "manufacturer",
   setName: "setName",
   variantType: "variant",
 };
+
+// Browser-mimicking headers required by the BSC API (without these CloudFront
+// rejects requests as bot traffic). `assumedrole: sellers` is mandatory and
+// scopes the session to a seller context.
+function bscHeaders(bearerToken: string): Record<string, string> {
+  return {
+    accept: "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    assumedrole: "sellers",
+    "content-type": "application/json",
+    origin: "https://www.buysportscards.com",
+    referer: "https://www.buysportscards.com/",
+    "Sec-Ch-Ua":
+      '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": "macOS",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+    authority: "api-prod.buysportscards.com",
+    authorization: `Bearer ${bearerToken}`,
+  };
+}
 
 /**
  * Get BSC bearer token from Secret Manager (browser service extraction)
@@ -91,16 +118,16 @@ export const fetchBscSelectorOptions = action({
         };
       }
 
-      // Build filters from parent selections
+      // Build nested filters matching the BSC bulk-upload/filters shape.
+      // BSC expects `{ filters: { sport: [...], year: [...], setName: [...], variant: [...] } }`.
+      // Manufacturer is not a BSC facet — it's embedded in setName — so we
+      // drop that parent filter rather than sending an invalid key.
       const filters: Record<string, string[]> = {};
       if (args.parentFilters.sport) {
-        filters.sport = [args.parentFilters.sport.toLowerCase()];
+        filters.sport = [args.parentFilters.sport];
       }
       if (args.parentFilters.year) {
         filters.year = [args.parentFilters.year];
-      }
-      if (args.parentFilters.manufacturer) {
-        filters.manufacturer = [args.parentFilters.manufacturer];
       }
       if (args.parentFilters.setName) {
         filters.setName = [args.parentFilters.setName];
@@ -109,22 +136,26 @@ export const fetchBscSelectorOptions = action({
         filters.variant = [args.parentFilters.variantType];
       }
 
-      // Call BSC API
-      const response = await fetch(BSC_API_URL, {
+      const facetKey = LEVEL_TO_BSC_FACET[args.level];
+      if (!facetKey) {
+        return {
+          success: false,
+          options: [],
+          message: `BSC has no aggregation for level: ${args.level}`,
+        };
+      }
+
+      const response = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenResult.token}`,
-        },
-        body: JSON.stringify({
-          condition: "near_mint",
-          currentListings: true,
-          productType: "raw",
-          filters,
-        }),
+        headers: bscHeaders(tokenResult.token),
+        body: JSON.stringify({ filters }),
       });
 
       if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        console.error(
+          `[fetchBscSelectorOptions] BSC API ${response.status}: ${errText.slice(0, 300)}`,
+        );
         return {
           success: false,
           options: [],
@@ -132,36 +163,28 @@ export const fetchBscSelectorOptions = action({
         };
       }
 
-      const data = await response.json();
-
-      // Extract faceted options for the requested level
-      const facetKey = LEVEL_TO_BSC_FACET[args.level];
-      if (!facetKey) {
-        return {
-          success: false,
-          options: [],
-          message: `Unknown level: ${args.level}`,
-        };
-      }
-
-      // BSC response structure: { facets: { sport: [...], year: [...], ... }, results: [...] }
-      const facets = data.facets || data.aggregations || {};
-      const levelFacet = facets[facetKey] || [];
+      // Response shape: { aggregations: { sport: Filter[], year: Filter[], ... } }
+      // where Filter = { label: string, slug: string, count: number, active: boolean }
+      const data = await response.json() as {
+        aggregations?: Record<
+          string,
+          Array<{ label?: string; slug?: string; count?: number; active?: boolean }>
+        >;
+      };
+      const levelFacet = data.aggregations?.[facetKey] ?? [];
 
       const options: Array<{ value: string; platformValue: string }> = [];
-
-      if (Array.isArray(levelFacet)) {
-        for (const item of levelFacet) {
-          // BSC facets can be { value: "...", count: N } or { key: "...", doc_count: N }
-          const value = item.value || item.key || item.label || item;
-          if (typeof value === "string" && value.trim()) {
-            options.push({
-              value:
-                value.charAt(0).toUpperCase() + value.slice(1),
-              platformValue: value,
-            });
-          }
-        }
+      for (const item of levelFacet) {
+        // Skip facet entries with zero inventory — BSC returns them but
+        // they're not actually available options.
+        if (typeof item.count === "number" && item.count <= 0) continue;
+        const label = item.label?.trim();
+        const slug = item.slug?.trim();
+        if (!label || !slug) continue;
+        options.push({
+          value: label,
+          platformValue: slug,
+        });
       }
 
       return {
@@ -232,8 +255,15 @@ export const fetchBscChecklist = action({
         filters.variant = [args.parentFilters.variantType];
       }
 
-      // Fetch results (individual cards) from BSC
-      const response = await fetch(BSC_API_URL, {
+      // TODO(BSC-card-checklist): port this to the real endpoint used by
+      // cardlister-server/script-frontend/src/listing-sites/bsc.ts#getBSCCards —
+      // POST {BSC_API_BASE}/search/seller/results with a seller-scoped body.
+      // Blocked on obtaining the current user's BSC sellerId. Leaving the
+      // previous call shape behind a constant so the file compiles; this
+      // function is not exercised by the smoke test and is known-broken.
+      const BSC_LEGACY_CHECKLIST_URL =
+        "https://www.buysportscards.com/seller/bulk-upload/results";
+      const response = await fetch(BSC_LEGACY_CHECKLIST_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

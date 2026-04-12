@@ -668,9 +668,20 @@ export const fetchAggregatedOptions = action({
         },
       );
 
+      // Surface partial-failure warnings in the user-visible message.
+      // Without this, a platform that silently returns zero options looks
+      // indistinguishable from "platform disabled" and regressions go
+      // unnoticed until someone reads the PostHog dashboard.
+      const warningSuffix =
+        Object.keys(platformErrors).length > 0
+          ? ` (Warnings: ${Object.entries(platformErrors)
+              .map(([plat, err]) => `${plat}: ${err}`)
+              .join("; ")})`
+          : "";
+
       return {
         success: result.success,
-        message: result.message,
+        message: result.message + warningSuffix,
         optionsCount: result.optionsCount,
       };
     } catch (error) {

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "deploy:dev": "CONVEX_DEPLOYMENT=dev:focused-fox-53 npx convex dev --once",
+    "deploy:prod": "echo 'Production Convex deploys are gated. Use the documented release workflow, not npm run deploy:prod.' && exit 1",
     "dev:backend": "./dev-backend.sh",
     "dev:all": "concurrently \"vite\" \"./dev-backend.sh\"",
     "dev:backend:tunnel": "./dev-backend-tunnel.sh",
@@ -18,9 +20,9 @@
     "setup:e2e": "./setup-maestro.sh",
     "setup:e2e:signin": "./setup-maestro-signin.sh",
     "test:e2e": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh",
-    "test:e2e:signin": "PATH=$HOME/.maestro/bin:$PATH maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-http://localhost:3000} .maestro/flows/auth/sign-in.yaml",
-    "test:e2e:dashboard": "PATH=$HOME/.maestro/bin:$PATH maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-http://localhost:3000} .maestro/flows/dashboard/view-collection.yaml",
-    "test:e2e:single": "maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-http://localhost:3000} -e TEST_USERNAME=${TEST_USERNAME:-neontester_$(date +%s)}",
+    "test:e2e:signin": "PATH=$HOME/.maestro/bin:$PATH maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-https://localhost:3000} .maestro/flows/auth/sign-in.yaml",
+    "test:e2e:dashboard": "PATH=$HOME/.maestro/bin:$PATH maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-https://localhost:3000} .maestro/flows/dashboard/view-collection.yaml",
+    "test:e2e:single": "maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-https://localhost:3000} -e TEST_USERNAME=${TEST_USERNAME:-neontester_$(date +%s)}",
     "test:e2e:smoke": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh smoke",
     "test:e2e:ci": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh smoke",
     "postinstall": "husky install"
@@ -54,7 +56,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.0.0",
     "dotenv": "^16.6.1",
@@ -66,6 +67,7 @@
     "prettier": "^3.5.3",
     "tailwindcss": "^4.1.11",
     "typescript": "^5",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vite-plugin-mkcert": "^2.0.0"
   }
 }
