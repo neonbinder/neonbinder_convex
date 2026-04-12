@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
 name: Set Selector Custom Entry — Full Hierarchy via Manual Input
 tags:
   - set-selector

@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
 name: Edit and Delete a Card from the Checklist
 tags:
   - set-selector
@@ -35,7 +35,7 @@ tags:
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 15000

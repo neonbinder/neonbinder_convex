@@ -18,7 +18,7 @@ fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
 CONFIG=".maestro/config.yaml"
-APP_URL="${APP_URL:-http://localhost:3000}"
+APP_URL="${APP_URL:-https://localhost:3000}"
 # Unique username per run to avoid "already taken" in profile flows
 TEST_USERNAME="${TEST_USERNAME:-neontester_$(date +%s)}"
 # Credential env vars (real credentials for dev@neonbinder.io accounts)
