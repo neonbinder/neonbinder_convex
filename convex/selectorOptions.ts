@@ -517,6 +517,41 @@ export const deleteCard = mutation({
   },
 });
 
+// ===== ADMIN UTILITIES =====
+
+/**
+ * Full reset of Set Builder data. Deletes every row in `selectorOptions`
+ * and `cardChecklist`. Intended for dev cleanup between test runs and
+ * gated behind requireAdmin. Convex mutation size limits are fine for
+ * the row counts we see in dev (<1k total); if that changes, refactor
+ * to an action + paginated internal mutation.
+ */
+export const resetSetBuilderData = mutation({
+  args: {},
+  returns: v.object({
+    selectorOptionsDeleted: v.number(),
+    cardChecklistDeleted: v.number(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const allSelectorOptions = await ctx.db.query("selectorOptions").collect();
+    for (const row of allSelectorOptions) {
+      await ctx.db.delete(row._id);
+    }
+
+    const allCards = await ctx.db.query("cardChecklist").collect();
+    for (const row of allCards) {
+      await ctx.db.delete(row._id);
+    }
+
+    return {
+      selectorOptionsDeleted: allSelectorOptions.length,
+      cardChecklistDeleted: allCards.length,
+    };
+  },
+});
+
 // ===== ACTIONS (Orchestrators) =====
 
 export const fetchAggregatedOptions = action({
