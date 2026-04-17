@@ -35,7 +35,7 @@ SMOKE_FLOWS=()
 if [ -n "$TAG" ]; then
   while IFS= read -r f; do
     SMOKE_FLOWS+=("$f")
-  done < <(grep -rl "$TAG" .maestro/flows/ --include="*.yaml" | sort)
+  done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
     SMOKE_FLOWS+=("$f")
