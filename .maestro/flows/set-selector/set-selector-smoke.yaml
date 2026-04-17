@@ -1,7 +1,15 @@
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
 name: Set Selector Smoke Test
+# Temporarily demoted from `smoke` to `regression` — this flow writes real
+# marketplace credentials via setup-bsc-credentials / setup-sportlots-
+# credentials, which go through the preview Convex -> prod browser service ->
+# prod Secret Manager path (because Convex preview deployments inherit env
+# vars from the prod deployment). That either fails auth or pollutes prod
+# secrets. TODO: set NEONBINDER_BROWSER_URL + INTERNAL_API_KEY explicitly
+# on the Convex preview deploy key so preview credential writes hit the dev
+# browser service, then promote back to `smoke`.
 tags:
-  - smoke
+  - regression
   - set-selector
 ---
 - launchApp
