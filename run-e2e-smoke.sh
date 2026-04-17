@@ -60,10 +60,10 @@ for flow in "${SMOKE_FLOWS[@]}"; do
   echo "$MAESTRO" test "${ARGS[@]}" "$flow"
   if "$MAESTRO" test "${ARGS[@]}" "$flow"; then
     echo "✅ Passed: $flow"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
     echo "❌ Failed: $flow"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     FAILURES+=("$flow")
   fi
   echo ""
