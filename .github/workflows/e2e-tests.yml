@@ -1,0 +1,63 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for Vercel Preview
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.1
+        id: vercel-preview
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 300
+
+      - name: Resolve APP_URL
+        id: app-url
+        run: echo "url=${{ steps.vercel-preview.outputs.url }}" >> $GITHUB_OUTPUT
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: browser-actions/setup-chrome@v1
+
+      - name: Start Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1280x1024x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Run Maestro smoke suite
+        env:
+          APP_URL: ${{ steps.app-url.outputs.url }}
+          SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
+          SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
+          BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
+          BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+        run: npm run test:e2e:ci
+
+      - name: Upload Maestro artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug-output
+          path: |
+            ~/.maestro/tests/
+            /tmp/maestro-*
+          if-no-files-found: ignore
+          retention-days: 7
