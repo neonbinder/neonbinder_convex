@@ -40,7 +40,13 @@ function TestingSignInContent() {
 
       try {
         setStatus("Requesting testing tokens...");
-        const res = await fetch("/api/auth/testing", { method: "POST" });
+        const testingSecret = import.meta.env.VITE_TESTING_ENDPOINT_SECRET as
+          | string
+          | undefined;
+        const res = await fetch("/api/auth/testing", {
+          method: "POST",
+          headers: testingSecret ? { "x-testing-auth": testingSecret } : {},
+        });
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

@@ -1,7 +1,13 @@
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
 name: Set Selector Smoke Test
+# Demoted to regression tier (see PR description on the e2e-ci branch).
+# Writes real marketplace credentials via setup-bsc-credentials /
+# setup-sportlots-credentials, which currently hit prod Secret Manager
+# because Convex preview deployments inherit env vars from the prod
+# deployment. Promote back to the PR-gate tier once preview credential
+# writes are routed to the dev browser service.
 tags:
-  - smoke
+  - regression
   - set-selector
 ---
 - launchApp

@@ -35,7 +35,7 @@ SMOKE_FLOWS=()
 if [ -n "$TAG" ]; then
   while IFS= read -r f; do
     SMOKE_FLOWS+=("$f")
-  done < <(grep -rl "$TAG" .maestro/flows/ --include="*.yaml" | sort)
+  done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
     SMOKE_FLOWS+=("$f")
@@ -60,10 +60,10 @@ for flow in "${SMOKE_FLOWS[@]}"; do
   echo "$MAESTRO" test "${ARGS[@]}" "$flow"
   if "$MAESTRO" test "${ARGS[@]}" "$flow"; then
     echo "✅ Passed: $flow"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
     echo "❌ Failed: $flow"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     FAILURES+=("$flow")
   fi
   echo ""

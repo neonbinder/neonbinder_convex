@@ -1,0 +1,142 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve Vercel preview URL
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.1
+        id: vercel-preview
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 300
+        # Vercel SSO returns 401 to the action's 200-poll (it can't inject
+        # x-vercel-protection-bypass). We only need the URL; continue on error
+        # and re-verify with bypass ourselves below.
+        continue-on-error: true
+
+      - name: Wait for preview to respond (with bypass)
+        env:
+          PREVIEW_URL: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "No preview URL discovered."
+            exit 1
+          fi
+          echo "Polling $PREVIEW_URL with bypass header..."
+          for attempt in $(seq 1 60); do
+            status=$(curl -sS -o /dev/null -w "%{http_code}" -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" "$PREVIEW_URL/" || echo 000)
+            if [ "$status" = "200" ]; then
+              echo "Preview ready after $attempt attempt(s)."
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $status — retrying in 5s"
+            sleep 5
+          done
+          echo "Preview never returned 200."
+          exit 1
+
+      - name: Start bypass-injecting proxy
+        env:
+          PREVIEW_URL: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          # Tiny Node proxy: forwards localhost:3000 → Vercel preview with the
+          # x-vercel-protection-bypass header injected on every request. Lets
+          # Maestro flows use APP_URL=http://localhost:3000 without any flow
+          # rewrites (which would hurt PO readability).
+          cat > /tmp/vercel-proxy.js <<'EOF'
+          const http = require('http');
+          const https = require('https');
+          const { URL } = require('url');
+
+          const upstream = new URL(process.env.PREVIEW_URL);
+          const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+          const PORT = 3000;
+
+          const server = http.createServer((req, res) => {
+            const opts = {
+              hostname: upstream.hostname,
+              port: 443,
+              path: req.url,
+              method: req.method,
+              headers: {
+                ...req.headers,
+                host: upstream.hostname,
+                'x-vercel-protection-bypass': bypass,
+              },
+            };
+            const upstreamReq = https.request(opts, upstreamRes => {
+              res.writeHead(upstreamRes.statusCode || 500, upstreamRes.headers);
+              upstreamRes.pipe(res);
+            });
+            upstreamReq.on('error', err => {
+              console.error('proxy error:', err.message);
+              res.statusCode = 502;
+              res.end('proxy error');
+            });
+            req.pipe(upstreamReq);
+          });
+
+          server.listen(PORT, () => {
+            console.log(`Bypass proxy listening on http://localhost:${PORT} -> ${upstream.origin}`);
+          });
+          EOF
+          node /tmp/vercel-proxy.js &
+          echo "PROXY_PID=$!" >> $GITHUB_ENV
+          # Wait for proxy to be reachable
+          for i in $(seq 1 20); do
+            if curl -sS -o /dev/null "http://localhost:3000/" ; then
+              echo "Proxy ready."
+              break
+            fi
+            sleep 0.5
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: browser-actions/setup-chrome@v1
+
+      - name: Start Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1280x1024x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Run Maestro smoke suite
+        env:
+          APP_URL: http://localhost:3000
+          SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
+          SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
+          BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
+          BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+        run: npm run test:e2e:ci
+
+      - name: Upload Maestro artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug-output
+          path: |
+            ~/.maestro/tests/
+            /tmp/maestro-*
+          if-no-files-found: ignore
+          retention-days: 7
