@@ -4,6 +4,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel any in-flight run on this PR/branch when a newer commit arrives.
+# Two concurrent runs share the same Convex dev deployment, browser service,
+# and test user — concurrent /login/bsc calls for the same BSC account
+# reliably trigger a 503 on the slower request. One active run per branch.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 # action-junit-report needs checks:write to publish the per-flow PR check,
 # and pull-requests:write to add its summary comment. Repo default is read-only.
 permissions:
