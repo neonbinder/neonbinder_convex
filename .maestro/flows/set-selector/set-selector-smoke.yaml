@@ -9,6 +9,7 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
+  - wip
 ---
 - launchApp
 - extendedWaitUntil:

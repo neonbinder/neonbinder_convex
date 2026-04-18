@@ -3,6 +3,7 @@ name: Card Checklist Sync — Fetch Cards from Marketplaces
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # This test verifies that a user can drill down to a set variant and then
 # use "Fetch from Marketplaces" to populate the card checklist.

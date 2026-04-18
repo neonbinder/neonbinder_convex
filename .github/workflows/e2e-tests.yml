@@ -4,6 +4,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel any in-flight run on this PR/branch when a newer commit arrives.
+# Two concurrent runs share the same Convex dev deployment, browser service,
+# and test user — concurrent /login/bsc calls for the same BSC account
+# reliably trigger a 503 on the slower request. One active run per branch.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 # action-junit-report needs checks:write to publish the per-flow PR check,
 # and pull-requests:write to add its summary comment. Repo default is read-only.
 permissions:
@@ -14,21 +22,48 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Full smoke + regression suite runs sequentially to avoid Clerk concurrent
+    # sign-in throttling, so we allow up to 60 minutes.
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Resolve Vercel preview URL
-        uses: patrickedqvist/wait-for-vercel-preview@v1.3.1
         id: vercel-preview
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          max_timeout: 300
-        # Vercel SSO returns 401 to the action's 200-poll (it can't inject
-        # x-vercel-protection-bypass). We only need the URL; continue on error
-        # and re-verify with bypass ourselves below.
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # Poll the GitHub Deployments API for the Vercel-created preview URL.
+        # Skips the HTTP 200-poll that patrickedqvist/wait-for-vercel-preview
+        # performs (~5 min of 401s every run under Vercel Deployment
+        # Protection, since the Actions runner has no SSO cookie and the
+        # action can't inject x-vercel-protection-bypass). Readiness is
+        # handled by the next step using the bypass header.
+        run: |
+          for attempt in $(seq 1 60); do
+            deployment_id=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$SHA&per_page=100" \
+              --jq '[.[] | select(.creator.login == "vercel[bot]")] | sort_by(.created_at) | reverse | .[0].id // empty')
+            if [ -n "$deployment_id" ]; then
+              url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                --jq '[.[] | select(.state == "success")] | .[0] | (.environment_url // .target_url // empty)')
+              if [ -n "$url" ]; then
+                echo "Vercel preview URL: $url"
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              failed=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                --jq '[.[] | select(.state == "failure" or .state == "error")] | length')
+              if [ "${failed:-0}" -gt 0 ]; then
+                echo "Vercel deployment ${deployment_id} reported failure/error state — aborting."
+                exit 1
+              fi
+            fi
+            echo "attempt $attempt/60: Vercel deployment not yet ready for $SHA — retrying in 5s"
+            sleep 5
+          done
+          echo "Timed out (5 min) waiting for a successful Vercel deployment on $SHA."
+          exit 1
 
       - name: Wait for preview to respond (with bypass)
         env:
@@ -125,10 +160,17 @@ jobs:
 
       - name: Install Maestro CLI
         run: |
-          curl -Ls "https://get.maestro.mobile.dev" | bash
+          # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
+          # as a non-zero exit — the install script prints the error but exits 0.
+          set -o pipefail
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
+            "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+          # Verify the binary is actually installed before we spend 30 min in
+          # downstream steps discovering it isn't.
+          "$HOME/.maestro/bin/maestro" --version
 
-      - name: Run Maestro smoke suite
+      - name: Run Maestro E2E suite (smoke + regression)
         env:
           APP_URL: http://localhost:3000
           SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
@@ -136,7 +178,9 @@ jobs:
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
           REPORT_DIR: maestro-report
-        run: npm run test:e2e:ci
+        # Runs every flow in .maestro/flows/ (no tag filter) — smoke + regression
+        # are the merge-blocking gate since we deploy main directly to prod.
+        run: npm run test:e2e
 
       - name: Publish Maestro JUnit report
         if: always()

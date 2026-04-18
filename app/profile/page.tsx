@@ -657,6 +657,15 @@ export default function ProfilePage() {
 
           {/* Credentials Section */}
           <section className="space-y-6 p-6 border border-slate-200 dark:border-slate-800 rounded-lg">
+            {profile === undefined ? (
+              <p
+                data-testid="credentials-loading"
+                className="text-sm text-slate-400"
+              >
+                Loading credentials…
+              </p>
+            ) : (
+              <>
               {/* Site Selector */}
               <div>
                 <label
@@ -872,6 +881,8 @@ export default function ProfilePage() {
                   <li>• You can clear your credentials at any time</li>
                 </ul>
               </div>
+              </>
+            )}
           </section>
 
           {/* Prize Pool Section - Feature Flagged */}

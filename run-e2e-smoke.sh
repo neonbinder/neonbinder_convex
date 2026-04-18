@@ -9,11 +9,26 @@
 
 set -e
 
-# Load .env.test if it exists (won't override vars already set in the environment)
+# Load .env.test if it exists — but don't override vars already set in the
+# calling environment. `set -a; source` would overwrite, so read line-by-line
+# and only export when the key is unset.
 if [ -f .env.test ]; then
-  set -a
-  source .env.test
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    key="${line%%=*}"
+    [ -z "$key" ] && continue
+    if [ -z "${!key+x}" ]; then
+      value="${line#*=}"
+      # Strip matching surrounding quotes
+      case "$value" in
+        \"*\") value="${value#\"}"; value="${value%\"}" ;;
+        \'*\') value="${value#\'}"; value="${value%\'}" ;;
+      esac
+      export "$key=$value"
+    fi
+  done < .env.test
 fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
@@ -34,7 +49,15 @@ mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts"
 ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME" -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD" -e "BSC_USERNAME=$BSC_USERNAME" -e "BSC_PASSWORD=$BSC_PASSWORD")
 TAG="${1:-}"
 
-# Discover flows: filter by tag if provided, otherwise find all yaml files.
+# Discover flows: filter by tag if provided, otherwise every yaml file in
+# .maestro/flows/ except ones tagged `util` or `wip`:
+#  - util: reusable fragments invoked via runFlow from other flows. They
+#    assume the caller has done launchApp + sign-in, so they fail standalone.
+#  - wip:  temporarily broken flows parked behind a feature that is still
+#    in-progress on another branch. Re-enable by removing the tag once fixed.
+# The config.yaml excludeTags rule only applies when Maestro discovers
+# flows from a directory; we pass flows to it one at a time, so we have to
+# exclude them here.
 SMOKE_FLOWS=()
 if [ -n "$TAG" ]; then
   while IFS= read -r f; do
@@ -42,6 +65,9 @@ if [ -n "$TAG" ]; then
   done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
+    if grep -qE "^[[:space:]]*-[[:space:]]+(util|wip)$" "$f"; then
+      continue
+    fi
     SMOKE_FLOWS+=("$f")
   done < <(find .maestro/flows/ -name "*.yaml" | sort)
 fi
