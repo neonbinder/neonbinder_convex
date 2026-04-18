@@ -1,0 +1,92 @@
+[ {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/dashboard",
+        "name" : "Sign In",
+        "tags" : [ "smoke", "auth" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523815340,
+    "duration" : 769,
+    "sequenceNumber" : 1
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Sign out",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523819858,
+    "duration" : 367,
+    "sequenceNumber" : 4
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Neon Binder",
+          "optional" : false
+        }
+      },
+      "timeout" : "45000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523816427,
+    "duration" : 3431,
+    "sequenceNumber" : 3
+  }
+}, {
+  "command" : {
+    "launchAppCommand" : {
+      "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/dashboard",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523816109,
+    "duration" : 317,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "APP_URL" : "http://localhost:3000",
+        "TEST_USERNAME" : "neontester_1776523800",
+        "SPORTLOTS_USERNAME" : "dev@neonbinder.io",
+        "SPORTLOTS_PASSWORD" : "temp3225",
+        "BSC_USERNAME" : "dev@neonbinder.io",
+        "BSC_PASSWORD" : "j*F4EPZek9yFbLfb",
+        "MAESTRO_FILENAME" : "sign-in",
+        "MAESTRO_DEVICE_UDID" : "chromium",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523815337,
+    "duration" : 3,
+    "sequenceNumber" : 0
+  }
+} ]

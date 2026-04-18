@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="set-selector_set-selector-smoke" tests="1" failures="1" time="67.0">
+    <testcase id="Set Selector Smoke Test" name="Set Selector Smoke Test" classname="Set Selector Smoke Test" time="67.0" status="ERROR">
+      <properties>
+        <property name="tags" value="regression, set-selector"/>
+      </properties>
+      <failure>Assertion is false: ".*Credentials saved successfully.*" is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

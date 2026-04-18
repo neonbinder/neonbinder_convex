@@ -1,0 +1,562 @@
+[ {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}",
+        "name" : "Collection Tracking Feature Page",
+        "tags" : [ "marketing" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523877621,
+    "duration" : 814,
+    "sequenceNumber" : 1
+  }
+}, {
+  "command" : {
+    "launchAppCommand" : {
+      "appId" : "${APP_URL || \"http://localhost:3000\"}",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523878435,
+    "duration" : 99,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "scrollUntilVisible" : {
+      "selector" : {
+        "textRegex" : ".*Collection Tracking.*",
+        "optional" : false
+      },
+      "direction" : "DOWN",
+      "scrollDuration" : "40",
+      "visibilityPercentage" : 100,
+      "timeout" : "20000",
+      "centerElement" : false,
+      "originalSpeedValue" : "40",
+      "optional" : false,
+      "visibilityPercentageNormalized" : 1.0
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523879527,
+    "duration" : 5146,
+    "sequenceNumber" : 4
+  }
+}, {
+  "command" : {
+    "tapOnElement" : {
+      "selector" : {
+        "textRegex" : ".*Collection Tracking.*",
+        "optional" : false
+      },
+      "retryIfNoChange" : false,
+      "waitUntilVisible" : false,
+      "longPress" : false,
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523884673,
+    "duration" : 2002,
+    "sequenceNumber" : 5
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Neon Binder",
+          "optional" : false
+        }
+      },
+      "timeout" : "30000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523878535,
+    "duration" : 992,
+    "sequenceNumber" : 3
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Snap & Upload",
+          "optional" : false
+        }
+      },
+      "timeout" : "15000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "FAILED",
+    "timestamp" : 1776523886675,
+    "duration" : 15710,
+    "error" : {
+      "message" : "Assertion is false: \"Snap & Upload\" is visible",
+      "hierarchyRoot" : {
+        "attributes" : {
+          "text" : "      \n\n",
+          "bounds" : "[0,-866][1035,2334]",
+          "url" : "http://localhost:3000/binder-tracking"
+        },
+        "children" : [ {
+          "attributes" : {
+            "bounds" : "[0,-866][1035,2334]",
+            "resource-id" : "root"
+          },
+          "children" : [ {
+            "attributes" : {
+              "bounds" : "[0,-866][1035,2334]"
+            },
+            "children" : [ {
+              "attributes" : {
+                "bounds" : "[0,0][1035,79]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[16,17][112,61]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "text" : "←",
+                    "bounds" : "[32,25][49,53]"
+                  }
+                }, {
+                  "attributes" : {
+                    "text" : "Back",
+                    "bounds" : "[57,27][96,51]"
+                  }
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[419,16][631,61]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "text" : "Neon Binder",
+                    "bounds" : "[467,16][631,61]"
+                  }
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[939,39][1019,39]"
+                }
+              } ]
+            }, {
+              "attributes" : {
+                "bounds" : "[0,-787][1035,2334]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[32,-755][1003,2302]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[32,73][1003,569]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[542,90][1003,552]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[542,90][1003,552]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[32,73][494,569]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "We Find Your Cards",
+                        "bounds" : "[32,73][494,113]"
+                      }
+                    }, {
+                      "attributes" : {
+                        "text" : "This is where the magic happens, my friend. Our insanely comprehensive card set database has got nearly every card ever printed. We'll automatically match your photos to official data — player names, card numbers, year, manufacturer, condition grades, the whole nine yards.",
+                        "bounds" : "[32,129][494,297]"
+                      }
+                    }, {
+                      "attributes" : {
+                        "bounds" : "[32,321][494,569]"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "bounds" : "[32,321][494,393]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "▸",
+                            "bounds" : "[32,321][42,349]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[54,321][494,393]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "text" : "Massive Database",
+                              "bounds" : "[54,321][494,345]"
+                            }
+                          }, {
+                            "attributes" : {
+                              "text" : "Thousands of sets spanning decades of card history. We got 'em all.",
+                              "bounds" : "[54,345][494,393]"
+                            }
+                          } ]
+                        } ]
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[32,409][494,481]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "▸",
+                            "bounds" : "[32,409][42,437]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[54,409][494,481]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "text" : "Instant Matching",
+                              "bounds" : "[54,409][494,433]"
+                            }
+                          }, {
+                            "attributes" : {
+                              "text" : "Automatic identification with zero effort from you. Sick, right?",
+                              "bounds" : "[54,433][494,481]"
+                            }
+                          } ]
+                        } ]
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[32,497][494,569]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "▸",
+                            "bounds" : "[32,497][42,525]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[54,497][494,569]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "text" : "Verify & Correct",
+                              "bounds" : "[54,497][494,521]"
+                            }
+                          }, {
+                            "attributes" : {
+                              "text" : "Double-check the matches and make manual adjustments if needed. Total control.",
+                              "bounds" : "[54,521][494,569]"
+                            }
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[32,649][1003,1229]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[32,708][494,1170]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[32,708][494,1170]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[542,649][1003,1229]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Build It Your Way",
+                        "bounds" : "[542,649][1003,689]"
+                      }
+                    }, {
+                      "attributes" : {
+                        "text" : "Here's the best part — organize your cards however YOU want. Use our verified manufacturer checklists for instant accuracy or create your own custom binders. By set, by player, by team, by year, by condition... organize them however your collecting heart desires. We'll let you create unlimited custom collections and arrange your cards exactly how you like it. No rules. Total freedom.",
+                        "bounds" : "[542,705][1003,957]"
+                      }
+                    } ]
+                  } ]
+                } ]
+              } ]
+            } ]
+          } ]
+        }, {
+          "attributes" : {
+            "bounds" : "[0,2334][1035,2334]",
+            "resource-id" : "clerk-components"
+          }
+        } ]
+      },
+      "debugMessage" : "Assertion '\"Snap & Upload\" is visible' failed. Check the UI hierarchy in debug artifacts to verify the element state and properties.\n\nPossible causes:\n- Element selector may be incorrect - check if there are similar elements with slightly different names/properties.\n- Element may be temporarily unavailable due to loading state\n- This could be a real regression that needs to be addressed",
+      "stackTrace" : [ {
+        "classLoaderName" : "app",
+        "methodName" : "assertConditionCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 433,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 353,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 274,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 190,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 245,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runTestSuite",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 98,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 619,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 502,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$runShardSuite$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "processNextEvent",
+        "fileName" : "EventLoop.common.kt",
+        "lineNumber" : 277,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.EventLoopImplBase"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "joinBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 95,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BlockingCoroutine"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 69,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 48,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite$lambda$10",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 501,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 132,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession$default",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 66,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 476,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 435,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$handleSessions$1$results$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "LimitedDispatcher.kt",
+        "lineNumber" : 111,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.internal.LimitedDispatcher$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "Tasks.kt",
+        "lineNumber" : 99,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.TaskImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSafely",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 585,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeTask",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 802,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runWorker",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 706,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 693,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      } ],
+      "localizedMessage" : "Assertion is false: \"Snap & Upload\" is visible"
+    },
+    "sequenceNumber" : 6
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "APP_URL" : "http://localhost:3000",
+        "TEST_USERNAME" : "neontester_1776523800",
+        "SPORTLOTS_USERNAME" : "dev@neonbinder.io",
+        "SPORTLOTS_PASSWORD" : "temp3225",
+        "BSC_USERNAME" : "dev@neonbinder.io",
+        "BSC_PASSWORD" : "j*F4EPZek9yFbLfb",
+        "MAESTRO_FILENAME" : "collection-tracking",
+        "MAESTRO_DEVICE_UDID" : "chromium",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523877617,
+    "duration" : 4,
+    "sequenceNumber" : 0
+  }
+} ]

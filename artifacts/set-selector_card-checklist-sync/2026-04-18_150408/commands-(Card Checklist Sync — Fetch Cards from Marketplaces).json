@@ -1,0 +1,1301 @@
+[ {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/profile",
+        "name" : "Setup BSC Credentials",
+        "tags" : [ "util" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524652852,
+    "duration" : 4,
+    "sequenceNumber" : 6
+  }
+}, {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/set-selector",
+        "name" : "Card Checklist Sync — Fetch Cards from Marketplaces",
+        "tags" : [ "set-selector", "regression" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524650131,
+    "duration" : 796,
+    "sequenceNumber" : 1
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "BSC_USERNAME" : "${BSC_USERNAME}",
+        "BSC_PASSWORD" : "${BSC_PASSWORD}"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524652843,
+    "duration" : 8,
+    "sequenceNumber" : 5
+  }
+}, {
+  "command" : {
+    "runFlowCommand" : {
+      "commands" : [ {
+        "defineVariablesCommand" : {
+          "env" : {
+            "BSC_USERNAME" : "${BSC_USERNAME}",
+            "BSC_PASSWORD" : "${BSC_PASSWORD}"
+          },
+          "optional" : false
+        }
+      }, {
+        "applyConfigurationCommand" : {
+          "config" : {
+            "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/profile",
+            "name" : "Setup BSC Credentials",
+            "tags" : [ "util" ]
+          },
+          "optional" : false
+        }
+      }, {
+        "scrollUntilVisible" : {
+          "selector" : {
+            "textRegex" : ".*Select Platform.*",
+            "optional" : false
+          },
+          "direction" : "DOWN",
+          "scrollDuration" : "40",
+          "visibilityPercentage" : 100,
+          "timeout" : "20000",
+          "centerElement" : false,
+          "originalSpeedValue" : "40",
+          "optional" : false,
+          "visibilityPercentageNormalized" : 1.0
+        }
+      }, {
+        "assertConditionCommand" : {
+          "condition" : {
+            "visible" : {
+              "textRegex" : ".*BuySportsCards.*",
+              "optional" : false
+            }
+          },
+          "optional" : false
+        }
+      }, {
+        "runFlowCommand" : {
+          "commands" : [ {
+            "scrollUntilVisible" : {
+              "selector" : {
+                "textRegex" : "Clear Credentials",
+                "optional" : false
+              },
+              "direction" : "DOWN",
+              "scrollDuration" : "40",
+              "visibilityPercentage" : 100,
+              "timeout" : "10000",
+              "centerElement" : false,
+              "originalSpeedValue" : "40",
+              "optional" : false,
+              "visibilityPercentageNormalized" : 1.0
+            }
+          }, {
+            "tapOnElement" : {
+              "selector" : {
+                "textRegex" : "Clear Credentials",
+                "optional" : false
+              },
+              "retryIfNoChange" : false,
+              "waitUntilVisible" : false,
+              "longPress" : false,
+              "optional" : false
+            }
+          }, {
+            "assertConditionCommand" : {
+              "condition" : {
+                "visible" : {
+                  "textRegex" : ".*Yes, Clear.*",
+                  "optional" : false
+                }
+              },
+              "timeout" : "5000",
+              "optional" : false
+            }
+          }, {
+            "tapOnElement" : {
+              "selector" : {
+                "textRegex" : "Yes, Clear",
+                "optional" : false
+              },
+              "retryIfNoChange" : false,
+              "waitUntilVisible" : false,
+              "longPress" : false,
+              "optional" : false
+            }
+          }, {
+            "assertConditionCommand" : {
+              "condition" : {
+                "visible" : {
+                  "textRegex" : ".*Credentials cleared.*",
+                  "optional" : false
+                }
+              },
+              "timeout" : "15000",
+              "optional" : false
+            }
+          } ],
+          "condition" : {
+            "visible" : {
+              "textRegex" : ".*Credentials saved.*",
+              "optional" : false
+            }
+          },
+          "optional" : false
+        }
+      }, {
+        "scrollUntilVisible" : {
+          "selector" : {
+            "textRegex" : ".*BuySportsCards Username.*",
+            "optional" : false
+          },
+          "direction" : "DOWN",
+          "scrollDuration" : "40",
+          "visibilityPercentage" : 100,
+          "timeout" : "10000",
+          "centerElement" : false,
+          "originalSpeedValue" : "40",
+          "optional" : false,
+          "visibilityPercentageNormalized" : 1.0
+        }
+      }, {
+        "tapOnElement" : {
+          "selector" : {
+            "idRegex" : "username",
+            "optional" : false
+          },
+          "retryIfNoChange" : false,
+          "waitUntilVisible" : false,
+          "longPress" : false,
+          "optional" : false
+        }
+      }, {
+        "inputTextCommand" : {
+          "text" : "${BSC_USERNAME}",
+          "optional" : false
+        }
+      }, {
+        "tapOnElement" : {
+          "selector" : {
+            "idRegex" : "password",
+            "optional" : false
+          },
+          "retryIfNoChange" : false,
+          "waitUntilVisible" : false,
+          "longPress" : false,
+          "optional" : false
+        }
+      }, {
+        "inputTextCommand" : {
+          "text" : "${BSC_PASSWORD}",
+          "optional" : false
+        }
+      }, {
+        "scrollUntilVisible" : {
+          "selector" : {
+            "textRegex" : "Save Credentials",
+            "optional" : false
+          },
+          "direction" : "DOWN",
+          "scrollDuration" : "40",
+          "visibilityPercentage" : 100,
+          "timeout" : "20000",
+          "centerElement" : false,
+          "originalSpeedValue" : "40",
+          "optional" : false,
+          "visibilityPercentageNormalized" : 1.0
+        }
+      }, {
+        "tapOnElement" : {
+          "selector" : {
+            "textRegex" : "Save Credentials",
+            "optional" : false
+          },
+          "retryIfNoChange" : false,
+          "waitUntilVisible" : false,
+          "longPress" : false,
+          "optional" : false
+        }
+      }, {
+        "assertConditionCommand" : {
+          "condition" : {
+            "visible" : {
+              "textRegex" : ".*Credentials saved successfully.*",
+              "optional" : false
+            }
+          },
+          "timeout" : "30000",
+          "optional" : false
+        }
+      } ],
+      "sourceDescription" : "../profile/setup-bsc-credentials.yaml",
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/profile",
+        "name" : "Setup BSC Credentials",
+        "tags" : [ "util" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "FAILED",
+    "timestamp" : 1776524652838,
+    "duration" : 22296,
+    "error" : {
+      "message" : "No visible element found: \".*Select Platform.*\"",
+      "hierarchyRoot" : {
+        "attributes" : {
+          "text" : "      \n\n",
+          "bounds" : "[0,0][1050,865]",
+          "url" : "http://localhost:3000/set-selector"
+        },
+        "children" : [ {
+          "attributes" : {
+            "bounds" : "[0,0][1050,865]",
+            "resource-id" : "root"
+          },
+          "children" : [ {
+            "attributes" : {
+              "bounds" : "[0,0][1050,865]"
+            },
+            "children" : [ {
+              "attributes" : {
+                "bounds" : "[0,0][1050,865]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[0,0][1050,79]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[16,16][228,61]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "text" : "Neon Binder",
+                      "bounds" : "[64,16][228,61]"
+                    }
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[912,23][1034,55]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[912,25][940,53]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[912,25][940,53]",
+                        "resource-id" : "Open user menu"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "bounds" : "[912,25][940,53]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "bounds" : "[912,25][940,53]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[877,25][912,53]"
+                            }
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "text" : "Sign out",
+                      "bounds" : "[952,23][1034,55]"
+                    }
+                  } ]
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[0,79][1050,865]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[0,79][1050,865]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[0,79][880,591]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[24,103][856,567]"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "text" : "Set Selector",
+                          "bounds" : "[48,127][832,163]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "text" : "Build set parameters using marketplace APIs with searchable dropdowns",
+                          "bounds" : "[48,195][832,219]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[48,251][832,543]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "Set Selector",
+                            "bounds" : "[72,275][808,311]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[72,343][808,519]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[72,343][522,519]"
+                            },
+                            "children" : [ {
+                              "attributes" : {
+                                "bounds" : "[72,343][522,471]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "bounds" : "[96,367][498,395]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "Sports",
+                                    "bounds" : "[96,367][170,395]"
+                                  }
+                                } ]
+                              }, {
+                                "attributes" : {
+                                  "bounds" : "[96,411][498,447]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "No sports available. Sync from marketplaces to populate.",
+                                    "bounds" : "[96,411][498,447]"
+                                  }
+                                } ]
+                              } ]
+                            }, {
+                              "attributes" : {
+                                "bounds" : "[72,487][522,519]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "text" : "Sync Sports",
+                                  "bounds" : "[72,487][179,519]"
+                                }
+                              }, {
+                                "attributes" : {
+                                  "text" : "+ Custom",
+                                  "bounds" : "[187,487][281,519]"
+                                }
+                              } ]
+                            } ]
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[890,277][1050,589]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[890,277][1050,333]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Dashboard",
+                        "bounds" : "[942,293][1029,317]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,341][1050,397]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Collection",
+                        "bounds" : "[942,357][1021,381]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,405][1050,461]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Inventory",
+                        "bounds" : "[942,421][1018,445]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,469][1050,525]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "QR Code",
+                        "bounds" : "[942,485][1012,509]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,533][1050,589]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Profile",
+                        "bounds" : "[942,549][992,573]"
+                      }
+                    } ]
+                  } ]
+                } ]
+              } ]
+            } ]
+          } ]
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : "clerk-components"
+          }
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : ":r3:"
+          }
+        } ]
+      },
+      "debugMessage" : "Could not find a visible element matching selector: \".*Select Platform.*\"\nTip: Try adjusting the following settings to improve detection:\n- `timeout`: current = 20000ms → Increase if you need more time to find the element\n- `speed`: current = 40 (0-100 scale) → Increase for faster scrolling if element is far away\n- `waitToSettleTimeoutMs`: current = Not defined → Set this value (e.g., 500ms) if your UI updates frequently between scrolls\n- `visibilityPercentage`: current = 100% → Lower this value if you want to detect partially visible elements\n- `centerElement`: current = false → Enable if you want the element to be centered after finding it\n",
+      "stackTrace" : [ {
+        "classLoaderName" : "app",
+        "methodName" : "scrollUntilVisible",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 779,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 348,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeSubflowCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 995,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSubFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 1052,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlowCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 894,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 369,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 274,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 190,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 245,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runTestSuite",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 98,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 619,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 502,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$runShardSuite$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "processNextEvent",
+        "fileName" : "EventLoop.common.kt",
+        "lineNumber" : 277,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.EventLoopImplBase"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "joinBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 95,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BlockingCoroutine"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 69,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 48,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite$lambda$10",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 501,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 132,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession$default",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 66,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 476,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 435,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$handleSessions$1$results$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "LimitedDispatcher.kt",
+        "lineNumber" : 111,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.internal.LimitedDispatcher$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "Tasks.kt",
+        "lineNumber" : 99,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.TaskImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSafely",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 585,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeTask",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 802,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runWorker",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 706,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 693,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      } ],
+      "localizedMessage" : "No visible element found: \".*Select Platform.*\""
+    },
+    "sequenceNumber" : 4
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Set Selector",
+          "optional" : false
+        }
+      },
+      "timeout" : "45000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524651116,
+    "duration" : 1721,
+    "sequenceNumber" : 3
+  }
+}, {
+  "command" : {
+    "launchAppCommand" : {
+      "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/set-selector",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524650928,
+    "duration" : 188,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "APP_URL" : "http://localhost:3000",
+        "TEST_USERNAME" : "neontester_1776523800",
+        "SPORTLOTS_USERNAME" : "dev@neonbinder.io",
+        "SPORTLOTS_PASSWORD" : "temp3225",
+        "BSC_USERNAME" : "dev@neonbinder.io",
+        "BSC_PASSWORD" : "j*F4EPZek9yFbLfb",
+        "MAESTRO_FILENAME" : "card-checklist-sync",
+        "MAESTRO_DEVICE_UDID" : "chromium",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524650127,
+    "duration" : 3,
+    "sequenceNumber" : 0
+  }
+}, {
+  "command" : {
+    "scrollUntilVisible" : {
+      "selector" : {
+        "textRegex" : ".*Select Platform.*",
+        "optional" : false
+      },
+      "direction" : "DOWN",
+      "scrollDuration" : "40",
+      "visibilityPercentage" : 100,
+      "timeout" : "20000",
+      "centerElement" : false,
+      "originalSpeedValue" : "40",
+      "optional" : false,
+      "visibilityPercentageNormalized" : 1.0
+    }
+  },
+  "metadata" : {
+    "status" : "FAILED",
+    "timestamp" : 1776524652856,
+    "duration" : 22222,
+    "error" : {
+      "message" : "No visible element found: \".*Select Platform.*\"",
+      "hierarchyRoot" : {
+        "attributes" : {
+          "text" : "      \n\n",
+          "bounds" : "[0,0][1050,865]",
+          "url" : "http://localhost:3000/set-selector"
+        },
+        "children" : [ {
+          "attributes" : {
+            "bounds" : "[0,0][1050,865]",
+            "resource-id" : "root"
+          },
+          "children" : [ {
+            "attributes" : {
+              "bounds" : "[0,0][1050,865]"
+            },
+            "children" : [ {
+              "attributes" : {
+                "bounds" : "[0,0][1050,865]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[0,0][1050,79]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[16,16][228,61]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "text" : "Neon Binder",
+                      "bounds" : "[64,16][228,61]"
+                    }
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[912,23][1034,55]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[912,25][940,53]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[912,25][940,53]",
+                        "resource-id" : "Open user menu"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "bounds" : "[912,25][940,53]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "bounds" : "[912,25][940,53]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[877,25][912,53]"
+                            }
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "text" : "Sign out",
+                      "bounds" : "[952,23][1034,55]"
+                    }
+                  } ]
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[0,79][1050,865]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[0,79][1050,865]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[0,79][880,591]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[24,103][856,567]"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "text" : "Set Selector",
+                          "bounds" : "[48,127][832,163]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "text" : "Build set parameters using marketplace APIs with searchable dropdowns",
+                          "bounds" : "[48,195][832,219]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[48,251][832,543]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "Set Selector",
+                            "bounds" : "[72,275][808,311]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[72,343][808,519]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[72,343][522,519]"
+                            },
+                            "children" : [ {
+                              "attributes" : {
+                                "bounds" : "[72,343][522,471]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "bounds" : "[96,367][498,395]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "Sports",
+                                    "bounds" : "[96,367][170,395]"
+                                  }
+                                } ]
+                              }, {
+                                "attributes" : {
+                                  "bounds" : "[96,411][498,447]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "No sports available. Sync from marketplaces to populate.",
+                                    "bounds" : "[96,411][498,447]"
+                                  }
+                                } ]
+                              } ]
+                            }, {
+                              "attributes" : {
+                                "bounds" : "[72,487][522,519]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "text" : "Sync Sports",
+                                  "bounds" : "[72,487][179,519]"
+                                }
+                              }, {
+                                "attributes" : {
+                                  "text" : "+ Custom",
+                                  "bounds" : "[187,487][281,519]"
+                                }
+                              } ]
+                            } ]
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[890,277][1050,589]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[890,277][1050,333]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Dashboard",
+                        "bounds" : "[942,293][1029,317]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,341][1050,397]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Collection",
+                        "bounds" : "[942,357][1021,381]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,405][1050,461]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Inventory",
+                        "bounds" : "[942,421][1018,445]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,469][1050,525]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "QR Code",
+                        "bounds" : "[942,485][1012,509]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,533][1050,589]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Profile",
+                        "bounds" : "[942,549][992,573]"
+                      }
+                    } ]
+                  } ]
+                } ]
+              } ]
+            } ]
+          } ]
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : "clerk-components"
+          }
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : ":r3:"
+          }
+        } ]
+      },
+      "debugMessage" : "Could not find a visible element matching selector: \".*Select Platform.*\"\nTip: Try adjusting the following settings to improve detection:\n- `timeout`: current = 20000ms → Increase if you need more time to find the element\n- `speed`: current = 40 (0-100 scale) → Increase for faster scrolling if element is far away\n- `waitToSettleTimeoutMs`: current = Not defined → Set this value (e.g., 500ms) if your UI updates frequently between scrolls\n- `visibilityPercentage`: current = 100% → Lower this value if you want to detect partially visible elements\n- `centerElement`: current = false → Enable if you want the element to be centered after finding it\n",
+      "stackTrace" : [ {
+        "classLoaderName" : "app",
+        "methodName" : "scrollUntilVisible",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 779,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 348,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeSubflowCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 995,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSubFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 1052,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlowCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 894,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 369,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 274,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 190,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 245,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runTestSuite",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 98,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 619,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 502,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$runShardSuite$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "processNextEvent",
+        "fileName" : "EventLoop.common.kt",
+        "lineNumber" : 277,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.EventLoopImplBase"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "joinBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 95,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BlockingCoroutine"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 69,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 48,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite$lambda$10",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 501,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 132,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession$default",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 66,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 476,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 435,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$handleSessions$1$results$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "LimitedDispatcher.kt",
+        "lineNumber" : 111,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.internal.LimitedDispatcher$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "Tasks.kt",
+        "lineNumber" : 99,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.TaskImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSafely",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 585,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeTask",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 802,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runWorker",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 706,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 693,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      } ],
+      "localizedMessage" : "No visible element found: \".*Select Platform.*\""
+    },
+    "sequenceNumber" : 7
+  }
+} ]

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="home_managing-inventory" tests="1" failures="1" time="26.0">
+    <testcase id="Managing Inventory Feature Page" name="Managing Inventory Feature Page" classname="Managing Inventory Feature Page" time="26.0" status="ERROR">
+      <properties>
+        <property name="tags" value="marketing, home"/>
+      </properties>
+      <failure>Assertion is false: "One Upload, Multiple Platforms" is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

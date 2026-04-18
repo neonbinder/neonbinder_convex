@@ -1,0 +1,111 @@
+[ {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Get Started",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523832211,
+    "duration" : 357,
+    "sequenceNumber" : 5
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "APP_URL" : "http://localhost:3000",
+        "TEST_USERNAME" : "neontester_1776523800",
+        "SPORTLOTS_USERNAME" : "dev@neonbinder.io",
+        "SPORTLOTS_PASSWORD" : "temp3225",
+        "BSC_USERNAME" : "dev@neonbinder.io",
+        "BSC_PASSWORD" : "j*F4EPZek9yFbLfb",
+        "MAESTRO_FILENAME" : "sign-out",
+        "MAESTRO_DEVICE_UDID" : "chromium",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523825738,
+    "duration" : 3,
+    "sequenceNumber" : 0
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Neon Binder",
+          "optional" : false
+        }
+      },
+      "timeout" : "15000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523826689,
+    "duration" : 2815,
+    "sequenceNumber" : 3
+  }
+}, {
+  "command" : {
+    "tapOnElement" : {
+      "selector" : {
+        "textRegex" : "Sign out",
+        "optional" : false
+      },
+      "retryIfNoChange" : false,
+      "waitUntilVisible" : false,
+      "longPress" : false,
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523829505,
+    "duration" : 2706,
+    "sequenceNumber" : 4
+  }
+}, {
+  "command" : {
+    "launchAppCommand" : {
+      "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/dashboard",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523826519,
+    "duration" : 170,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/dashboard",
+        "name" : "Sign Out",
+        "tags" : [ "auth" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776523825741,
+    "duration" : 777,
+    "sequenceNumber" : 1
+  }
+} ]

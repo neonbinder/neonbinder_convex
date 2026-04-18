@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="home_collection-tracking" tests="1" failures="1" time="25.0">
+    <testcase id="Collection Tracking Feature Page" name="Collection Tracking Feature Page" classname="Collection Tracking Feature Page" time="25.0" status="ERROR">
+      <properties>
+        <property name="tags" value="marketing"/>
+      </properties>
+      <failure>Assertion is false: "Snap &amp; Upload" is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

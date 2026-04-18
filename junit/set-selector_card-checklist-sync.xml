@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="set-selector_card-checklist-sync" tests="1" failures="1" time="26.0">
+    <testcase id="Card Checklist Sync — Fetch Cards from Marketplaces" name="Card Checklist Sync — Fetch Cards from Marketplaces" classname="Card Checklist Sync — Fetch Cards from Marketplaces" time="26.0" status="ERROR">
+      <properties>
+        <property name="tags" value="set-selector, regression"/>
+      </properties>
+      <failure>No visible element found: ".*Select Platform.*"</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

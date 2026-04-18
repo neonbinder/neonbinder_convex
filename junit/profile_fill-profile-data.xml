@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="profile_fill-profile-data" tests="1" failures="0" time="262.0">
+    <testcase id="Fill Profile Data" name="Fill Profile Data" classname="Fill Profile Data" time="262.0" status="SUCCESS">
+      <properties>
+        <property name="tags" value="profile"/>
+      </properties>
+    </testcase>
+  </testsuite>
+</testsuites>

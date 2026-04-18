@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="profile_view-profile" tests="1" failures="0" time="5.0">
+    <testcase id="View Profile" name="View Profile" classname="View Profile" time="5.0" status="SUCCESS">
+      <properties>
+        <property name="tags" value="smoke, profile"/>
+      </properties>
+    </testcase>
+  </testsuite>
+</testsuites>

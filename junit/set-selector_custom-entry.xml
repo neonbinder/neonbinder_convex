@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="set-selector_custom-entry" tests="1" failures="1" time="34.0">
+    <testcase id="Set Selector Custom Entry — Full Hierarchy via Manual Input" name="Set Selector Custom Entry — Full Hierarchy via Manual Input" classname="Set Selector Custom Entry — Full Hierarchy via Manual Input" time="34.0" status="ERROR">
+      <properties>
+        <property name="tags" value="set-selector, regression"/>
+      </properties>
+      <failure>Assertion is false: "1999" is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

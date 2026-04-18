@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="dashboard_view-collection" tests="1" failures="0" time="4.0">
+    <testcase id="View Collection (Dashboard)" name="View Collection (Dashboard)" classname="View Collection (Dashboard)" time="4.0" status="SUCCESS">
+      <properties>
+        <property name="tags" value="smoke, dashboard"/>
+      </properties>
+    </testcase>
+  </testsuite>
+</testsuites>

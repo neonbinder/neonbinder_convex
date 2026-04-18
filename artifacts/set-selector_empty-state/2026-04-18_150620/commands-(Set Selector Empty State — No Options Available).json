@@ -1,0 +1,1201 @@
+[ {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Set Selector",
+          "optional" : false
+        }
+      },
+      "timeout" : "45000",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524784092,
+    "duration" : 3521,
+    "sequenceNumber" : 3
+  }
+}, {
+  "command" : {
+    "launchAppCommand" : {
+      "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/set-selector",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524783976,
+    "duration" : 115,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Sync Sports",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524787975,
+    "duration" : 354,
+    "sequenceNumber" : 5
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : ".*[Nn]o sports available.*",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "FAILED",
+    "timestamp" : 1776524789743,
+    "duration" : 12025,
+    "error" : {
+      "message" : "Assertion is false: \".*[Nn]o sports available.*\" is visible",
+      "hierarchyRoot" : {
+        "attributes" : {
+          "text" : "      \n\n",
+          "bounds" : "[0,0][1050,865]",
+          "url" : "http://localhost:3000/set-selector"
+        },
+        "children" : [ {
+          "attributes" : {
+            "bounds" : "[0,0][1050,865]",
+            "resource-id" : "root"
+          },
+          "children" : [ {
+            "attributes" : {
+              "bounds" : "[0,0][1050,865]"
+            },
+            "children" : [ {
+              "attributes" : {
+                "bounds" : "[0,0][1050,865]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[0,0][1050,79]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[16,16][228,61]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "text" : "Neon Binder",
+                      "bounds" : "[64,16][228,61]"
+                    }
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[912,23][1034,55]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[912,25][940,53]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[912,25][940,53]",
+                        "resource-id" : "Open user menu"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "bounds" : "[912,25][940,53]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "bounds" : "[912,25][940,53]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[877,25][912,53]"
+                            }
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "text" : "Sign out",
+                      "bounds" : "[952,23][1034,55]"
+                    }
+                  } ]
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[0,79][1050,865]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[0,79][1050,865]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[0,79][880,663]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[24,103][856,639]"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "text" : "Set Selector",
+                          "bounds" : "[48,127][832,163]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "text" : "Build set parameters using marketplace APIs with searchable dropdowns",
+                          "bounds" : "[48,195][832,219]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[48,251][832,615]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "Set Selector",
+                            "bounds" : "[72,275][808,311]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[72,343][808,591]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[72,343][439,591]"
+                            },
+                            "children" : [ {
+                              "attributes" : {
+                                "bounds" : "[72,343][439,543]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "bounds" : "[96,367][415,395]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "Sports",
+                                    "bounds" : "[96,367][170,395]"
+                                  }
+                                } ]
+                              }, {
+                                "attributes" : {
+                                  "bounds" : "[96,411][415,519]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "bounds" : "[96,411][415,461]"
+                                  },
+                                  "children" : [ {
+                                    "attributes" : {
+                                      "bounds" : "[109,424][402,448]"
+                                    },
+                                    "children" : [ {
+                                      "attributes" : {
+                                        "text" : "1999",
+                                        "bounds" : "[109,424][154,448]"
+                                      }
+                                    }, {
+                                      "attributes" : {
+                                        "text" : "Custom",
+                                        "bounds" : "[162,425][222,447]"
+                                      }
+                                    } ]
+                                  } ]
+                                }, {
+                                  "attributes" : {
+                                    "bounds" : "[96,469][415,519]"
+                                  },
+                                  "children" : [ {
+                                    "attributes" : {
+                                      "bounds" : "[109,482][402,506]"
+                                    },
+                                    "children" : [ {
+                                      "attributes" : {
+                                        "text" : "TestSport",
+                                        "bounds" : "[109,482][195,506]"
+                                      }
+                                    }, {
+                                      "attributes" : {
+                                        "text" : "Custom",
+                                        "bounds" : "[203,483][263,505]"
+                                      }
+                                    } ]
+                                  } ]
+                                } ]
+                              } ]
+                            }, {
+                              "attributes" : {
+                                "bounds" : "[72,559][439,591]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "text" : "Sync Sports",
+                                  "bounds" : "[72,559][179,591]"
+                                }
+                              }, {
+                                "attributes" : {
+                                  "text" : "+ Custom",
+                                  "bounds" : "[187,559][281,591]"
+                                }
+                              } ]
+                            } ]
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[890,277][1050,589]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[890,277][1050,333]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Dashboard",
+                        "bounds" : "[942,293][1029,317]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,341][1050,397]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Collection",
+                        "bounds" : "[942,357][1021,381]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,405][1050,461]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Inventory",
+                        "bounds" : "[942,421][1018,445]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,469][1050,525]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "QR Code",
+                        "bounds" : "[942,485][1012,509]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,533][1050,589]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Profile",
+                        "bounds" : "[942,549][992,573]"
+                      }
+                    } ]
+                  } ]
+                } ]
+              } ]
+            } ]
+          } ]
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : "clerk-components"
+          }
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : ":r3:"
+          }
+        } ]
+      },
+      "debugMessage" : "Assertion '\".*[Nn]o sports available.*\" is visible' failed. Check the UI hierarchy in debug artifacts to verify the element state and properties.\n\nPossible causes:\n- Element selector may be incorrect - check if there are similar elements with slightly different names/properties.\n- Element may be temporarily unavailable due to loading state\n- This could be a real regression that needs to be addressed",
+      "stackTrace" : [ {
+        "classLoaderName" : "app",
+        "methodName" : "assertConditionCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 433,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 353,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeSubflowCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 995,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSubFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 1052,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlowCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 894,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 369,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 274,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 190,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 245,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runTestSuite",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 98,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 619,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 502,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$runShardSuite$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "processNextEvent",
+        "fileName" : "EventLoop.common.kt",
+        "lineNumber" : 277,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.EventLoopImplBase"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "joinBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 95,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BlockingCoroutine"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 69,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 48,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite$lambda$10",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 501,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 132,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession$default",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 66,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 476,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 435,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$handleSessions$1$results$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "LimitedDispatcher.kt",
+        "lineNumber" : 111,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.internal.LimitedDispatcher$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "Tasks.kt",
+        "lineNumber" : 99,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.TaskImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSafely",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 585,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeTask",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 802,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runWorker",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 706,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 693,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      } ],
+      "localizedMessage" : "Assertion is false: \".*[Nn]o sports available.*\" is visible"
+    },
+    "sequenceNumber" : 8
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "APP_URL" : "http://localhost:3000",
+        "TEST_USERNAME" : "neontester_1776523800",
+        "SPORTLOTS_USERNAME" : "dev@neonbinder.io",
+        "SPORTLOTS_PASSWORD" : "temp3225",
+        "BSC_USERNAME" : "dev@neonbinder.io",
+        "BSC_PASSWORD" : "j*F4EPZek9yFbLfb",
+        "MAESTRO_FILENAME" : "empty-state",
+        "MAESTRO_DEVICE_UDID" : "chromium",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524783054,
+    "duration" : 4,
+    "sequenceNumber" : 0
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "+ Custom",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524788330,
+    "duration" : 351,
+    "sequenceNumber" : 6
+  }
+}, {
+  "command" : {
+    "runFlowCommand" : {
+      "commands" : [ {
+        "assertConditionCommand" : {
+          "condition" : {
+            "visible" : {
+              "textRegex" : ".*[Nn]o sports available.*",
+              "optional" : false
+            }
+          },
+          "optional" : false
+        }
+      } ],
+      "condition" : {
+        "notVisible" : {
+          "textRegex" : "BSC",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "FAILED",
+    "timestamp" : 1776524788681,
+    "duration" : 13133,
+    "error" : {
+      "message" : "Assertion is false: \".*[Nn]o sports available.*\" is visible",
+      "hierarchyRoot" : {
+        "attributes" : {
+          "text" : "      \n\n",
+          "bounds" : "[0,0][1050,865]",
+          "url" : "http://localhost:3000/set-selector"
+        },
+        "children" : [ {
+          "attributes" : {
+            "bounds" : "[0,0][1050,865]",
+            "resource-id" : "root"
+          },
+          "children" : [ {
+            "attributes" : {
+              "bounds" : "[0,0][1050,865]"
+            },
+            "children" : [ {
+              "attributes" : {
+                "bounds" : "[0,0][1050,865]"
+              },
+              "children" : [ {
+                "attributes" : {
+                  "bounds" : "[0,0][1050,79]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[16,16][228,61]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "text" : "Neon Binder",
+                      "bounds" : "[64,16][228,61]"
+                    }
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[912,23][1034,55]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[912,25][940,53]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[912,25][940,53]",
+                        "resource-id" : "Open user menu"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "bounds" : "[912,25][940,53]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "bounds" : "[912,25][940,53]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[877,25][912,53]"
+                            }
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "text" : "Sign out",
+                      "bounds" : "[952,23][1034,55]"
+                    }
+                  } ]
+                } ]
+              }, {
+                "attributes" : {
+                  "bounds" : "[0,79][1050,865]"
+                },
+                "children" : [ {
+                  "attributes" : {
+                    "bounds" : "[0,79][1050,865]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[0,79][880,663]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "bounds" : "[24,103][856,639]"
+                      },
+                      "children" : [ {
+                        "attributes" : {
+                          "text" : "Set Selector",
+                          "bounds" : "[48,127][832,163]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "text" : "Build set parameters using marketplace APIs with searchable dropdowns",
+                          "bounds" : "[48,195][832,219]"
+                        }
+                      }, {
+                        "attributes" : {
+                          "bounds" : "[48,251][832,615]"
+                        },
+                        "children" : [ {
+                          "attributes" : {
+                            "text" : "Set Selector",
+                            "bounds" : "[72,275][808,311]"
+                          }
+                        }, {
+                          "attributes" : {
+                            "bounds" : "[72,343][808,591]"
+                          },
+                          "children" : [ {
+                            "attributes" : {
+                              "bounds" : "[72,343][439,591]"
+                            },
+                            "children" : [ {
+                              "attributes" : {
+                                "bounds" : "[72,343][439,543]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "bounds" : "[96,367][415,395]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "text" : "Sports",
+                                    "bounds" : "[96,367][170,395]"
+                                  }
+                                } ]
+                              }, {
+                                "attributes" : {
+                                  "bounds" : "[96,411][415,519]"
+                                },
+                                "children" : [ {
+                                  "attributes" : {
+                                    "bounds" : "[96,411][415,461]"
+                                  },
+                                  "children" : [ {
+                                    "attributes" : {
+                                      "bounds" : "[109,424][402,448]"
+                                    },
+                                    "children" : [ {
+                                      "attributes" : {
+                                        "text" : "1999",
+                                        "bounds" : "[109,424][154,448]"
+                                      }
+                                    }, {
+                                      "attributes" : {
+                                        "text" : "Custom",
+                                        "bounds" : "[162,425][222,447]"
+                                      }
+                                    } ]
+                                  } ]
+                                }, {
+                                  "attributes" : {
+                                    "bounds" : "[96,469][415,519]"
+                                  },
+                                  "children" : [ {
+                                    "attributes" : {
+                                      "bounds" : "[109,482][402,506]"
+                                    },
+                                    "children" : [ {
+                                      "attributes" : {
+                                        "text" : "TestSport",
+                                        "bounds" : "[109,482][195,506]"
+                                      }
+                                    }, {
+                                      "attributes" : {
+                                        "text" : "Custom",
+                                        "bounds" : "[203,483][263,505]"
+                                      }
+                                    } ]
+                                  } ]
+                                } ]
+                              } ]
+                            }, {
+                              "attributes" : {
+                                "bounds" : "[72,559][439,591]"
+                              },
+                              "children" : [ {
+                                "attributes" : {
+                                  "text" : "Sync Sports",
+                                  "bounds" : "[72,559][179,591]"
+                                }
+                              }, {
+                                "attributes" : {
+                                  "text" : "+ Custom",
+                                  "bounds" : "[187,559][281,591]"
+                                }
+                              } ]
+                            } ]
+                          } ]
+                        } ]
+                      } ]
+                    } ]
+                  } ]
+                }, {
+                  "attributes" : {
+                    "bounds" : "[890,277][1050,589]"
+                  },
+                  "children" : [ {
+                    "attributes" : {
+                      "bounds" : "[890,277][1050,333]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Dashboard",
+                        "bounds" : "[942,293][1029,317]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,341][1050,397]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Collection",
+                        "bounds" : "[942,357][1021,381]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,405][1050,461]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Inventory",
+                        "bounds" : "[942,421][1018,445]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,469][1050,525]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "QR Code",
+                        "bounds" : "[942,485][1012,509]"
+                      }
+                    } ]
+                  }, {
+                    "attributes" : {
+                      "bounds" : "[890,533][1050,589]"
+                    },
+                    "children" : [ {
+                      "attributes" : {
+                        "text" : "Profile",
+                        "bounds" : "[942,549][992,573]"
+                      }
+                    } ]
+                  } ]
+                } ]
+              } ]
+            } ]
+          } ]
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : "clerk-components"
+          }
+        }, {
+          "attributes" : {
+            "bounds" : "[0,865][1050,865]",
+            "resource-id" : ":r3:"
+          }
+        } ]
+      },
+      "debugMessage" : "Assertion '\".*[Nn]o sports available.*\" is visible' failed. Check the UI hierarchy in debug artifacts to verify the element state and properties.\n\nPossible causes:\n- Element selector may be incorrect - check if there are similar elements with slightly different names/properties.\n- Element may be temporarily unavailable due to loading state\n- This could be a real regression that needs to be addressed",
+      "stackTrace" : [ {
+        "classLoaderName" : "app",
+        "methodName" : "assertConditionCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 433,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 353,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeSubflowCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 995,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSubFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 1052,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlowCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 894,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommand",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 369,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeCommands",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 274,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "Orchestra.kt",
+        "lineNumber" : 190,
+        "nativeMethod" : false,
+        "className" : "maestro.orchestra.Orchestra"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runFlow",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 245,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runTestSuite",
+        "fileName" : "TestSuiteInteractor.kt",
+        "lineNumber" : 98,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.runner.TestSuiteInteractor"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 619,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runMultipleFlows",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 502,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$runShardSuite$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "processNextEvent",
+        "fileName" : "EventLoop.common.kt",
+        "lineNumber" : 277,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.EventLoopImplBase"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "joinBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 95,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BlockingCoroutine"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 69,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "fileName" : "Builders.kt",
+        "lineNumber" : 48,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt__BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runBlocking$default",
+        "lineNumber" : 1,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.BuildersKt"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite$lambda$10",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 501,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 132,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "newSession$default",
+        "fileName" : "MaestroSessionManager.kt",
+        "lineNumber" : 66,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.session.MaestroSessionManager"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 476,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "access$runShardSuite",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 80,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "invokeSuspend",
+        "fileName" : "TestCommand.kt",
+        "lineNumber" : 435,
+        "nativeMethod" : false,
+        "className" : "maestro.cli.command.TestCommand$handleSessions$1$results$1$1"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "resumeWith",
+        "fileName" : "ContinuationImpl.kt",
+        "lineNumber" : 34,
+        "nativeMethod" : false,
+        "className" : "kotlin.coroutines.jvm.internal.BaseContinuationImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "DispatchedTask.kt",
+        "lineNumber" : 104,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.DispatchedTask"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "LimitedDispatcher.kt",
+        "lineNumber" : 111,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.internal.LimitedDispatcher$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "Tasks.kt",
+        "lineNumber" : 99,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.TaskImpl"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runSafely",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 585,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "executeTask",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 802,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "runWorker",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 706,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      }, {
+        "classLoaderName" : "app",
+        "methodName" : "run",
+        "fileName" : "CoroutineScheduler.kt",
+        "lineNumber" : 693,
+        "nativeMethod" : false,
+        "className" : "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker"
+      } ],
+      "localizedMessage" : "Assertion is false: \".*[Nn]o sports available.*\" is visible"
+    },
+    "sequenceNumber" : 7
+  }
+}, {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "${APP_URL || \"http://localhost:3000\"}/testing/sign-in?redirect=/set-selector",
+        "name" : "Set Selector Empty State — No Options Available",
+        "tags" : [ "set-selector", "regression" ]
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524783058,
+    "duration" : 918,
+    "sequenceNumber" : 1
+  }
+}, {
+  "command" : {
+    "assertConditionCommand" : {
+      "condition" : {
+        "visible" : {
+          "textRegex" : "Sports",
+          "optional" : false
+        }
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1776524787614,
+    "duration" : 361,
+    "sequenceNumber" : 4
+  }
+} ]
