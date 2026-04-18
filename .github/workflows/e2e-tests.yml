@@ -4,6 +4,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# action-junit-report needs checks:write to publish the per-flow PR check,
+# and pull-requests:write to add its summary comment. Repo default is read-only.
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -128,9 +135,36 @@ jobs:
           SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          REPORT_DIR: maestro-report
         run: npm run test:e2e:ci
 
-      - name: Upload Maestro artifacts on failure
+      - name: Publish Maestro JUnit report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: maestro-report/junit/*.xml
+          check_name: Maestro E2E
+          detailed_summary: true
+          include_passed: true
+          fail_on_failure: false
+
+      - name: Post Maestro summary as sticky PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: maestro-results
+          path: maestro-report/summary.md
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: maestro-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Maestro debug output on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
