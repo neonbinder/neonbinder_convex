@@ -14,7 +14,9 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Full smoke + regression suite runs sequentially to avoid Clerk concurrent
+    # sign-in throttling, so we allow up to 60 minutes.
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +130,7 @@ jobs:
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
-      - name: Run Maestro smoke suite
+      - name: Run Maestro E2E suite (smoke + regression)
         env:
           APP_URL: http://localhost:3000
           SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
@@ -136,7 +138,9 @@ jobs:
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
           REPORT_DIR: maestro-report
-        run: npm run test:e2e:ci
+        # Runs every flow in .maestro/flows/ (no tag filter) — smoke + regression
+        # are the merge-blocking gate since we deploy main directly to prod.
+        run: npm run test:e2e
 
       - name: Publish Maestro JUnit report
         if: always()
