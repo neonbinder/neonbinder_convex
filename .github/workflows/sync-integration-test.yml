@@ -1,0 +1,37 @@
+name: Sync integration-test branch
+
+# The `integration-test` branch is a permanent mirror of `main`. Its Vercel
+# preview is the target that `neonbinder_browser`'s post-deploy validation
+# dispatches E2E against — a predictable URL that points at **dev Convex**
+# (as every non-main Vercel preview does), so we can verify a fresh browser
+# service deploy without affecting any in-flight feature PRs.
+#
+# Never commit directly to `integration-test` — this workflow fast-forwards
+# it after every push to `main`. If the fast-forward ever fails, someone
+# (probably me) broke that invariant; delete the branch and let the next
+# `main` push recreate it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward integration-test to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # `push origin main:integration-test` creates the branch if it
+          # doesn't exist and fast-forwards if it does. Any other state
+          # (non-ff, non-existent main) fails loudly.
+          git push origin "$GITHUB_SHA:refs/heads/integration-test"
