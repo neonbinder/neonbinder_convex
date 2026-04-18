@@ -125,8 +125,15 @@ jobs:
 
       - name: Install Maestro CLI
         run: |
-          curl -Ls "https://get.maestro.mobile.dev" | bash
+          # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
+          # as a non-zero exit — the install script prints the error but exits 0.
+          set -o pipefail
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
+            "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+          # Verify the binary is actually installed before we spend 30 min in
+          # downstream steps discovering it isn't.
+          "$HOME/.maestro/bin/maestro" --version
 
       - name: Run Maestro smoke suite
         env:
