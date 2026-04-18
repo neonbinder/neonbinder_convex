@@ -128,9 +128,29 @@ jobs:
           SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          REPORT_DIR: maestro-report
         run: npm run test:e2e:ci
 
-      - name: Upload Maestro artifacts on failure
+      - name: Publish Maestro JUnit report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: maestro-report/junit/*.xml
+          check_name: Maestro E2E
+          detailed_summary: true
+          include_passed: true
+          fail_on_failure: false
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: maestro-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Maestro debug output on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:

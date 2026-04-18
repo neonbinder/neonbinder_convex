@@ -26,6 +26,10 @@ SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
 SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
 BSC_USERNAME="${BSC_USERNAME:-}"
 BSC_PASSWORD="${BSC_PASSWORD:-}"
+# Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
+# as a PR check (JUnit) and uploads the directory as an Actions artifact.
+REPORT_DIR="${REPORT_DIR:-maestro-report}"
+mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts"
 # --platform web required so launchApp navigates to each flow's url: (config cannot set platform)
 ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME" -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD" -e "BSC_USERNAME=$BSC_USERNAME" -e "BSC_PASSWORD=$BSC_PASSWORD")
 TAG="${1:-}"
@@ -56,9 +60,11 @@ FAILED=0
 FAILURES=()
 
 for flow in "${SMOKE_FLOWS[@]}"; do
+  slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
+  REPORT_ARGS=(--format JUNIT --output "$REPORT_DIR/junit/$slug.xml" --test-suite-name "$slug" --test-output-dir "$REPORT_DIR/artifacts/$slug")
   echo "▶ Running: $flow"
-  echo "$MAESTRO" test "${ARGS[@]}" "$flow"
-  if "$MAESTRO" test "${ARGS[@]}" "$flow"; then
+  echo "$MAESTRO" test "${ARGS[@]}" "${REPORT_ARGS[@]}" "$flow"
+  if "$MAESTRO" test "${ARGS[@]}" "${REPORT_ARGS[@]}" "$flow"; then
     echo "✅ Passed: $flow"
     PASSED=$((PASSED + 1))
   else
@@ -74,6 +80,28 @@ echo "  Results: $PASSED passed, $FAILED failed"
 if [ ${#FAILURES[@]} -gt 0 ]; then
   echo "  Failed flows:"
   for f in "${FAILURES[@]}"; do echo "    - $f"; done
-  exit 1
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Emit a markdown summary for GitHub Actions runs (harmless locally).
+if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+  {
+    echo "## Maestro E2E results"
+    echo ""
+    echo "**$PASSED passed · $FAILED failed** (${#SMOKE_FLOWS[@]} total${TAG:+, tag \`$TAG\`})"
+    echo ""
+    echo "| Status | Flow |"
+    echo "| :---: | --- |"
+    for flow in "${SMOKE_FLOWS[@]}"; do
+      if printf '%s\n' "${FAILURES[@]}" | grep -Fxq "$flow"; then
+        echo "| ❌ | \`$flow\` |"
+      else
+        echo "| ✅ | \`$flow\` |"
+      fi
+    done
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+
+if [ ${#FAILURES[@]} -gt 0 ]; then
+  exit 1
+fi
