@@ -155,7 +155,7 @@ tags:
 # Tap the card name input (it shows "Card name" as placeholder) to focus it,
 # then clear the existing value and type the new name
 - tapOn: "Card name"
-- clearText
+- eraseText
 - inputText: "Renamed Player"
 
 # Tap the team input and enter a team name
