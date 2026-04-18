@@ -148,6 +148,13 @@ jobs:
           include_passed: true
           fail_on_failure: false
 
+      - name: Post Maestro summary as sticky PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: maestro-results
+          path: maestro-report/summary.md
+
       - name: Upload Maestro report
         if: always()
         uses: actions/upload-artifact@v4

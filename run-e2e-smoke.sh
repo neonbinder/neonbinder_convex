@@ -83,23 +83,28 @@ if [ ${#FAILURES[@]} -gt 0 ]; then
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Emit a markdown summary for GitHub Actions runs (harmless locally).
+# Build the markdown summary once and write it to $REPORT_DIR/summary.md so
+# the CI workflow can post it as a sticky PR comment. Also append it to
+# $GITHUB_STEP_SUMMARY so it renders on the Actions run page.
+SUMMARY_FILE="$REPORT_DIR/summary.md"
+{
+  echo "## Maestro E2E results"
+  echo ""
+  echo "**$PASSED passed · $FAILED failed** (${#SMOKE_FLOWS[@]} total${TAG:+, tag \`$TAG\`})"
+  echo ""
+  echo "| Status | Flow |"
+  echo "| :---: | --- |"
+  for flow in "${SMOKE_FLOWS[@]}"; do
+    if printf '%s\n' "${FAILURES[@]}" | grep -Fxq "$flow"; then
+      echo "| ❌ | \`$flow\` |"
+    else
+      echo "| ✅ | \`$flow\` |"
+    fi
+  done
+} > "$SUMMARY_FILE"
+
 if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-  {
-    echo "## Maestro E2E results"
-    echo ""
-    echo "**$PASSED passed · $FAILED failed** (${#SMOKE_FLOWS[@]} total${TAG:+, tag \`$TAG\`})"
-    echo ""
-    echo "| Status | Flow |"
-    echo "| :---: | --- |"
-    for flow in "${SMOKE_FLOWS[@]}"; do
-      if printf '%s\n' "${FAILURES[@]}" | grep -Fxq "$flow"; then
-        echo "| ❌ | \`$flow\` |"
-      else
-        echo "| ✅ | \`$flow\` |"
-      fi
-    done
-  } >> "$GITHUB_STEP_SUMMARY"
+  cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
 fi
 
 if [ ${#FAILURES[@]} -gt 0 ]; then
