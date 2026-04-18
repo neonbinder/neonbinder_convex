@@ -2,9 +2,9 @@ import "./sentry";
 import "@/app/globals.css";
 import "@radix-ui/themes/styles.css";
 
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { Theme } from "@radix-ui/themes";
 import { PostHogProvider } from "@/components/modules/PostHogProvider";
@@ -36,10 +36,19 @@ import Inventory from "@/app/inventory/page";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 const SentryErrorBoundary = Sentry.withErrorBoundary(
   function AppContent() {
     return (
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Home />} />
