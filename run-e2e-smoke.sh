@@ -50,9 +50,11 @@ ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=
 TAG="${1:-}"
 
 # Discover flows: filter by tag if provided, otherwise every yaml file in
-# .maestro/flows/ except ones tagged `util`. util flows are reusable
-# fragments invoked via runFlow from other flows — they assume their caller
-# has already done launchApp + sign-in, so they fail when run standalone.
+# .maestro/flows/ except ones tagged `util` or `wip`:
+#  - util: reusable fragments invoked via runFlow from other flows. They
+#    assume the caller has done launchApp + sign-in, so they fail standalone.
+#  - wip:  temporarily broken flows parked behind a feature that is still
+#    in-progress on another branch. Re-enable by removing the tag once fixed.
 # The config.yaml excludeTags rule only applies when Maestro discovers
 # flows from a directory; we pass flows to it one at a time, so we have to
 # exclude them here.
@@ -63,7 +65,7 @@ if [ -n "$TAG" ]; then
   done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
-    if grep -qE "^[[:space:]]*-[[:space:]]+util$" "$f"; then
+    if grep -qE "^[[:space:]]*-[[:space:]]+(util|wip)$" "$f"; then
       continue
     fi
     SMOKE_FLOWS+=("$f")

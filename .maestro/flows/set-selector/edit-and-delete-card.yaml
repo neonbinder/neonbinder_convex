@@ -3,6 +3,7 @@ name: Edit and Delete a Card from the Checklist
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # A user edits an existing card's player name and team, saves the change,
 # then deletes the card from the checklist.

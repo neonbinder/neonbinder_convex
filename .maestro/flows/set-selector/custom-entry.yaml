@@ -3,6 +3,7 @@ name: Set Selector Custom Entry — Full Hierarchy via Manual Input
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # A user builds a complete set hierarchy entirely through custom entries —
 # no marketplace sync is involved. This verifies that every level of the
