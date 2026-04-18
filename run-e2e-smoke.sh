@@ -9,11 +9,26 @@
 
 set -e
 
-# Load .env.test if it exists (won't override vars already set in the environment)
+# Load .env.test if it exists — but don't override vars already set in the
+# calling environment. `set -a; source` would overwrite, so read line-by-line
+# and only export when the key is unset.
 if [ -f .env.test ]; then
-  set -a
-  source .env.test
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    key="${line%%=*}"
+    [ -z "$key" ] && continue
+    if [ -z "${!key+x}" ]; then
+      value="${line#*=}"
+      # Strip matching surrounding quotes
+      case "$value" in
+        \"*\") value="${value#\"}"; value="${value%\"}" ;;
+        \'*\') value="${value#\'}"; value="${value%\'}" ;;
+      esac
+      export "$key=$value"
+    fi
+  done < .env.test
 fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
