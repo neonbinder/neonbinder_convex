@@ -4,6 +4,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# action-junit-report needs checks:write to publish the per-flow PR check,
+# and pull-requests:write to add its summary comment. Repo default is read-only.
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
