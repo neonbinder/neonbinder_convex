@@ -1,15 +1,18 @@
 name: Sync integration-test branch
 
-# The `integration-test` branch is a permanent mirror of `main`. Its Vercel
-# preview is the target that `neonbinder_browser`'s post-deploy validation
-# dispatches E2E against — a predictable URL that points at **dev Convex**
-# (as every non-main Vercel preview does), so we can verify a fresh browser
-# service deploy without affecting any in-flight feature PRs.
+# The `integration-test` branch is a permanent preview-building mirror of
+# `main`. Its Vercel preview is the target that `neonbinder_browser`'s
+# post-deploy validation dispatches E2E against.
 #
-# Never commit directly to `integration-test` — this workflow fast-forwards
-# it after every push to `main`. If the fast-forward ever fails, someone
-# (probably me) broke that invariant; delete the branch and let the next
-# `main` push recreate it.
+# Each sync run resets the branch to main and adds one empty marker commit
+# so the tip SHA is always unique. Vercel's GitHub integration deduplicates
+# deployments by SHA — without the marker, the branch would share main's
+# SHA and the E2E workflow's "resolve Vercel deployment for this SHA" step
+# would return the production build (wrong Convex, wrong env vars,
+# CLERK_TESTING_ENABLED=false → no sign-in). The marker forces a distinct
+# preview build carrying dev Convex + testing env vars.
+#
+# Never commit directly to `integration-test` — every sync force-pushes.
 
 on:
   push:
@@ -27,11 +30,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fast-forward integration-test to main
+      - name: Reset integration-test to main + add marker commit
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # `push origin main:integration-test` creates the branch if it
-          # doesn't exist and fast-forwards if it does. Any other state
-          # (non-ff, non-existent main) fails loudly.
-          git push origin "$GITHUB_SHA:refs/heads/integration-test"
+          # Create the branch off the just-pushed main SHA, then add one
+          # empty commit so Vercel builds a fresh preview rather than
+          # reusing the production deployment at the same SHA.
+          git checkout -B integration-test "$GITHUB_SHA"
+          SHORT=$(git rev-parse --short "$GITHUB_SHA")
+          git commit --allow-empty -m "chore(integration): sync from main@${SHORT} at $(date -u +%FT%TZ)"
+          # Force-push is safe — nothing should ever commit to this branch
+          # except this workflow.
+          git push --force origin integration-test
