@@ -49,7 +49,13 @@ mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts"
 ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME" -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD" -e "BSC_USERNAME=$BSC_USERNAME" -e "BSC_PASSWORD=$BSC_PASSWORD")
 TAG="${1:-}"
 
-# Discover flows: filter by tag if provided, otherwise find all yaml files.
+# Discover flows: filter by tag if provided, otherwise every yaml file in
+# .maestro/flows/ except ones tagged `util`. util flows are reusable
+# fragments invoked via runFlow from other flows — they assume their caller
+# has already done launchApp + sign-in, so they fail when run standalone.
+# The config.yaml excludeTags rule only applies when Maestro discovers
+# flows from a directory; we pass flows to it one at a time, so we have to
+# exclude them here.
 SMOKE_FLOWS=()
 if [ -n "$TAG" ]; then
   while IFS= read -r f; do
@@ -57,6 +63,9 @@ if [ -n "$TAG" ]; then
   done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
+    if grep -qE "^[[:space:]]*-[[:space:]]+util$" "$f"; then
+      continue
+    fi
     SMOKE_FLOWS+=("$f")
   done < <(find .maestro/flows/ -name "*.yaml" | sort)
 fi
