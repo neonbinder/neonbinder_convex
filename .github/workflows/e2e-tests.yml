@@ -1,0 +1,220 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Cancel any in-flight run on this PR/branch when a newer commit arrives.
+# Two concurrent runs share the same Convex dev deployment, browser service,
+# and test user — concurrent /login/bsc calls for the same BSC account
+# reliably trigger a 503 on the slower request. One active run per branch.
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# action-junit-report needs checks:write to publish the per-flow PR check,
+# and pull-requests:write to add its summary comment. Repo default is read-only.
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Full smoke + regression suite runs sequentially to avoid Clerk concurrent
+    # sign-in throttling, so we allow up to 60 minutes.
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve Vercel preview URL
+        id: vercel-preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # Poll the GitHub Deployments API for the Vercel-created preview URL.
+        # Skips the HTTP 200-poll that patrickedqvist/wait-for-vercel-preview
+        # performs (~5 min of 401s every run under Vercel Deployment
+        # Protection, since the Actions runner has no SSO cookie and the
+        # action can't inject x-vercel-protection-bypass). Readiness is
+        # handled by the next step using the bypass header.
+        run: |
+          for attempt in $(seq 1 60); do
+            deployment_id=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$SHA&per_page=100" \
+              --jq '[.[] | select(.creator.login == "vercel[bot]")] | sort_by(.created_at) | reverse | .[0].id // empty')
+            if [ -n "$deployment_id" ]; then
+              url=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                --jq '[.[] | select(.state == "success")] | .[0] | (.environment_url // .target_url // empty)')
+              if [ -n "$url" ]; then
+                echo "Vercel preview URL: $url"
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              failed=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                --jq '[.[] | select(.state == "failure" or .state == "error")] | length')
+              if [ "${failed:-0}" -gt 0 ]; then
+                echo "Vercel deployment ${deployment_id} reported failure/error state — aborting."
+                exit 1
+              fi
+            fi
+            echo "attempt $attempt/60: Vercel deployment not yet ready for $SHA — retrying in 5s"
+            sleep 5
+          done
+          echo "Timed out (5 min) waiting for a successful Vercel deployment on $SHA."
+          exit 1
+
+      - name: Wait for preview to respond (with bypass)
+        env:
+          PREVIEW_URL: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "No preview URL discovered."
+            exit 1
+          fi
+          echo "Polling $PREVIEW_URL with bypass header..."
+          for attempt in $(seq 1 60); do
+            status=$(curl -sS -o /dev/null -w "%{http_code}" -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" "$PREVIEW_URL/" || echo 000)
+            if [ "$status" = "200" ]; then
+              echo "Preview ready after $attempt attempt(s)."
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $status — retrying in 5s"
+            sleep 5
+          done
+          echo "Preview never returned 200."
+          exit 1
+
+      - name: Start bypass-injecting proxy
+        env:
+          PREVIEW_URL: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          # Tiny Node proxy: forwards localhost:3000 → Vercel preview with the
+          # x-vercel-protection-bypass header injected on every request. Lets
+          # Maestro flows use APP_URL=http://localhost:3000 without any flow
+          # rewrites (which would hurt PO readability).
+          cat > /tmp/vercel-proxy.js <<'EOF'
+          const http = require('http');
+          const https = require('https');
+          const { URL } = require('url');
+
+          const upstream = new URL(process.env.PREVIEW_URL);
+          const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+          const PORT = 3000;
+
+          const server = http.createServer((req, res) => {
+            const opts = {
+              hostname: upstream.hostname,
+              port: 443,
+              path: req.url,
+              method: req.method,
+              headers: {
+                ...req.headers,
+                host: upstream.hostname,
+                'x-vercel-protection-bypass': bypass,
+              },
+            };
+            const upstreamReq = https.request(opts, upstreamRes => {
+              res.writeHead(upstreamRes.statusCode || 500, upstreamRes.headers);
+              upstreamRes.pipe(res);
+            });
+            upstreamReq.on('error', err => {
+              console.error('proxy error:', err.message);
+              res.statusCode = 502;
+              res.end('proxy error');
+            });
+            req.pipe(upstreamReq);
+          });
+
+          server.listen(PORT, () => {
+            console.log(`Bypass proxy listening on http://localhost:${PORT} -> ${upstream.origin}`);
+          });
+          EOF
+          node /tmp/vercel-proxy.js &
+          echo "PROXY_PID=$!" >> $GITHUB_ENV
+          # Wait for proxy to be reachable
+          for i in $(seq 1 20); do
+            if curl -sS -o /dev/null "http://localhost:3000/" ; then
+              echo "Proxy ready."
+              break
+            fi
+            sleep 0.5
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: browser-actions/setup-chrome@v1
+
+      - name: Start Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1280x1024x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Install Maestro CLI
+        run: |
+          # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
+          # as a non-zero exit — the install script prints the error but exits 0.
+          set -o pipefail
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
+            "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+          # Verify the binary is actually installed before we spend 30 min in
+          # downstream steps discovering it isn't.
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Run Maestro E2E suite (smoke + regression)
+        env:
+          APP_URL: http://localhost:3000
+          SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
+          SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
+          BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
+          BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          REPORT_DIR: maestro-report
+        # Runs every flow in .maestro/flows/ (no tag filter) — smoke + regression
+        # are the merge-blocking gate since we deploy main directly to prod.
+        run: npm run test:e2e
+
+      - name: Publish Maestro JUnit report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: maestro-report/junit/*.xml
+          check_name: Maestro E2E
+          detailed_summary: true
+          include_passed: true
+          fail_on_failure: false
+
+      - name: Post Maestro summary as sticky PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: maestro-results
+          path: maestro-report/summary.md
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: maestro-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Maestro debug output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug-output
+          path: |
+            ~/.maestro/tests/
+            /tmp/maestro-*
+          if-no-files-found: ignore
+          retention-days: 7

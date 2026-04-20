@@ -2,107 +2,71 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
-import mkcert from "vite-plugin-mkcert";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import path from "path";
+import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
 
-// Dev-only handler for POST /api/auth/testing — generates Clerk sign-in +
-// testing tokens so Maestro flows can bypass the password form. This was a
-// Next.js API route before the Vite migration; see commit 52cb8d1.
+// Dev-only middleware that mirrors api/auth/testing.ts so that Maestro E2E
+// flows can hit /testing/sign-in against `vite dev` without needing a full
+// `vercel dev` setup. Same security layers as the Vercel handler.
 function clerkTestingApiPlugin(): Plugin {
-  let env: Record<string, string> = {};
   return {
     name: "clerk-testing-api",
     apply: "serve",
-    configResolved(config) {
-      env = loadEnv(config.mode, config.root, "");
-    },
     configureServer(server) {
-      server.middlewares.use(
-        "/api/auth/testing",
-        async (req, res, next) => {
-          if (req.method !== "POST") return next();
-
-          const sendJson = (status: number, body: unknown) => {
-            res.statusCode = status;
-            res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify(body));
-          };
-
-          if (env.CLERK_TESTING_ENABLED !== "true") {
-            return sendJson(404, { error: "Not found" });
-          }
-
-          const secretKey = env.CLERK_SECRET_KEY;
-          const testEmail = env.TEST_EMAIL;
-          if (!secretKey || !testEmail) {
-            return sendJson(500, {
-              error: "CLERK_SECRET_KEY and TEST_EMAIL must be set",
-            });
-          }
-
-          try {
-            const usersRes = await fetch(
-              `https://api.clerk.com/v1/users?email_address=${encodeURIComponent(testEmail)}`,
-              { headers: { Authorization: `Bearer ${secretKey}` } },
-            );
-            const usersData = await usersRes.json();
-            const users = usersData.data ?? usersData;
-            if (!Array.isArray(users) || users.length === 0) {
-              return sendJson(404, {
-                error: `No Clerk user found for ${testEmail}`,
-              });
-            }
-            const userId = users[0].id;
-
-            const [signInTokenRes, testingTokenRes] = await Promise.all([
-              fetch("https://api.clerk.com/v1/sign_in_tokens", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${secretKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  user_id: userId,
-                  expires_in_seconds: 120,
-                }),
-              }),
-              fetch("https://api.clerk.com/v1/testing_tokens", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${secretKey}` },
-              }),
-            ]);
-            const [signInToken, testingToken] = await Promise.all([
-              signInTokenRes.json(),
-              testingTokenRes.json(),
-            ]);
-
-            if (!signInToken.token) {
-              return sendJson(500, {
-                error: "Failed to create sign-in token",
-                detail: signInToken,
-              });
-            }
-
-            return sendJson(200, {
-              signInToken: signInToken.token,
-              testingToken: testingToken.token,
-            });
-          } catch (e) {
-            return sendJson(500, {
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        },
-      );
+      server.middlewares.use("/api/auth/testing", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Method not allowed" }));
+          return;
+        }
+        if (process.env.CLERK_TESTING_ENABLED !== "true") {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Not found" }));
+          return;
+        }
+        const expectedSecret = process.env.TESTING_ENDPOINT_SECRET;
+        const providedSecret = req.headers["x-testing-auth"];
+        if (!expectedSecret || providedSecret !== expectedSecret) {
+          res.statusCode = 401;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Unauthorized" }));
+          return;
+        }
+        const result = await issueClerkTestingTokens({
+          clerkSecretKey: process.env.CLERK_SECRET_KEY,
+          testEmail: process.env.TEST_EMAIL,
+        });
+        res.setHeader("Content-Type", "application/json");
+        if (!result.ok) {
+          res.statusCode = result.status;
+          res.end(JSON.stringify({ error: result.error, detail: result.detail }));
+          return;
+        }
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            signInToken: result.signInToken,
+            testingToken: result.testingToken,
+          }),
+        );
+      });
     },
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Load .env* into process.env for server-side code (Vite only populates
+  // import.meta.env.VITE_* by default; the dev-only Clerk testing middleware
+  // reads CLERK_SECRET_KEY, TEST_EMAIL, etc. from process.env).
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
+  return {
   plugins: [
     react(),
     tailwindcss(),
-    mkcert(),
+    ...(process.env.VITE_DEV_DISABLE_HTTPS ? [] : [basicSsl()]),
     clerkTestingApiPlugin(),
     sentryVitePlugin({
       org: "neon-binder",
@@ -140,4 +104,5 @@ export default defineConfig({
       },
     },
   },
+  };
 });

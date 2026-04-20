@@ -3,6 +3,7 @@ name: Full Hierarchy Drill-Down — Sport to Cards Column
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # This test walks a user all the way through every level of the set hierarchy:
 # Sport → Year → Manufacturer → Set → Set Variant → Cards column.

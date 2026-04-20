@@ -51,3 +51,9 @@ yarn-error.log*
 
 .env.local
 .env*.local
+
+# Maestro E2E outputs
+maestro-report/
+artifacts/
+junit/
+summary.md

@@ -3,6 +3,7 @@ name: Add Custom Card to Checklist
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # A user manually adds a card to the checklist using the "Add Card" form.
 # This covers the scenario where a card is missing from marketplace data

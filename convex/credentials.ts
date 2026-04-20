@@ -81,7 +81,12 @@ export const storeSiteCredentials = action({
         message: `Credentials stored successfully for ${args.site}`,
       };
     } catch (error) {
-      console.error(`Failed to store credentials for ${args.site}`);
+      const detail = error instanceof Error
+        ? `${error.name}: ${error.message}${error.cause ? ` (cause: ${String(error.cause)})` : ""}`
+        : String(error);
+      console.error(
+        `[storeSiteCredentials] site=${args.site} url=${browserUrl()} threw: ${detail}`,
+      );
       return {
         success: false,
         message: "Failed to store credentials securely",

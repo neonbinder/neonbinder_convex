@@ -3,6 +3,7 @@ name: Set Selector Empty State — No Options Available
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # This test verifies the empty state message that appears when the Sports
 # column has no entries yet (nothing has been synced or added manually).

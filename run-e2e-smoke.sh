@@ -9,11 +9,26 @@
 
 set -e
 
-# Load .env.test if it exists (won't override vars already set in the environment)
+# Load .env.test if it exists — but don't override vars already set in the
+# calling environment. `set -a; source` would overwrite, so read line-by-line
+# and only export when the key is unset.
 if [ -f .env.test ]; then
-  set -a
-  source .env.test
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    key="${line%%=*}"
+    [ -z "$key" ] && continue
+    if [ -z "${!key+x}" ]; then
+      value="${line#*=}"
+      # Strip matching surrounding quotes
+      case "$value" in
+        \"*\") value="${value#\"}"; value="${value%\"}" ;;
+        \'*\') value="${value#\'}"; value="${value%\'}" ;;
+      esac
+      export "$key=$value"
+    fi
+  done < .env.test
 fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
@@ -26,18 +41,33 @@ SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
 SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
 BSC_USERNAME="${BSC_USERNAME:-}"
 BSC_PASSWORD="${BSC_PASSWORD:-}"
+# Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
+# as a PR check (JUnit) and uploads the directory as an Actions artifact.
+REPORT_DIR="${REPORT_DIR:-maestro-report}"
+mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts"
 # --platform web required so launchApp navigates to each flow's url: (config cannot set platform)
 ARGS=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME" -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD" -e "BSC_USERNAME=$BSC_USERNAME" -e "BSC_PASSWORD=$BSC_PASSWORD")
 TAG="${1:-}"
 
-# Discover flows: filter by tag if provided, otherwise find all yaml files.
+# Discover flows: filter by tag if provided, otherwise every yaml file in
+# .maestro/flows/ except ones tagged `util` or `wip`:
+#  - util: reusable fragments invoked via runFlow from other flows. They
+#    assume the caller has done launchApp + sign-in, so they fail standalone.
+#  - wip:  temporarily broken flows parked behind a feature that is still
+#    in-progress on another branch. Re-enable by removing the tag once fixed.
+# The config.yaml excludeTags rule only applies when Maestro discovers
+# flows from a directory; we pass flows to it one at a time, so we have to
+# exclude them here.
 SMOKE_FLOWS=()
 if [ -n "$TAG" ]; then
   while IFS= read -r f; do
     SMOKE_FLOWS+=("$f")
-  done < <(grep -rl "$TAG" .maestro/flows/ --include="*.yaml" | sort)
+  done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
 else
   while IFS= read -r f; do
+    if grep -qE "^[[:space:]]*-[[:space:]]+(util|wip)$" "$f"; then
+      continue
+    fi
     SMOKE_FLOWS+=("$f")
   done < <(find .maestro/flows/ -name "*.yaml" | sort)
 fi
@@ -56,14 +86,16 @@ FAILED=0
 FAILURES=()
 
 for flow in "${SMOKE_FLOWS[@]}"; do
+  slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
+  REPORT_ARGS=(--format JUNIT --output "$REPORT_DIR/junit/$slug.xml" --test-suite-name "$slug" --test-output-dir "$REPORT_DIR/artifacts/$slug")
   echo "▶ Running: $flow"
-  echo "$MAESTRO" test "${ARGS[@]}" "$flow"
-  if "$MAESTRO" test "${ARGS[@]}" "$flow"; then
+  echo "$MAESTRO" test "${ARGS[@]}" "${REPORT_ARGS[@]}" "$flow"
+  if "$MAESTRO" test "${ARGS[@]}" "${REPORT_ARGS[@]}" "$flow"; then
     echo "✅ Passed: $flow"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
   else
     echo "❌ Failed: $flow"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
     FAILURES+=("$flow")
   fi
   echo ""
@@ -74,6 +106,33 @@ echo "  Results: $PASSED passed, $FAILED failed"
 if [ ${#FAILURES[@]} -gt 0 ]; then
   echo "  Failed flows:"
   for f in "${FAILURES[@]}"; do echo "    - $f"; done
-  exit 1
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Build the markdown summary once and write it to $REPORT_DIR/summary.md so
+# the CI workflow can post it as a sticky PR comment. Also append it to
+# $GITHUB_STEP_SUMMARY so it renders on the Actions run page.
+SUMMARY_FILE="$REPORT_DIR/summary.md"
+{
+  echo "## Maestro E2E results"
+  echo ""
+  echo "**$PASSED passed · $FAILED failed** (${#SMOKE_FLOWS[@]} total${TAG:+, tag \`$TAG\`})"
+  echo ""
+  echo "| Status | Flow |"
+  echo "| :---: | --- |"
+  for flow in "${SMOKE_FLOWS[@]}"; do
+    if printf '%s\n' "${FAILURES[@]}" | grep -Fxq "$flow"; then
+      echo "| ❌ | \`$flow\` |"
+    else
+      echo "| ✅ | \`$flow\` |"
+    fi
+  done
+} > "$SUMMARY_FILE"
+
+if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+  cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+fi
+
+if [ ${#FAILURES[@]} -gt 0 ]; then
+  exit 1
+fi

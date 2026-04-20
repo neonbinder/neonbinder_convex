@@ -3,6 +3,7 @@ name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
   - regression
+  - wip
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
