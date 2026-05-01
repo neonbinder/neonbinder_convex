@@ -1,0 +1,73 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+name: Refresh SportLots credentials
+tags:
+  - set-selector
+  - wip
+---
+# Refreshes the SportLots session for the test user. Bypasses the native
+# <select> dropdown by setting its value via JS, then dispatching a change
+# event so React picks it up.
+#
+# Requires SPORTLOTS_USERNAME and SPORTLOTS_PASSWORD env vars.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 20000
+
+# Switch dropdown to Sportlots. Native <select> options can't be tapped in
+# maestro web. Workaround: focus the select then type "S" — browsers navigate
+# to the first option starting with the typed character. Since "Sportlots"
+# is the only S-prefix option, typing "S" selects it, and inputText commits
+# the change via the keyboard input pipeline (which React picks up).
+- tapOn:
+    id: "site-select"
+- inputText: "S"
+
+- extendedWaitUntil:
+    visible: ".*Sportlots Credentials.*"
+    timeout: 10000
+
+# If creds already exist, clear them first (force fresh login)
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Clear Credentials"
+    commands:
+      - tapOn: "Clear Credentials"
+      - extendedWaitUntil:
+          visible: ".*Yes, Clear.*"
+          timeout: 5000
+      - tapOn: "Yes, Clear"
+      - extendedWaitUntil:
+          visible: ".*Credentials cleared.*"
+          timeout: 15000
+
+# Now enter fresh SL creds
+- scrollUntilVisible:
+    element:
+      text: ".*Sportlots Username.*"
+    timeout: 10000
+- tapOn:
+    id: "username"
+- inputText: ${SPORTLOTS_USERNAME}
+- tapOn:
+    id: "password"
+- inputText: ${SPORTLOTS_PASSWORD}
+- scrollUntilVisible:
+    element:
+      text: "Save Credentials"
+    timeout: 10000
+- tapOn: "Save Credentials"
+- extendedWaitUntil:
+    visible: ".*Credentials saved successfully.*"
+    timeout: 60000

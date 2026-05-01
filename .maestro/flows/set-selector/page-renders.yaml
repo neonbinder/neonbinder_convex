@@ -1,0 +1,30 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Set Selector page renders
+tags:
+  - set-selector
+  - wip
+---
+# Minimal smoke test: sign in, navigate to set selector, verify the post-stash
+# 7-level hierarchy UI renders. Does NOT exercise marketplace sync, so it
+# does not depend on BSC/SL credentials. Useful for verifying the stash
+# incorporation didn't break basic page rendering.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# Page heading + first column
+- assertVisible: "Set Selector"
+- assertVisible: "Sports"
+
+# The two interaction affordances on the Sports column (scroll to find them
+# at the bottom of the column when the list has items)
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "\\+ Custom"
+    timeout: 5000

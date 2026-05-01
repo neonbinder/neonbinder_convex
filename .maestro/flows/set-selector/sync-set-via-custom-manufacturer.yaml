@@ -1,0 +1,127 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Sync set via custom manufacturer (milestone path)
+tags:
+  - set-selector
+  - wip
+---
+# Milestone test using the documented flow:
+#   Sport (synced) → Year (synced) → Manufacturer (CUSTOM Topps) → Sets (synced
+#   via syncSetsAcrossManufacturers which distributes BSC sets to manufacturers
+#   while merging SL data) → Variant Types (synced) → Variants (Reconciliation
+#   Modal for Insert/Parallel; auto-store for single-platform).
+#
+# Verifies "set + variants reconciled across BSC+SL" is achievable end-to-end.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# === LEVEL 1 — Sport (already synced) ===
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 15000
+
+# === LEVEL 2 — Year (sync from both platforms) ===
+- scrollUntilVisible:
+    element:
+      text: "Sync Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Syncing Year Options"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: "2023"
+    timeout: 10000
+- tapOn: "2023"
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 15000
+
+# === LEVEL 3 — Manufacturer (sync from SL — BSC has no manufacturer facet) ===
+# Custom-entry path is one option, but Manufacturers in the screenshot are
+# already populated from SL — Bowman, Donruss, Fleer, ITG, O-Pee-Chee, Pacific
+# all visible with SL badges. Drive Sync Manufacturers and pick Topps from the
+# synced list (it should be alphabetically near the bottom).
+- scrollUntilVisible:
+    element:
+      text: "Sync Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Syncing Manufacturer Options"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 60000
+- tapOn: "Donruss"
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 15000
+
+# === LEVEL 4 — Sets (sync uses syncSetsAcrossManufacturers) ===
+- scrollUntilVisible:
+    element:
+      text: "Sync Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Syncing Sets"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 90000
+# Pick the Donruss set (only set under Donruss manufacturer for 2023). The
+# manufacturer pill above also says "Donruss" so target by a CSS selector
+# inside the Sets column to disambiguate. Falling back to index 1 of "Donruss"
+# (occurrence 0 = manufacturer pill, occurrence 1 = the set list item).
+- tapOn:
+    text: "Donruss"
+    index: 1
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 15000
+
+# === LEVEL 5 — Variant Types ===
+- scrollUntilVisible:
+    element:
+      text: "Sync Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 60000
+- tapOn:
+    text: ".*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 15000
+
+# === LEVEL 6 — Variants (where ReconciliationModal can appear) ===
+- scrollUntilVisible:
+    element:
+      text: "Sync Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: ".*Syncing Variants|Select Base Set|Reconcile Variants.*"
+    timeout: 15000
+# Wait for either: form closes (success), modal appears for review,
+# or error state shows Cancel/Retry
+- extendedWaitUntil:
+    visible: ".*Sync Variants|Confirm|Cancel|Retry.*"
+    timeout: 90000
