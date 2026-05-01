@@ -6,9 +6,13 @@ tags:
   - wip
 ---
 # This test walks a user all the way through every level of the set hierarchy:
-# Sport → Year → Manufacturer → Set → Set Variant → Cards column.
+# Sport → Year → Manufacturer → Set → Variant Types → Variants → Cards column.
 # It syncs each level from marketplaces and verifies the next column appears
 # before drilling down. This is the core "happy path" of the set selector.
+#
+# All sync forms auto-fire immediately on open — there is no "Sync from
+# Marketplaces" button to tap. Each form closes automatically on success
+# and its corresponding "Sync X" button returns to the screen.
 
 - launchApp
 - extendedWaitUntil:
@@ -42,14 +46,13 @@ tags:
 - assertVisible: "Sports"
 - assertVisible: "Sync Sports"
 
-# Sync sports from marketplaces
+# Tap "Sync Sports" — the form opens and immediately fires the sync.
+# The heading "Syncing Sport Options" appears while the sync runs.
+# The form closes automatically on success and "Sync Sports" returns.
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
+    visible: "Syncing Sport Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close (success dismisses the form automatically)
 - extendedWaitUntil:
     visible: "Sync Sports"
     timeout: 45000
@@ -58,7 +61,7 @@ tags:
 - assertVisible: "BSC"
 - assertVisible: "SL"
 
-# Select "Baseball" as the sport (a sport expected to exist on both platforms)
+# Select "Baseball" as the sport (expected to exist on both platforms)
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -74,14 +77,11 @@ tags:
     visible: "Years"
     timeout: 10000
 
-# Sync years for the selected sport
+# Sync years — form auto-fires, heading appears, then form closes on success
 - tapOn: "Sync Years"
 - extendedWaitUntil:
-    visible: "Sync Year Options"
+    visible: "Syncing Year Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close
 - extendedWaitUntil:
     visible: "Sync Years"
     timeout: 45000
@@ -103,14 +103,11 @@ tags:
     visible: "Manufacturers"
     timeout: 10000
 
-# Sync manufacturers
+# Sync manufacturers — form auto-fires
 - tapOn: "Sync Manufacturers"
 - extendedWaitUntil:
-    visible: "Sync Manufacturer Options"
+    visible: "Syncing Manufacturer Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close
 - extendedWaitUntil:
     visible: "Sync Manufacturers"
     timeout: 45000
@@ -129,14 +126,11 @@ tags:
     visible: "Sets"
     timeout: 10000
 
-# Sync sets
+# Sync sets — form auto-fires
 - tapOn: "Sync Sets"
 - extendedWaitUntil:
-    visible: "Sync Set Options"
+    visible: "Syncing Sets"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close
 - extendedWaitUntil:
     visible: "Sync Sets"
     timeout: 45000
@@ -147,40 +141,63 @@ tags:
     index: 0
 
 # ============================================================
-# LEVEL 5 — SET VARIANT
+# LEVEL 5 — VARIANT TYPES
 # ============================================================
 
-# The Set Variants column should appear after selecting a set
+# The Variant Types column appears after selecting a set
+# (Previously called "Set Variants" — now labelled "Variant Types")
 - extendedWaitUntil:
-    visible: "Set Variants"
+    visible: "Variant Types"
     timeout: 10000
 
-# Sync set variants
-- tapOn: "Sync Variants"
+# Sync variant types — form auto-fires, heading is "Syncing Variant Types"
+- tapOn: "Sync Variant Types"
 - extendedWaitUntil:
-    visible: "Sync Set Variant Options"
+    visible: "Syncing Variant Types"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close
 - extendedWaitUntil:
-    visible: "Sync Variants"
+    visible: "Sync Variant Types"
     timeout: 45000
 
-# Select the first variant (e.g., "Base" is common on both platforms)
+# Select the first variant type (e.g., "Base" is common on both platforms)
 - tapOn:
     text: ".*"
     index: 0
 
 # ============================================================
-# LEVEL 6 — CARDS COLUMN
+# LEVEL 6 — VARIANTS
 # ============================================================
 
-# After selecting a variant, the Cards column should appear on screen
+# The Variants column appears after selecting a variant type
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Sync variants — form auto-fires.
+# For "Base" variant type this shows "Select Base Set" heading while loading,
+# then auto-closes on success. For other types "Syncing Variants" appears.
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: ".*Syncing Variants|Select Base Set.*"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+
+# Select the first variant in the list
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# CARDS COLUMN (full-width below the selector row)
+# ============================================================
+
+# After selecting a variant, the Cards checklist panel appears below
 - extendedWaitUntil:
     visible: "Cards"
     timeout: 10000
 
-# The Cards panel shows either a checklist or the "Fetch from Marketplaces" button
-# Verify at least one of these is present
-- assertVisible: ".*[Ff]etch from [Mm]arketplaces|Add Card|Refresh.*"
+# The Cards panel shows either a populated checklist or the empty-state
+# "No cards in this checklist yet." message. Either way "Add Card" is present.
+- assertVisible: "Add Card"

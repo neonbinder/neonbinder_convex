@@ -131,6 +131,11 @@ type ReconciliationModalProps = {
     unmatchedSl: PlatformItem[];
   };
   showMetadata?: boolean;
+  setName?: string;
+  manufacturer?: string;
+  usedValues?: string[];
+  usedSlPlatformValues?: string[];
+  usedBscPlatformValues?: string[];
 };
 
 // ===== DRAGGABLE ITEM =====
@@ -179,13 +184,13 @@ function DraggableItem({
         }
       `}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <span
-          className={`text-[10px] px-1.5 py-0.5 rounded border ${platformColor}`}
+          className={`text-[10px] px-1.5 py-0.5 rounded border ${platformColor} shrink-0 mt-0.5`}
         >
           {platformLabel}
         </span>
-        <span className="text-gray-200 truncate">{value}</span>
+        <span className="text-gray-200 break-words">{value}</span>
       </div>
     </div>
   );
@@ -218,17 +223,17 @@ function MatchedRow({
     <div className="border-l-4 border-[#00D558] bg-gray-800/50 rounded-r-lg p-3 mb-2">
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-blue-900/40 text-blue-300 border-blue-700">
+          <div className="flex items-start gap-2 text-sm">
+            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-blue-900/40 text-blue-300 border-blue-700 shrink-0 mt-0.5">
               BSC
             </span>
-            <span className="text-gray-200 truncate">{pair.bsc.value}</span>
+            <span className="text-gray-200 break-words">{pair.bsc.value}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm mt-1">
-            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-purple-900/40 text-purple-300 border-purple-700">
+          <div className="flex items-start gap-2 text-sm mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 rounded border bg-purple-900/40 text-purple-300 border-purple-700 shrink-0 mt-0.5">
               SL
             </span>
-            <span className="text-gray-400 truncate">{pair.sl.value}</span>
+            <span className="text-gray-400 break-words">{pair.sl.value}</span>
           </div>
         </div>
         {pair.confidence > 0 && (
@@ -315,7 +320,24 @@ export default function ReconciliationModal({
   level,
   initialData,
   showMetadata = false,
+  setName = "",
+  manufacturer = "",
+  usedValues = [],
+  usedSlPlatformValues = [],
+  usedBscPlatformValues = [],
 }: ReconciliationModalProps) {
+  const usedValueSet = useMemo(
+    () => new Set(usedValues.map((v) => v.toLowerCase())),
+    [usedValues],
+  );
+  const usedSlSet = useMemo(
+    () => new Set(usedSlPlatformValues),
+    [usedSlPlatformValues],
+  );
+  const usedBscSet = useMemo(
+    () => new Set(usedBscPlatformValues),
+    [usedBscPlatformValues],
+  );
   const initialState: ReconciliationState = {
     matched: initialData.autoMatched.map((m) => ({ ...m })),
     unmatchedBsc: [...initialData.unmatchedBsc],
@@ -326,6 +348,46 @@ export default function ReconciliationModal({
   const [selectedBsc, setSelectedBsc] = useState<string | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [matchedCollapsed, setMatchedCollapsed] = useState(true);
+  // Default SL-side prefixes: full set name, and set name with manufacturer prefix stripped.
+  // e.g. setName="Topps Fire", manufacturer="Topps" → ["topps fire", "fire"]
+  const defaultSlPrefixes = useMemo(() => {
+    const setNorm = setName.trim().toLowerCase();
+    const mfgNorm = manufacturer.trim().toLowerCase();
+    const prefixes: string[] = [];
+    if (setNorm) prefixes.push(setNorm);
+    if (mfgNorm && setNorm.startsWith(`${mfgNorm} `)) {
+      const stripped = setNorm.slice(mfgNorm.length + 1).trim();
+      if (stripped) prefixes.push(stripped);
+    }
+    return prefixes;
+  }, [setName, manufacturer]);
+
+  const [slFilter, setSlFilter] = useState<string>("");
+
+  const activeSlPrefixes = useMemo(() => {
+    const q = slFilter.trim().toLowerCase();
+    if (q) return [q];
+    return defaultSlPrefixes;
+  }, [slFilter, defaultSlPrefixes]);
+
+  const filteredUnmatchedSl = useMemo(() => {
+    return state.unmatchedSl.filter((item) => {
+      if (usedSlSet.has(item.platformValue)) return false;
+      if (usedValueSet.has(item.value.toLowerCase())) return false;
+      if (activeSlPrefixes.length === 0) return true;
+      const v = item.value.toLowerCase();
+      return activeSlPrefixes.some((p) => v.startsWith(p));
+    });
+  }, [state.unmatchedSl, activeSlPrefixes, usedSlSet, usedValueSet]);
+
+  const filteredUnmatchedBsc = useMemo(() => {
+    return state.unmatchedBsc.filter((item) => {
+      if (usedBscSet.has(item.platformValue)) return false;
+      if (usedValueSet.has(item.value.toLowerCase())) return false;
+      return true;
+    });
+  }, [state.unmatchedBsc, usedBscSet, usedValueSet]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -470,7 +532,7 @@ export default function ReconciliationModal({
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl max-w-4xl w-full max-h-[85vh] flex flex-col"
+        className="bg-gray-900 border border-gray-700 rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -486,13 +548,20 @@ export default function ReconciliationModal({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          {/* Auto-matched section */}
+          {/* Auto-matched section (collapsible) */}
           {state.matched.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">
-                Matched ({state.matched.length})
-              </h3>
-              {state.matched.map((pair, index) => (
+              <button
+                onClick={() => setMatchedCollapsed(!matchedCollapsed)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2 hover:text-gray-100 transition-colors"
+              >
+                <span className="text-xs">{matchedCollapsed ? "▶" : "▼"}</span>
+                <span>Matched ({state.matched.length})</span>
+                {matchedCollapsed && (
+                  <span className="text-xs text-gray-500">— click to review</span>
+                )}
+              </button>
+              {!matchedCollapsed && state.matched.map((pair, index) => (
                 <MatchedRow
                   key={`${pair.bsc.value}-${pair.sl.value}`}
                   pair={pair}
@@ -523,10 +592,14 @@ export default function ReconciliationModal({
                   {/* BSC column */}
                   <div>
                     <div className="text-xs text-blue-400 font-medium mb-2 uppercase tracking-wide">
-                      BSC ({state.unmatchedBsc.length})
+                      BSC ({filteredUnmatchedBsc.length}
+                      {filteredUnmatchedBsc.length !== state.unmatchedBsc.length
+                        ? ` of ${state.unmatchedBsc.length}`
+                        : ""}
+                      )
                     </div>
                     <div className="space-y-1.5 min-h-[60px]">
-                      {state.unmatchedBsc.map((item) => (
+                      {filteredUnmatchedBsc.map((item) => (
                         <DraggableItem
                           key={`bsc-${item.value}`}
                           id={`bsc-${item.value}`}
@@ -546,11 +619,28 @@ export default function ReconciliationModal({
 
                   {/* SL column */}
                   <div>
-                    <div className="text-xs text-purple-400 font-medium mb-2 uppercase tracking-wide">
-                      SportLots ({state.unmatchedSl.length})
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs text-purple-400 font-medium uppercase tracking-wide">
+                        SportLots ({filteredUnmatchedSl.length}
+                        {filteredUnmatchedSl.length !== state.unmatchedSl.length
+                          ? ` of ${state.unmatchedSl.length}`
+                          : ""}
+                        )
+                      </div>
                     </div>
+                    <input
+                      type="text"
+                      value={slFilter}
+                      onChange={(e) => setSlFilter(e.target.value)}
+                      placeholder={
+                        defaultSlPrefixes.length > 0
+                          ? `Starts with "${defaultSlPrefixes.join('" or "')}"`
+                          : "Filter by prefix..."
+                      }
+                      className="w-full mb-2 px-2.5 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500"
+                    />
                     <div className="space-y-1.5 min-h-[60px]">
-                      {state.unmatchedSl.map((item) => (
+                      {filteredUnmatchedSl.map((item) => (
                         <DraggableItem
                           key={`sl-${item.value}`}
                           id={`sl-${item.value}`}
@@ -568,6 +658,18 @@ export default function ReconciliationModal({
                           All SL items matched
                         </p>
                       )}
+                      {state.unmatchedSl.length > 0 &&
+                        filteredUnmatchedSl.length === 0 && (
+                          <p className="text-xs text-gray-500 italic py-2">
+                            No SL items start with{" "}
+                            {activeSlPrefixes.map((p, i) => (
+                              <span key={p}>
+                                {i > 0 ? " or " : ""}
+                                "{p}"
+                              </span>
+                            ))}
+                          </p>
+                        )}
                     </div>
                   </div>
                 </div>

@@ -77,6 +77,54 @@ export const getSelectorOptions = query({
   },
 });
 
+// Returns all identifiers (display values + platform values) already used by
+// inserts under the given setId, across every variantType sibling. Useful for
+// excluding already-linked sets from reconciliation/picker dialogs.
+export const getUsedInsertIdentifiersBySet = query({
+  args: { setId: v.id("selectorOptions") },
+  returns: v.object({
+    values: v.array(v.string()),
+    slPlatformValues: v.array(v.string()),
+    bscPlatformValues: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const variantTypes = await ctx.db
+      .query("selectorOptions")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", "variantType").eq("parentId", args.setId),
+      )
+      .collect();
+
+    const values: string[] = [];
+    const slPlatformValues: string[] = [];
+    const bscPlatformValues: string[] = [];
+
+    for (const vt of variantTypes) {
+      const inserts = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level_and_parent", (q) =>
+          q.eq("level", "insert").eq("parentId", vt._id),
+        )
+        .collect();
+      for (const ins of inserts) {
+        values.push(ins.value);
+        if (typeof ins.platformData.sportlots === "string") {
+          slPlatformValues.push(ins.platformData.sportlots);
+        }
+        const bsc = ins.platformData.bsc;
+        if (typeof bsc === "string") {
+          bscPlatformValues.push(bsc);
+        } else if (Array.isArray(bsc)) {
+          bscPlatformValues.push(...bsc);
+        }
+      }
+    }
+
+    return { values, slPlatformValues, bscPlatformValues };
+  },
+});
+
 export const getSelectorOptionById = query({
   args: { id: v.id("selectorOptions") },
   returns: v.union(
@@ -724,6 +772,11 @@ export const fetchAggregatedOptions = action({
         const msg = error instanceof Error ? error.message : "Unknown error";
         platformErrors.bsc = msg;
         console.error(`[fetchAggregatedOptions] BSC error:`, error);
+      }
+
+      // Debug: log platform errors and result counts
+      if (Object.keys(platformErrors).length > 0) {
+        console.error(`[fetchAggregatedOptions] Platform errors for ${level}:`, JSON.stringify(platformErrors));
       }
 
       // 3. Deduplicate by normalized value

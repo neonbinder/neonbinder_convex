@@ -57,21 +57,30 @@ tags:
 - assertNotVisible: "Cards"
 
 # ============================================================
-# Cancel button in sync form returns user to idle state
+# Sync form auto-fires: "Close" or "Cancel"+"Retry" returns user to idle
 # ============================================================
 
-# Open the sync form
+# Open the sync form — it auto-fires immediately.
+# While syncing the heading "Syncing Sport Options" is shown.
+# On success the form shows a "Close" button; on error it shows
+# "Retry" and "Cancel". Tapping either dismiss returns "Sync Sports".
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
+    visible: "Syncing Sport Options"
     timeout: 5000
 
-# Verify the heading and description are shown
-- assertVisible: "Sync Sport Options"
-- assertVisible: "Fetch the latest sport options from all connected platforms."
+# Wait for the sync to settle — either "Close" (success) or "Cancel" (error)
+# appears once the sync is no longer running.
+- extendedWaitUntil:
+    visible: ".*Close|Cancel.*"
+    timeout: 45000
 
-# Cancel — should return to the idle state showing "Sync Sports"
-- tapOn: "Cancel"
+# Dismiss the form — tap "Close" on success or "Cancel" on error
+- tapOn:
+    text: ".*Close|Cancel.*"
+    index: 0
+
+# The idle state with "Sync Sports" button should return
 - extendedWaitUntil:
     visible: "Sync Sports"
     timeout: 5000

@@ -1,0 +1,193 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Variant Metadata — Read-Only Flags and Editable Prefix
+tags:
+  - set-selector
+  - regression
+---
+# After selecting a variant at level 6, the VariantMetadataEditor panel
+# appears below the variant list. It shows read-only Insert/Parallel flags
+# (derived from the variant type in the hierarchy) and an editable Prefix
+# field. Typing in the Prefix field makes a "Save" button appear; tapping
+# "Save" persists the value and hides the button again.
+#
+# This test verifies:
+# - The "Metadata" section heading is visible after selecting a variant
+# - The "Insert" and "Parallel" labels are visible (they are read-only)
+# - The "Prefix:" label and its input field are visible
+# - Typing a value into the Prefix input makes "Save" appear
+# - Tapping "Save" makes the "Save" button disappear (confirming the save)
+#
+# DATA DEPENDENCY: This test requires a test account with at least one
+# fully-drilled-down set hierarchy reaching the Variants level (level 6).
+# The test syncs through the standard Baseball → Topps → first set → first
+# variant type → first variant path. The Insert/Parallel checkboxes will
+# reflect whatever the selected variant type's category is (Base, Insert,
+# or Parallel). The important thing is that all three fields are present.
+#
+# Prerequisites: BSC and SL credentials in env vars.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Sync and select sport ---
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# --- Sync and select year ---
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Syncing Year Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+# --- Sync and select manufacturer ---
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Syncing Manufacturer Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+# --- Sync and select set ---
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Syncing Sets"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync and select variant type ---
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync and select variant ---
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: ".*Syncing Variants|Select Base Set.*"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variants"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# ============================================================
+# VERIFY the Metadata panel appears below the variant list
+# ============================================================
+
+# After selecting a variant, the VariantMetadataEditor panel appears.
+# It is positioned below the variant list in the same column — scroll
+# down to make sure it is in view.
+- scrollUntilVisible:
+    element:
+      text: "Metadata"
+    timeout: 10000
+
+# The "Metadata" section heading should be visible
+- assertVisible: "Metadata"
+
+# The Insert label is visible (read-only checkbox — disabled, not interactive)
+- assertVisible: "Insert"
+
+# The Parallel label is visible (read-only checkbox — disabled, not interactive)
+- assertVisible: "Parallel"
+
+# The "Prefix:" label and its adjacent input field are visible
+- assertVisible: "Prefix:"
+
+# ============================================================
+# TYPE a prefix value — "Save" button should appear
+# ============================================================
+
+# Tap the prefix input field (it has placeholder "e.g. DK-") to focus it
+- tapOn: "e.g. DK-"
+- inputText: "TEST-"
+
+# The "Save" button should now be visible (only shown when the field is dirty)
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 5000
+- assertVisible: "Save"
+
+# ============================================================
+# TAP SAVE — the "Save" button should disappear after saving
+# ============================================================
+
+# Tap "Save" to persist the prefix value
+- tapOn: "Save"
+
+# After saving, the "Save" button should disappear (dirty flag clears)
+- extendedWaitUntil:
+    notVisible: "Save"
+    timeout: 10000
+
+# The Prefix input and Metadata section should still be present
+- assertVisible: "Metadata"
+- assertVisible: "Prefix:"

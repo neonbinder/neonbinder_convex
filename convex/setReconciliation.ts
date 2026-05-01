@@ -23,12 +23,37 @@ const metadataValidator = v.optional(v.object({
 
 // ===== MATCHING HELPERS =====
 
+// Common marketplace abbreviations / aliases. Keys and values must be lowercase.
+// Applied token-by-token after basic normalization so "Autos" → "autographs" etc.
+const TOKEN_SYNONYMS: Record<string, string> = {
+  auto: "autograph",
+  autos: "autographs",
+  rc: "rookie",
+  rcs: "rookies",
+  sp: "shortprint",
+  sps: "shortprints",
+  ssp: "supershortprint",
+  ssps: "supershortprints",
+  // Plural-normalize common suffix words so "autograph" / "autographs" collapse too
+  autographs: "autograph",
+  rookies: "rookie",
+  inserts: "insert",
+  parallels: "parallel",
+  shortprints: "shortprint",
+  supershortprints: "supershortprint",
+};
+
 function normalizeForMatch(s: string): string {
-  return s
+  const base = s
     .toLowerCase()
     .trim()
     .replace(/[^\w\s]/g, "")
     .replace(/\s+/g, " ");
+  if (!base) return base;
+  return base
+    .split(" ")
+    .map((tok) => TOKEN_SYNONYMS[tok] ?? tok)
+    .join(" ");
 }
 
 function levenshteinDistance(a: string, b: string): number {

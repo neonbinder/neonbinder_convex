@@ -41,9 +41,15 @@ export default function ParallelForm({
   const variantTypeValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "variantType",
   )?.value;
-  const setNameValue = ancestorChain?.find(
+  const setNameAncestor = ancestorChain?.find(
     (a: { level: string }) => a.level === "setName",
-  )?.value;
+  );
+  const setNameValue = setNameAncestor?.value;
+  const setId = setNameAncestor?._id as GenericId<"selectorOptions"> | undefined;
+  const usedIdentifiers = useQuery(
+    api.selectorOptions.getUsedInsertIdentifiersBySet,
+    setId ? { setId } : "skip",
+  );
 
   const doSync = async () => {
     if (!sportValue || !yearValue || !manufacturerValue || !variantTypeValue || !setNameValue) return;
@@ -170,6 +176,11 @@ export default function ParallelForm({
             unmatchedSl: reconciliationData.unmatchedSl,
           }}
           showMetadata
+          setName={setNameValue || ""}
+          manufacturer={manufacturerValue || ""}
+          usedValues={usedIdentifiers?.values}
+          usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
+          usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
         />
       )}
     </>

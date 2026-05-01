@@ -1,0 +1,194 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Reconciliation Modal — Match Variants Across Platforms
+tags:
+  - set-selector
+  - regression
+---
+# A user drills down to a non-Base variant type (Insert or Parallel) and
+# taps "Sync Variants". When both BSC and SL have data, the
+# "Reconcile Variants" modal appears so the user can review and link
+# matching items across platforms.
+#
+# This test verifies:
+# - The "Reconcile Variants" modal heading appears after syncing a non-Base
+#   variant type that has data on both BSC and SL
+# - An SL filter input is present with a placeholder that contains the set name
+#   (e.g., 'Starts with "Topps Series 1"')
+# - "Matched" and "Unmatched" section labels are visible
+# - A "Confirm N Items" button is visible showing the total item count
+# - Tapping "Cancel" closes the modal
+#
+# DATA DEPENDENCY: This test requires a test account that has already synced
+# Sports, Years, Manufacturers, Sets, and Variant Types for a set that has
+# a non-Base variant type (such as "Insert" or "Parallel") with data on
+# BOTH BSC AND SL. If both platforms do not have data for the selected
+# variant type the reconciliation modal will not appear — the form will
+# auto-store the single-platform data and close instead.
+#
+# Prerequisites: BSC and SL credentials in env vars.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Sync and select sport ---
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# --- Sync and select year ---
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Syncing Year Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+# --- Sync and select manufacturer ---
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Syncing Manufacturer Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+# --- Sync and select set ---
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Syncing Sets"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync variant types and select a non-Base type (Insert or Parallel) ---
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 45000
+
+# Select "Insert" — a non-Base variant type that will trigger the reconciliation
+# modal when both BSC and SL have data. If "Insert" is not present, try "Parallel".
+- scrollUntilVisible:
+    element:
+      text: ".*Insert|Parallel.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Insert|Parallel.*"
+    index: 0
+
+# ============================================================
+# SYNC VARIANTS — triggers the Reconciliation Modal
+# ============================================================
+
+# The Variants column appears after selecting a variant type
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Tapping "Sync Variants" fetches options from both platforms.
+# When both BSC and SL have data, the Reconciliation Modal appears.
+- tapOn: "Sync Variants"
+- extendedWaitUntil:
+    visible: "Syncing Variants"
+    timeout: 5000
+
+# Wait for the reconciliation modal to appear
+- extendedWaitUntil:
+    visible: "Reconcile Variants"
+    timeout: 30000
+
+# ============================================================
+# VERIFY the Reconciliation Modal contents
+# ============================================================
+
+# The modal heading must be "Reconcile Variants"
+- assertVisible: "Reconcile Variants"
+
+# The SL filter input is present with a placeholder that starts with the
+# set name. The placeholder format is: Starts with "<setName>"
+# We match loosely since the set name varies by test account.
+- assertVisible: '.*Starts with ".*".*'
+
+# The matched section label (collapsed by default with item count)
+- assertVisible: ".*Matched.*"
+
+# The unmatched section header showing "BSC" and "SportLots" columns
+- assertVisible: "BSC"
+- assertVisible: "SportLots"
+
+# The confirm button shows "Confirm N Items" with the total item count
+- scrollUntilVisible:
+    element:
+      text: ".*Confirm [0-9]+ Items.*"
+    timeout: 10000
+- assertVisible: ".*Confirm [0-9]+ Items.*"
+
+# ============================================================
+# CANCEL — modal closes
+# ============================================================
+
+# Tap "Cancel" to close the modal without saving
+- tapOn: "Cancel"
+
+# The modal should no longer be visible
+- extendedWaitUntil:
+    notVisible: "Reconcile Variants"
+    timeout: 5000
+
+# The "Sync Variants" button should be back in the Variants column
+- assertVisible: "Sync Variants"

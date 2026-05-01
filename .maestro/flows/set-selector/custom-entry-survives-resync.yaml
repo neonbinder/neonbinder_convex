@@ -65,14 +65,14 @@ tags:
 # STEP 2 — Re-sync sports from marketplaces
 # ============================================================
 
-# Trigger a marketplace sync for sports
+# Trigger a marketplace sync for sports.
+# The form auto-fires on open — no "Sync from Marketplaces" button.
+# The heading "Syncing Sport Options" appears while the sync runs.
+# The form closes automatically on success and "Sync Sports" returns.
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
+    visible: "Syncing Sport Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for the sync form to close
 - extendedWaitUntil:
     visible: "Sync Sports"
     timeout: 45000

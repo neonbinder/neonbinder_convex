@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
 import ReconciliationModal, { type ReconciledResult, type MatchedPair, type PlatformItem } from "./ReconciliationModal";
+import BaseSetPicker from "./BaseSetPicker";
 
 type RawOptionsResult = {
   success: boolean;
@@ -30,6 +31,7 @@ export default function VariantForm({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showReconciliation, setShowReconciliation] = useState(false);
+  const [showBasePicker, setShowBasePicker] = useState(false);
   const [reconciliationData, setReconciliationData] = useState<RawOptionsResult | null>(null);
   const triggered = useRef(false);
 
@@ -38,12 +40,21 @@ export default function VariantForm({
   const manufacturerValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "manufacturer",
   )?.value;
-  const setNameValue = ancestorChain?.find(
+  const setNameAncestor = ancestorChain?.find(
     (a: { level: string }) => a.level === "setName",
-  )?.value;
+  );
+  const setNameValue = setNameAncestor?.value;
+  const setId = setNameAncestor?._id as GenericId<"selectorOptions"> | undefined;
+
+  const usedIdentifiers = useQuery(
+    api.selectorOptions.getUsedInsertIdentifiersBySet,
+    setId ? { setId } : "skip",
+  );
   const variantTypeValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "variantType",
   )?.value;
+
+  const isBase = variantTypeValue?.toLowerCase() === "base";
 
   const doSync = async () => {
     if (!sportValue || !yearValue) return;
@@ -67,13 +78,32 @@ export default function VariantForm({
         return;
       }
 
-      // If both platforms returned data, show reconciliation modal
-      if (result.bscOptions.length > 0 && result.slOptions.length > 0) {
+      if (isBase) {
+        // Base variant: show picker to select the single base set from SL
+        if (result.slOptions.length > 0) {
+          setReconciliationData(result);
+          setShowBasePicker(true);
+        } else {
+          // No SL data — store set name as the base variant
+          const baseName = setNameValue || "Base";
+          await storeReconciledOptions({
+            level: "insert",
+            parentId: variantTypeId,
+            reconciledItems: [{
+              value: baseName,
+              platformData: {},
+            }],
+          });
+          setMessage(`Stored base set: ${baseName}`);
+          onDone?.();
+        }
+      } else if (result.bscOptions.length > 0 && result.slOptions.length > 0) {
+        // Both platforms have data — show reconciliation modal
         setReconciliationData(result);
         setShowReconciliation(true);
         setMessage(result.message || null);
       } else {
-        // Only one platform has data — store directly without reconciliation
+        // Only one platform has data — store directly
         const items = [
           ...result.bscOptions.map((o: PlatformItem) => ({
             value: o.value,
@@ -107,6 +137,19 @@ export default function VariantForm({
     }
   };
 
+  const handleBaseSetConfirm = async (selected: PlatformItem) => {
+    await storeReconciledOptions({
+      level: "insert",
+      parentId: variantTypeId,
+      reconciledItems: [{
+        value: selected.value,
+        platformData: { sportlots: selected.platformValue },
+      }],
+    });
+    setShowBasePicker(false);
+    onDone?.();
+  };
+
   const handleReconciliationConfirm = async (result: ReconciledResult) => {
     await storeReconciledOptions({
       level: "insert",
@@ -131,35 +174,50 @@ export default function VariantForm({
   return (
     <>
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Syncing Variants</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {isBase ? "Select Base Set" : "Syncing Variants"}
+        </h2>
 
         {loading && (
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Fetching variants for{" "}
-            <strong>
-              {setNameValue || "..."} {variantTypeValue || ""}
-            </strong>{" "}
-            from all connected platforms...
+            {isBase
+              ? `Finding base set for ${setNameValue || "..."}...`
+              : `Fetching variants for ${setNameValue || "..."} ${variantTypeValue || ""} from all connected platforms...`
+            }
           </p>
         )}
 
-        {message && !showReconciliation && (
+        {message && !showReconciliation && !showBasePicker && (
           <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
             {message}
           </div>
         )}
 
-        {!loading && !showReconciliation && (
+        {!loading && !showReconciliation && !showBasePicker && (
           <div className="flex gap-2">
-            {message?.startsWith("Error") && (
+            {(message?.startsWith("Error") || message?.startsWith("Failed")) && (
               <NeonButton onClick={doSync}>Retry</NeonButton>
             )}
             <NeonButton cancel onClick={onDone}>
-              {message?.startsWith("Error") ? "Cancel" : "Close"}
+              {message?.startsWith("Error") || message?.startsWith("Failed") ? "Cancel" : "Close"}
             </NeonButton>
           </div>
         )}
       </div>
+
+      {showBasePicker && reconciliationData && (
+        <BaseSetPicker
+          isOpen={showBasePicker}
+          onClose={() => {
+            setShowBasePicker(false);
+            onDone?.();
+          }}
+          onConfirm={handleBaseSetConfirm}
+          slOptions={reconciliationData.slOptions}
+          setName={setNameValue || ""}
+          manufacturer={manufacturerValue || ""}
+        />
+      )}
 
       {showReconciliation && reconciliationData && (
         <ReconciliationModal
@@ -176,6 +234,11 @@ export default function VariantForm({
             unmatchedSl: reconciliationData.unmatchedSl,
           }}
           showMetadata
+          setName={setNameValue || ""}
+          manufacturer={manufacturerValue || ""}
+          usedValues={usedIdentifiers?.values}
+          usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
+          usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
         />
       )}
     </>

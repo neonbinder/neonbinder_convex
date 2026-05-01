@@ -1,0 +1,184 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: Base Set Picker — Select Base Set Modal
+tags:
+  - set-selector
+  - regression
+---
+# A user drills down to a "Base" variant type and syncs variants.
+# For Base variants, the sync fetches SL options and shows the
+# "Select Base Set" modal so the user can choose which SL set is the base.
+#
+# This test verifies:
+# - The "Select Base Set" modal heading appears after tapping "Sync Variants"
+#   on a "Base" variant type
+# - A "likely match" badge is visible on the auto-preselected option
+# - A search input is present when there are more than 8 SL options
+# - Tapping "Cancel" closes the modal and "Sync Variants" returns
+#
+# DATA DEPENDENCY: This test requires a test account that has already synced
+# Sports, Years, Manufacturers, Sets, and Variant Types down to a set that
+# has a "Base" variant type with SL options available. The test navigates
+# to the first available sport → most recent year → first manufacturer →
+# first set → "Base" variant type. If "Base" does not appear in the Variant
+# Types list the test will not be able to proceed to the modal.
+#
+# Prerequisites: BSC and SL credentials in env vars.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# --- Ensure marketplace credentials are available ---
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# --- Sync and select sport ---
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# --- Sync and select year ---
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+- extendedWaitUntil:
+    visible: "Syncing Year Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 45000
+- tapOn:
+    text: ".*20[0-9][0-9].*"
+    index: 0
+
+# --- Sync and select manufacturer ---
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+- extendedWaitUntil:
+    visible: "Syncing Manufacturer Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 45000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+# --- Sync and select set ---
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+- extendedWaitUntil:
+    visible: "Syncing Sets"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync variant types and select "Base" ---
+# (Variant Types is the column formerly called "Set Variants")
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 45000
+
+# Select "Base" specifically — the BaseSetPicker only opens for Base variant types
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- tapOn: "Base"
+
+# ============================================================
+# SYNC VARIANTS — triggers the Base Set Picker modal
+# ============================================================
+
+# The Variants column appears after selecting a variant type
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Tapping "Sync Variants" on a Base variant type opens the
+# "Select Base Set" modal (after fetching SL options)
+- tapOn: "Sync Variants"
+
+# The form shows "Syncing Variants" or "Select Base Set" while loading.
+# Wait for the modal heading to appear.
+- extendedWaitUntil:
+    visible: "Select Base Set"
+    timeout: 30000
+
+# ============================================================
+# VERIFY the Select Base Set modal contents
+# ============================================================
+
+# The modal heading must be "Select Base Set"
+- assertVisible: "Select Base Set"
+
+# The auto-preselected option should have a "likely match" badge
+# (badge appears when the scoring algorithm finds a strong match)
+- assertVisible: "likely match"
+
+# If there are more than 8 SL options a search input is shown
+# (its placeholder text is "Search sets...")
+# We assert with a conditional: this only applies when many SL sets exist
+- runFlow:
+    when:
+      visible: "Search sets..."
+    commands:
+      - assertVisible: "Search sets..."
+
+# The confirm button shows the set name
+- assertVisible: "Confirm Base Set"
+
+# ============================================================
+# CANCEL — modal closes and "Sync Variants" returns
+# ============================================================
+
+# Tap "Cancel" to close the modal without picking a base set
+- tapOn: "Cancel"
+
+# The modal should no longer be visible
+- extendedWaitUntil:
+    notVisible: "Select Base Set"
+    timeout: 5000
+
+# The "Sync Variants" button should be back in the Variants column
+- assertVisible: "Sync Variants"

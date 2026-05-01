@@ -14,30 +14,60 @@ export default function VariantMetadataEditor({
   const option = useQuery(api.selectorOptions.getSelectorOptionById, {
     id: optionId,
   });
+  const ancestorChain = useQuery(api.selectorOptions.getAncestorChain, {
+    id: optionId,
+  });
   const updateMetadata = useMutation(
     api.selectorOptions.updateSelectorOptionMetadata,
   );
 
-  const [isInsert, setIsInsert] = useState(false);
-  const [isParallel, setIsParallel] = useState(false);
+  // Derive isInsert/isParallel from the hierarchy — these are not user-editable.
+  const variantTypeValue = ancestorChain
+    ?.find((a: { level: string }) => a.level === "variantType")
+    ?.value?.toLowerCase();
+  const derivedIsInsert =
+    option?.level === "parallel"
+      ? false
+      : variantTypeValue === "insert";
+  const derivedIsParallel =
+    option?.level === "parallel"
+      ? true
+      : variantTypeValue === "parallel";
+
   const [cardNumberPrefix, setCardNumberPrefix] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Sync local state from query result
   useEffect(() => {
-    if (option?.metadata) {
-      setIsInsert(option.metadata.isInsert ?? false);
-      setIsParallel(option.metadata.isParallel ?? false);
-      setCardNumberPrefix(option.metadata.cardNumberPrefix ?? "");
-      setDirty(false);
-    } else if (option) {
-      setIsInsert(false);
-      setIsParallel(false);
-      setCardNumberPrefix("");
-      setDirty(false);
+    setCardNumberPrefix(option?.metadata?.cardNumberPrefix ?? "");
+    setDirty(false);
+  }, [option?._id, option?.metadata?.cardNumberPrefix]);
+
+  // Auto-persist derived insert/parallel flags if they drift from stored metadata.
+  useEffect(() => {
+    if (!option || !ancestorChain) return;
+    const storedInsert = option.metadata?.isInsert ?? false;
+    const storedParallel = option.metadata?.isParallel ?? false;
+    if (storedInsert === derivedIsInsert && storedParallel === derivedIsParallel) {
+      return;
     }
-  }, [option?._id, option?.metadata?.isInsert, option?.metadata?.isParallel, option?.metadata?.cardNumberPrefix]);
+    void updateMetadata({
+      id: optionId,
+      metadata: {
+        isInsert: derivedIsInsert,
+        isParallel: derivedIsParallel,
+        cardNumberPrefix: option.metadata?.cardNumberPrefix,
+      },
+    });
+  }, [
+    option?._id,
+    option?.metadata?.isInsert,
+    option?.metadata?.isParallel,
+    ancestorChain,
+    derivedIsInsert,
+    derivedIsParallel,
+  ]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -45,8 +75,8 @@ export default function VariantMetadataEditor({
       await updateMetadata({
         id: optionId,
         metadata: {
-          isInsert,
-          isParallel,
+          isInsert: derivedIsInsert,
+          isParallel: derivedIsParallel,
           cardNumberPrefix: cardNumberPrefix || undefined,
         },
       });
@@ -54,7 +84,7 @@ export default function VariantMetadataEditor({
     } finally {
       setSaving(false);
     }
-  }, [optionId, isInsert, isParallel, cardNumberPrefix, updateMetadata]);
+  }, [optionId, derivedIsInsert, derivedIsParallel, cardNumberPrefix, updateMetadata]);
 
   if (!option) return null;
 
@@ -63,53 +93,55 @@ export default function VariantMetadataEditor({
       <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
         Metadata
       </h4>
-      <div className="flex flex-wrap gap-3 items-center">
-        <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isInsert}
-            onChange={(e) => {
-              setIsInsert(e.target.checked);
-              setDirty(true);
-            }}
-            className="rounded border-gray-600 bg-gray-700"
-          />
-          Insert
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isParallel}
-            onChange={(e) => {
-              setIsParallel(e.target.checked);
-              setDirty(true);
-            }}
-            className="rounded border-gray-600 bg-gray-700"
-          />
-          Parallel
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-gray-300">
-          Prefix:
-          <input
-            type="text"
-            value={cardNumberPrefix}
-            onChange={(e) => {
-              setCardNumberPrefix(e.target.value);
-              setDirty(true);
-            }}
-            placeholder="e.g. DK-"
-            className="w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200"
-          />
-        </label>
-        {dirty && (
-          <NeonButton
-            size="1"
-            onClick={handleSave}
-            disabled={saving}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-3 items-center">
+          <label
+            className="flex items-center gap-1.5 text-xs text-gray-400 cursor-not-allowed"
+            title="Determined by hierarchy (variant type)"
           >
-            {saving ? "..." : "Save"}
-          </NeonButton>
-        )}
+            <input
+              type="checkbox"
+              checked={derivedIsInsert}
+              disabled
+              readOnly
+              className="rounded border-gray-600 bg-gray-700 opacity-60"
+            />
+            Insert
+          </label>
+          <label
+            className="flex items-center gap-1.5 text-xs text-gray-400 cursor-not-allowed"
+            title="Determined by hierarchy (variant type)"
+          >
+            <input
+              type="checkbox"
+              checked={derivedIsParallel}
+              disabled
+              readOnly
+              className="rounded border-gray-600 bg-gray-700 opacity-60"
+            />
+            Parallel
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-3 items-center">
+          <label className="flex items-center gap-1.5 text-xs text-gray-300">
+            Prefix:
+            <input
+              type="text"
+              value={cardNumberPrefix}
+              onChange={(e) => {
+                setCardNumberPrefix(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="e.g. DK-"
+              className="w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200"
+            />
+          </label>
+          {dirty && (
+            <NeonButton size="1" onClick={handleSave} disabled={saving}>
+              {saving ? "..." : "Save"}
+            </NeonButton>
+          )}
+        </div>
       </div>
     </div>
   );

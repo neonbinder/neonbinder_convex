@@ -134,17 +134,17 @@ tags:
     visible: "TestSet"
     timeout: 10000
 
-# Select the custom set — this collapses Sets and shows Set Variants
+# Select the custom set — this collapses Sets and shows Variant Types
 - tapOn: "TestSet"
 - extendedWaitUntil:
-    visible: "Set Variants"
+    visible: "Variant Types"
     timeout: 10000
 
 # ============================================================
-# LEVEL 5 — Add a custom variant
+# LEVEL 5 — Add a custom variant type
 # ============================================================
 
-# The "+ Custom" button for Set Variants is now the first visible one
+# The "+ Custom" button for Variant Types is now the first visible one
 - tapOn: "+ Custom"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
@@ -156,16 +156,45 @@ tags:
     text: "Add"
     index: 0
 
-# "Base" should appear in the Set Variants list
+# "Base" should appear in the Variant Types list
 - extendedWaitUntil:
     visible: "Base"
     timeout: 10000
 
-# Select the custom variant — this should reveal the Cards column
+# Select the custom variant type — this should reveal the Variants column
 - tapOn: "Base"
 
 # ============================================================
-# LEVEL 6 — Cards column appears
+# LEVEL 6 — Add a custom variant
+# ============================================================
+
+# The Variants column appears after selecting a variant type
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Tap "+ Custom" to open the custom entry form for Variants
+- tapOn: "+ Custom"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+
+- tapOn: "Enter custom value..."
+- inputText: "Base Set"
+- tapOn:
+    text: "Add"
+    index: 0
+
+# "Base Set" should appear in the Variants list
+- extendedWaitUntil:
+    visible: "Base Set"
+    timeout: 10000
+
+# Select the custom variant — this should reveal the Cards column
+- tapOn: "Base Set"
+
+# ============================================================
+# LEVEL 7 — Cards column appears
 # ============================================================
 
 # After selecting a variant, the Cards column should be visible

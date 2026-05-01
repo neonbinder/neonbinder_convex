@@ -48,24 +48,16 @@ tags:
 - assertVisible: "Sync Sports"
 - assertVisible: "\\+ Custom"
 
-# Trigger a marketplace sync for Sports
+# Trigger a marketplace sync for Sports.
+# The form auto-fires immediately on open — no "Sync from Marketplaces" button.
+# The heading "Syncing Sport Options" appears while the sync runs.
+# On success the form closes automatically and "Sync Sports" returns.
 - tapOn: "Sync Sports"
-- scrollUntilVisible:
-    element:
-      text: "Sync Sport Options"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
     timeout: 5000
-- scrollUntilVisible:
-    element:
-      text: "Sync from Marketplaces"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for sync to complete — the form closes on success and the idle
-# Sync Sports button returns. scrollUntilVisible polls until the element
-# appears anywhere in scrollable range, so it covers the wait implicitly.
-- scrollUntilVisible:
-    element:
-      text: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Sync Sports"
     timeout: 45000
 
 # Verify sports were synced from both platforms

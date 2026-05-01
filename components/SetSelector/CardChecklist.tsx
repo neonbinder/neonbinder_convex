@@ -76,7 +76,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     : null;
 
   return (
-    <div className="min-w-[320px] flex flex-col gap-4">
+    <div className="w-full flex flex-col gap-4">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">

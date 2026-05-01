@@ -95,7 +95,7 @@ export default function SetSelector() {
   const cardChecklistId = selectedVariantOfVariantId || selectedVariantId;
 
   return (
-    <div className="max-w-full mx-auto p-6">
+    <div className="max-w-full mx-auto p-6 flex flex-col gap-6">
       <div className="flex flex-row gap-4 overflow-x-auto">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
@@ -251,9 +251,10 @@ export default function SetSelector() {
           />
         )}
 
-        {/* Cards Column */}
-        {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
       </div>
+
+      {/* Cards — full width below the selector row */}
+      {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
     </div>
   );
 }

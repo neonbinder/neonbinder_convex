@@ -15,9 +15,8 @@ tags:
 # - The new card appears in the checklist with a "Custom" badge
 # - The card shows the card number and player name the user entered
 #
-# Prerequisites: BSC and SL credentials in env vars, and a synced variant
-# with a populated checklist (or an empty one is fine — "Add Card" is always
-# visible regardless of checklist state).
+# Prerequisites: BSC and SL credentials in env vars, and a synced variant.
+# All sync forms auto-fire on open — there is no "Sync from Marketplaces" button.
 
 - launchApp
 - extendedWaitUntil:
@@ -46,9 +45,8 @@ tags:
 
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
+    visible: "Syncing Sport Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Sports"
     timeout: 45000
@@ -63,9 +61,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Years"
 - extendedWaitUntil:
-    visible: "Sync Year Options"
+    visible: "Syncing Year Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Years"
     timeout: 45000
@@ -78,9 +75,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Manufacturers"
 - extendedWaitUntil:
-    visible: "Sync Manufacturer Options"
+    visible: "Syncing Manufacturer Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Manufacturers"
     timeout: 45000
@@ -93,9 +89,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Sets"
 - extendedWaitUntil:
-    visible: "Sync Set Options"
+    visible: "Syncing Sets"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Sets"
     timeout: 45000
@@ -103,14 +98,29 @@ tags:
     text: ".*"
     index: 0
 
+# Level 5 — Variant Types (formerly "Set Variants")
 - extendedWaitUntil:
-    visible: "Set Variants"
+    visible: "Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# Level 6 — Variants
+- extendedWaitUntil:
+    visible: "Variants"
     timeout: 10000
 - tapOn: "Sync Variants"
 - extendedWaitUntil:
-    visible: "Sync Set Variant Options"
+    visible: ".*Syncing Variants|Select Base Set.*"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Variants"
     timeout: 45000
@@ -122,7 +132,7 @@ tags:
 # CARDS COLUMN — Add a custom card
 # ============================================================
 
-# Wait for the Cards column to appear
+# Wait for the Cards panel to appear (full-width below the selector row)
 - extendedWaitUntil:
     visible: "Cards"
     timeout: 10000

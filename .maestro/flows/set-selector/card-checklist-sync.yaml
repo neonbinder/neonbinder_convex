@@ -5,12 +5,15 @@ tags:
   - regression
   - wip
 ---
-# This test verifies that a user can drill down to a set variant and then
+# This test verifies that a user can drill down to a variant and then
 # use "Fetch from Marketplaces" to populate the card checklist.
 # It confirms that individual card entries appear with card numbers and names,
 # and that platform badges (BSC / SL) are shown on synced cards.
 #
 # Prerequisites: BSC and SL credentials must be available in env vars.
+#
+# All sync forms auto-fire on open — no "Sync from Marketplaces" button.
+# Each form shows a "Syncing X" heading then closes automatically on success.
 
 - launchApp
 - extendedWaitUntil:
@@ -38,9 +41,8 @@ tags:
 # --- Sync and select sport ---
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
+    visible: "Syncing Sport Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Sports"
     timeout: 45000
@@ -56,9 +58,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Years"
 - extendedWaitUntil:
-    visible: "Sync Year Options"
+    visible: "Syncing Year Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Years"
     timeout: 45000
@@ -72,9 +73,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Manufacturers"
 - extendedWaitUntil:
-    visible: "Sync Manufacturer Options"
+    visible: "Syncing Manufacturer Options"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Manufacturers"
     timeout: 45000
@@ -88,9 +88,8 @@ tags:
     timeout: 10000
 - tapOn: "Sync Sets"
 - extendedWaitUntil:
-    visible: "Sync Set Options"
+    visible: "Syncing Sets"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Sets"
     timeout: 45000
@@ -98,15 +97,29 @@ tags:
     text: ".*"
     index: 0
 
-# --- Sync and select variant ---
+# --- Sync and select variant type (level 5, formerly "Set Variants") ---
 - extendedWaitUntil:
-    visible: "Set Variants"
+    visible: "Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+- extendedWaitUntil:
+    visible: "Syncing Variant Types"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Variant Types"
+    timeout: 45000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync and select variant (level 6) ---
+- extendedWaitUntil:
+    visible: "Variants"
     timeout: 10000
 - tapOn: "Sync Variants"
 - extendedWaitUntil:
-    visible: "Sync Set Variant Options"
+    visible: ".*Syncing Variants|Select Base Set.*"
     timeout: 5000
-- tapOn: "Sync from Marketplaces"
 - extendedWaitUntil:
     visible: "Sync Variants"
     timeout: 45000
@@ -118,7 +131,7 @@ tags:
 # CARDS CHECKLIST SYNC
 # ============================================================
 
-# The Cards panel appears after selecting a variant
+# The Cards panel appears full-width below the selector row after selecting a variant
 - extendedWaitUntil:
     visible: "Cards"
     timeout: 10000
