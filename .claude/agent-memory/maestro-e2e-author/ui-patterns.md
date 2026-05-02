@@ -59,10 +59,14 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 - For single-platform data: auto-stores and closes (same as other levels)
 
 ## BaseSetPicker modal
-- Heading: "Select Base Set"
-- Subtext: "Choose which SportLots set is the base set for [setName]."
-- Search input (only if >8 SL options): placeholder "Search sets..."
-- "likely match" badge (green text): shown on auto-preselected option with score >= 795
+- Heading: "Select Base Set" (same as VariantForm heading for Base type — not unique enough to assert modal is open)
+- Subtext: "Choose the base set for **[setName]** on each platform. The rest will be discarded."
+  Use regex `".*Choose the base set for.*"` to confirm the modal is open.
+- Search input (only if >8 SL options): placeholder "Search SportLots sets..."
+- "SPORTLOTS BASE" label (uppercase purple, via CSS): text in DOM is "SportLots base" — use `".*SportLots base.*"` or `"SportLots base"` (check visibility, CSS uppercases it)
+- "BSC base" section: ONLY shown when BSC has variantName options. For Base variant type, BSC's variantName facet is often empty — the BSC section will NOT appear. Do not assert "BSC base".
+- "likely match" badge (green text): shown on SL option with score >= 795; also shown on BSC options with score >= 795 in the BSC section (if visible)
+- Auto-selected SL option: highlighted in green. "Chrome" is auto-selected for Topps Chrome.
 - Confirm button: "Confirm Base Set"
 - Cancel button: "Cancel"
 

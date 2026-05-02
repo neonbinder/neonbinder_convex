@@ -1,0 +1,328 @@
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: End-to-end set sync — Topps Chrome Base + Parallel (BSC + SL)
+tags:
+  - set-selector
+  - regression
+---
+# Regression test for the variant-level set-sync milestone.
+# Drills the full 6-level hierarchy: sport → year → manufacturer → set →
+# variantType → variant. Exercises two variant-type paths:
+#
+#   Base    → BaseSetPicker modal → confirm "Chrome" (auto-selected, likely match)
+#             → Variants column shows "Chrome" with both SL and BSC badges.
+#
+#   Parallel → ReconciliationModal opens with auto-matched + unmatched rows
+#              → Cancel (we do NOT write 2800+ rows on every CI run).
+#
+# Prerequisite: TEST_EMAIL must have admin role and BSC + SL credentials
+# saved in the backend (see refresh-sportlots-creds.yaml for SL refresh).
+# All sync forms auto-fire on mount — there is no separate "Sync" trigger
+# inside the form. Tapping the column button (e.g., "Sync Years") opens the
+# form, which immediately fires the fetch.
+#
+# Timeouts are generous because BSC + SL fetches each take 5–15 s and some
+# levels (sets, variants) fetch across manufacturers.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# LEVEL 1 — Sport
+# Sports are pre-synced; Baseball should already be in the list.
+# ============================================================
+
+# The Sports column heading is visible on page load
+- assertVisible: "Sports"
+
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# Selecting a sport reveals the Years column
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 2 — Year (BSC + SL)
+# Tapping "Sync Years" opens YearForm which auto-fires.
+# The form heading "Syncing Year Options" confirms the form is open.
+# When sync completes the form closes and "Sync Years" reappears.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Sync Years"
+    timeout: 10000
+- tapOn: "Sync Years"
+
+# YearForm auto-fires. On a fast connection or with cached data the
+# "Syncing Year Options" heading may disappear before Maestro checks.
+# Wait for either the loading state OR the completion signal (button back).
+- extendedWaitUntil:
+    visible:
+      text: ".*Syncing Year Options|Sync Years.*"
+    timeout: 15000
+
+# Wait for sync to finish — form closes and button reappears
+- extendedWaitUntil:
+    visible: "Sync Years"
+    timeout: 60000
+
+# Pick 2025 — the user's verified drill path
+- scrollUntilVisible:
+    element:
+      text: "2025"
+    timeout: 10000
+- tapOn: "2025"
+
+# Manufacturers column appears
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 3 — Manufacturer (SL only)
+# Tapping "Sync Manufacturers" opens ManufacturerForm which auto-fires.
+# Topps is far down the alphabetical list so after sync completes we use
+# the EntitySelector search input (shown when list > 8 items) to filter.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Sync Manufacturers"
+    timeout: 10000
+- tapOn: "Sync Manufacturers"
+
+# ManufacturerForm auto-fires. Same race: wait for either loading or done.
+- extendedWaitUntil:
+    visible:
+      text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
+    timeout: 15000
+
+# Wait for sync to finish
+- extendedWaitUntil:
+    visible: "Sync Manufacturers"
+    timeout: 60000
+
+# Type "Topps" into the manufacturer search box (visible when list > 8 items)
+# to filter the long alphabetical list down to the Topps entry
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+
+# Wait for the filtered result to appear. The result button shows "Topps" as
+# the name with a "SL" platform badge. There are now two "Topps" texts on
+# screen: the typed value in the search input (index 0) and the result button
+# (index 1). Use index 1 to target the button.
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Sets column appears
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 4 — Set (BSC only via syncSetsAcrossManufacturers)
+# SetForm auto-fires. Search for "Topps Chrome" to avoid ambiguity with
+# other Topps sets (the list is large).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Sync Sets"
+    timeout: 10000
+- tapOn: "Sync Sets"
+
+# SetForm auto-fires. Same race: wait for either loading or done.
+- extendedWaitUntil:
+    visible:
+      text: ".*Syncing Sets|Sync Sets.*"
+    timeout: 15000
+
+# BSC set sync across manufacturers can be slow
+- extendedWaitUntil:
+    visible: "Sync Sets"
+    timeout: 90000
+
+# Filter the sets list to find "Topps Chrome". Same pattern as manufacturer:
+# after typing the search value the result button appears below the input.
+# "Topps Chrome" is longer and unique enough that the only text match on
+# screen is the button itself (the input placeholder says "Search sets...").
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+
+# Wait for the result button then tap it. "Topps Chrome" appears in both the
+# input value and the result button; use index 1 for the button.
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Variant Types column appears
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 5 — Variant Type (BSC only)
+# SetVariantForm auto-fires. Expect Base, Insert, Parallel, Promo etc.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Sync Variant Types"
+    timeout: 10000
+- tapOn: "Sync Variant Types"
+
+# SetVariantForm auto-fires on mount. If Topps Chrome variant types are
+# already in the database the sync completes near-instantly and the "Syncing
+# Variant Types" heading may be gone before Maestro checks. Wait for the
+# button to reappear (which signals the form closed) OR for Base to appear
+# in the list — whichever is visible first confirms completion.
+- extendedWaitUntil:
+    visible:
+      text: ".*Sync Variant Types|Base.*"
+    timeout: 60000
+
+# Confirm "Base" is present in the Variant Types list
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- assertVisible: "Base"
+
+# ============================================================
+# PATH A — Base variant → BaseSetPicker
+# Tapping "Base" selects it and reveals the Variants column.
+# Tapping "Sync Variants" opens VariantForm which auto-fires.
+# Because variantType=Base and SL has options, BaseSetPicker opens.
+# ============================================================
+
+- tapOn: "Base"
+
+# Variants column with the Sync Variants button should appear
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Sync Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+
+# VariantForm auto-fires. For Base, the modal opens when SL data arrives.
+# Wait for the BaseSetPicker subtitle which is unique and only appears once
+# the modal is open. The VariantForm heading "Select Base Set" and the modal
+# heading are the same string, but the subtitle confirms the modal is open.
+- extendedWaitUntil:
+    visible: ".*Choose the base set for.*"
+    timeout: 60000
+
+# "Chrome" should be auto-selected as the likely match.
+# The "likely match" badge confirms the scoring algorithm chose it.
+# (BSC base section is hidden when BSC has no variantName options for Base —
+# this is expected; the BSC slug is written via the set-level fallback.)
+- assertVisible: "likely match"
+- assertVisible: "Chrome"
+
+# Confirm the selection — writes one variant row with BSC + SL platform data
+- scrollUntilVisible:
+    element:
+      text: "Confirm Base Set"
+    timeout: 5000
+- tapOn: "Confirm Base Set"
+
+# Modal closes; VariantForm also closes (calls onDone). We should now see
+# the Variants column in the EntitySelector with "Chrome" listed.
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 30000
+
+# The "Chrome" row should show both SL and BSC platform badges,
+# confirming data from both marketplaces was written.
+- scrollUntilVisible:
+    element:
+      text: "Chrome"
+    timeout: 10000
+- assertVisible: "Chrome"
+
+# SL and BSC badges appear on the same row as the variant name
+- assertVisible: "SL"
+- assertVisible: "BSC"
+
+# ============================================================
+# PATH B — Parallel variant → ReconciliationModal
+# Go back to Variant Types: the column shows a collapsed "Base" pill after
+# the Base variant was confirmed. Tapping "Base" expands the Variant Types
+# list so we can pick "Parallel".
+# ============================================================
+
+# The Variant Types column shows the selected variant type ("Base") as a
+# collapsed pill. The columns extend horizontally so the Variant Types
+# column may be slightly scrolled off to the left. Try tapping "Base"
+# directly — if it is off-screen Maestro will fail and we handle that with
+# the horizontal scroll container's own scroll behavior (auto-scroll on
+# mount keeps the active column in view, so it should be visible).
+- tapOn: "Base"
+
+# Wait for the expanded list — "Parallel" should now be visible
+- extendedWaitUntil:
+    visible: "Parallel"
+    timeout: 10000
+- tapOn: "Parallel"
+
+# Variants column resets for the Parallel type
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Sync Variants"
+    timeout: 10000
+- tapOn: "Sync Variants"
+
+# VariantForm auto-fires for Parallel. The ReconciliationModal opens
+# automatically once both BSC and SL data arrive. Wait directly for the
+# modal header — it is the definitive signal that the sync completed and the
+# modal rendered. The "Syncing Variants" intermediate heading may flash by
+# too fast to assert reliably.
+- extendedWaitUntil:
+    visible: "Reconcile Variants"
+    timeout: 90000
+
+# Subtitle shows matched/unmatched counts. Numbers drift as marketplace
+# data changes; assert the structural pattern only.
+- assertVisible:
+    text: ".*matched.*BSC-only.*SL-only.*"
+
+# The drag-to-link instruction confirms the unmatched section rendered
+- assertVisible: "Unmatched — drag to link, or click BSC then SL"
+
+# Cancel out — do NOT write thousands of variant rows on every CI run
+- scrollUntilVisible:
+    element:
+      text: "Cancel"
+    timeout: 5000
+- tapOn: "Cancel"
+
+# Modal dismissed; we're back at the set selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
