@@ -133,6 +133,10 @@ type ReconciliationModalProps = {
   showMetadata?: boolean;
   setName?: string;
   manufacturer?: string;
+  // Additional SL-side starts-with prefixes used to narrow the unmatched SL
+  // list (e.g., the Base variant's SL anchor name). Merged with the
+  // set-name-derived defaults.
+  extraSlPrefixes?: string[];
   usedValues?: string[];
   usedSlPlatformValues?: string[];
   usedBscPlatformValues?: string[];
@@ -322,6 +326,7 @@ export default function ReconciliationModal({
   showMetadata = false,
   setName = "",
   manufacturer = "",
+  extraSlPrefixes = [],
   usedValues = [],
   usedSlPlatformValues = [],
   usedBscPlatformValues = [],
@@ -349,19 +354,29 @@ export default function ReconciliationModal({
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [matchedCollapsed, setMatchedCollapsed] = useState(true);
-  // Default SL-side prefixes: full set name, and set name with manufacturer prefix stripped.
-  // e.g. setName="Topps Fire", manufacturer="Topps" → ["topps fire", "fire"]
+  // Default SL-side prefixes: full set name, set name with manufacturer
+  // prefix stripped, plus any caller-supplied extras (typically the SL Base
+  // anchor's name). De-duped and lowercased.
+  // e.g. setName="Topps Chrome", mfg="Topps", extra=["Chrome"] → ["topps chrome", "chrome"]
   const defaultSlPrefixes = useMemo(() => {
     const setNorm = setName.trim().toLowerCase();
     const mfgNorm = manufacturer.trim().toLowerCase();
     const prefixes: string[] = [];
-    if (setNorm) prefixes.push(setNorm);
+    const seen = new Set<string>();
+    const push = (p: string) => {
+      const v = p.trim().toLowerCase();
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        prefixes.push(v);
+      }
+    };
+    if (setNorm) push(setNorm);
     if (mfgNorm && setNorm.startsWith(`${mfgNorm} `)) {
-      const stripped = setNorm.slice(mfgNorm.length + 1).trim();
-      if (stripped) prefixes.push(stripped);
+      push(setNorm.slice(mfgNorm.length + 1).trim());
     }
+    for (const extra of extraSlPrefixes) push(extra);
     return prefixes;
-  }, [setName, manufacturer]);
+  }, [setName, manufacturer, extraSlPrefixes]);
 
   const [slFilter, setSlFilter] = useState<string>("");
 

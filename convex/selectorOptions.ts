@@ -125,6 +125,49 @@ export const getUsedInsertIdentifiersBySet = query({
   },
 });
 
+// Returns the Base variant row (level=insert, parent=variantType=Base) for
+// a given setId, if one exists. Used by VariantForm to seed the SL prefix
+// filter when reconciling Insert/Parallel variants — the Base anchor's
+// name is typically a tighter SL-side prefix than the BSC set name.
+export const getBaseVariantBySet = query({
+  args: { setId: v.id("selectorOptions") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      value: v.string(),
+      platformData: v.object({
+        bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlots: v.optional(v.string()),
+      }),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const variantTypes = await ctx.db
+      .query("selectorOptions")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", "variantType").eq("parentId", args.setId),
+      )
+      .collect();
+    const baseVariantType = variantTypes.find(
+      (vt) => vt.value.toLowerCase().trim() === "base",
+    );
+    if (!baseVariantType) return null;
+    const inserts = await ctx.db
+      .query("selectorOptions")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", "insert").eq("parentId", baseVariantType._id),
+      )
+      .collect();
+    if (inserts.length === 0) return null;
+    const base = inserts[0];
+    return {
+      value: base.value,
+      platformData: base.platformData,
+    };
+  },
+});
+
 export const getSelectorOptionById = query({
   args: { id: v.id("selectorOptions") },
   returns: v.union(
