@@ -5,8 +5,9 @@ import type { PlatformItem } from "./ReconciliationModal";
 type BaseSetPickerProps = {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (selected: PlatformItem) => Promise<void>;
+  onConfirm: (selected: { sl: PlatformItem; bsc?: PlatformItem }) => Promise<void>;
   slOptions: PlatformItem[];
+  bscOptions?: PlatformItem[];
   setName: string;
   manufacturer?: string;
 };
@@ -67,6 +68,7 @@ export default function BaseSetPicker({
   onClose,
   onConfirm,
   slOptions,
+  bscOptions = [],
   setName,
   manufacturer = "",
 }: BaseSetPickerProps) {
@@ -74,6 +76,8 @@ export default function BaseSetPicker({
   const [userPicked, setUserPicked] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [selectedBscValue, setSelectedBscValue] = useState<string | null>(null);
+  const [userPickedBsc, setUserPickedBsc] = useState(false);
 
   const sortedOptions = useMemo(() => {
     const scored = slOptions.map((opt) => ({
@@ -84,12 +88,31 @@ export default function BaseSetPicker({
     return scored;
   }, [slOptions, setName, manufacturer]);
 
+  const sortedBscOptions = useMemo(() => {
+    const scored = bscOptions.map((opt) => ({
+      ...opt,
+      score: scoreBaseSetMatch(opt.value, setName, manufacturer),
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    return scored;
+  }, [bscOptions, setName, manufacturer]);
+
   useEffect(() => {
     if (userPicked) return;
     if (sortedOptions.length > 0 && sortedOptions[0].score >= 795) {
       setSelectedValue(sortedOptions[0].value);
     }
   }, [sortedOptions, userPicked]);
+
+  // Auto-select BSC: 1 option → take it; multiple → take highest scorer
+  useEffect(() => {
+    if (userPickedBsc) return;
+    if (sortedBscOptions.length === 0) {
+      setSelectedBscValue(null);
+      return;
+    }
+    setSelectedBscValue(sortedBscOptions[0].value);
+  }, [sortedBscOptions, userPickedBsc]);
 
   const filteredOptions = useMemo(() => {
     const q = searchFilter.trim().toLowerCase();
@@ -125,11 +148,14 @@ export default function BaseSetPicker({
   }, [sortedOptions, searchFilter]);
 
   const handleConfirm = async () => {
-    const selected = slOptions.find((o) => o.value === selectedValue);
-    if (!selected) return;
+    const selectedSl = slOptions.find((o) => o.value === selectedValue);
+    if (!selectedSl) return;
+    const selectedBsc = selectedBscValue
+      ? bscOptions.find((o) => o.value === selectedBscValue)
+      : undefined;
     setConfirming(true);
     try {
-      await onConfirm(selected);
+      await onConfirm({ sl: selectedSl, bsc: selectedBsc });
     } finally {
       setConfirming(false);
     }
@@ -167,26 +193,71 @@ export default function BaseSetPicker({
             Select Base Set
           </h2>
           <p className="text-sm text-gray-400 mt-1">
-            Choose which SportLots set is the base set for <strong className="text-gray-200">{setName}</strong>.
-            The rest will be discarded.
+            Choose the base set for <strong className="text-gray-200">{setName}</strong> on each platform. The rest will be discarded.
           </p>
         </div>
 
-        {/* Search */}
-        {slOptions.length > 8 && (
-          <div className="px-6 pt-3">
+        {/* BSC selection: hidden when 0; compact "auto" pill when 1; full list when many */}
+        {sortedBscOptions.length > 0 && (
+          <div className="px-6 pt-4">
+            <div className="text-xs text-blue-400 font-medium uppercase tracking-wide mb-1.5">
+              BSC base
+            </div>
+            {sortedBscOptions.length === 1 ? (
+              <div className="px-3 py-2 rounded-lg border border-blue-700 bg-blue-900/20 text-sm text-gray-200 flex items-center justify-between gap-2">
+                <span>{sortedBscOptions[0].value}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700 shrink-0">
+                  auto
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {sortedBscOptions.map((opt) => (
+                  <button
+                    key={`bsc-${opt.platformValue}-${opt.value}`}
+                    onClick={() => {
+                      setSelectedBscValue(opt.value);
+                      setUserPickedBsc(true);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 rounded-md border transition-all text-sm ${
+                      selectedBscValue === opt.value
+                        ? "border-blue-400 bg-blue-900/30 ring-1 ring-blue-400"
+                        : "border-gray-600 bg-gray-800 hover:border-gray-400"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-gray-200">{opt.value}</span>
+                      {opt.score >= 795 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700 shrink-0">
+                          likely match
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SL Search */}
+        <div className="px-6 pt-3">
+          <div className="text-xs text-purple-400 font-medium uppercase tracking-wide mb-1.5">
+            SportLots base
+          </div>
+          {slOptions.length > 8 && (
             <input
               type="text"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500"
-              placeholder="Search sets..."
+              placeholder="Search SportLots sets..."
               autoFocus
             />
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* List */}
+        {/* SL List */}
         <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1.5">
           {filteredOptions.map((opt) => (
             <button

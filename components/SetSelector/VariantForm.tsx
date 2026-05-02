@@ -56,6 +56,15 @@ export default function VariantForm({
 
   const isBase = variantTypeValue?.toLowerCase() === "base";
 
+  // For Insert/Parallel variantTypes, look up the sibling Base variant so we
+  // can pass its name as an additional SL prefix to ReconciliationModal —
+  // SL has no native set entity, so the Base anchor's name is the tightest
+  // SL-side filter we have without a new scraper.
+  const baseVariant = useQuery(
+    api.selectorOptions.getBaseVariantBySet,
+    setId && !isBase ? { setId } : "skip",
+  );
+
   const doSync = async () => {
     if (!sportValue || !yearValue) return;
     setLoading(true);
@@ -79,12 +88,25 @@ export default function VariantForm({
       }
 
       if (isBase) {
-        // Base variant: show picker to select the single base set from SL
+        // Base variant: show picker if either platform has options
         if (result.slOptions.length > 0) {
           setReconciliationData(result);
           setShowBasePicker(true);
+        } else if (result.bscOptions.length > 0) {
+          // No SL data — auto-take the highest BSC option (or first) as base
+          const bscPick = result.bscOptions[0];
+          await storeReconciledOptions({
+            level: "insert",
+            parentId: variantTypeId,
+            reconciledItems: [{
+              value: bscPick.value,
+              platformData: { bsc: bscPick.platformValue },
+            }],
+          });
+          setMessage(`Stored base set: ${bscPick.value}`);
+          onDone?.();
         } else {
-          // No SL data — store set name as the base variant
+          // No data on either platform — fall back to set name
           const baseName = setNameValue || "Base";
           await storeReconciledOptions({
             level: "insert",
@@ -137,13 +159,16 @@ export default function VariantForm({
     }
   };
 
-  const handleBaseSetConfirm = async (selected: PlatformItem) => {
+  const handleBaseSetConfirm = async (selected: { sl: PlatformItem; bsc?: PlatformItem }) => {
     await storeReconciledOptions({
       level: "insert",
       parentId: variantTypeId,
       reconciledItems: [{
-        value: selected.value,
-        platformData: { sportlots: selected.platformValue },
+        value: selected.sl.value,
+        platformData: {
+          sportlots: selected.sl.platformValue,
+          ...(selected.bsc ? { bsc: selected.bsc.platformValue } : {}),
+        },
       }],
     });
     setShowBasePicker(false);
@@ -214,6 +239,7 @@ export default function VariantForm({
           }}
           onConfirm={handleBaseSetConfirm}
           slOptions={reconciliationData.slOptions}
+          bscOptions={reconciliationData.bscOptions}
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
         />
@@ -236,6 +262,7 @@ export default function VariantForm({
           showMetadata
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
+          extraSlPrefixes={baseVariant?.value ? [baseVariant.value] : []}
           usedValues={usedIdentifiers?.values}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
