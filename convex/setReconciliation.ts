@@ -27,13 +27,13 @@ const metadataValidator = v.optional(v.object({
 // Applied token-by-token after basic normalization so "Autos" → "autographs" etc.
 const TOKEN_SYNONYMS: Record<string, string> = {
   auto: "autograph",
-  autos: "autographs",
+  autos: "autograph",
   rc: "rookie",
-  rcs: "rookies",
+  rcs: "rookie",
   sp: "shortprint",
-  sps: "shortprints",
+  sps: "shortprint",
   ssp: "supershortprint",
-  ssps: "supershortprints",
+  ssps: "supershortprint",
   // Plural-normalize common suffix words so "autograph" / "autographs" collapse too
   autographs: "autograph",
   rookies: "rookie",
@@ -41,6 +41,15 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   parallels: "parallel",
   shortprints: "shortprint",
   supershortprints: "supershortprint",
+  refractors: "refractor",
+  prizms: "prizm",
+  prisms: "prism",
+  variations: "variation",
+  variants: "variant",
+  patches: "patch",
+  relics: "relic",
+  jerseys: "jersey",
+  signatures: "signature",
 };
 
 function normalizeForMatch(s: string): string {
@@ -54,6 +63,25 @@ function normalizeForMatch(s: string): string {
     .split(" ")
     .map((tok) => TOKEN_SYNONYMS[tok] ?? tok)
     .join(" ");
+}
+
+// Returns true when one normalized token-set is a subset of the other.
+// Used as a guard on fuzzy matches so a single differing meaningful token
+// (e.g. "red" vs "chrome") blocks the pair, while genuine super/subset
+// relationships ("Topps Chrome Update" vs "Chrome Update") still match.
+function tokensOf(s: string): Set<string> {
+  return new Set(normalizeForMatch(s).split(" ").filter(Boolean));
+}
+
+function isTokenSubsetOrSuperset(a: string, b: string): boolean {
+  const ta = tokensOf(a);
+  const tb = tokensOf(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+  const [smaller, larger] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  for (const tok of smaller) {
+    if (!larger.has(tok)) return false;
+  }
+  return true;
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -118,7 +146,10 @@ function computeMatches(
     }
   }
 
-  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.25
+  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.25, but only
+  // when the token sets stand in a subset/superset relationship. This
+  // prevents single-meaningful-token mismatches ("red" vs "chrome") from
+  // sneaking through on character-distance alone.
   const MAX_RATIO = 0.25;
   for (let i = remainingBsc.length - 1; i >= 0; i--) {
     const bscNorm = normalizeForMatch(remainingBsc[i].value);
@@ -136,7 +167,14 @@ function computeMatches(
       }
     }
 
-    if (bestSlIndex !== -1 && bestRatio < MAX_RATIO) {
+    if (
+      bestSlIndex !== -1 &&
+      bestRatio < MAX_RATIO &&
+      isTokenSubsetOrSuperset(
+        remainingBsc[i].value,
+        remainingSl[bestSlIndex].value,
+      )
+    ) {
       autoMatched.push({
         displayName: remainingBsc[i].value,
         bsc: remainingBsc[i],
