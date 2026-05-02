@@ -106,14 +106,24 @@ export default function VariantForm({
           setMessage(`Stored base set: ${bscPick.value}`);
           onDone?.();
         } else {
-          // No data on either platform — fall back to set name
+          // No data on either platform — fall back to set name. Inherit the
+          // SET's BSC slug so the Base variant still routes to BSC's set
+          // search (BSC's variantName facet is commonly empty under
+          // variant=Base).
           const baseName = setNameValue || "Base";
+          const setBsc = setNameAncestor?.platformData?.bsc;
+          const bscFallback =
+            typeof setBsc === "string"
+              ? setBsc
+              : Array.isArray(setBsc) && setBsc.length > 0
+                ? setBsc[0]
+                : undefined;
           await storeReconciledOptions({
             level: "insert",
             parentId: variantTypeId,
             reconciledItems: [{
               value: baseName,
-              platformData: {},
+              platformData: bscFallback ? { bsc: bscFallback } : {},
             }],
           });
           setMessage(`Stored base set: ${baseName}`);
@@ -160,6 +170,18 @@ export default function VariantForm({
   };
 
   const handleBaseSetConfirm = async (selected: { sl: PlatformItem; bsc?: PlatformItem }) => {
+    // BSC's variantName facet is often empty under variant=Base — for those
+    // sets the Base variant maps directly to the SET's BSC slug. Fall back
+    // to that when the picker had no BSC options to surface.
+    const setBsc = setNameAncestor?.platformData?.bsc;
+    const bscPlatformValue =
+      selected.bsc?.platformValue ??
+      (typeof setBsc === "string"
+        ? setBsc
+        : Array.isArray(setBsc) && setBsc.length > 0
+          ? setBsc[0]
+          : undefined);
+
     await storeReconciledOptions({
       level: "insert",
       parentId: variantTypeId,
@@ -167,7 +189,7 @@ export default function VariantForm({
         value: selected.sl.value,
         platformData: {
           sportlots: selected.sl.platformValue,
-          ...(selected.bsc ? { bsc: selected.bsc.platformValue } : {}),
+          ...(bscPlatformValue ? { bsc: bscPlatformValue } : {}),
         },
       }],
     });
