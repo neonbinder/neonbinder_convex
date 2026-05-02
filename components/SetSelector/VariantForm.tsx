@@ -63,6 +63,14 @@ export default function VariantForm({
   // can pass its name as an additional SL prefix to ReconciliationModal —
   // SL has no native set entity, so the Base anchor's name is the tightest
   // SL-side filter we have without a new scraper.
+  // Previously-saved insert rows under THIS variantType. Threaded into
+  // ReconciliationModal as `existingRows` so re-running the sync preserves
+  // prior matched pairs and keep-shelf entries instead of starting over.
+  const existingVariantRows = useQuery(
+    api.selectorOptions.getSelectorOptions,
+    { level: "insert", parentId: variantTypeId },
+  );
+
   const baseVariant = useQuery(
     api.selectorOptions.getBaseVariantBySet,
     setId && !isBase ? { setId } : "skip",
@@ -270,7 +278,7 @@ export default function VariantForm({
         />
       )}
 
-      {showReconciliation && reconciliationData && (
+      {showReconciliation && reconciliationData && existingVariantRows !== undefined && (
         <ReconciliationModal
           isOpen={showReconciliation}
           onClose={() => {
@@ -290,6 +298,11 @@ export default function VariantForm({
           extraSlPrefixes={baseVariant?.value ? [baseVariant.value] : []}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
+          existingRows={existingVariantRows?.map((r) => ({
+            value: r.value,
+            platformData: r.platformData,
+            metadata: r.metadata,
+          }))}
         />
       )}
     </>

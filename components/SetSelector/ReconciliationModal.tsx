@@ -190,6 +190,14 @@ type ReconciliationModalProps = {
   extraSlPrefixes?: string[];
   usedSlPlatformValues?: string[];
   usedBscPlatformValues?: string[];
+  // Previously-saved insert rows for this variantType. Used to seed the
+  // modal's matched / keptBsc / keptSl sections so re-running a sync
+  // preserves prior reconciliation work instead of starting fresh.
+  existingRows?: Array<{
+    value: string;
+    platformData: { bsc?: string | string[]; sportlots?: string };
+    metadata?: ItemMetadata;
+  }>;
 };
 
 // ===== DRAGGABLE ITEM =====
@@ -446,6 +454,7 @@ export default function ReconciliationModal({
   extraSlPrefixes = [],
   usedSlPlatformValues = [],
   usedBscPlatformValues = [],
+  existingRows = [],
 }: ReconciliationModalProps) {
   const usedSlSet = useMemo(
     () => new Set(usedSlPlatformValues),
@@ -455,13 +464,79 @@ export default function ReconciliationModal({
     () => new Set(usedBscPlatformValues),
     [usedBscPlatformValues],
   );
-  const initialState: ReconciliationState = {
-    matched: initialData.autoMatched.map((m) => ({ ...m })),
-    unmatchedBsc: [...initialData.unmatchedBsc],
-    unmatchedSl: [...initialData.unmatchedSl],
-    keptBsc: [],
-    keptSl: [],
-  };
+  // Build the initial state once from a snapshot of initialData + existingRows.
+  // Saved rows are bucketed into matched (both platforms set), keptBsc (only
+  // bsc), or keptSl (only sportlots). Their platformValues are then removed
+  // from the fresh auto-match and unmatched lists so re-running doesn't
+  // duplicate work.
+  const initialState: ReconciliationState = useMemo(() => {
+    const matched: MatchedPairWithMetadata[] = [];
+    const keptBsc: PlatformItem[] = [];
+    const keptSl: PlatformItem[] = [];
+    const usedBsc = new Set<string>();
+    const usedSl = new Set<string>();
+
+    // Build platform-value → fresh PlatformItem lookup so matched rows can
+    // surface the up-to-date display value when available.
+    const bscByPv = new Map<string, PlatformItem>();
+    for (const item of initialData.unmatchedBsc) bscByPv.set(item.platformValue, item);
+    for (const m of initialData.autoMatched) bscByPv.set(m.bsc.platformValue, m.bsc);
+    const slByPv = new Map<string, PlatformItem>();
+    for (const item of initialData.unmatchedSl) slByPv.set(item.platformValue, item);
+    for (const m of initialData.autoMatched) slByPv.set(m.sl.platformValue, m.sl);
+
+    const firstBsc = (bsc: string | string[] | undefined): string | undefined => {
+      if (typeof bsc === "string") return bsc;
+      if (Array.isArray(bsc) && bsc.length > 0) return bsc[0];
+      return undefined;
+    };
+
+    for (const row of existingRows) {
+      const bscPv = firstBsc(row.platformData.bsc);
+      const slPv = row.platformData.sportlots;
+      if (bscPv && slPv) {
+        const bscItem = bscByPv.get(bscPv) ?? { value: row.value, platformValue: bscPv };
+        const slItem = slByPv.get(slPv) ?? { value: row.value, platformValue: slPv };
+        matched.push({
+          displayName: row.value,
+          bsc: bscItem,
+          sl: slItem,
+          confidence: 1,
+          metadata: row.metadata,
+        });
+        usedBsc.add(bscPv);
+        usedSl.add(slPv);
+      } else if (bscPv) {
+        keptBsc.push(bscByPv.get(bscPv) ?? { value: row.value, platformValue: bscPv });
+        usedBsc.add(bscPv);
+      } else if (slPv) {
+        keptSl.push(slByPv.get(slPv) ?? { value: row.value, platformValue: slPv });
+        usedSl.add(slPv);
+      }
+    }
+
+    // Append fresh auto-matches that don't conflict with anything we already
+    // restored from existing rows.
+    for (const m of initialData.autoMatched) {
+      if (usedBsc.has(m.bsc.platformValue) || usedSl.has(m.sl.platformValue)) continue;
+      matched.push({ ...m });
+      usedBsc.add(m.bsc.platformValue);
+      usedSl.add(m.sl.platformValue);
+    }
+
+    return {
+      matched,
+      unmatchedBsc: initialData.unmatchedBsc.filter(
+        (it) => !usedBsc.has(it.platformValue),
+      ),
+      unmatchedSl: initialData.unmatchedSl.filter(
+        (it) => !usedSl.has(it.platformValue),
+      ),
+      keptBsc,
+      keptSl,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [state, dispatch] = useReducer(reconciliationReducer, initialState);
 
   const [selectedBsc, setSelectedBsc] = useState<string | null>(null);

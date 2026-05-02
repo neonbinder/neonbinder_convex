@@ -46,6 +46,12 @@ export default function ParallelForm({
   );
   const setNameValue = setNameAncestor?.value;
   const setId = setNameAncestor?._id as GenericId<"selectorOptions"> | undefined;
+  // Previously-saved parallel rows for THIS insert. Threaded into the modal
+  // as existingRows so re-running preserves prior reconciliation work.
+  const existingParallelRows = useQuery(
+    api.selectorOptions.getSelectorOptions,
+    { level: "parallel", parentId: insertId },
+  );
   const usedIdentifiers = useQuery(
     api.selectorOptions.getUsedInsertIdentifiersBySet,
     setId ? { setId } : "skip",
@@ -161,7 +167,7 @@ export default function ParallelForm({
         )}
       </div>
 
-      {showReconciliation && reconciliationData && (
+      {showReconciliation && reconciliationData && existingParallelRows !== undefined && (
         <ReconciliationModal
           isOpen={showReconciliation}
           onClose={() => {
@@ -180,6 +186,11 @@ export default function ParallelForm({
           manufacturer={manufacturerValue || ""}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
+          existingRows={existingParallelRows.map((r) => ({
+            value: r.value,
+            platformData: r.platformData,
+            metadata: r.metadata,
+          }))}
         />
       )}
     </>
