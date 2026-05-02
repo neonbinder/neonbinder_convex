@@ -30,11 +30,21 @@ tags:
 
 # ============================================================
 # LEVEL 1 — Sport
-# Sports are pre-synced; Baseball should already be in the list.
+# CI starts with an empty selectorOptions table, so Sports must be synced
+# before Baseball appears. Tap "Sync Sports", wait for the loading state,
+# then wait for completion before scrolling to Baseball.
 # ============================================================
 
 # The Sports column heading is visible on page load
 - assertVisible: "Sports"
+
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 45000
 
 - scrollUntilVisible:
     element:
