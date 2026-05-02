@@ -146,11 +146,13 @@ function computeMatches(
     }
   }
 
-  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.25, but only
-  // when the token sets stand in a subset/superset relationship. This
-  // prevents single-meaningful-token mismatches ("red" vs "chrome") from
-  // sneaking through on character-distance alone.
-  const MAX_RATIO = 0.25;
+  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.40, but only
+  // when the token sets stand in a subset/superset relationship. The
+  // subset guard prevents single-meaningful-token mismatches ("red" vs
+  // "chrome") from sneaking through; the looser char-ratio lets shorter
+  // BSC names ("Aqua Lava Refractors") match their SL counterparts that
+  // carry an extra brand-prefix token ("Chrome Aqua Lava Refractor").
+  const MAX_RATIO = 0.4;
   for (let i = remainingBsc.length - 1; i >= 0; i--) {
     const bscNorm = normalizeForMatch(remainingBsc[i].value);
     let bestSlIndex = -1;
