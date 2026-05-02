@@ -7,6 +7,7 @@ import {
   useSensors,
   PointerSensor,
   KeyboardSensor,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -40,14 +41,22 @@ type ReconciliationState = {
   matched: MatchedPairWithMetadata[];
   unmatchedBsc: PlatformItem[];
   unmatchedSl: PlatformItem[];
+  // User-marked "save as platform-only" items. Default Confirm only writes
+  // matched + kept; remaining unmatched items are discarded so SL noise
+  // (variants of other variantTypes that came back from dealsets.tpl) is
+  // dropped without manual cleanup.
+  keptBsc: PlatformItem[];
+  keptSl: PlatformItem[];
 };
 
 type ReconciliationAction =
   | { type: "LINK"; bscValue: string; slValue: string }
   | { type: "UNLINK"; index: number }
   | { type: "UPDATE_METADATA"; index: number; metadata: ItemMetadata }
-  | { type: "UPDATE_UNMATCHED_BSC_METADATA"; bscValue: string; metadata: ItemMetadata }
-  | { type: "UPDATE_UNMATCHED_SL_METADATA"; slValue: string; metadata: ItemMetadata };
+  | { type: "KEEP_BSC"; value: string }
+  | { type: "KEEP_SL"; value: string }
+  | { type: "UNKEEP_BSC"; value: string }
+  | { type: "UNKEEP_SL"; value: string };
 
 export type ReconciledResult = {
   items: Array<{
@@ -78,6 +87,7 @@ function reconciliationReducer(
       const slItem = state.unmatchedSl[slIndex];
 
       return {
+        ...state,
         matched: [
           ...state.matched,
           {
@@ -95,6 +105,7 @@ function reconciliationReducer(
       const pair = state.matched[action.index];
       if (!pair) return state;
       return {
+        ...state,
         matched: state.matched.filter((_, i) => i !== action.index),
         unmatchedBsc: [...state.unmatchedBsc, pair.bsc],
         unmatchedSl: [...state.unmatchedSl, pair.sl],
@@ -112,6 +123,46 @@ function reconciliationReducer(
         };
       }
       return { ...state, matched: newMatched };
+    }
+    case "KEEP_BSC": {
+      const idx = state.unmatchedBsc.findIndex((it) => it.value === action.value);
+      if (idx === -1) return state;
+      const item = state.unmatchedBsc[idx];
+      return {
+        ...state,
+        unmatchedBsc: state.unmatchedBsc.filter((_, i) => i !== idx),
+        keptBsc: [...state.keptBsc, item],
+      };
+    }
+    case "KEEP_SL": {
+      const idx = state.unmatchedSl.findIndex((it) => it.value === action.value);
+      if (idx === -1) return state;
+      const item = state.unmatchedSl[idx];
+      return {
+        ...state,
+        unmatchedSl: state.unmatchedSl.filter((_, i) => i !== idx),
+        keptSl: [...state.keptSl, item],
+      };
+    }
+    case "UNKEEP_BSC": {
+      const idx = state.keptBsc.findIndex((it) => it.value === action.value);
+      if (idx === -1) return state;
+      const item = state.keptBsc[idx];
+      return {
+        ...state,
+        keptBsc: state.keptBsc.filter((_, i) => i !== idx),
+        unmatchedBsc: [...state.unmatchedBsc, item],
+      };
+    }
+    case "UNKEEP_SL": {
+      const idx = state.keptSl.findIndex((it) => it.value === action.value);
+      if (idx === -1) return state;
+      const item = state.keptSl[idx];
+      return {
+        ...state,
+        keptSl: state.keptSl.filter((_, i) => i !== idx),
+        unmatchedSl: [...state.unmatchedSl, item],
+      };
     }
     default:
       return state;
@@ -196,6 +247,73 @@ function DraggableItem({
         </span>
         <span className="text-gray-200 break-words">{value}</span>
       </div>
+    </div>
+  );
+}
+
+// ===== KEPT ITEM (platform-only, draggable for unkeep via X) =====
+
+function KeptItemRow({
+  value,
+  platform,
+  onUnkeep,
+}: {
+  value: string;
+  platform: "bsc" | "sl";
+  onUnkeep: () => void;
+}) {
+  const platformLabel = platform === "bsc" ? "BSC" : "SL";
+  const platformColor =
+    platform === "bsc"
+      ? "bg-blue-900/40 text-blue-300 border-blue-700"
+      : "bg-purple-900/40 text-purple-300 border-purple-700";
+
+  return (
+    <div className="px-3 py-2 rounded-lg border border-amber-700 bg-amber-900/10 text-sm font-medium flex items-center gap-2">
+      <span
+        className={`text-[10px] px-1.5 py-0.5 rounded border ${platformColor} shrink-0`}
+      >
+        {platformLabel}
+      </span>
+      <span className="text-gray-200 break-words flex-1">{value}</span>
+      <button
+        onClick={onUnkeep}
+        className="text-xs text-pink-400 hover:text-pink-300 px-2 py-0.5 rounded hover:bg-pink-900/20"
+        title="Send back to unmatched"
+        aria-label={`Remove ${value} from save list`}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ===== KEEP SHELF (drop target for "save as platform-only") =====
+
+function KeepShelf({ children, isEmpty }: { children: React.ReactNode; isEmpty: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "keep-shelf" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`mt-4 rounded-lg border-2 border-dashed transition-colors p-3 ${
+        isOver
+          ? "border-amber-400 bg-amber-900/10"
+          : isEmpty
+            ? "border-gray-700 bg-gray-900/30"
+            : "border-amber-700/60 bg-amber-900/5"
+      }`}
+    >
+      <div className="text-xs text-amber-400 font-medium uppercase tracking-wide mb-2">
+        Keep as platform-only (drop unmatched items here)
+      </div>
+      {isEmpty ? (
+        <p className="text-xs text-gray-500 italic py-2">
+          By default, only matched pairs are saved. Drag items from the
+          BSC or SL columns above to keep them as platform-only entries.
+        </p>
+      ) : (
+        <div className="space-y-1.5">{children}</div>
+      )}
     </div>
   );
 }
@@ -347,6 +465,8 @@ export default function ReconciliationModal({
     matched: initialData.autoMatched.map((m) => ({ ...m })),
     unmatchedBsc: [...initialData.unmatchedBsc],
     unmatchedSl: [...initialData.unmatchedSl],
+    keptBsc: [],
+    keptSl: [],
   };
   const [state, dispatch] = useReducer(reconciliationReducer, initialState);
 
@@ -437,6 +557,9 @@ export default function ReconciliationModal({
       const isActiveSl = activeId.startsWith("sl-");
       const isOverBsc = overId.startsWith("bsc-");
 
+      const isOverKeepShelf =
+        overId === "keep-shelf" || overId.startsWith("kept-");
+
       if (isActiveBsc && isOverSl) {
         dispatch({
           type: "LINK",
@@ -449,6 +572,10 @@ export default function ReconciliationModal({
           bscValue: overId.replace("bsc-", ""),
           slValue: activeId.replace("sl-", ""),
         });
+      } else if (isActiveBsc && isOverKeepShelf) {
+        dispatch({ type: "KEEP_BSC", value: activeId.replace("bsc-", "") });
+      } else if (isActiveSl && isOverKeepShelf) {
+        dispatch({ type: "KEEP_SL", value: activeId.replace("sl-", "") });
       }
     },
     [],
@@ -493,21 +620,25 @@ export default function ReconciliationModal({
         });
       }
 
-      // Unmatched BSC: BSC only
-      for (const item of state.unmatchedBsc) {
+      // Kept BSC-only: user explicitly opted to save
+      for (const item of state.keptBsc) {
         items.push({
           value: item.value,
           platformData: { bsc: item.platformValue },
         });
       }
 
-      // Unmatched SL: SL only
-      for (const item of state.unmatchedSl) {
+      // Kept SL-only: user explicitly opted to save
+      for (const item of state.keptSl) {
         items.push({
           value: item.value,
           platformData: { sportlots: item.platformValue },
         });
       }
+
+      // Anything still in state.unmatchedBsc / state.unmatchedSl is intentionally
+      // discarded — SL especially returns siblings from other variantTypes that
+      // don't belong to this set.
 
       await onConfirm({ items });
     } finally {
@@ -538,8 +669,13 @@ export default function ReconciliationModal({
         ? "Variants of Variants"
         : level;
 
+  const keptCount = state.keptBsc.length + state.keptSl.length;
+  const saveCount = state.matched.length + keptCount;
   const totalItems =
-    state.matched.length + state.unmatchedBsc.length + state.unmatchedSl.length;
+    state.matched.length +
+    state.unmatchedBsc.length +
+    state.unmatchedSl.length +
+    keptCount;
 
   return (
     <div
@@ -556,7 +692,9 @@ export default function ReconciliationModal({
             Reconcile {levelLabel}
           </h2>
           <p className="text-sm text-gray-400 mt-1">
-            {state.matched.length} matched, {state.unmatchedBsc.length} BSC-only,{" "}
+            {state.matched.length} matched
+            {keptCount > 0 ? `, ${keptCount} kept` : ""},{" "}
+            {state.unmatchedBsc.length} BSC-only,{" "}
             {state.unmatchedSl.length} SL-only ({totalItems} total)
           </p>
         </div>
@@ -591,8 +729,10 @@ export default function ReconciliationModal({
             </div>
           )}
 
-          {/* Unmatched section with DnD */}
-          {(state.unmatchedBsc.length > 0 || state.unmatchedSl.length > 0) && (
+          {/* Unmatched + Keep shelf section with shared DnD */}
+          {(state.unmatchedBsc.length > 0 ||
+            state.unmatchedSl.length > 0 ||
+            keptCount > 0) && (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -601,7 +741,7 @@ export default function ReconciliationModal({
             >
               <div>
                 <h3 className="text-sm font-medium text-gray-300 mb-2">
-                  Unmatched — drag to link, or click BSC then SL
+                  Unmatched — drag to link, or drag down to "keep as platform-only"
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   {/* BSC column */}
@@ -688,6 +828,29 @@ export default function ReconciliationModal({
                     </div>
                   </div>
                 </div>
+
+                <KeepShelf isEmpty={keptCount === 0}>
+                  {state.keptBsc.map((item) => (
+                    <KeptItemRow
+                      key={`kept-bsc-${item.value}`}
+                      value={item.value}
+                      platform="bsc"
+                      onUnkeep={() =>
+                        dispatch({ type: "UNKEEP_BSC", value: item.value })
+                      }
+                    />
+                  ))}
+                  {state.keptSl.map((item) => (
+                    <KeptItemRow
+                      key={`kept-sl-${item.value}`}
+                      value={item.value}
+                      platform="sl"
+                      onUnkeep={() =>
+                        dispatch({ type: "UNKEEP_SL", value: item.value })
+                      }
+                    />
+                  ))}
+                </KeepShelf>
               </div>
 
               <DragOverlay>
@@ -708,8 +871,12 @@ export default function ReconciliationModal({
           <NeonButton cancel onClick={onClose} disabled={confirming}>
             Cancel
           </NeonButton>
-          <NeonButton onClick={handleConfirm} disabled={confirming}>
-            {confirming ? "Saving..." : `Confirm ${totalItems} Items`}
+          <NeonButton onClick={handleConfirm} disabled={confirming || saveCount === 0}>
+            {confirming
+              ? "Saving..."
+              : keptCount > 0
+                ? `Save ${state.matched.length} matched + ${keptCount} kept`
+                : `Save ${state.matched.length} matched`}
           </NeonButton>
         </div>
       </div>
