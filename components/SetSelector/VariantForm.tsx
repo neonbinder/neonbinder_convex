@@ -46,9 +46,12 @@ export default function VariantForm({
   const setNameValue = setNameAncestor?.value;
   const setId = setNameAncestor?._id as GenericId<"selectorOptions"> | undefined;
 
+  // Exclude the *current* variantType from the "used" check so re-running
+  // the same sync still surfaces previously-saved rows (the user can then
+  // prune them via the keep shelf). Sibling variantTypes remain blocked.
   const usedIdentifiers = useQuery(
     api.selectorOptions.getUsedInsertIdentifiersBySet,
-    setId ? { setId } : "skip",
+    setId ? { setId, excludeVariantTypeId: variantTypeId } : "skip",
   );
   const variantTypeValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "variantType",

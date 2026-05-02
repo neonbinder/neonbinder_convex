@@ -81,7 +81,15 @@ export const getSelectorOptions = query({
 // inserts under the given setId, across every variantType sibling. Useful for
 // excluding already-linked sets from reconciliation/picker dialogs.
 export const getUsedInsertIdentifiersBySet = query({
-  args: { setId: v.id("selectorOptions") },
+  args: {
+    setId: v.id("selectorOptions"),
+    // When set, inserts under this variantType are *not* counted as "used".
+    // ReconciliationModal passes its own variantTypeId so re-running the
+    // same variantType still surfaces previously-saved rows (allowing the
+    // user to prune them via the keep shelf). Items under sibling
+    // variantTypes remain blocked so they aren't double-claimed.
+    excludeVariantTypeId: v.optional(v.id("selectorOptions")),
+  },
   returns: v.object({
     values: v.array(v.string()),
     slPlatformValues: v.array(v.string()),
@@ -101,6 +109,9 @@ export const getUsedInsertIdentifiersBySet = query({
     const bscPlatformValues: string[] = [];
 
     for (const vt of variantTypes) {
+      if (args.excludeVariantTypeId && vt._id === args.excludeVariantTypeId) {
+        continue;
+      }
       const inserts = await ctx.db
         .query("selectorOptions")
         .withIndex("by_level_and_parent", (q) =>
