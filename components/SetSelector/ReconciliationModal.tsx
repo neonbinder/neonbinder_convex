@@ -188,7 +188,6 @@ type ReconciliationModalProps = {
   // list (e.g., the Base variant's SL anchor name). Merged with the
   // set-name-derived defaults.
   extraSlPrefixes?: string[];
-  usedValues?: string[];
   usedSlPlatformValues?: string[];
   usedBscPlatformValues?: string[];
 };
@@ -445,14 +444,9 @@ export default function ReconciliationModal({
   setName = "",
   manufacturer = "",
   extraSlPrefixes = [],
-  usedValues = [],
   usedSlPlatformValues = [],
   usedBscPlatformValues = [],
 }: ReconciliationModalProps) {
-  const usedValueSet = useMemo(
-    () => new Set(usedValues.map((v) => v.toLowerCase())),
-    [usedValues],
-  );
   const usedSlSet = useMemo(
     () => new Set(usedSlPlatformValues),
     [usedSlPlatformValues],
@@ -506,23 +500,26 @@ export default function ReconciliationModal({
     return defaultSlPrefixes;
   }, [slFilter, defaultSlPrefixes]);
 
+  // Filter unmatched columns by platformValue only. The same display value
+  // can legitimately appear across variantTypes ("Inception" exists as both
+  // a Base and a Parallel) — only the underlying platform identifier is a
+  // true "already claimed" signal. usedValueSet would otherwise hide items
+  // the user just unlinked, leaving them no way to re-pair manually.
   const filteredUnmatchedSl = useMemo(() => {
     return state.unmatchedSl.filter((item) => {
       if (usedSlSet.has(item.platformValue)) return false;
-      if (usedValueSet.has(item.value.toLowerCase())) return false;
       if (activeSlPrefixes.length === 0) return true;
       const v = item.value.toLowerCase();
       return activeSlPrefixes.some((p) => v.startsWith(p));
     });
-  }, [state.unmatchedSl, activeSlPrefixes, usedSlSet, usedValueSet]);
+  }, [state.unmatchedSl, activeSlPrefixes, usedSlSet]);
 
   const filteredUnmatchedBsc = useMemo(() => {
     return state.unmatchedBsc.filter((item) => {
       if (usedBscSet.has(item.platformValue)) return false;
-      if (usedValueSet.has(item.value.toLowerCase())) return false;
       return true;
     });
-  }, [state.unmatchedBsc, usedBscSet, usedValueSet]);
+  }, [state.unmatchedBsc, usedBscSet]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

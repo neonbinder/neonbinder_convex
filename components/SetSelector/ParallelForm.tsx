@@ -178,7 +178,6 @@ export default function ParallelForm({
           showMetadata
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
-          usedValues={usedIdentifiers?.values}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
         />

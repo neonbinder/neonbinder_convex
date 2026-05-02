@@ -288,7 +288,6 @@ export default function VariantForm({
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
           extraSlPrefixes={baseVariant?.value ? [baseVariant.value] : []}
-          usedValues={usedIdentifiers?.values}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
         />
