@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useReducer, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
   PointerSensor,
@@ -735,7 +735,7 @@ export default function ReconciliationModal({
             keptCount > 0) && (
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCenter}
+              collisionDetection={pointerWithin}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
