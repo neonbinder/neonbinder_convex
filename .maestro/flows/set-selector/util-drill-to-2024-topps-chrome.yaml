@@ -198,22 +198,46 @@ tags:
 # LEVEL 5 — Sync Variant Types
 # Sync if needed; leave the Variant Types column visible with the list populated.
 # The parent flow will pick the specific variant type (Base / Insert / Parallel).
+#
+# COMPLETION PATTERN NOTE:
+#   Unlike Sports/Years/Manufacturers, the SetVariantForm does NOT auto-close
+#   on a second sync attempt when data already exists — it shows "Syncing Variant
+#   Types" with a "Close" button (success: false from the server).
+#   Guard on "notVisible: Base" so we only sync when the list is actually empty.
+#   If we do sync, wait for "Syncing Variant Types" to disappear (either the form
+#   auto-closed via onDone, or it settled at the Close button), then dismiss
+#   any remaining Close button.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 15000
 
+# Only sync if "Base" is not already visible in the Variant Types list.
+# If Base is already there, Insert and Parallel are there too — no sync needed.
 - runFlow:
     when:
-      visible: "Sync Variant Types"
+      notVisible: "Base"
     commands:
-      - tapOn: "Sync Variant Types"
-      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
       - scrollUntilVisible:
           element:
             text: "Sync Variant Types"
+          timeout: 10000
+      - tapOn: "Sync Variant Types"
+      # Wait for the "Syncing Variant Types" heading to disappear — this signals
+      # the form has either auto-closed (success) or settled at the Close button.
+      - extendedWaitUntil:
+          notVisible: "Syncing Variant Types"
           timeout: 60000
+      # If the form ended with a "Close" button (no new results returned), dismiss it.
+      - runFlow:
+          when:
+            visible: "Close"
+          commands:
+            - tapOn: "Close"
+            - extendedWaitUntil:
+                visible: "Sync Variant Types"
+                timeout: 10000
 
 # Confirm the three expected variant types are present before returning to caller.
 - scrollUntilVisible:

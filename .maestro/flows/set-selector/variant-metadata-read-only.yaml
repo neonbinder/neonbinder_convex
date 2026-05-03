@@ -118,8 +118,12 @@ tags:
 # EDIT the Prefix field — "Save" button should appear
 # ============================================================
 
-# Tap the Prefix input (placeholder "e.g. DK-") to focus it
-- tapOn: "e.g. DK-"
+# Tap the "Prefix:" label to focus the associated input field.
+# The input may already have a value from a previous test run — use
+# eraseText to clear whatever is there before typing the new value.
+# (On first run the field is empty; eraseText on an empty field is a no-op.)
+- tapOn: "Prefix:"
+- eraseText: 10
 - inputText: "TEST-"
 
 # The "Save" button only appears when the field has unsaved changes
