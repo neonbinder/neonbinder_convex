@@ -36,8 +36,9 @@ tags:
 # so the sub-flows (which expect "Select Platform" on /profile) would fail if
 # the browser is still on /set-selector after sign-in redirect.
 - openLink: ${APP_URL || "https://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: ".*Select Platform.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
     timeout: 15000
 
 # --- Ensure marketplace credentials are available ---

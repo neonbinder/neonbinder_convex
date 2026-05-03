@@ -14,8 +14,10 @@ tags:
 #   Parallel → ReconciliationModal opens with auto-matched + unmatched rows
 #              → Cancel (we do NOT write 2800+ rows on every CI run).
 #
-# Prerequisite: TEST_EMAIL must have admin role and BSC + SL credentials
-# saved in the backend (see refresh-sportlots-creds.yaml for SL refresh).
+# Prerequisite: TEST_EMAIL must have admin role. BSC and SL credentials are
+# set up by this flow itself (navigates to /profile and runs the setup sub-flows
+# before returning to /set-selector) so cred-test cleanup in sibling flows
+# does not leave this test without credentials.
 # All sync forms auto-fire on mount — there is no separate "Sync" trigger
 # inside the form. Tapping the column button (e.g., "Sync Years") opens the
 # form, which immediately fires the fetch.
@@ -27,6 +29,30 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
+
+# --- Ensure credentials are saved (cred-test flows clear creds in their cleanup) ---
+- openLink: ${APP_URL || "https://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 15000
+
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
 
 # ============================================================
 # LEVEL 1 — Sport
