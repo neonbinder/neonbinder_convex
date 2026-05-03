@@ -81,8 +81,9 @@ tags:
 # Trigger a marketplace sync for sports.
 # The form auto-fires on open — no "Sync from Marketplaces" button.
 # The heading "Syncing Sport Options" appears while the sync runs.
-# "Sync Sports" does NOT reappear after syncing if data is already present;
-# wait for a known sport (Baseball) to confirm the sync completed.
+# "Sync Sports" reappears below the populated list once ALL platforms have
+# responded. Scroll to it as the completion signal so we don't proceed
+# before BSC data merges in.
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
@@ -92,9 +93,10 @@ tags:
     visible:
       text: ".*Syncing Sport Options|Sync Sports.*"
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 60000
 
 # ============================================================
 # STEP 3 — Verify custom entry still exists after re-sync

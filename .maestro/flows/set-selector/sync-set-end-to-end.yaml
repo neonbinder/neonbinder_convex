@@ -74,10 +74,12 @@ tags:
           visible:
             text: ".*Syncing Sport Options|Sync Sports.*"
           timeout: 15000
-      # "Sync Sports" does not reappear once data is populated — wait for Baseball.
-      - extendedWaitUntil:
-          visible: "Baseball"
-          timeout: 45000
+      # "Sync Sports" reappears below the list once ALL platforms have responded.
+      # Scroll to it — this is the correct cross-platform completion signal.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Sports"
+          timeout: 60000
 
 - scrollUntilVisible:
     element:
@@ -109,12 +111,11 @@ tags:
           visible:
             text: ".*Syncing Year Options|Sync Years.*"
           timeout: 15000
-      # Wait for sync to finish — form closes and year rows appear.
-      # "Sync Years" does NOT reappear once data is populated; wait for a
-      # known year that reliably appears (any 4-digit year starting with 20).
-      - extendedWaitUntil:
-          visible:
-            text: ".*20[0-9][0-9].*"
+      # "Sync Years" reappears below the list once ALL platforms have responded.
+      # Scroll to it — this is the correct cross-platform completion signal.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Years"
           timeout: 60000
 
 # Pick 2025 — the user's verified drill path
@@ -147,11 +148,11 @@ tags:
           visible:
             text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
           timeout: 15000
-      # Wait for sync to finish — form closes and manufacturer rows appear.
-      # "Sync Manufacturers" does NOT reappear once data is populated; wait for
-      # a known SL manufacturer that reliably appears (Bowman is in every year).
-      - extendedWaitUntil:
-          visible: "Bowman"
+      # "Sync Manufacturers" reappears below the list once ALL platforms have
+      # responded. Scroll to it — the correct cross-platform completion signal.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Manufacturers"
           timeout: 60000
 
 # Type "Topps" into the manufacturer search box (visible when list > 8 items)

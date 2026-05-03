@@ -71,10 +71,11 @@ tags:
           visible:
             text: ".*Syncing Sport Options|Sync Sports.*"
           timeout: 15000
-      # "Sync Sports" does not reappear once data is populated — wait for Baseball.
-      - extendedWaitUntil:
-          visible: "Baseball"
-          timeout: 45000
+      # "Sync Sports" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Sports"
+          timeout: 60000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -94,11 +95,11 @@ tags:
           visible:
             text: ".*Syncing Year Options|Sync Years.*"
           timeout: 15000
-      # "Sync Years" does not reappear once data is populated — wait for a year.
-      - extendedWaitUntil:
-          visible:
-            text: ".*20[0-9][0-9].*"
-          timeout: 45000
+      # "Sync Years" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Years"
+          timeout: 60000
 - tapOn:
     text: ".*20[0-9][0-9].*"
     index: 0
@@ -116,11 +117,11 @@ tags:
           visible:
             text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
           timeout: 15000
-      # "Sync Manufacturers" does not reappear once data is populated — wait
-      # for Bowman which reliably appears for any sport/year combination.
-      - extendedWaitUntil:
-          visible: "Bowman"
-          timeout: 45000
+      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Manufacturers"
+          timeout: 60000
 # Pick the first available manufacturer — do not hardcode "Topps".
 - tapOn:
     text: ".*"
@@ -161,12 +162,11 @@ tags:
           visible:
             text: ".*Syncing Variant Types|Sync Variant Types.*"
           timeout: 15000
-      # "Sync Variant Types" does not reappear once data is populated — wait for
-      # a known variant type (Base is always present; Insert/Parallel common too).
-      - extendedWaitUntil:
-          visible:
-            text: ".*Base|Insert|Parallel.*"
-          timeout: 45000
+      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Variant Types"
+          timeout: 60000
 
 # Select "Insert" — a non-Base variant type that will trigger the reconciliation
 # modal when both BSC and SL have data. If "Insert" is not present, try "Parallel".
