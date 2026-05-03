@@ -1,0 +1,223 @@
+appId: com.neonbinder.web
+name: "Util — Drill to 2024 Topps Chrome (leaves Variant Types column visible)"
+tags:
+  - util
+---
+# Shared prerequisite flow used by the three canonical variant flows and the
+# variant-metadata flow. Designed to be called via `runFlow:` from a parent
+# flow that has already called `launchApp`.
+#
+# When this util returns, the browser is on /set-selector with:
+#   - BSC + SL credentials saved (idempotent — skips if already present)
+#   - Baseball → 2024 → Topps → Topps Chrome selected
+#   - Variant Types column visible with variant types synced
+#
+# Why 2024 Topps Chrome?
+#   It is a flagship baseball set with reliable, stable BSC + SL coverage.
+#   Its variant types include Base, Insert, and Parallel — covering all three
+#   code paths under test. SL data for past years rarely changes, making it a
+#   dependable anchor for automated testing.
+#
+# NOTE: This util does NOT call launchApp. The parent flow is responsible for
+# launching the app and waiting for the sign-in redirect to complete.
+#
+# SYNC COMPLETION PATTERN:
+#   Each sync level wraps the tap in `runFlow when: visible:` so runs are
+#   tolerant of pre-populated state from earlier flows in the same session.
+#   After tapping, we go straight to `scrollUntilVisible: "Sync X"` as the
+#   sole completion signal — we do NOT assert the intermediate "Syncing X"
+#   heading, because on fast/cached responses the form fires and closes before
+#   Maestro can check. The "Sync X" button reappearing below the populated list
+#   is the definitive cross-platform completion signal.
+
+# ============================================================
+# CREDENTIALS (idempotent — skips platform if creds already present)
+# ============================================================
+
+# Navigate to /profile before credential setup. runFlow does NOT re-navigate,
+# so the sub-flows (which expect to be on /profile) would fail if the browser
+# is still on another page after the sign-in redirect.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 15000
+
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# NAVIGATE TO SET SELECTOR
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# ============================================================
+# LEVEL 1 — Baseball
+# Sync if needed; tap the user-visible "Baseball" entry.
+# ============================================================
+
+- runFlow:
+    when:
+      visible: "Sync Sports"
+    commands:
+      - tapOn: "Sync Sports"
+      # "Sync Sports" reappears below the list once ALL platforms have responded.
+      # Go straight to scrollUntilVisible — the form may close faster than
+      # Maestro can assert an intermediate "Syncing Sport Options" heading.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Sports"
+          timeout: 60000
+
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# ============================================================
+# LEVEL 2 — Year 2024
+# Sync if needed; tap the user-visible "2024" entry.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+
+- runFlow:
+    when:
+      visible: "Sync Years"
+    commands:
+      - tapOn: "Sync Years"
+      # "Sync Years" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Years"
+          timeout: 60000
+
+- scrollUntilVisible:
+    element:
+      text: "2024"
+    timeout: 10000
+- tapOn: "2024"
+
+# ============================================================
+# LEVEL 3 — Topps
+# Sync if needed; search for "Topps" to avoid scrolling a long list.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+
+- runFlow:
+    when:
+      visible: "Sync Manufacturers"
+    commands:
+      - tapOn: "Sync Manufacturers"
+      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Manufacturers"
+          timeout: 60000
+
+# Use the search input to filter the list to "Topps".
+# After typing, the input value shows "Topps" (index 0) and the result button
+# shows "Topps" (index 1) — tap index 1 for the result button.
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# ============================================================
+# LEVEL 4 — Topps Chrome
+# Sync if needed; search for "Topps Chrome" to avoid ambiguity.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 15000
+
+- runFlow:
+    when:
+      visible: "Sync Sets"
+    commands:
+      - tapOn: "Sync Sets"
+      # BSC set sync across manufacturers is slow. "Sync Sets" does NOT reappear
+      # once data is populated. Wait for "Syncing Sets" to disappear instead.
+      - extendedWaitUntil:
+          notVisible: "Syncing Sets"
+          timeout: 90000
+
+# Use the search input to find "Topps Chrome" in the sets list.
+# After typing, the input value shows "Topps Chrome" (index 0) and the result
+# button shows "Topps Chrome" (index 1) — tap index 1 for the result button.
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# ============================================================
+# LEVEL 5 — Sync Variant Types
+# Sync if needed; leave the Variant Types column visible with the list populated.
+# The parent flow will pick the specific variant type (Base / Insert / Parallel).
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 15000
+
+- runFlow:
+    when:
+      visible: "Sync Variant Types"
+    commands:
+      - tapOn: "Sync Variant Types"
+      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Variant Types"
+          timeout: 60000
+
+# Confirm the three expected variant types are present before returning to caller.
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- assertVisible: "Base"

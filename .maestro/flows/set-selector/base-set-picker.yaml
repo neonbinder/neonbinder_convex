@@ -1,173 +1,54 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
-name: Base Set Picker — Select Base Set Modal
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Base variant flow — 2024 Topps Chrome Base sync creates Chrome row with SL + BSC badges"
 tags:
   - set-selector
   - regression
 ---
-# A user drills down to a "Base" variant type and syncs variants.
-# For Base variants, the sync fetches SL options and shows the
-# "Select Base Set" modal so the user can choose which SL set is the base.
+# Canonical test for the "Base" variant type code path.
+# End-user goal: user drills to 2024 Topps Chrome, picks "Base" as the variant
+# type, syncs variants, confirms the BaseSetPicker modal by selecting "Chrome",
+# and sees the "Chrome" row appear in the Variants list with both SL and BSC
+# platform badges — confirming data from both marketplaces was written.
 #
-# This test verifies:
-# - The "Select Base Set" modal heading appears after tapping "Sync Variants"
-#   on a "Base" variant type
-# - A "likely match" badge is visible on the auto-preselected option
-# - A search input is present when there are more than 8 SL options
-# - Tapping "Cancel" closes the modal and "Sync Variants" returns
+# This is one of three merge-blocking flows for the variant-level set-sync milestone.
 #
-# DATA DEPENDENCY: This test requires a test account that has already synced
-# Sports, Years, Manufacturers, Sets, and Variant Types down to a set that
-# has a "Base" variant type with SL options available. The test navigates
-# to the first available sport → most recent year → first manufacturer →
-# first set → "Base" variant type. If "Base" does not appear in the Variant
-# Types list the test will not be able to proceed to the modal.
+# Why "Chrome" is auto-selected:
+#   The BaseSetPicker scoring algorithm finds "Topps Chrome" on SL and pre-selects
+#   it as a "likely match". The user just confirms — no manual selection needed.
 #
-# Prerequisites: BSC and SL credentials in env vars.
+# After this test the Chrome variant row exists in the database. Sibling flows
+# (insert-variant-flow, reconciliation-modal, variant-metadata-read-only) can
+# re-use the drill prefix but treat the Chrome row as pre-existing — they
+# wrap "Sync Variants" in `runFlow when:` to stay tolerant.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
 
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
 
-# Navigate to /profile before credential setup — runFlow does NOT re-navigate,
-# so the sub-flows (which expect "Select Platform" on /profile) would fail if
-# the browser is still on /set-selector after sign-in redirect.
-- openLink: ${APP_URL || "https://localhost:3000"}/profile
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 15000
+# ============================================================
+# PREREQUISITE: credentials + drill to 2024 Topps Chrome
+# Returns with Variant Types column visible and list populated.
+# ============================================================
 
-# --- Ensure marketplace credentials are available ---
 - runFlow:
-    file: ../profile/setup-bsc-credentials.yaml
+    file: util-drill-to-2024-topps-chrome.yaml
     env:
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
-
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-    env:
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+# ============================================================
+# LEVEL 5 — Select "Base" variant type
+# ============================================================
 
-# --- Sync and select sport ---
-# Only sync if the button is present; prior flows in this run may have
-# already populated sports, replacing the button with the list.
-- runFlow:
-    when:
-      visible: "Sync Sports"
-    commands:
-      - tapOn: "Sync Sports"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Sport Options|Sync Sports.*"
-          timeout: 15000
-      # "Sync Sports" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Sports"
-          timeout: 60000
-- scrollUntilVisible:
-    element:
-      text: "Baseball"
-    timeout: 10000
-- tapOn: "Baseball"
-
-# --- Sync and select year ---
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Years"
-    commands:
-      - tapOn: "Sync Years"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Year Options|Sync Years.*"
-          timeout: 15000
-      # "Sync Years" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Years"
-          timeout: 60000
-- tapOn:
-    text: ".*20[0-9][0-9].*"
-    index: 0
-
-# --- Sync and select manufacturer ---
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Manufacturers"
-    commands:
-      - tapOn: "Sync Manufacturers"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
-          timeout: 15000
-      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Manufacturers"
-          timeout: 60000
-# Pick the first available manufacturer — do not hardcode "Topps" as it may
-# not be present in SL data for all sport/year combinations.
-- tapOn:
-    text: ".*"
-    index: 0
-
-# --- Sync and select set ---
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Sets"
-    commands:
-      - tapOn: "Sync Sets"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Sets|Sync Sets.*"
-          timeout: 15000
-      # "Sync Sets" does not reappear once data is populated. Wait for
-      # "Syncing Sets" to disappear, which signals the form closed.
-      - extendedWaitUntil:
-          notVisible: "Syncing Sets"
-          timeout: 90000
-- tapOn:
-    text: ".*"
-    index: 0
-
-# --- Sync variant types and select "Base" ---
-# (Variant Types is the column formerly called "Set Variants")
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Variant Types"
-    commands:
-      - tapOn: "Sync Variant Types"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Variant Types|Sync Variant Types.*"
-          timeout: 15000
-      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 60000
-
-# Select "Base" specifically — the BaseSetPicker only opens for Base variant types
+# Tap the "Base" variant type — this triggers the BaseSetPicker flow
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -175,58 +56,69 @@ tags:
 - tapOn: "Base"
 
 # ============================================================
-# SYNC VARIANTS — triggers the Base Set Picker modal
+# LEVEL 6 — Sync Variants (triggers BaseSetPicker modal for Base type)
 # ============================================================
 
-# The Variants column appears after selecting a variant type
 - extendedWaitUntil:
     visible: "Variants"
     timeout: 10000
 
-# Tapping "Sync Variants" on a Base variant type opens the
-# "Select Base Set" modal (after fetching SL options)
-- tapOn: "Sync Variants"
-
-# The form shows "Syncing Variants" or "Select Base Set" while loading.
-# Wait for the modal heading to appear.
-- extendedWaitUntil:
-    visible: "Select Base Set"
-    timeout: 30000
-
-# ============================================================
-# VERIFY the Select Base Set modal contents
-# ============================================================
-
-# The modal heading must be "Select Base Set"
-- assertVisible: "Select Base Set"
-
-# The auto-preselected option should have a "likely match" badge
-# (badge appears when the scoring algorithm finds a strong match)
-- assertVisible: "likely match"
-
-# If there are more than 8 SL options a search input is shown
-# (its placeholder text is "Search sets...")
-# We assert with a conditional: this only applies when many SL sets exist
+# Sync Variants only if the button is visible. If the Chrome variant row
+# already exists from a previous run, the button may not appear.
 - runFlow:
     when:
-      visible: "Search sets..."
+      visible: "Sync Variants"
     commands:
-      - assertVisible: "Search sets..."
-
-# The confirm button shows the set name
-- assertVisible: "Confirm Base Set"
+      - tapOn: "Sync Variants"
+      # For Base variant type, the VariantForm fetches SL data then opens
+      # the BaseSetPicker modal. Wait for the modal subtitle which uniquely
+      # confirms the modal is open (not just a heading match).
+      - extendedWaitUntil:
+          visible:
+            text: ".*Choose the base set for.*"
+          timeout: 60000
 
 # ============================================================
-# CANCEL — modal closes and "Sync Variants" returns
+# VERIFY BaseSetPicker modal contents
 # ============================================================
 
-# Tap "Cancel" to close the modal without picking a base set
-- tapOn: "Cancel"
+# The modal heading confirms we are in the base-set selection step
+- assertVisible: "Select Base Set"
 
-# The modal should no longer be visible
+# "Chrome" should be auto-selected as the likely match for Topps Chrome
+- assertVisible: "Chrome"
+
+# The "likely match" badge confirms the scoring algorithm chose it
+- assertVisible: "likely match"
+
+# ============================================================
+# CONFIRM the base set — writes the Chrome variant row
+# ============================================================
+
+# Scroll to the confirm button in case the modal has a long list
+- scrollUntilVisible:
+    element:
+      text: "Confirm Base Set"
+    timeout: 10000
+- tapOn: "Confirm Base Set"
+
+# Modal closes and VariantForm completes — the Variants column updates
 - extendedWaitUntil:
     notVisible: "Select Base Set"
-    timeout: 5000
+    timeout: 15000
 
-# The "Sync Variants" button should be back in the Variants column
-- assertVisible: "Sync Variants"
+# ============================================================
+# VERIFY the Chrome variant row appears with both platform badges
+# ============================================================
+
+# "Chrome" should now be listed in the Variants column
+- scrollUntilVisible:
+    element:
+      text: "Chrome"
+    timeout: 15000
+- assertVisible: "Chrome"
+
+# Both platform badges must be present on the Chrome row, confirming that
+# data from both BSC and SL was written when the user confirmed the base set
+- assertVisible: "SL"
+- assertVisible: "BSC"

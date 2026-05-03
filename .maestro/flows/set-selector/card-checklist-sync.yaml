@@ -2,7 +2,8 @@ url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-select
 name: Card Checklist Sync — Fetch Cards from Marketplaces
 tags:
   - set-selector
-  - regression
+  - wip
+# FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # This test verifies that a user can drill down to a variant and then
 # use "Fetch from Marketplaces" to populate the card checklist.

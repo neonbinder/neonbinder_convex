@@ -2,8 +2,9 @@ url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-select
 name: Set Selector Custom Entry — Full Hierarchy via Manual Input
 tags:
   - set-selector
-  - regression
   - wip
+# FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
+# (The comment in this flow "Cards column appears after selecting a variant" confirms it touches the Cards level.)
 ---
 # A user builds a complete set hierarchy entirely through custom entries —
 # no marketplace sync is involved. This verifies that every level of the

@@ -1,12 +1,12 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
-name: "Parallel variant flow — 2024 Topps Chrome Parallel sync opens ReconciliationModal"
+name: "Insert variant flow — 2024 Topps Chrome Insert sync opens ReconciliationModal"
 tags:
   - set-selector
   - regression
 ---
-# Canonical test for the "Parallel" variant type code path.
-# End-user goal: user drills to 2024 Topps Chrome, picks "Parallel" as the
+# Canonical test for the "Insert" variant type code path.
+# End-user goal: user drills to 2024 Topps Chrome, picks "Insert" as the
 # variant type, syncs variants, and sees the ReconciliationModal with
 # auto-matched + unmatched rows. User reviews the modal and cancels —
 # we do NOT write thousands of variant rows on every CI run.
@@ -14,10 +14,11 @@ tags:
 # This is one of three merge-blocking flows for the variant-level set-sync milestone.
 #
 # ReconciliationModal appears when BOTH BSC and SL have data for the selected
-# variant type. 2024 Topps Chrome Parallel has strong coverage on both platforms.
+# variant type. 2024 Topps Chrome Insert has strong coverage on both platforms.
 #
-# ReconciliationModal heading for Parallel type:
-#   "Reconcile Variants of Variants" (level="parallel")
+# ReconciliationModal heading for Insert type:
+#   "Reconcile Variants" (level="insert")
+# The same modal as Parallel, but scoped to the Insert variant type.
 # The modal shows matched rows, unmatched BSC-only rows, and unmatched SL-only rows.
 # Users can drag to link, or click BSC then SL to pair them manually.
 
@@ -44,17 +45,17 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
-# LEVEL 5 — Select "Parallel" variant type
+# LEVEL 5 — Select "Insert" variant type
 # ============================================================
 
 - scrollUntilVisible:
     element:
-      text: "Parallel"
+      text: "Insert"
     timeout: 10000
-- tapOn: "Parallel"
+- tapOn: "Insert"
 
 # ============================================================
-# LEVEL 6 — Sync Variants (triggers ReconciliationModal for Parallel type)
+# LEVEL 6 — Sync Variants (triggers ReconciliationModal for Insert type)
 # ============================================================
 
 - extendedWaitUntil:
@@ -68,7 +69,7 @@ tags:
       visible: "Sync Variants"
     commands:
       - tapOn: "Sync Variants"
-      # For Parallel variant type, the VariantForm fetches both BSC and SL data
+      # For Insert variant type, the VariantForm fetches both BSC and SL data
       # then opens the ReconciliationModal. The intermediate "Syncing Variants"
       # heading may flash by too fast to assert. Wait directly for the modal.
       - extendedWaitUntil:
@@ -79,8 +80,7 @@ tags:
 # VERIFY ReconciliationModal contents
 # ============================================================
 
-# The modal heading for Parallel type is "Reconcile Variants of Variants"
-# We use a partial match since "Reconcile Variants" is contained in both heading variants
+# The modal heading for Insert type is "Reconcile Variants"
 - assertVisible: "Reconcile Variants"
 
 # The subtitle shows matched/unmatched counts — e.g. "25 matched, 22 BSC-only, 2504 SL-only (2551 total)"
@@ -97,6 +97,11 @@ tags:
     text: ".*BSC.*"
 - assertVisible:
     text: ".*SPORTLOTS.*"
+
+# The SL filter input placeholder starts with the set name ("topps chrome" or "chrome")
+# This confirms the modal is correctly scoped to the selected set
+- assertVisible:
+    text: '.*Starts with ".*[Tt]opps [Cc]hrome.*".*'
 
 # The confirm/save button shows the matched count — "Save N matched"
 - scrollUntilVisible:

@@ -1,258 +1,144 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
-name: Variant Metadata — Read-Only Flags and Editable Prefix
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Variant metadata — edit Prefix on 2024 Topps Chrome Base variant and verify persistence"
 tags:
   - set-selector
   - regression
 ---
-# After selecting a variant at level 6, the VariantMetadataEditor panel
-# appears below the variant list. It shows read-only Insert/Parallel flags
-# (derived from the variant type in the hierarchy) and an editable Prefix
-# field. Typing in the Prefix field makes a "Save" button appear; tapping
-# "Save" persists the value and hides the button again.
+# After drilling to the "Chrome" variant in the 2024 Topps Chrome → Base path,
+# the VariantMetadataEditor panel appears below the Variants list. It shows
+# read-only Insert/Parallel flags and an editable Prefix field.
 #
-# This test verifies:
-# - The "Metadata" section heading is visible after selecting a variant
-# - The "Insert" and "Parallel" labels are visible (they are read-only)
-# - The "Prefix:" label and its input field are visible
-# - Typing a value into the Prefix input makes "Save" appear
-# - Tapping "Save" makes the "Save" button disappear (confirming the save)
+# End-user goal: user edits the Prefix on the Base "Chrome" variant row,
+# taps Save, and the Save button disappears — confirming the value was persisted.
 #
-# DATA DEPENDENCY: This test requires a test account with at least one
-# fully-drilled-down set hierarchy reaching the Variants level (level 6).
-# The test syncs through the standard Baseball → Topps → first set → first
-# variant type → first variant path. The Insert/Parallel checkboxes will
-# reflect whatever the selected variant type's category is (Base, Insert,
-# or Parallel). The important thing is that all three fields are present.
-#
-# Prerequisites: BSC and SL credentials in env vars.
+# This test uses the same 2024 Topps Chrome anchor as the base-set-picker flow.
+# If the Chrome variant row already exists (base-set-picker ran first), the
+# Sync Variants step is skipped and the test goes straight to the Chrome row.
+# If Chrome does not yet exist, the BaseSetPicker modal opens and is confirmed.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
 
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
 
-# Navigate to /profile before credential setup — runFlow does NOT re-navigate,
-# so the sub-flows (which expect "Select Platform" on /profile) would fail if
-# the browser is still on /set-selector after sign-in redirect.
-- openLink: ${APP_URL || "https://localhost:3000"}/profile
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 15000
+# ============================================================
+# PREREQUISITE: credentials + drill to 2024 Topps Chrome
+# Returns with Variant Types column visible and list populated.
+# ============================================================
 
-# --- Ensure marketplace credentials are available ---
 - runFlow:
-    file: ../profile/setup-bsc-credentials.yaml
+    file: util-drill-to-2024-topps-chrome.yaml
     env:
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
-
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-    env:
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+# ============================================================
+# LEVEL 5 — Select "Base" variant type
+# ============================================================
 
-# --- Sync and select sport ---
-# Only sync if the button is present; prior flows in this run may have already
-# populated sports, replacing the button with the list.
-- runFlow:
-    when:
-      visible: "Sync Sports"
-    commands:
-      - tapOn: "Sync Sports"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Sport Options|Sync Sports.*"
-          timeout: 15000
-      # "Sync Sports" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Sports"
-          timeout: 60000
 - scrollUntilVisible:
     element:
-      text: "Baseball"
+      text: "Base"
     timeout: 10000
-- tapOn: "Baseball"
+- tapOn: "Base"
 
-# --- Sync and select year ---
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Years"
-    commands:
-      - tapOn: "Sync Years"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Year Options|Sync Years.*"
-          timeout: 15000
-      # "Sync Years" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Years"
-          timeout: 60000
-- tapOn:
-    text: ".*20[0-9][0-9].*"
-    index: 0
+# ============================================================
+# LEVEL 6 — Sync Variants (if needed) and select the "Chrome" variant
+# ============================================================
 
-# --- Sync and select manufacturer ---
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Manufacturers"
-    commands:
-      - tapOn: "Sync Manufacturers"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
-          timeout: 15000
-      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Manufacturers"
-          timeout: 60000
-# Pick the first available manufacturer — do not hardcode "Topps".
-- tapOn:
-    text: ".*"
-    index: 0
-
-# --- Sync and select set ---
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Sets"
-    commands:
-      - tapOn: "Sync Sets"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Sets|Sync Sets.*"
-          timeout: 15000
-      # "Sync Sets" does not reappear once data is populated. Wait for
-      # "Syncing Sets" to disappear, which signals the form closed.
-      - extendedWaitUntil:
-          notVisible: "Syncing Sets"
-          timeout: 90000
-- tapOn:
-    text: ".*"
-    index: 0
-
-# --- Sync and select variant type ---
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 10000
-- runFlow:
-    when:
-      visible: "Sync Variant Types"
-    commands:
-      - tapOn: "Sync Variant Types"
-      - extendedWaitUntil:
-          visible:
-            text: ".*Syncing Variant Types|Sync Variant Types.*"
-          timeout: 15000
-      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 60000
-- tapOn:
-    text: ".*"
-    index: 0
-
-# --- Sync and select variant ---
 - extendedWaitUntil:
     visible: "Variants"
     timeout: 10000
+
+# Sync only if the button is visible. If Chrome already exists from a
+# previous run of base-set-picker.yaml, the "Sync Variants" button may
+# not be present and we skip straight to tapping "Chrome".
 - runFlow:
     when:
       visible: "Sync Variants"
     commands:
       - tapOn: "Sync Variants"
+      # For Base variant type, the VariantForm may open the BaseSetPicker modal
+      # when SL data arrives. Wait for either the modal subtitle or the modal heading.
       - extendedWaitUntil:
           visible:
-            text: ".*Syncing Variants|Select Base Set.*"
-          timeout: 15000
-      # "Sync Variants" reappears once all platforms have responded, OR the
-      # BaseSetPicker modal appears (for Base variant type).
-      - scrollUntilVisible:
-          element:
-            text: ".*Sync Variants|Select Base Set.*"
+            text: ".*Choose the base set for.*"
           timeout: 60000
-# If the BaseSetPicker modal appeared (Base variant type), confirm it to
-# proceed past the modal into the variants list.
+
+# If the BaseSetPicker modal appeared, confirm it to proceed to the Variants list
 - runFlow:
     when:
       visible: "Confirm Base Set"
     commands:
+      - scrollUntilVisible:
+          element:
+            text: "Confirm Base Set"
+          timeout: 10000
       - tapOn: "Confirm Base Set"
       - extendedWaitUntil:
-          notVisible: "Confirm Base Set"
+          notVisible: "Select Base Set"
           timeout: 15000
-- tapOn:
-    text: ".*"
-    index: 0
+
+# "Chrome" should now be visible in the Variants list — tap it to select it
+- scrollUntilVisible:
+    element:
+      text: "Chrome"
+    timeout: 15000
+- tapOn: "Chrome"
 
 # ============================================================
-# VERIFY the Metadata panel appears below the variant list
+# VERIFY VariantMetadataEditor appears below the Variants list
 # ============================================================
 
 # After selecting a variant, the VariantMetadataEditor panel appears.
-# It is positioned below the variant list in the same column — scroll
-# down to make sure it is in view.
+# Scroll down to bring it into view — it sits below the variant list.
 - scrollUntilVisible:
     element:
       text: "Metadata"
     timeout: 10000
-
-# The "Metadata" section heading should be visible
 - assertVisible: "Metadata"
 
-# The Insert label is visible (read-only checkbox — disabled, not interactive)
+# The Insert checkbox label is visible (read-only — not interactive)
 - assertVisible: "Insert"
 
-# The Parallel label is visible (read-only checkbox — disabled, not interactive)
+# The Parallel checkbox label is visible (read-only — not interactive)
 - assertVisible: "Parallel"
 
-# The "Prefix:" label and its adjacent input field are visible
+# The Prefix field label is visible
 - assertVisible: "Prefix:"
 
 # ============================================================
-# TYPE a prefix value — "Save" button should appear
+# EDIT the Prefix field — "Save" button should appear
 # ============================================================
 
-# Tap the prefix input field (it has placeholder "e.g. DK-") to focus it
+# Tap the Prefix input (placeholder "e.g. DK-") to focus it
 - tapOn: "e.g. DK-"
 - inputText: "TEST-"
 
-# The "Save" button should now be visible (only shown when the field is dirty)
+# The "Save" button only appears when the field has unsaved changes
 - extendedWaitUntil:
     visible: "Save"
     timeout: 5000
 - assertVisible: "Save"
 
 # ============================================================
-# TAP SAVE — the "Save" button should disappear after saving
+# SAVE — the "Save" button should disappear after saving
 # ============================================================
 
-# Tap "Save" to persist the prefix value
 - tapOn: "Save"
 
-# After saving, the "Save" button should disappear (dirty flag clears)
+# After saving, the dirty flag clears and the "Save" button disappears
 - extendedWaitUntil:
     notVisible: "Save"
     timeout: 10000
 
-# The Prefix input and Metadata section should still be present
+# The Metadata section and Prefix field should still be present
 - assertVisible: "Metadata"
 - assertVisible: "Prefix:"

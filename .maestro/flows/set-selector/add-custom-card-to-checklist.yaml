@@ -2,7 +2,8 @@ url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-select
 name: Add Custom Card to Checklist
 tags:
   - set-selector
-  - regression
+  - wip
+# FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # A user manually adds a card to the checklist using the "Add Card" form.
 # This covers the scenario where a card is missing from marketplace data

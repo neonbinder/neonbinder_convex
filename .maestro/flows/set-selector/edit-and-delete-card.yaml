@@ -2,7 +2,8 @@ url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-select
 name: Edit and Delete a Card from the Checklist
 tags:
   - set-selector
-  - regression
+  - wip
+# FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # A user edits an existing card's player name and team, saves the change,
 # then deletes the card from the checklist.

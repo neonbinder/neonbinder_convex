@@ -1,6 +1,6 @@
 ---
-name: Sync form auto-fire timing — loading state can be missed
-description: extendedWaitUntil for the loading state heading races against fast/cached syncs; use combined regex instead
+name: Sync form auto-fire timing — skip intermediate loading state assert entirely
+description: The loading state heading races against fast/cached syncs; go straight to scrollUntilVisible for the completion signal
 type: feedback
 ---
 
@@ -8,42 +8,45 @@ All set-selector sync forms auto-fire on mount (YearForm, ManufacturerForm, SetF
 VariantForm). If the data is already in the database or the network is fast, the loading state
 heading (e.g., "Syncing Variant Types") can disappear before Maestro evaluates the assertion.
 
-`extendedWaitUntil: visible: "Syncing Variant Types"` will FAIL if the form has already closed.
+Even the combined-regex pattern `".*Syncing X|Sync X.*"` can FAIL if the form fires AND closes AND
+the "Sync X" button returns—all before Maestro reaches the extendedWaitUntil step.
 
-**Wrong pattern:**
+**Wrong pattern (still races):**
 ```yaml
 - tapOn: "Sync Variant Types"
 - extendedWaitUntil:
-    visible: "Syncing Variant Types"   # RACES — can miss it
+    visible:
+      text: ".*Syncing Variant Types|Sync Variant Types.*"  # CAN STILL MISS on fast/cached
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Sync Variant Types"
+- scrollUntilVisible:
+    element:
+      text: "Sync Variant Types"
     timeout: 60000
 ```
 
-**Correct pattern — combined regex catches both states:**
+**Correct pattern — skip the intermediate assert entirely:**
 ```yaml
 - tapOn: "Sync Variant Types"
-- extendedWaitUntil:
-    visible:
-      text: ".*Syncing Variant Types|Sync Variant Types.*"
+# Go straight to scrollUntilVisible — the form may close before Maestro can check
+- scrollUntilVisible:
+    element:
+      text: "Sync Variant Types"
     timeout: 60000
 ```
 
-Or if you want to assert a result exists (e.g., "Base" appearing in the list):
+**Exception — SetForm (Sync Sets):** "Sync Sets" does NOT reappear once data is populated.
+For SetForm only, use `extendedWaitUntil: notVisible: "Syncing Sets"` as the completion signal:
 ```yaml
-- tapOn: "Sync Variant Types"
+- tapOn: "Sync Sets"
 - extendedWaitUntil:
-    visible:
-      text: ".*Sync Variant Types|Base.*"
-    timeout: 60000
+    notVisible: "Syncing Sets"
+    timeout: 90000
 ```
 
 **Why:** The form fires on mount. With cached Convex data, the round-trip can be < 1s, faster than
-Maestro's first check cycle.
+Maestro's first check cycle. The "Sync X" button's return to the screen is the authoritative signal.
 
-**How to apply:** Every `tapOn: "Sync X"` followed by an intermediate loading state assertion.
-Replace the two-step pattern (assert loading, assert done) with a single combined regex that
-matches EITHER the loading state OR the completion signal.
+**How to apply:** Every `tapOn: "Sync X"` (except SetForm) — skip any intermediate loading state
+assertion and go straight to `scrollUntilVisible: "Sync X"` with a generous timeout.
 
-This pattern was verified working in `sync-set-end-to-end.yaml` for all six levels.
+Confirmed working in util-drill-to-2024-topps-chrome.yaml and all three canonical variant flows.

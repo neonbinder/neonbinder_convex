@@ -73,12 +73,17 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 ## ReconciliationModal
 - Heading: "Reconcile Variants" (level="insert") or "Reconcile Variants of Variants" (level="parallel")
 - Subtext: "[N] matched, [N] BSC-only, [N] SL-only ([N] total)"
-- Matched section (collapsible): "Matched (N)" — click to review
-- Unmatched section header: "Unmatched — drag to link, or click BSC then SL"
-- BSC column label: "BSC (N)" (uppercase)
-- SL column label: "SportLots (N)" (uppercase)
+  e.g., "25 matched, 22 BSC-only, 2504 SL-only (2551 total)"
+- Matched section (collapsible): "Matched (N) — click to review"
+- Unmatched section header: "Unmatched — drag to link, or drag down to "keep as platform-only""
+  Use regex `".*Unmatched.*drag to link.*"` for robustness
+- BSC column label: "BSC (N)" — assert with `".*BSC.*"` (uppercase in DOM)
+- SL column label: "SPORTLOTS (N OF M)" — assert with `".*SPORTLOTS.*"` (uppercase in DOM)
 - SL filter input: placeholder = `Starts with "[setName]"` or `Starts with "[setName]" or "[stripped]"`
-- Confirm button: "Confirm N Items" (N = total items count)
+  For 2024 Topps Chrome: `Starts with "topps chrome" or "chrome"`
+  Use regex `'.*Starts with ".*[Tt]opps [Cc]hrome.*".*'`
+- SAVE/confirm button: "Save N matched" (NOT "Confirm N Items" — changed)
+  Use regex `".*Save [0-9]+ matched.*"`
 - Cancel button: "Cancel"
 
 ## VariantMetadataEditor (appears below Variants list after a Variant is selected)
@@ -142,6 +147,17 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 - Delete confirm prompt: "Confirm?" (replaces "Del" button)
 - Edit form fields: "Card name" placeholder, "Team" placeholder
 - Edit form buttons: "Save", "Cancel"
+
+## EntitySelector column — internal scroll container (IMPORTANT)
+Each column (Sports, Years, Manufacturers, etc.) has its OWN internal scroll container.
+`scrollUntilVisible` at the page level CANNOT reach items inside the column's internal scroll.
+To find items that may be off-screen within a column: USE THE SEARCH BOX.
+- The search box placeholder is "Search [column name]..." (e.g., "Search sports...")
+- Tap the placeholder text to focus, `inputText: "keyword"` to filter
+- The item will appear even if it would normally require internal scrolling
+- After searching: reload the page (`openLink: .../set-selector`) to reset the search state
+  (You cannot reliably tap the search input by text when it has a value, because the
+  placeholder text is not visible in Maestro's DOM when the field has content)
 
 ## Column visibility rules
 - Sports column: always visible
