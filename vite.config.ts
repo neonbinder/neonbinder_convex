@@ -8,7 +8,24 @@ import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
 
 // Dev-only middleware that mirrors api/auth/testing.ts so that Maestro E2E
 // flows can hit /testing/sign-in against `vite dev` without needing a full
-// `vercel dev` setup. Same security layers as the Vercel handler.
+// `vercel dev` setup. Same security layers and account selector as the
+// Vercel handler.
+type DevTestAccount = "main" | "new-profile";
+const DEV_TEST_ACCOUNTS = ["main", "new-profile"] as const satisfies readonly DevTestAccount[];
+
+function isDevTestAccount(value: unknown): value is DevTestAccount {
+  return typeof value === "string" && (DEV_TEST_ACCOUNTS as readonly string[]).includes(value);
+}
+
+function resolveDevTestEmail(account: DevTestAccount): string | undefined {
+  switch (account) {
+    case "main":
+      return process.env.TEST_EMAIL;
+    case "new-profile":
+      return process.env.NEW_PROFILE_TEST_EMAIL;
+  }
+}
+
 function clerkTestingApiPlugin(): Plugin {
   return {
     name: "clerk-testing-api",
@@ -35,9 +52,46 @@ function clerkTestingApiPlugin(): Plugin {
           res.end(JSON.stringify({ error: "Unauthorized" }));
           return;
         }
+
+        // Read JSON body — http.IncomingMessage doesn't auto-parse like Vercel.
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        const raw = Buffer.concat(chunks).toString("utf8");
+        let parsedBody: { account?: unknown } = {};
+        if (raw) {
+          try {
+            parsedBody = JSON.parse(raw) as { account?: unknown };
+          } catch {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "Invalid JSON body" }));
+            return;
+          }
+        }
+        const requestedAccount = parsedBody.account;
+        if (requestedAccount !== undefined && !isDevTestAccount(requestedAccount)) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Unknown account" }));
+          return;
+        }
+        const account: DevTestAccount =
+          requestedAccount === undefined ? "main" : requestedAccount;
+        const testEmail = resolveDevTestEmail(account);
+        if (!testEmail) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              error: `${account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL"} not configured for account "${account}"`,
+            }),
+          );
+          return;
+        }
+
         const result = await issueClerkTestingTokens({
           clerkSecretKey: process.env.CLERK_SECRET_KEY,
-          testEmail: process.env.TEST_EMAIL,
+          testEmail,
         });
         res.setHeader("Content-Type", "application/json");
         if (!result.ok) {
