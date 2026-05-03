@@ -74,8 +74,9 @@ tags:
           visible:
             text: ".*Syncing Sport Options|Sync Sports.*"
           timeout: 15000
+      # "Sync Sports" does not reappear once data is populated — wait for Baseball.
       - extendedWaitUntil:
-          visible: "Sync Sports"
+          visible: "Baseball"
           timeout: 45000
 
 - scrollUntilVisible:
@@ -108,9 +109,12 @@ tags:
           visible:
             text: ".*Syncing Year Options|Sync Years.*"
           timeout: 15000
-      # Wait for sync to finish — form closes and button reappears
+      # Wait for sync to finish — form closes and year rows appear.
+      # "Sync Years" does NOT reappear once data is populated; wait for a
+      # known year that reliably appears (any 4-digit year starting with 20).
       - extendedWaitUntil:
-          visible: "Sync Years"
+          visible:
+            text: ".*20[0-9][0-9].*"
           timeout: 60000
 
 # Pick 2025 — the user's verified drill path
@@ -143,13 +147,20 @@ tags:
           visible:
             text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
           timeout: 15000
-      # Wait for sync to finish
+      # Wait for sync to finish — form closes and manufacturer rows appear.
+      # "Sync Manufacturers" does NOT reappear once data is populated; wait for
+      # a known SL manufacturer that reliably appears (Bowman is in every year).
       - extendedWaitUntil:
-          visible: "Sync Manufacturers"
+          visible: "Bowman"
           timeout: 60000
 
 # Type "Topps" into the manufacturer search box (visible when list > 8 items)
-# to filter the long alphabetical list down to the Topps entry
+# to filter the long alphabetical list down to the Topps entry.
+# Must scroll to the search input first — the list may push it off screen.
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
@@ -189,15 +200,21 @@ tags:
           visible:
             text: ".*Syncing Sets|Sync Sets.*"
           timeout: 15000
-      # BSC set sync across manufacturers can be slow
+      # BSC set sync across manufacturers can be slow. "Sync Sets" does NOT
+      # reappear once data is populated. Wait for "Syncing Sets" to disappear,
+      # which signals the form closed.
       - extendedWaitUntil:
-          visible: "Sync Sets"
+          notVisible: "Syncing Sets"
           timeout: 90000
 
 # Filter the sets list to find "Topps Chrome". Same pattern as manufacturer:
 # after typing the search value the result button appears below the input.
 # "Topps Chrome" is longer and unique enough that the only text match on
 # screen is the button itself (the input placeholder says "Search sets...").
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search sets.*"
 - inputText: "Topps Chrome"

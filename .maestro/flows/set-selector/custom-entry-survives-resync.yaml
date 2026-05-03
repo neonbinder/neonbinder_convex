@@ -48,7 +48,12 @@ tags:
 # STEP 1 — Add a custom sport entry
 # ============================================================
 
-# Tap "+ Custom" in the Sports column to open the custom entry form
+# Scroll to "+ Custom" in the Sports column — it may be below the fold when
+# the list is already populated with marketplace sports.
+- scrollUntilVisible:
+    element:
+      text: "+ Custom"
+    timeout: 10000
 - tapOn: "+ Custom"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
@@ -76,13 +81,19 @@ tags:
 # Trigger a marketplace sync for sports.
 # The form auto-fires on open — no "Sync from Marketplaces" button.
 # The heading "Syncing Sport Options" appears while the sync runs.
-# The form closes automatically on success and "Sync Sports" returns.
+# "Sync Sports" does NOT reappear after syncing if data is already present;
+# wait for a known sport (Baseball) to confirm the sync completed.
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 10000
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Syncing Sport Options"
-    timeout: 5000
+    visible:
+      text: ".*Syncing Sport Options|Sync Sports.*"
+    timeout: 15000
 - extendedWaitUntil:
-    visible: "Sync Sports"
+    visible: "Baseball"
     timeout: 45000
 
 # ============================================================

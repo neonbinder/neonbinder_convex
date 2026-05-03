@@ -62,8 +62,9 @@ tags:
           visible:
             text: ".*Syncing Sport Options|Sync Sports.*"
           timeout: 15000
+      # "Sync Sports" does not reappear once data is populated — wait for Baseball.
       - extendedWaitUntil:
-          visible: "Sync Sports"
+          visible: "Baseball"
           timeout: 45000
 - scrollUntilVisible:
     element:
@@ -83,8 +84,10 @@ tags:
           visible:
             text: ".*Syncing Year Options|Sync Years.*"
           timeout: 15000
+      # "Sync Years" does not reappear once data is populated — wait for a year.
       - extendedWaitUntil:
-          visible: "Sync Years"
+          visible:
+            text: ".*20[0-9][0-9].*"
           timeout: 45000
 - tapOn:
     text: ".*20[0-9][0-9].*"
@@ -102,11 +105,14 @@ tags:
           visible:
             text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
           timeout: 15000
+      # "Sync Manufacturers" does not reappear once data is populated — wait
+      # for Bowman which reliably appears for any sport/year combination.
       - extendedWaitUntil:
-          visible: "Sync Manufacturers"
+          visible: "Bowman"
           timeout: 45000
+# Pick the first available manufacturer — do not hardcode "Topps".
 - tapOn:
-    text: "Topps"
+    text: ".*"
     index: 0
 
 - extendedWaitUntil:
@@ -121,9 +127,11 @@ tags:
           visible:
             text: ".*Syncing Sets|Sync Sets.*"
           timeout: 15000
+      # "Sync Sets" does not reappear once data is populated. Wait for
+      # "Syncing Sets" to disappear, which signals the form closed.
       - extendedWaitUntil:
-          visible: "Sync Sets"
-          timeout: 45000
+          notVisible: "Syncing Sets"
+          timeout: 90000
 - tapOn:
     text: ".*"
     index: 0
@@ -141,8 +149,10 @@ tags:
           visible:
             text: ".*Syncing Variant Types|Sync Variant Types.*"
           timeout: 15000
+      # "Sync Variant Types" does not reappear once data is populated — wait
+      # for "Base" which is present for every set that has variant types.
       - extendedWaitUntil:
-          visible: "Sync Variant Types"
+          visible: "Base"
           timeout: 45000
 - tapOn:
     text: ".*"
@@ -161,9 +171,22 @@ tags:
           visible:
             text: ".*Syncing Variants|Select Base Set.*"
           timeout: 15000
+      # "Sync Variants" does not reappear once data is populated — wait for
+      # the BaseSetPicker modal OR the variant search input.
       - extendedWaitUntil:
-          visible: "Sync Variants"
+          visible:
+            text: ".*Select Base Set|Search variants.*"
           timeout: 45000
+# If the BaseSetPicker modal appeared (Base variant type), confirm it to
+# proceed past the modal into the variants list.
+- runFlow:
+    when:
+      visible: "Confirm Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Confirm Base Set"
+          timeout: 15000
 - tapOn:
     text: ".*"
     index: 0

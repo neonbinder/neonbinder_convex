@@ -71,8 +71,9 @@ tags:
           visible:
             text: ".*Syncing Sport Options|Sync Sports.*"
           timeout: 15000
+      # "Sync Sports" does not reappear once data is populated — wait for Baseball.
       - extendedWaitUntil:
-          visible: "Sync Sports"
+          visible: "Baseball"
           timeout: 45000
 - scrollUntilVisible:
     element:
@@ -93,8 +94,10 @@ tags:
           visible:
             text: ".*Syncing Year Options|Sync Years.*"
           timeout: 15000
+      # "Sync Years" does not reappear once data is populated — wait for a year.
       - extendedWaitUntil:
-          visible: "Sync Years"
+          visible:
+            text: ".*20[0-9][0-9].*"
           timeout: 45000
 - tapOn:
     text: ".*20[0-9][0-9].*"
@@ -113,11 +116,14 @@ tags:
           visible:
             text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
           timeout: 15000
+      # "Sync Manufacturers" does not reappear once data is populated — wait
+      # for Bowman which reliably appears for any sport/year combination.
       - extendedWaitUntil:
-          visible: "Sync Manufacturers"
+          visible: "Bowman"
           timeout: 45000
+# Pick the first available manufacturer — do not hardcode "Topps".
 - tapOn:
-    text: "Topps"
+    text: ".*"
     index: 0
 
 # --- Sync and select set ---
@@ -133,9 +139,11 @@ tags:
           visible:
             text: ".*Syncing Sets|Sync Sets.*"
           timeout: 15000
+      # "Sync Sets" does not reappear once data is populated. Wait for
+      # "Syncing Sets" to disappear, which signals the form closed.
       - extendedWaitUntil:
-          visible: "Sync Sets"
-          timeout: 45000
+          notVisible: "Syncing Sets"
+          timeout: 90000
 - tapOn:
     text: ".*"
     index: 0
@@ -153,8 +161,11 @@ tags:
           visible:
             text: ".*Syncing Variant Types|Sync Variant Types.*"
           timeout: 15000
+      # "Sync Variant Types" does not reappear once data is populated — wait for
+      # a known variant type (Base is always present; Insert/Parallel common too).
       - extendedWaitUntil:
-          visible: "Sync Variant Types"
+          visible:
+            text: ".*Base|Insert|Parallel.*"
           timeout: 45000
 
 # Select "Insert" — a non-Base variant type that will trigger the reconciliation

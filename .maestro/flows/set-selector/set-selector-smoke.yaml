@@ -50,13 +50,15 @@ tags:
 # Trigger a marketplace sync for Sports.
 # The form auto-fires immediately on open — no "Sync from Marketplaces" button.
 # The heading "Syncing Sport Options" appears while the sync runs.
-# On success the form closes automatically and "Sync Sports" returns.
+# On success the form closes automatically. "Sync Sports" does NOT reappear
+# once data is in the list — wait for Baseball instead as the completion signal.
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Syncing Sport Options"
-    timeout: 5000
+    visible:
+      text: ".*Syncing Sport Options|Sync Sports.*"
+    timeout: 15000
 - extendedWaitUntil:
-    visible: "Sync Sports"
+    visible: "Baseball"
     timeout: 45000
 
 # Verify sports were synced from both platforms

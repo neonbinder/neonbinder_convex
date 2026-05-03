@@ -30,14 +30,23 @@ confirming the app has loaded and the user is authenticated.
 
 ## Reusable credential setup flows
 Located in `neonbinder_web/.maestro/flows/profile/`:
-- `setup-bsc-credentials.yaml` — saves BSC credentials; uses env vars BSC_USERNAME, BSC_PASSWORD
-- `setup-sportlots-credentials.yaml` — saves SL credentials; uses env vars SPORTLOTS_USERNAME, SPORTLOTS_PASSWORD
 
-Both flows:
+**Idempotent helpers** (use for set-selector flows and any flow that just NEEDS creds to exist):
+- `setup-bsc-credentials.yaml` — skips save if "Clear Credentials" already visible; uses BSC_USERNAME, BSC_PASSWORD
+- `setup-sportlots-credentials.yaml` — skips save if "Clear Credentials" already visible; uses SPORTLOTS_USERNAME, SPORTLOTS_PASSWORD
+
+**Destructive helpers** (use for cred-test flows that must test the full save+auth cycle):
+- `clear-then-setup-bsc-credentials.yaml` — always clears then re-saves; same env vars
+- `clear-then-setup-sportlots-credentials.yaml` — always clears then re-saves; same env vars
+
+All four flows:
 - Are tagged `util` (not smoke/regression — they are helpers, not standalone tests)
 - Assume the browser is already on the `/profile` page
-- Idempotently handle the case where credentials already exist (clears then re-saves)
 - End with the credentials saved state confirmed
+
+CRITICAL: Calling setup-* repeatedly with the destructive variant hits BSC/SportLots login
+endpoints on every call. With 10 set-selector flows × 2 platforms = 20 fresh logins per run,
+this triggers rate-limiting. Always use the idempotent variant for set-selector flows.
 
 ## Pattern for flows that need credentials before navigating to a feature page
 ```yaml
