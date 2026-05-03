@@ -57,13 +57,20 @@ tags:
     timeout: 15000
 
 # --- Sync and select sport ---
-- tapOn: "Sync Sports"
-- extendedWaitUntil:
-    visible: "Syncing Sport Options"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Sports"
-    timeout: 45000
+# Only sync if the button is present; prior flows in this run may have
+# already populated sports, replacing the button with the list.
+- runFlow:
+    when:
+      visible: "Sync Sports"
+    commands:
+      - tapOn: "Sync Sports"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sport Options|Sync Sports.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Sports"
+          timeout: 45000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -74,13 +81,18 @@ tags:
 - extendedWaitUntil:
     visible: "Years"
     timeout: 10000
-- tapOn: "Sync Years"
-- extendedWaitUntil:
-    visible: "Syncing Year Options"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Years"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Years"
+    commands:
+      - tapOn: "Sync Years"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Year Options|Sync Years.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Years"
+          timeout: 45000
 - tapOn:
     text: ".*20[0-9][0-9].*"
     index: 0
@@ -89,13 +101,18 @@ tags:
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 10000
-- tapOn: "Sync Manufacturers"
-- extendedWaitUntil:
-    visible: "Syncing Manufacturer Options"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Manufacturers"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Manufacturers"
+    commands:
+      - tapOn: "Sync Manufacturers"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Manufacturers"
+          timeout: 45000
 - tapOn:
     text: "Topps"
     index: 0
@@ -104,13 +121,18 @@ tags:
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 10000
-- tapOn: "Sync Sets"
-- extendedWaitUntil:
-    visible: "Syncing Sets"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Sets"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Sets"
+    commands:
+      - tapOn: "Sync Sets"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sets|Sync Sets.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Sets"
+          timeout: 45000
 - tapOn:
     text: ".*"
     index: 0
@@ -120,13 +142,18 @@ tags:
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 10000
-- tapOn: "Sync Variant Types"
-- extendedWaitUntil:
-    visible: "Syncing Variant Types"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Variant Types"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Variant Types"
+    commands:
+      - tapOn: "Sync Variant Types"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Variant Types|Sync Variant Types.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Variant Types"
+          timeout: 45000
 
 # Select "Base" specifically — the BaseSetPicker only opens for Base variant types
 - scrollUntilVisible:

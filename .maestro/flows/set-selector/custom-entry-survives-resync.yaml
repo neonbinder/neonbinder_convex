@@ -3,7 +3,6 @@ name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
   - regression
-  - wip
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
@@ -19,6 +18,15 @@ tags:
     timeout: 45000
 
 # --- Ensure marketplace credentials are available ---
+# Navigate to /profile before credential setup — runFlow does NOT re-navigate,
+# so the sub-flows (which expect "Select Platform" on /profile) would fail if
+# the browser is still on /set-selector after sign-in redirect.
+- openLink: ${APP_URL || "https://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 15000
+
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
     env:

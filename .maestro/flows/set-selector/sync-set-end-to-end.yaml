@@ -56,21 +56,27 @@ tags:
 
 # ============================================================
 # LEVEL 1 — Sport
-# CI starts with an empty selectorOptions table, so Sports must be synced
-# before Baseball appears. Tap "Sync Sports", wait for the loading state,
-# then wait for completion before scrolling to Baseball.
+# If Sports have already been synced by an earlier flow in this run, the
+# "Sync Sports" button is replaced by the populated list — tapping it would
+# fail. Only sync if the button is present; otherwise proceed directly to
+# selecting Baseball from the already-populated list.
 # ============================================================
 
 # The Sports column heading is visible on page load
 - assertVisible: "Sports"
 
-- tapOn: "Sync Sports"
-- extendedWaitUntil:
-    visible: "Syncing Sport Options"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "Sync Sports"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Sports"
+    commands:
+      - tapOn: "Sync Sports"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sport Options|Sync Sports.*"
+          timeout: 15000
+      - extendedWaitUntil:
+          visible: "Sync Sports"
+          timeout: 45000
 
 - scrollUntilVisible:
     element:
@@ -86,28 +92,26 @@ tags:
 # ============================================================
 # LEVEL 2 — Year (BSC + SL)
 # Tapping "Sync Years" opens YearForm which auto-fires.
-# The form heading "Syncing Year Options" confirms the form is open.
-# When sync completes the form closes and "Sync Years" reappears.
+# If years for Baseball are already synced from a prior flow in this run,
+# the button may not appear — proceed straight to selecting 2025.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      text: "Sync Years"
-    timeout: 10000
-- tapOn: "Sync Years"
-
-# YearForm auto-fires. On a fast connection or with cached data the
-# "Syncing Year Options" heading may disappear before Maestro checks.
-# Wait for either the loading state OR the completion signal (button back).
-- extendedWaitUntil:
-    visible:
-      text: ".*Syncing Year Options|Sync Years.*"
-    timeout: 15000
-
-# Wait for sync to finish — form closes and button reappears
-- extendedWaitUntil:
-    visible: "Sync Years"
-    timeout: 60000
+- runFlow:
+    when:
+      visible: "Sync Years"
+    commands:
+      - tapOn: "Sync Years"
+      # YearForm auto-fires. On a fast connection or with cached data the
+      # "Syncing Year Options" heading may disappear before Maestro checks.
+      # Wait for either the loading state OR the completion signal (button back).
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Year Options|Sync Years.*"
+          timeout: 15000
+      # Wait for sync to finish — form closes and button reappears
+      - extendedWaitUntil:
+          visible: "Sync Years"
+          timeout: 60000
 
 # Pick 2025 — the user's verified drill path
 - scrollUntilVisible:
@@ -126,24 +130,23 @@ tags:
 # Tapping "Sync Manufacturers" opens ManufacturerForm which auto-fires.
 # Topps is far down the alphabetical list so after sync completes we use
 # the EntitySelector search input (shown when list > 8 items) to filter.
+# If manufacturers for 2025/Baseball are already synced, skip the sync.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      text: "Sync Manufacturers"
-    timeout: 10000
-- tapOn: "Sync Manufacturers"
-
-# ManufacturerForm auto-fires. Same race: wait for either loading or done.
-- extendedWaitUntil:
-    visible:
-      text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
-    timeout: 15000
-
-# Wait for sync to finish
-- extendedWaitUntil:
-    visible: "Sync Manufacturers"
-    timeout: 60000
+- runFlow:
+    when:
+      visible: "Sync Manufacturers"
+    commands:
+      - tapOn: "Sync Manufacturers"
+      # ManufacturerForm auto-fires. Same race: wait for either loading or done.
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
+          timeout: 15000
+      # Wait for sync to finish
+      - extendedWaitUntil:
+          visible: "Sync Manufacturers"
+          timeout: 60000
 
 # Type "Topps" into the manufacturer search box (visible when list > 8 items)
 # to filter the long alphabetical list down to the Topps entry
@@ -173,24 +176,23 @@ tags:
 # LEVEL 4 — Set (BSC only via syncSetsAcrossManufacturers)
 # SetForm auto-fires. Search for "Topps Chrome" to avoid ambiguity with
 # other Topps sets (the list is large).
+# If sets for Topps/2025/Baseball are already synced, skip the sync.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      text: "Sync Sets"
-    timeout: 10000
-- tapOn: "Sync Sets"
-
-# SetForm auto-fires. Same race: wait for either loading or done.
-- extendedWaitUntil:
-    visible:
-      text: ".*Syncing Sets|Sync Sets.*"
-    timeout: 15000
-
-# BSC set sync across manufacturers can be slow
-- extendedWaitUntil:
-    visible: "Sync Sets"
-    timeout: 90000
+- runFlow:
+    when:
+      visible: "Sync Sets"
+    commands:
+      - tapOn: "Sync Sets"
+      # SetForm auto-fires. Same race: wait for either loading or done.
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sets|Sync Sets.*"
+          timeout: 15000
+      # BSC set sync across manufacturers can be slow
+      - extendedWaitUntil:
+          visible: "Sync Sets"
+          timeout: 90000
 
 # Filter the sets list to find "Topps Chrome". Same pattern as manufacturer:
 # after typing the search value the result button appears below the input.
@@ -219,23 +221,23 @@ tags:
 # ============================================================
 # LEVEL 5 — Variant Type (BSC only)
 # SetVariantForm auto-fires. Expect Base, Insert, Parallel, Promo etc.
+# If variant types for Topps Chrome are already synced, skip the sync.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      text: "Sync Variant Types"
-    timeout: 10000
-- tapOn: "Sync Variant Types"
-
-# SetVariantForm auto-fires on mount. If Topps Chrome variant types are
-# already in the database the sync completes near-instantly and the "Syncing
-# Variant Types" heading may be gone before Maestro checks. Wait for the
-# button to reappear (which signals the form closed) OR for Base to appear
-# in the list — whichever is visible first confirms completion.
-- extendedWaitUntil:
-    visible:
-      text: ".*Sync Variant Types|Base.*"
-    timeout: 60000
+- runFlow:
+    when:
+      visible: "Sync Variant Types"
+    commands:
+      - tapOn: "Sync Variant Types"
+      # SetVariantForm auto-fires on mount. If Topps Chrome variant types are
+      # already in the database the sync completes near-instantly and the "Syncing
+      # Variant Types" heading may be gone before Maestro checks. Wait for the
+      # button to reappear (which signals the form closed) OR for Base to appear
+      # in the list — whichever is visible first confirms completion.
+      - extendedWaitUntil:
+          visible:
+            text: ".*Sync Variant Types|Base.*"
+          timeout: 60000
 
 # Confirm "Base" is present in the Variant Types list
 - scrollUntilVisible:
