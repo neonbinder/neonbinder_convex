@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
-import basicSsl from "@vitejs/plugin-basic-ssl";
+import mkcert from "vite-plugin-mkcert";
 import path from "path";
 import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
 
@@ -120,7 +120,7 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     tailwindcss(),
-    ...(process.env.VITE_DEV_DISABLE_HTTPS ? [] : [basicSsl()]),
+    ...(process.env.VITE_DEV_DISABLE_HTTPS ? [] : [mkcert()]),
     clerkTestingApiPlugin(),
     sentryVitePlugin({
       org: "neon-binder",
