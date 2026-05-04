@@ -71,10 +71,9 @@ tags:
 - tapOn: "Add"
 
 # The form should close and "TestCustomSport" should appear in the list.
-# The Sports column has an internal scroll container — use the search box
-# to filter the list to confirm the entry was saved.
-- tapOn: "Search sports..."
-- inputText: "TestCustomSport"
+# When the Sports column has only one entry (the custom entry we just added),
+# the search input is NOT rendered — only rendered when the list has many items.
+# Assert the entry is visible directly without searching.
 - extendedWaitUntil:
     visible: "TestCustomSport"
     timeout: 10000

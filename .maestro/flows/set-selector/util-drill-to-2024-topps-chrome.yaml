@@ -49,6 +49,16 @@ tags:
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
 
+# Reset scroll position before the next setup. After BSC credential setup,
+# the page is scrolled to the BSC section (below "Select Platform").
+# setup-sportlots-credentials.yaml starts with scrollUntilVisible "Select Platform"
+# which only scrolls DOWN — without this reset it would time out looking for
+# something already above the current viewport.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: ".*Select Platform.*"
+    timeout: 15000
+
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
     env:

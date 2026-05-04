@@ -95,12 +95,16 @@ tags:
       - assertVisible:
           text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
 
-      # The unmatched section header with drag-to-link instruction
+      # The unmatched section header with drag-to-link instruction.
+      # The full rendered text is "Unmatched — drag to link, or drag down to
+      # 'keep as platform-only'" — use regex to match it regardless of the
+      # trailing instruction text (which could change as copy is updated).
       - scrollUntilVisible:
           element:
-            text: "Unmatched"
+            text: ".*Unmatched.*"
           timeout: 10000
-      - assertVisible: "Unmatched"
+      - assertVisible:
+          text: ".*Unmatched.*"
 
       # BSC column header in the unmatched section
       - assertVisible:
