@@ -70,10 +70,19 @@ tags:
     timeout: 5000
 - tapOn: "Add"
 
-# The form should close and "TestCustomSport" should appear in the list.
-# When the Sports column has only one entry (the custom entry we just added),
-# the search input is NOT rendered — only rendered when the list has many items.
-# Assert the entry is visible directly without searching.
+# Wait for the "Add Custom Entry" form to close before checking the list.
+# The form disappearing confirms the entry was saved to the database.
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# Use the search box to find "TestCustomSport" in the Sports column.
+# The Sports list has an internal scroll container — page-level assertVisible
+# cannot see items below the fold. The search box filters the internal list,
+# making TestCustomSport visible regardless of how many entries precede it
+# alphabetically. The search input shows "Search sports..." as placeholder.
+- tapOn: "Search sports..."
+- inputText: "TestCustomSport"
 - extendedWaitUntil:
     visible: "TestCustomSport"
     timeout: 10000

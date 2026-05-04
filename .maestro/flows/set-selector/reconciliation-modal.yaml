@@ -105,13 +105,13 @@ tags:
       - assertVisible:
           text: ".*Unmatched.*"
 
-      # BSC column header in the unmatched section
+      # BSC column header in the unmatched section — rendered as "BSC (N)" with a count suffix
       - assertVisible:
-          text: "BSC"
+          text: ".*BSC.*"
 
-      # SportLots column header in the unmatched section
+      # SportLots column header in the unmatched section — rendered as "SportLots (N of M)" with count suffix
       - assertVisible:
-          text: "SportLots"
+          text: ".*SportLots.*"
 
       # The save button shows the matched count — "Save N matched"
       - scrollUntilVisible:
