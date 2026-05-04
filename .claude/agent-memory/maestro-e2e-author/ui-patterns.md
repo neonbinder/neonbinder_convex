@@ -78,7 +78,7 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 - Unmatched section header: "Unmatched — drag to link, or drag down to "keep as platform-only""
   Use regex `".*Unmatched.*drag to link.*"` for robustness
 - BSC column label: "BSC (N)" — assert with `".*BSC.*"` (uppercase in DOM)
-- SL column label: "SPORTLOTS (N OF M)" — assert with `".*SPORTLOTS.*"` (uppercase in DOM)
+- SL column label: "SportLots (N of M)" — assert with `".*SportLots.*"` (mixed case "SportLots", NOT all-caps; confirmed from DOM hierarchy in PR #24 run)
 - SL filter input: placeholder = `Starts with "[setName]"` or `Starts with "[setName]" or "[stripped]"`
   For 2024 Topps Chrome: `Starts with "topps chrome" or "chrome"`
   Use regex `'.*Starts with ".*[Tt]opps [Cc]hrome.*".*'`
