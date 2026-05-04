@@ -664,7 +664,7 @@ export const updateSelectorOptionMetadata = mutation({
  * Full reset of Set Builder data. Deletes every row in `selectorOptions`
  * and `cardChecklist`. Intended for dev cleanup between test runs.
  *
- * Two layers of safety:
+ * Two layers of safety (enforced in the internal mutations below):
  * 1. requireAdmin — only the admin role can call this from a signed-in session.
  * 2. ALLOW_RESET_SET_BUILDER_DATA env var — must be set to "true" on the
  *    Convex deployment. Set on dev + preview + integration-test deployments
@@ -672,40 +672,101 @@ export const updateSelectorOptionMetadata = mutation({
  *    Without this gate, the admin user could accidentally wipe production
  *    data by clicking "Reset Set Builder Data" while pointed at prod.
  *
- * Convex mutation size limits are fine for the row counts we see in dev
- * (<1k total); if that changes, refactor to an action + paginated
- * internal mutation.
+ * Implementation: this is an action that loops a paginated internal
+ * mutation. A single mutation has a per-execution read limit of 4096
+ * rows; on dev deployments where selectorOptions has accumulated many
+ * thousands of rows from prior test runs, a single-pass `.collect()`
+ * was throwing "Too many reads in a single function execution".
  */
-export const resetSetBuilderData = mutation({
+const RESET_BATCH_SIZE = 500;
+
+export const resetSetBuilderData = action({
   args: {},
   returns: v.object({
     selectorOptionsDeleted: v.number(),
     cardChecklistDeleted: v.number(),
   }),
+  handler: async (
+    ctx,
+  ): Promise<{ selectorOptionsDeleted: number; cardChecklistDeleted: number }> => {
+    // Auth and env-var gate are enforced in the internal mutations called
+    // below — keeping the destructive guard as close to the actual delete
+    // as possible. If either check fails on the first batch, the loop
+    // exits before any rows are deleted.
+
+    let selectorOptionsDeleted = 0;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.selectorOptions.resetSelectorOptionsBatch,
+        {},
+      );
+      selectorOptionsDeleted += result.deleted;
+      if (!result.hasMore) break;
+    }
+
+    let cardChecklistDeleted = 0;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.selectorOptions.resetCardChecklistBatch,
+        {},
+      );
+      cardChecklistDeleted += result.deleted;
+      if (!result.hasMore) break;
+    }
+
+    return { selectorOptionsDeleted, cardChecklistDeleted };
+  },
+});
+
+/**
+ * Internal: delete up to RESET_BATCH_SIZE rows from selectorOptions.
+ * Used by resetSetBuilderData (action) in a loop until no rows remain.
+ */
+export const resetSelectorOptionsBatch = internalMutation({
+  args: {},
+  returns: v.object({
+    deleted: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx) => {
     await requireAdmin(ctx);
-
     if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
       throw new Error(
         "Reset Set Builder Data is not enabled in this environment. " +
           "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
       );
     }
-
-    const allSelectorOptions = await ctx.db.query("selectorOptions").collect();
-    for (const row of allSelectorOptions) {
+    const rows = await ctx.db.query("selectorOptions").take(RESET_BATCH_SIZE);
+    for (const row of rows) {
       await ctx.db.delete(row._id);
     }
+    return { deleted: rows.length, hasMore: rows.length === RESET_BATCH_SIZE };
+  },
+});
 
-    const allCards = await ctx.db.query("cardChecklist").collect();
-    for (const row of allCards) {
+/**
+ * Internal: delete up to RESET_BATCH_SIZE rows from cardChecklist.
+ * Used by resetSetBuilderData (action) in a loop until no rows remain.
+ */
+export const resetCardChecklistBatch = internalMutation({
+  args: {},
+  returns: v.object({
+    deleted: v.number(),
+    hasMore: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
+      throw new Error(
+        "Reset Set Builder Data is not enabled in this environment. " +
+          "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
+      );
+    }
+    const rows = await ctx.db.query("cardChecklist").take(RESET_BATCH_SIZE);
+    for (const row of rows) {
       await ctx.db.delete(row._id);
     }
-
-    return {
-      selectorOptionsDeleted: allSelectorOptions.length,
-      cardChecklistDeleted: allCards.length,
-    };
+    return { deleted: rows.length, hasMore: rows.length === RESET_BATCH_SIZE };
   },
 });
 

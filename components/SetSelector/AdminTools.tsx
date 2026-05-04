@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import NeonButton from "../modules/NeonButton";
 
@@ -25,7 +25,7 @@ type Status =
  * non-admins by AdminLayout.
  */
 export default function AdminTools() {
-  const resetSetBuilderData = useMutation(
+  const resetSetBuilderData = useAction(
     api.selectorOptions.resetSetBuilderData,
   );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
