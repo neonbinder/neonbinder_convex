@@ -34,7 +34,7 @@ the "Sync X" button returns—all before Maestro reaches the extendedWaitUntil s
     timeout: 60000
 ```
 
-**Exception — SetForm (Sync Sets):** "Sync Sets" does NOT reappear once data is populated.
+**Exception 1 — SetForm (Sync Sets):** "Sync Sets" does NOT reappear once data is populated.
 For SetForm only, use `extendedWaitUntil: notVisible: "Syncing Sets"` as the completion signal:
 ```yaml
 - tapOn: "Sync Sets"
@@ -43,10 +43,49 @@ For SetForm only, use `extendedWaitUntil: notVisible: "Syncing Sets"` as the com
     timeout: 90000
 ```
 
-**Why:** The form fires on mount. With cached Convex data, the round-trip can be < 1s, faster than
-Maestro's first check cycle. The "Sync X" button's return to the screen is the authoritative signal.
+**Exception 2 — SetVariantForm (Sync Variant Types):** On RE-SYNC attempts (data already populated),
+`SetVariantForm` returns `success: false` when no NEW options come back from platforms. This means
+`onDone()` is NOT called — the form stays open showing a "Close" button. `scrollUntilVisible: "Sync
+Variant Types"` will timeout because the form never closes automatically.
+
+**Correct pattern for Sync Variant Types:** Guard on `when: notVisible: "Base"` so the sync is only
+triggered when the Variant Types list is actually empty. Skip entirely if Base/Insert/Parallel are
+already visible:
+```yaml
+- runFlow:
+    when:
+      notVisible: "Base"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Sync Variant Types"
+          timeout: 10000
+      - tapOn: "Sync Variant Types"
+      - extendedWaitUntil:
+          notVisible: "Syncing Variant Types"
+          timeout: 60000
+      - runFlow:
+          when:
+            visible: "Close"
+          commands:
+            - tapOn: "Close"
+            - extendedWaitUntil:
+                visible: "Sync Variant Types"
+                timeout: 10000
+```
+
+**Exception 3 — VariantForm (Sync Variants for Insert/Parallel):** On re-sync with only one platform
+returning data, VariantForm stores directly and calls `onDone()` without opening ReconciliationModal.
+The `extendedWaitUntil: visible: "Reconcile Variants"` will timeout. Guard the sync+modal block on
+the EntitySelector empty state: `when: visible: "No variants available. Sync from marketplaces to
+populate."` — only sync when the Variants column is empty.
+
+**Why:** These forms call onDone() only on specific success branches. Re-runs with cached/partial
+data take different code paths that don't auto-close the form or don't open expected modals.
 
 **How to apply:** Every `tapOn: "Sync X"` (except SetForm) — skip any intermediate loading state
-assertion and go straight to `scrollUntilVisible: "Sync X"` with a generous timeout.
+assertion and go straight to `scrollUntilVisible: "Sync X"` with a generous timeout. For Variant
+Types and Variant levels, use the notVisible guard to skip the sync when data already exists.
 
-Confirmed working in util-drill-to-2024-topps-chrome.yaml and all three canonical variant flows.
+Confirmed working in util-drill-to-2024-topps-chrome.yaml and all three canonical variant flows
+(verified locally 2026-05-03 on set-creation-resume branch, commit dd26cb3).
