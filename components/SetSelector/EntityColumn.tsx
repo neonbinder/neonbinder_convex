@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
@@ -34,6 +34,20 @@ export default function EntityColumn({
   const [customValue, setCustomValue] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const wasVisibleRef = useRef(isVisible);
+
+  useEffect(() => {
+    if (isVisible && !wasVisibleRef.current && containerRef.current) {
+      containerRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "end",
+      });
+    }
+    wasVisibleRef.current = isVisible;
+  }, [isVisible]);
+
   const addCustomOption = useMutation(
     api.selectorOptions.addCustomSelectorOption,
   );
@@ -63,7 +77,10 @@ export default function EntityColumn({
   if (!isVisible) return null;
 
   return (
-    <div className="min-w-[260px] flex flex-col gap-4">
+    <div
+      ref={containerRef}
+      className="min-w-[260px] max-w-[340px] flex-shrink-0 flex flex-col gap-4"
+    >
       {selector}
       {mode === "sync" ? (
         renderForm(handleFormDone)

@@ -4,26 +4,26 @@ import EntitySelector from "./EntitySelector";
 
 type SetVariantSelectorProps = {
   setId: GenericId<"selectorOptions">;
-  selectedVariantId: GenericId<"selectorOptions"> | null;
-  onVariantSelect: (id: GenericId<"selectorOptions">) => void;
+  selectedVariantTypeId: GenericId<"selectorOptions"> | null;
+  onVariantTypeSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
 };
 
 export default function SetVariantSelector({
   setId,
-  selectedVariantId,
-  onVariantSelect,
+  selectedVariantTypeId,
+  onVariantTypeSelect,
   expanded,
   setExpanded,
 }: SetVariantSelectorProps) {
   return (
     <EntitySelector
-      title="Set Variants"
+      title="Variant Types"
       query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "variantType", parentId: setId }}
-      selectedId={selectedVariantId as string | null}
-      onSelect={(id) => onVariantSelect(id as GenericId<"selectorOptions">)}
+      selectedId={selectedVariantTypeId as string | null}
+      onSelect={(id) => onVariantTypeSelect(id as GenericId<"selectorOptions">)}
       expanded={expanded}
       setExpanded={setExpanded}
       getDisplayName={(variant) => variant.value as string}

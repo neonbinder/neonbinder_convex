@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile
 name: Set Selector Smoke Test
 # Demoted to regression tier (see PR description on the e2e-ci branch).
 # Writes real marketplace credentials via setup-bsc-credentials /
@@ -9,7 +9,6 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
-  - wip
 ---
 - launchApp
 - extendedWaitUntil:
@@ -30,7 +29,7 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # Navigate to the Set Selector page
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 15000
@@ -38,21 +37,31 @@ tags:
 # Verify the Sport selector column is present
 - assertVisible: "Sports"
 
-# Verify the sync and custom buttons are present
+# Scroll the Sync Sports button into view — Sports list may grow past the fold
+# on accounts with existing data, and Maestro's web driver doesn't auto-scroll
+# to find elements for assertVisible/tapOn.
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 10000
 - assertVisible: "Sync Sports"
 - assertVisible: "\\+ Custom"
 
-# Trigger a marketplace sync for Sports
+# Trigger a marketplace sync for Sports.
+# The form auto-fires immediately on open — no "Sync from Marketplaces" button.
+# The heading "Syncing Sport Options" appears while the sync runs.
+# On success the form closes automatically. "Sync Sports" reappears below
+# the populated list once ALL platforms have responded — scroll to it as
+# the completion signal so we don't proceed before BSC data merges in.
 - tapOn: "Sync Sports"
 - extendedWaitUntil:
-    visible: "Sync from Marketplaces"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-
-# Wait for sync to complete — form closes on success
-- extendedWaitUntil:
-    visible: "Sync Sports"
-    timeout: 30000
+    visible:
+      text: ".*Syncing Sport Options|Sync Sports.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 60000
 
 # Verify sports were synced from both platforms
 # Entries from both BSC and SportLots should show their respective badges

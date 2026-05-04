@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/dashboard
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/dashboard
 name: View Collection (Dashboard)
 tags:
   - smoke

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
-import { NAV_ITEMS } from "./binder-tabs";
+import { useVisibleNavItems } from "./binder-tabs";
 
 interface MobileNavProps {
   onClose: () => void;
@@ -9,6 +9,7 @@ interface MobileNavProps {
 export default function MobileNav({ onClose }: MobileNavProps) {
   const location = useLocation();
   const initialPathname = useRef(location.pathname);
+  const items = useVisibleNavItems();
 
   // Close on route change (skip initial mount)
   useEffect(() => {
@@ -31,7 +32,7 @@ export default function MobileNav({ onClose }: MobileNavProps) {
           <span className="neon-header text-xl">Menu</span>
         </div>
         <nav className="flex-1 p-4 flex flex-col gap-2">
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

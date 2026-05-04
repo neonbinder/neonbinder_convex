@@ -7,31 +7,96 @@ type: reference
 ## Set Selector page heading
 - Page title: "Set Selector" (appears twice — once in the page `<h1>` and once inside the SetSelector component)
 
+## Hierarchy — 6 levels (plus optional level 7)
+Level 1: Sports
+Level 2: Years
+Level 3: Manufacturers
+Level 4: Sets
+Level 5: Variant Types  (formerly "Set Variants" — renamed)
+Level 6: Variants       (new — was combined with level 5 before)
+Level 7: Sub-Variants   (optional, only shown after a Variant is selected)
+Cards panel: full-width below the selector row (not a column), visible after selecting a Variant
+
 ## Column titles (EntitySelector title prop)
-- Sports, Years, Manufacturers, Sets, Set Variants, Cards
+- Sports, Years, Manufacturers, Sets, Variant Types, Variants, Sub-Variants
 
 ## Sync button text per column (EntityColumn addButtonText prop)
-- "Sync Sports", "Sync Years", "Sync Manufacturers", "Sync Sets", "Sync Variants"
+- "Sync Sports", "Sync Years", "Sync Manufacturers", "Sync Sets",
+  "Sync Variant Types", "Sync Variants", "Sync Sub-Variants"
+
+## CRITICAL: Sync form auto-fire pattern (changed from old "Sync from Marketplaces" button)
+All sync forms auto-fire immediately when opened — there is NO "Sync from Marketplaces" button.
+
+Correct pattern:
+```yaml
+- tapOn: "Sync Sports"
+- extendedWaitUntil:
+    visible: "Syncing Sport Options"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Sync Sports"   # returns when form auto-closes on success
+    timeout: 45000
+```
+
+On ERROR the form stays open and shows "Retry" + "Cancel" buttons (not "Close").
+On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
+
+## Sync form headings (shown during the auto-fire)
+- SportForm: "Syncing Sport Options"
+- YearForm: "Syncing Year Options"
+- ManufacturerForm: "Syncing Manufacturer Options"
+- SetForm: "Syncing Sets"
+- SetVariantForm (level 5): "Syncing Variant Types"
+- VariantForm (level 6): "Syncing Variants" (or "Select Base Set" if variantType is "Base")
+
+## Sync form buttons after completion
+- Success: "Close" button (tapping closes the form)
+- Error: "Retry" + "Cancel" buttons
+
+## VariantForm special cases (level 6 — "Sync Variants")
+- For "Base" variant type: shows BaseSetPicker modal ("Select Base Set" heading)
+- For Insert/Parallel with data on BOTH platforms: shows ReconciliationModal ("Reconcile Variants" heading)
+- For single-platform data: auto-stores and closes (same as other levels)
+
+## BaseSetPicker modal
+- Heading: "Select Base Set" (same as VariantForm heading for Base type — not unique enough to assert modal is open)
+- Subtext: "Choose the base set for **[setName]** on each platform. The rest will be discarded."
+  Use regex `".*Choose the base set for.*"` to confirm the modal is open.
+- Search input (only if >8 SL options): placeholder "Search SportLots sets..."
+- "SPORTLOTS BASE" label (uppercase purple, via CSS): text in DOM is "SportLots base" — use `".*SportLots base.*"` or `"SportLots base"` (check visibility, CSS uppercases it)
+- "BSC base" section: ONLY shown when BSC has variantName options. For Base variant type, BSC's variantName facet is often empty — the BSC section will NOT appear. Do not assert "BSC base".
+- "likely match" badge (green text): shown on SL option with score >= 795; also shown on BSC options with score >= 795 in the BSC section (if visible)
+- Auto-selected SL option: highlighted in green. "Chrome" is auto-selected for Topps Chrome.
+- Confirm button: "Confirm Base Set"
+- Cancel button: "Cancel"
+
+## ReconciliationModal
+- Heading: "Reconcile Variants" (level="insert") or "Reconcile Variants of Variants" (level="parallel")
+- Subtext: "[N] matched, [N] BSC-only, [N] SL-only ([N] total)"
+  e.g., "25 matched, 22 BSC-only, 2504 SL-only (2551 total)"
+- Matched section (collapsible): "Matched (N) — click to review"
+- Unmatched section header: "Unmatched — drag to link, or drag down to "keep as platform-only""
+  Use regex `".*Unmatched.*drag to link.*"` for robustness
+- BSC column label: "BSC (N)" — assert with `".*BSC.*"` (uppercase in DOM)
+- SL column label: "SportLots (N of M)" — assert with `".*SportLots.*"` (mixed case "SportLots", NOT all-caps; confirmed from DOM hierarchy in PR #24 run)
+- SL filter input: placeholder = `Starts with "[setName]"` or `Starts with "[setName]" or "[stripped]"`
+  For 2024 Topps Chrome: `Starts with "topps chrome" or "chrome"`
+  Use regex `'.*Starts with ".*[Tt]opps [Cc]hrome.*".*'`
+- SAVE/confirm button: "Save N matched" (NOT "Confirm N Items" — changed)
+  Use regex `".*Save [0-9]+ matched.*"`
+- Cancel button: "Cancel"
+
+## VariantMetadataEditor (appears below Variants list after a Variant is selected)
+- Section heading: "Metadata" (small caps, gray)
+- Insert checkbox: label "Insert" (read-only/disabled)
+- Parallel checkbox: label "Parallel" (read-only/disabled)
+- Prefix field: label "Prefix:", input placeholder "e.g. DK-"
+- Save button: "Save" — only visible when the Prefix field is dirty (has unsaved changes)
+- After save: "Save" disappears, dirty flag clears
 
 ## Custom entry button
 - Label: "+ Custom" (requires regex escape in tapOn: `"\\+ Custom"`)
 - assertVisible also needs the escape: `"\\+ Custom"`
-
-## Sync form headings (the panel that opens when Sync button is tapped)
-- "Sync Sport Options"
-- "Sync Year Options"
-- "Sync Manufacturer Options"
-- "Sync Set Options"
-- "Sync Set Variant Options"
-
-## Sync form description text (examples)
-- SportForm: "Fetch the latest sport options from all connected platforms."
-- YearForm: "Fetch year options for [sport] from all connected platforms."
-- Others follow the pattern: "Fetch [level] options for [context] from all connected platforms."
-
-## Sync form buttons
-- Primary: "Sync from Marketplaces" (while loading shows "Syncing...")
-- Cancel: "Cancel"
 
 ## Custom entry form
 - Heading: "Add Custom Entry"
@@ -59,8 +124,8 @@ type: reference
 ## Loading state
 - "Loading [title.toLowerCase()]..." (while Convex query is fetching)
 
-## Cards column (CardChecklist)
-- Column heading: "Cards" (with count in parentheses when items exist, e.g., "Cards (42)")
+## Cards panel (CardChecklist) — full-width below selector row
+- Panel heading: "Cards" (with count in parentheses when items exist, e.g., "Cards (42)")
 - Empty state: "No cards in this checklist yet." + button "Fetch from Marketplaces"
 - While fetching: button label changes to "Fetching..."
 - Last synced text: "Last synced: [date]"
@@ -83,13 +148,26 @@ type: reference
 - Edit form fields: "Card name" placeholder, "Team" placeholder
 - Edit form buttons: "Save", "Cancel"
 
+## EntitySelector column — internal scroll container (IMPORTANT)
+Each column (Sports, Years, Manufacturers, etc.) has its OWN internal scroll container.
+`scrollUntilVisible` at the page level CANNOT reach items inside the column's internal scroll.
+To find items that may be off-screen within a column: USE THE SEARCH BOX.
+- The search box placeholder is "Search [column name]..." (e.g., "Search sports...")
+- Tap the placeholder text to focus, `inputText: "keyword"` to filter
+- The item will appear even if it would normally require internal scrolling
+- After searching: reload the page (`openLink: .../set-selector`) to reset the search state
+  (You cannot reliably tap the search input by text when it has a value, because the
+  placeholder text is not visible in Maestro's DOM when the field has content)
+
 ## Column visibility rules
 - Sports column: always visible
 - Years column: visible only after a sport is selected
 - Manufacturers column: visible only after a year is selected
 - Sets column: visible only after a manufacturer is selected
-- Set Variants column: visible only after a set is selected
-- Cards column: visible only after a variant is selected
+- Variant Types column: visible only after a set is selected
+- Variants column: visible only after a variant type is selected
+- Sub-Variants column: visible only after a variant is selected (optional)
+- Cards panel: visible only after a variant (or sub-variant) is selected
 
 ## Collapsed selector pill
 - When a value is selected and the column collapses, shows the selected value text and a chevron-down icon

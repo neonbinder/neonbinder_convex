@@ -9,6 +9,10 @@ function TestingSignInContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
+  // Optional account selector — defaults to "main" (TEST_EMAIL). Profile-
+  // creation flows pass "new-profile" so they sign in as the always-empty
+  // NEW_PROFILE_TEST_EMAIL user. Server validates the value.
+  const account = searchParams.get("account") || "main";
   const [status, setStatus] = useState("Initializing...");
 
   useEffect(() => {
@@ -45,7 +49,11 @@ function TestingSignInContent() {
           | undefined;
         const res = await fetch("/api/auth/testing", {
           method: "POST",
-          headers: testingSecret ? { "x-testing-auth": testingSecret } : {},
+          headers: {
+            "Content-Type": "application/json",
+            ...(testingSecret ? { "x-testing-auth": testingSecret } : {}),
+          },
+          body: JSON.stringify({ account }),
         });
 
         if (!res.ok) {
@@ -155,7 +163,7 @@ function TestingSignInContent() {
 
     autoSignIn();
     return () => ac.abort();
-  }, [isLoaded, signIn, isSignedIn, redirect, navigate, setActive]);
+  }, [isLoaded, signIn, isSignedIn, redirect, account, navigate, setActive]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

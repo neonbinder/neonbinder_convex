@@ -132,6 +132,7 @@ export default function ProfilePage() {
     }
     setIsLoading(true);
     setMessage("");
+    setMessageDetails(undefined);
     try {
       const secretResult = await storeCredentials({
         site: selectedSite,
@@ -146,12 +147,27 @@ export default function ProfilePage() {
         site: selectedSite,
         hasCredentials: true,
       });
-      setMessage(
-        `Credentials saved successfully! Your credentials have been securely encrypted and stored for ${siteMeta?.label}.`,
-      );
-      setMessageType("success");
-      setIsAuthenticated(true);
       setPassword("");
+
+      // Automatically verify credentials against the marketplace so the user
+      // doesn't have to click Test Credentials separately. Keeps credentials
+      // stored on auth failure so the user can retry without re-entering.
+      const authResult = await testSiteCredentials({ site: selectedSite });
+      if (authResult.success) {
+        setMessage(
+          `Credentials saved successfully! Your credentials have been securely encrypted and verified with ${siteMeta?.label}.`,
+        );
+        setMessageDetails(authResult.details);
+        setMessageType("success");
+        setIsAuthenticated(true);
+      } else {
+        setMessage(
+          `Credentials were saved, but ${siteMeta?.label} authentication failed: ${authResult.message}. Use "Test Credentials" to retry once the issue is resolved.`,
+        );
+        setMessageDetails(authResult.details);
+        setMessageType("error");
+        setIsAuthenticated(false);
+      }
     } catch (error) {
       setMessage(
         `Failed to save credentials: ${error instanceof Error ? error.message : "Unknown error"}`,

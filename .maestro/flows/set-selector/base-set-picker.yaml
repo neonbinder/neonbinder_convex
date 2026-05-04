@@ -1,0 +1,124 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Base variant flow — 2024 Topps Chrome Base sync creates Chrome row with SL + BSC badges"
+tags:
+  - set-selector
+  - regression
+---
+# Canonical test for the "Base" variant type code path.
+# End-user goal: user drills to 2024 Topps Chrome, picks "Base" as the variant
+# type, syncs variants, confirms the BaseSetPicker modal by selecting "Chrome",
+# and sees the "Chrome" row appear in the Variants list with both SL and BSC
+# platform badges — confirming data from both marketplaces was written.
+#
+# This is one of three merge-blocking flows for the variant-level set-sync milestone.
+#
+# Why "Chrome" is auto-selected:
+#   The BaseSetPicker scoring algorithm finds "Topps Chrome" on SL and pre-selects
+#   it as a "likely match". The user just confirms — no manual selection needed.
+#
+# After this test the Chrome variant row exists in the database. Sibling flows
+# (insert-variant-flow, reconciliation-modal, variant-metadata-read-only) can
+# re-use the drill prefix but treat the Chrome row as pre-existing — they
+# wrap "Sync Variants" in `runFlow when:` to stay tolerant.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# PREREQUISITE: credentials + drill to 2024 Topps Chrome
+# Returns with Variant Types column visible and list populated.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# LEVEL 5 — Select "Base" variant type
+# ============================================================
+
+# Tap the "Base" variant type — this triggers the BaseSetPicker flow
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- tapOn: "Base"
+
+# ============================================================
+# LEVEL 6 — Sync Variants (triggers BaseSetPicker modal for Base type)
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Sync Variants only if the button is visible. If the Chrome variant row
+# already exists from a previous run, the button may not appear.
+- runFlow:
+    when:
+      visible: "Sync Variants"
+    commands:
+      - tapOn: "Sync Variants"
+      # For Base variant type, the VariantForm fetches SL data then opens
+      # the BaseSetPicker modal. Wait for the modal subtitle which uniquely
+      # confirms the modal is open (not just a heading match).
+      - extendedWaitUntil:
+          visible:
+            text: ".*Choose the base set for.*"
+          timeout: 60000
+
+# ============================================================
+# VERIFY BaseSetPicker modal contents
+# ============================================================
+
+# The modal heading confirms we are in the base-set selection step
+- assertVisible: "Select Base Set"
+
+# "Chrome" should be auto-selected as the likely match for Topps Chrome
+- assertVisible: "Chrome"
+
+# The "likely match" badge confirms the scoring algorithm chose it
+- assertVisible: "likely match"
+
+# ============================================================
+# CONFIRM the base set — writes the Chrome variant row
+# ============================================================
+
+# Scroll to the confirm button in case the modal has a long list
+- scrollUntilVisible:
+    element:
+      text: "Confirm Base Set"
+    timeout: 10000
+- tapOn: "Confirm Base Set"
+
+# Modal closes and VariantForm completes — the Variants column updates
+- extendedWaitUntil:
+    notVisible: "Select Base Set"
+    timeout: 15000
+
+# ============================================================
+# VERIFY the Chrome variant row appears with both platform badges
+# ============================================================
+
+# "Chrome" should now be listed in the Variants column
+- scrollUntilVisible:
+    element:
+      text: "Chrome"
+    timeout: 15000
+- assertVisible: "Chrome"
+
+# Both platform badges must be present on the Chrome row, confirming that
+# data from both BSC and SL was written when the user confirmed the base set
+- assertVisible: "SL"
+- assertVisible: "BSC"

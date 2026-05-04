@@ -1,16 +1,19 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
 name: Card Checklist Sync — Fetch Cards from Marketplaces
 tags:
   - set-selector
-  - regression
   - wip
+# FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
-# This test verifies that a user can drill down to a set variant and then
+# This test verifies that a user can drill down to a variant and then
 # use "Fetch from Marketplaces" to populate the card checklist.
 # It confirms that individual card entries appear with card numbers and names,
 # and that platform badges (BSC / SL) are shown on synced cards.
 #
 # Prerequisites: BSC and SL credentials must be available in env vars.
+#
+# All sync forms auto-fire on open — no "Sync from Marketplaces" button.
+# Each form shows a "Syncing X" heading then closes automatically on success.
 
 - launchApp
 - extendedWaitUntil:
@@ -18,6 +21,15 @@ tags:
     timeout: 45000
 
 # --- Ensure marketplace credentials are available ---
+# Navigate to /profile before credential setup — runFlow does NOT re-navigate,
+# so the sub-flows (which expect "Select Platform" on /profile) would fail if
+# the browser is still on /set-selector after sign-in redirect.
+- openLink: ${APP_URL || "https://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 15000
+
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
     env:
@@ -30,20 +42,28 @@ tags:
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- openLink: ${APP_URL || "https://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 15000
 
 # --- Sync and select sport ---
-- tapOn: "Sync Sports"
-- extendedWaitUntil:
-    visible: "Sync Sport Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-- extendedWaitUntil:
-    visible: "Sync Sports"
-    timeout: 45000
+# Only sync if the button is present; prior flows in this run may have already
+# populated sports, replacing the button with the list.
+- runFlow:
+    when:
+      visible: "Sync Sports"
+    commands:
+      - tapOn: "Sync Sports"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sport Options|Sync Sports.*"
+          timeout: 15000
+      # "Sync Sports" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Sports"
+          timeout: 60000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -54,14 +74,20 @@ tags:
 - extendedWaitUntil:
     visible: "Years"
     timeout: 10000
-- tapOn: "Sync Years"
-- extendedWaitUntil:
-    visible: "Sync Year Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-- extendedWaitUntil:
-    visible: "Sync Years"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Years"
+    commands:
+      - tapOn: "Sync Years"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Year Options|Sync Years.*"
+          timeout: 15000
+      # "Sync Years" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Years"
+          timeout: 60000
 - tapOn:
     text: ".*20[0-9][0-9].*"
     index: 0
@@ -70,46 +96,98 @@ tags:
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 10000
-- tapOn: "Sync Manufacturers"
-- extendedWaitUntil:
-    visible: "Sync Manufacturer Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-- extendedWaitUntil:
-    visible: "Sync Manufacturers"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Manufacturers"
+    commands:
+      - tapOn: "Sync Manufacturers"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Manufacturer Options|Sync Manufacturers.*"
+          timeout: 15000
+      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Manufacturers"
+          timeout: 60000
+# Pick the first available manufacturer — do not hardcode "Topps".
 - tapOn:
-    text: "Topps"
+    text: ".*"
     index: 0
 
 # --- Sync and select set ---
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 10000
-- tapOn: "Sync Sets"
-- extendedWaitUntil:
-    visible: "Sync Set Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-- extendedWaitUntil:
-    visible: "Sync Sets"
-    timeout: 45000
+- runFlow:
+    when:
+      visible: "Sync Sets"
+    commands:
+      - tapOn: "Sync Sets"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Sets|Sync Sets.*"
+          timeout: 15000
+      # "Sync Sets" does not reappear once data is populated. Wait for
+      # "Syncing Sets" to disappear, which signals the form closed.
+      - extendedWaitUntil:
+          notVisible: "Syncing Sets"
+          timeout: 90000
 - tapOn:
     text: ".*"
     index: 0
 
-# --- Sync and select variant ---
+# --- Sync and select variant type (level 5, formerly "Set Variants") ---
 - extendedWaitUntil:
-    visible: "Set Variants"
+    visible: "Variant Types"
     timeout: 10000
-- tapOn: "Sync Variants"
+- runFlow:
+    when:
+      visible: "Sync Variant Types"
+    commands:
+      - tapOn: "Sync Variant Types"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Variant Types|Sync Variant Types.*"
+          timeout: 15000
+      # "Sync Variant Types" reappears below the list once ALL platforms have responded.
+      - scrollUntilVisible:
+          element:
+            text: "Sync Variant Types"
+          timeout: 60000
+- tapOn:
+    text: ".*"
+    index: 0
+
+# --- Sync and select variant (level 6) ---
 - extendedWaitUntil:
-    visible: "Sync Set Variant Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
-- extendedWaitUntil:
-    visible: "Sync Variants"
-    timeout: 45000
+    visible: "Variants"
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Sync Variants"
+    commands:
+      - tapOn: "Sync Variants"
+      - extendedWaitUntil:
+          visible:
+            text: ".*Syncing Variants|Select Base Set.*"
+          timeout: 15000
+      # "Sync Variants" reappears once all platforms have responded, OR the
+      # BaseSetPicker modal appears (for Base variant type).
+      - scrollUntilVisible:
+          element:
+            text: ".*Sync Variants|Select Base Set.*"
+          timeout: 60000
+# If the BaseSetPicker modal appeared (Base variant type), confirm it to
+# proceed past the modal into the variants list.
+- runFlow:
+    when:
+      visible: "Confirm Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Confirm Base Set"
+          timeout: 15000
 - tapOn:
     text: ".*"
     index: 0
@@ -118,7 +196,7 @@ tags:
 # CARDS CHECKLIST SYNC
 # ============================================================
 
-# The Cards panel appears after selecting a variant
+# The Cards panel appears full-width below the selector row after selecting a variant
 - extendedWaitUntil:
     visible: "Cards"
     timeout: 10000

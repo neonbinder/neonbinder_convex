@@ -3,7 +3,6 @@ name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
   - regression
-  - wip
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
@@ -19,6 +18,15 @@ tags:
     timeout: 45000
 
 # --- Ensure marketplace credentials are available ---
+# Navigate to /profile before credential setup — runFlow does NOT re-navigate,
+# so the sub-flows (which expect "Select Platform" on /profile) would fail if
+# the browser is still on /set-selector after sign-in redirect.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 15000
+
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
     env:
@@ -40,7 +48,12 @@ tags:
 # STEP 1 — Add a custom sport entry
 # ============================================================
 
-# Tap "+ Custom" in the Sports column to open the custom entry form
+# Scroll to "+ Custom" in the Sports column — it may be below the fold when
+# the list is already populated with marketplace sports.
+- scrollUntilVisible:
+    element:
+      text: "+ Custom"
+    timeout: 10000
 - tapOn: "+ Custom"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
@@ -49,14 +62,31 @@ tags:
 # Type a unique custom sport name that will be easy to find after re-sync
 - tapOn: "Enter custom value..."
 - inputText: "TestCustomSport"
-- tapOn:
-    text: "Add"
-    index: 0
+# Scroll the "Add" button into view — the Sports list above the form may push
+# it below the fold when the list is already populated from a previous sync.
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
+- tapOn: "Add"
 
-# The form should close and "TestCustomSport" should appear in the list
+# Wait for the "Add Custom Entry" form to close before checking the list.
+# The form disappearing confirms the entry was saved to the database.
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# Use the search box to find "TestCustomSport" in the Sports column.
+# The Sports list has an internal scroll container — page-level assertVisible
+# cannot see items below the fold. The search box filters the internal list,
+# making TestCustomSport visible regardless of how many entries precede it
+# alphabetically. The search input shows "Search sports..." as placeholder.
+- tapOn: "Search sports..."
+- inputText: "TestCustomSport"
 - extendedWaitUntil:
     visible: "TestCustomSport"
     timeout: 10000
+- assertVisible: "TestCustomSport"
 
 # Verify the "Custom" badge is shown next to the entry
 - assertVisible: "Custom"
@@ -65,32 +95,55 @@ tags:
 # STEP 2 — Re-sync sports from marketplaces
 # ============================================================
 
-# Trigger a marketplace sync for sports
-- tapOn: "Sync Sports"
+# Reload the /set-selector page to reset all search filters to their empty state.
+# This is the cleanest way to ensure "Sync Sports" is visible below the full list
+# before Step 2, without needing to interact with the search input state.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
-    visible: "Sync Sport Options"
-    timeout: 5000
-- tapOn: "Sync from Marketplaces"
+    visible: "Set Selector"
+    timeout: 15000
 
-# Wait for the sync form to close
-- extendedWaitUntil:
-    visible: "Sync Sports"
-    timeout: 45000
+# Trigger a marketplace sync for sports.
+# The form auto-fires on open — no "Sync from Marketplaces" button.
+# "Sync Sports" reappears below the populated list once ALL platforms have
+# responded. Go straight to scrollUntilVisible — the form may close before
+# Maestro can check the intermediate "Syncing Sport Options" heading.
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 10000
+- tapOn: "Sync Sports"
+- scrollUntilVisible:
+    element:
+      text: "Sync Sports"
+    timeout: 60000
 
 # ============================================================
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
-# The custom sport entry must still be visible in the list
-- scrollUntilVisible:
-    element:
-      text: "TestCustomSport"
-    timeout: 10000
+# Use the search box to find "TestCustomSport" — the Sports column has an
+# internal scroll container so page-level scrolling cannot reveal it.
+# After the page reload in Step 2, the search input shows the placeholder.
+- tapOn: "Search sports..."
+- inputText: "TestCustomSport"
+- extendedWaitUntil:
+    visible: "TestCustomSport"
+    timeout: 15000
 - assertVisible: "TestCustomSport"
 
 # The "Custom" badge must still be shown on the entry
 - assertVisible: "Custom"
 
-# Marketplace-synced entries (BSC, SL) should also be present alongside it
+# Reload the page again to reset the search filter, then verify marketplace
+# badge icons (BSC / SL) appear on synced sport entries in the full list.
+# This confirms the re-sync did not destroy the custom entry AND also wrote
+# marketplace data for the standard sports entries.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+# Marketplace-synced entries (BSC, SL) should be visible in the unfiltered list
 - assertVisible: "BSC"
 - assertVisible: "SL"
