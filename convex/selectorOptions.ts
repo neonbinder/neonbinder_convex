@@ -662,10 +662,19 @@ export const updateSelectorOptionMetadata = mutation({
 
 /**
  * Full reset of Set Builder data. Deletes every row in `selectorOptions`
- * and `cardChecklist`. Intended for dev cleanup between test runs and
- * gated behind requireAdmin. Convex mutation size limits are fine for
- * the row counts we see in dev (<1k total); if that changes, refactor
- * to an action + paginated internal mutation.
+ * and `cardChecklist`. Intended for dev cleanup between test runs.
+ *
+ * Two layers of safety:
+ * 1. requireAdmin — only the admin role can call this from a signed-in session.
+ * 2. ALLOW_RESET_SET_BUILDER_DATA env var — must be set to "true" on the
+ *    Convex deployment. Set on dev + preview + integration-test deployments
+ *    (where E2E tests reset state between runs); unset on production.
+ *    Without this gate, the admin user could accidentally wipe production
+ *    data by clicking "Reset Set Builder Data" while pointed at prod.
+ *
+ * Convex mutation size limits are fine for the row counts we see in dev
+ * (<1k total); if that changes, refactor to an action + paginated
+ * internal mutation.
  */
 export const resetSetBuilderData = mutation({
   args: {},
@@ -675,6 +684,13 @@ export const resetSetBuilderData = mutation({
   }),
   handler: async (ctx) => {
     await requireAdmin(ctx);
+
+    if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
+      throw new Error(
+        "Reset Set Builder Data is not enabled in this environment. " +
+          "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
+      );
+    }
 
     const allSelectorOptions = await ctx.db.query("selectorOptions").collect();
     for (const row of allSelectorOptions) {
