@@ -31,6 +31,44 @@ tags:
 #   is the definitive cross-platform completion signal.
 
 # ============================================================
+# RESET STATE — delete all selectorOptions + cardChecklist rows.
+# Without this, the runFlow when: guards in our variant flows can skip
+# all the modal-verification assertions when data is already present,
+# producing phantom passes on re-runs.
+#
+# Server-side safety: the resetSetBuilderData mutation requires the
+# ALLOW_RESET_SET_BUILDER_DATA env var on the Convex deployment, set
+# only on dev/preview/integration-test deployments. Prod will throw.
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      text: "Reset Set Builder Data"
+    timeout: 10000
+- tapOn: "Reset Set Builder Data"
+
+# Confirming panel appears with "Delete Everything" and "Cancel" buttons.
+# Input is autofocused — inputText writes directly without an explicit tap.
+# The panel's warning paragraph also contains "Type RESET to confirm." but
+# Maestro more reliably finds the "Delete Everything" button as the wait anchor.
+- extendedWaitUntil:
+    visible: "Delete Everything"
+    timeout: 5000
+- inputText: "RESET"
+
+- tapOn: "Delete Everything"
+
+# Wait for the success message — regex matches "Deleted N selector options and M card checklist rows."
+- extendedWaitUntil:
+    visible:
+      text: ".*Deleted [0-9]+ selector options.*"
+    timeout: 30000
+
+# ============================================================
 # CREDENTIALS (idempotent — skips platform if creds already present)
 # ============================================================
 
