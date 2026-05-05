@@ -187,3 +187,30 @@ To find items that may be off-screen within a column: USE THE SEARCH BOX.
 - Test button: "Test Credentials"
 - BSC test success: ".*BSC account authenticated successfully.*"
 - SL test success: ".*Successfully logged into SportLots.*"
+
+## Maestro web: aria-label resolution (CRITICAL)
+
+Maestro web maps `aria-label` to `resource-id` in the accessibility hierarchy, NOT to the `text` attribute.
+
+Consequence:
+- `tapOn: "aria-label-value"` (plain string) uses text regex matching → FAILS for aria-label-only elements
+- `tapOn: {id: "aria-label-value"}` uses resource-id matching → WORKS
+- `scrollUntilVisible: element: text:` also uses text only → cannot scroll to aria-label-only elements
+- Visible DOM text (e.g. button inner text) IS matched by plain string `tapOn`
+
+Rule: if a button has BOTH visible text and an aria-label, tap by the visible text. If the button's only accessible name is the aria-label (no visible text, or ambiguous visible text), tap by `{id: "aria-label-value"}`.
+
+## ParallelGroupingModal — accessible selectors (post-restructure May 2026)
+
+- "Group Parallels" trigger button: plain visible text → `tapOn: "Group Parallels"` with preceding `scrollUntilVisible: element: text: "Group Parallels"`
+- "+ Custom" button in Variants column: visible text is `"+ Custom"` (ambiguous — all 3 columns have it). aria-label is `"Add custom Variants"` → `tapOn: {id: "Add custom Variants"}`
+- "+ Custom" button in Variant Types column: aria-label `"Add custom Variant Types"` → `tapOn: {id: "Add custom Variant Types"}`
+- "+ Custom" button in Sets column: aria-label `"Add custom Sets"` → `tapOn: {id: "Add custom Sets"}`
+- ✕ reject parallel button: aria-label `"Remove <value> from parallels"` → `tapOn: {id: "Remove Stars Gold from parallels"}`
+- Modal open signal (unique text): `".*Drag inserts under a parent.*"` (NOT "Group Parallels" which is also on the trigger button)
+- Modal footer — no changes: `"No changes yet"` (status text), `"No changes"` (disabled save button)
+- Modal footer — with changes: `".*N promotion.*"`, `".*Save N change.*"`
+- Accept all button: `".*Accept all suggestions.*"`
+- Suggested badge text: `"Suggested"` (appears inside suggested rows)
+- Parallels zone heading: `".*Parallels of.*Stars.*"` regex
+- Top-level inserts zone: `"Top-level inserts"`
