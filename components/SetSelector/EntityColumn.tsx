@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
@@ -20,6 +20,10 @@ type EntityColumnProps = {
   isVisible: boolean;
   level?: Level;
   parentId?: GenericId<"selectorOptions">;
+  // Extra buttons rendered alongside Sync / + Custom in idle mode. Used by
+  // the Variants column to expose the "Group Parallels" trigger without
+  // forcing every column to learn about that domain.
+  extraActions?: ReactNode;
 };
 
 export default function EntityColumn({
@@ -29,6 +33,7 @@ export default function EntityColumn({
   isVisible,
   level,
   parentId,
+  extraActions,
 }: EntityColumnProps) {
   const [mode, setMode] = useState<"idle" | "sync" | "custom">("idle");
   const [customValue, setCustomValue] = useState("");
@@ -36,6 +41,19 @@ export default function EntityColumn({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wasVisibleRef = useRef(isVisible);
+
+  // Query the items at this column's level so we can auto-trigger sync
+  // when the column opens empty. Skipped when no level is provided
+  // (defensive — every caller in SetSelector.tsx supplies one).
+  const items = useQuery(
+    api.selectorOptions.getSelectorOptions,
+    level ? { level, parentId } : "skip",
+  );
+
+  // Track which (level, parentId) keys have already had auto-sync fired
+  // so closing the form doesn't immediately retrigger it. A fresh
+  // parentId (user picks a different parent) gets its own attempt.
+  const autoSyncedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (isVisible && !wasVisibleRef.current && containerRef.current) {
@@ -47,6 +65,23 @@ export default function EntityColumn({
     }
     wasVisibleRef.current = isVisible;
   }, [isVisible]);
+
+  // Auto-sync: when this column is visible, in idle mode, the items
+  // query has resolved to an empty list, and we haven't already auto-
+  // synced this (level, parentId) — switch to sync mode. The form
+  // itself auto-runs `fetchRawOptions`/`fetchAggregatedOptions` on mount,
+  // so this is the only nudge needed.
+  useEffect(() => {
+    if (!isVisible) return;
+    if (mode !== "idle") return;
+    if (!level) return;
+    if (items === undefined) return;
+    if (items.length > 0) return;
+    const key = `${level}:${parentId ?? "root"}`;
+    if (autoSyncedRef.current.has(key)) return;
+    autoSyncedRef.current.add(key);
+    setMode("sync");
+  }, [isVisible, mode, level, parentId, items]);
 
   const addCustomOption = useMutation(
     api.selectorOptions.addCustomSelectorOption,
@@ -116,10 +151,15 @@ export default function EntityColumn({
             {addButtonText}
           </NeonButton>
           {level && (
-            <NeonButton secondary onClick={() => setMode("custom")}>
+            <NeonButton
+              secondary
+              onClick={() => setMode("custom")}
+              aria-label={`Add custom ${addButtonText.replace(/^Sync /, "")}`}
+            >
               + Custom
             </NeonButton>
           )}
+          {extraActions}
         </div>
       )}
     </div>

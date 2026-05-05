@@ -2,6 +2,8 @@
 
 import type { GenericId } from "convex/values";
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 import SportSelector from "../SetSelector/SportSelector";
 import YearSelector from "../SetSelector/YearSelector";
@@ -21,7 +23,10 @@ import ParallelForm from "../SetSelector/ParallelForm";
 
 import EntityColumn from "../SetSelector/EntityColumn";
 import CardChecklist from "../SetSelector/CardChecklist";
+import BaseMappingForm from "../SetSelector/BaseMappingForm";
 import VariantMetadataEditor from "../SetSelector/VariantMetadataEditor";
+import ParallelGroupingModal from "../SetSelector/ParallelGroupingModal";
+import NeonButton from "./NeonButton";
 
 export default function SetSelector() {
   // Level 1: Sport
@@ -63,6 +68,29 @@ export default function SetSelector() {
     if (level <= 7) setSelectedVariantOfVariantId(null);
   };
 
+  // Base is a terminal variantType: when selected, the cascade stops
+  // there and the CardChecklist attaches to the variantType row itself
+  // (no Variant / Variant-of-Variant columns). Read the row to detect
+  // value === "Base" and to drive the auto-mapping prompt.
+  const selectedVariantType = useQuery(
+    api.selectorOptions.getSelectorOptionById,
+    selectedVariantTypeId ? { id: selectedVariantTypeId } : "skip",
+  );
+  const isBaseVariantTypeSelected =
+    selectedVariantType?.value.toLowerCase().trim() === "base";
+  // Auto-prompt is gated on the SportLots mapping specifically. The BSC
+  // slug on the row is auto-populated by "Sync Variant Types" (BSC's
+  // variant facet returns "Base" with a slug), so testing it would
+  // suppress the auto-prompt on every freshly-synced Base. Only the
+  // SportLots value is exclusively written by BaseSetPicker, so its
+  // presence is the reliable "user has mapped this Base" signal.
+  const baseHasMapping = !!selectedVariantType?.platformData?.sportlots;
+  // Manual re-map trigger; the form also auto-opens on first selection
+  // when no platformData exists yet.
+  const [baseMappingOpen, setBaseMappingOpen] = useState(false);
+  // Parallel-grouping modal trigger for the Variants column.
+  const [groupingOpen, setGroupingOpen] = useState(false);
+
   const handleSportSelect = (id: GenericId<"selectorOptions">) => {
     setSelectedSportId(id);
     clearFrom(2);
@@ -91,8 +119,12 @@ export default function SetSelector() {
     setSelectedVariantOfVariantId(id);
   };
 
-  // CardChecklist attaches to the deepest selected node
-  const cardChecklistId = selectedVariantOfVariantId || selectedVariantId;
+  // CardChecklist attaches to the deepest selected node — for Base
+  // variantTypes that's the variantType row itself (Base is terminal).
+  const cardChecklistId =
+    selectedVariantOfVariantId ||
+    selectedVariantId ||
+    (isBaseVariantTypeSelected ? selectedVariantTypeId : null);
 
   return (
     <div className="max-w-full mx-auto p-6 flex flex-col gap-6">
@@ -196,36 +228,49 @@ export default function SetSelector() {
           parentId={selectedSetId || undefined}
         />
 
-        {/* 6. Variant (reconciled BSC variantName + SL set list) */}
-        <EntityColumn
-          selector={
-            <>
-              <VariantSelector
+        {/* 6. Variant (reconciled BSC variantName + SL set list) — hidden
+            when Base is selected (Base is terminal). */}
+        {!isBaseVariantTypeSelected && (
+          <EntityColumn
+            selector={
+              <>
+                <VariantSelector
+                  variantTypeId={selectedVariantTypeId!}
+                  selectedVariantId={selectedVariantId}
+                  onVariantSelect={handleVariantSelect}
+                  expanded={variantExpanded}
+                  setExpanded={setVariantExpanded}
+                />
+                {selectedVariantId && (
+                  <VariantMetadataEditor optionId={selectedVariantId} />
+                )}
+              </>
+            }
+            renderForm={(onDone) => (
+              <VariantForm
                 variantTypeId={selectedVariantTypeId!}
-                selectedVariantId={selectedVariantId}
-                onVariantSelect={handleVariantSelect}
-                expanded={variantExpanded}
-                setExpanded={setVariantExpanded}
+                onDone={onDone}
               />
-              {selectedVariantId && (
-                <VariantMetadataEditor optionId={selectedVariantId} />
-              )}
-            </>
-          }
-          renderForm={(onDone) => (
-            <VariantForm
-              variantTypeId={selectedVariantTypeId!}
-              onDone={onDone}
-            />
-          )}
-          addButtonText="Sync Variants"
-          isVisible={!!selectedVariantTypeId}
-          level="insert"
-          parentId={selectedVariantTypeId || undefined}
-        />
+            )}
+            addButtonText="Sync Variants"
+            isVisible={!!selectedVariantTypeId}
+            level="insert"
+            parentId={selectedVariantTypeId || undefined}
+            extraActions={
+              selectedVariantTypeId ? (
+                <NeonButton
+                  secondary
+                  onClick={() => setGroupingOpen(true)}
+                >
+                  Group Parallels
+                </NeonButton>
+              ) : undefined
+            }
+          />
+        )}
 
         {/* 7. Variant of Variant (NB only — translates to variant on BSC/SL) */}
-        {selectedVariantId && (
+        {!isBaseVariantTypeSelected && selectedVariantId && (
           <EntityColumn
             selector={
               <>
@@ -253,8 +298,41 @@ export default function SetSelector() {
 
       </div>
 
+      {/* Base mapping: auto-prompts BaseSetPicker the first time a Base
+          variantType without platformData is selected; user can also re-map
+          via the Re-map Base button below. */}
+      {selectedVariantTypeId && isBaseVariantTypeSelected && (
+        <>
+          {(!baseHasMapping || baseMappingOpen) && (
+            <BaseMappingForm
+              key={`${selectedVariantTypeId}-${baseMappingOpen ? "remap" : "auto"}`}
+              variantTypeId={selectedVariantTypeId}
+              autoOpen={true}
+              onClose={() => setBaseMappingOpen(false)}
+            />
+          )}
+          {baseHasMapping && !baseMappingOpen && (
+            <div>
+              <NeonButton secondary onClick={() => setBaseMappingOpen(true)}>
+                Re-map Base
+              </NeonButton>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Cards — full width below the selector row */}
       {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
+
+      {/* Parallel-grouping modal — mounted at the page root so it overlays
+          on top of the selector row regardless of horizontal scroll. */}
+      {selectedVariantTypeId && !isBaseVariantTypeSelected && (
+        <ParallelGroupingModal
+          isOpen={groupingOpen}
+          onClose={() => setGroupingOpen(false)}
+          variantTypeId={selectedVariantTypeId}
+        />
+      )}
     </div>
   );
 }

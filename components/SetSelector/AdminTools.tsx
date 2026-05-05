@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import NeonButton from "../modules/NeonButton";
 
@@ -16,6 +16,18 @@ type Status =
     }
   | { kind: "error"; message: string };
 
+type WipeBaseStatus =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | {
+      kind: "success";
+      baseVariantTypesScanned: number;
+      insertsDeleted: number;
+      parallelsDeleted: number;
+      cardChecklistRowsDeleted: number;
+    }
+  | { kind: "error"; message: string };
+
 /**
  * Admin-only section on the Set Builder page for destructive dev
  * utilities. Today: "Reset Set Builder Data" — wipes every row in
@@ -28,8 +40,27 @@ export default function AdminTools() {
   const resetSetBuilderData = useAction(
     api.selectorOptions.resetSetBuilderData,
   );
+  const wipeLegacyBaseChildren = useMutation(
+    api.selectorOptions.wipeLegacyBaseChildren,
+  );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [confirmInput, setConfirmInput] = useState("");
+  const [wipeBaseStatus, setWipeBaseStatus] = useState<WipeBaseStatus>({
+    kind: "idle",
+  });
+
+  const handleWipeBase = async () => {
+    setWipeBaseStatus({ kind: "running" });
+    try {
+      const result = await wipeLegacyBaseChildren();
+      setWipeBaseStatus({ kind: "success", ...result });
+    } catch (error) {
+      setWipeBaseStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
 
   const confirmMatches = confirmInput.trim().toUpperCase() === CONFIRM_PHRASE;
 
@@ -76,11 +107,51 @@ export default function AdminTools() {
           </p>
         </div>
         {status.kind === "idle" && (
-          <NeonButton cancel onClick={handleStart}>
-            Reset Set Builder Data
-          </NeonButton>
+          <div className="flex gap-2 flex-wrap">
+            <NeonButton
+              secondary
+              onClick={handleWipeBase}
+              disabled={wipeBaseStatus.kind === "running"}
+            >
+              {wipeBaseStatus.kind === "running"
+                ? "Wiping…"
+                : "Wipe Legacy Base Children"}
+            </NeonButton>
+            <NeonButton cancel onClick={handleStart}>
+              Reset Set Builder Data
+            </NeonButton>
+          </div>
         )}
       </div>
+
+      {wipeBaseStatus.kind === "success" && (
+        <div className="mt-4 p-3 rounded-md bg-green-950/40 border border-green-800 text-green-200 text-sm">
+          Wipe complete: scanned {wipeBaseStatus.baseVariantTypesScanned} Base
+          variantType row(s); deleted {wipeBaseStatus.insertsDeleted} insert(s),{" "}
+          {wipeBaseStatus.parallelsDeleted} parallel(s), and{" "}
+          {wipeBaseStatus.cardChecklistRowsDeleted} card checklist row(s).
+          <button
+            type="button"
+            onClick={() => setWipeBaseStatus({ kind: "idle" })}
+            className="ml-3 underline text-green-300 hover:text-green-200"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {wipeBaseStatus.kind === "error" && (
+        <div className="mt-4 p-3 rounded-md bg-red-950/40 border border-red-800 text-red-200 text-sm">
+          Wipe failed: {wipeBaseStatus.message}
+          <button
+            type="button"
+            onClick={() => setWipeBaseStatus({ kind: "idle" })}
+            className="ml-3 underline text-red-300 hover:text-red-200"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {status.kind === "confirming" && (
         <div className="mt-4 p-4 rounded-md bg-red-950/40 border border-red-800">

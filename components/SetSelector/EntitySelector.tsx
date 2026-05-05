@@ -16,6 +16,11 @@ type EntitySelectorProps = {
   getDisplayName: (item: SelectorItem) => string;
   getDescription?: (item: SelectorItem) => string | undefined;
   selectedColor: string;
+  // Returns true if the item is a terminal node — i.e., selecting it
+  // shows a card checklist. Only terminal items render SL/BSC pills,
+  // since the platform mappings only become user-meaningful at the
+  // checklist boundary. Defaults to false everywhere.
+  isItemTerminal?: (item: SelectorItem) => boolean;
 };
 
 function isCustom(item: SelectorItem): boolean {
@@ -44,6 +49,7 @@ export default function EntitySelector({
   getDisplayName,
   getDescription,
   selectedColor,
+  isItemTerminal,
 }: EntitySelectorProps) {
   const items = useQuery(query, queryArgs);
   const [searchFilter, setSearchFilter] = useState("");
@@ -132,6 +138,7 @@ export default function EntitySelector({
         ) : (
           filteredItems.map((item: SelectorItem) => {
             const pd = getPlatformData(item);
+            const showPills = isItemTerminal?.(item) ?? false;
             return (
               <button
                 key={item._id}
@@ -157,12 +164,12 @@ export default function EntitySelector({
                       Custom
                     </span>
                   )}
-                  {pd?.sportlots && (
+                  {showPills && pd?.sportlots && (
                     <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
                       SL
                     </span>
                   )}
-                  {pd?.bsc && (
+                  {showPills && pd?.bsc && (
                     <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
                       BSC
                     </span>

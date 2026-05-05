@@ -29,6 +29,7 @@ export default function ParallelSelector({
       getDisplayName={(item) => item.value as string}
       getDescription={() => undefined}
       selectedColor="bg-amber-100 dark:bg-amber-900 border-amber-300 dark:border-amber-700"
+      isItemTerminal={() => true}
     />
   );
 }

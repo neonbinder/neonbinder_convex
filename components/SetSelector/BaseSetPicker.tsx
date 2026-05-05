@@ -10,6 +10,10 @@ type BaseSetPickerProps = {
   bscOptions?: PlatformItem[];
   setName: string;
   manufacturer?: string;
+  // When true, the picker renders skeleton placeholders in the option lists
+  // and disables Confirm. Lets the caller open the dialog before
+  // fetchRawOptions resolves so the user gets immediate feedback.
+  loading?: boolean;
 };
 
 // Returns a score indicating how likely `slValue` is the base set.
@@ -71,6 +75,7 @@ export default function BaseSetPicker({
   bscOptions = [],
   setName,
   manufacturer = "",
+  loading = false,
 }: BaseSetPickerProps) {
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
   const [userPicked, setUserPicked] = useState(false);
@@ -198,7 +203,15 @@ export default function BaseSetPicker({
         </div>
 
         {/* BSC selection: hidden when 0; compact "auto" pill when 1; full list when many */}
-        {sortedBscOptions.length > 0 && (
+        {loading && (
+          <div className="px-6 pt-4">
+            <div className="text-xs text-blue-400 font-medium uppercase tracking-wide mb-1.5">
+              BSC base
+            </div>
+            <div className="h-9 rounded-lg bg-gray-800/60 border border-gray-700 animate-pulse" />
+          </div>
+        )}
+        {!loading && sortedBscOptions.length > 0 && (
           <div className="px-6 pt-4">
             <div className="text-xs text-blue-400 font-medium uppercase tracking-wide mb-1.5">
               BSC base
@@ -259,33 +272,47 @@ export default function BaseSetPicker({
 
         {/* SL List */}
         <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1.5">
-          {filteredOptions.map((opt) => (
-            <button
-              key={`${opt.platformValue}-${opt.value}`}
-              onClick={() => {
-                setSelectedValue(opt.value);
-                setUserPicked(true);
-              }}
-              className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all text-sm ${
-                selectedValue === opt.value
-                  ? "border-[#00D558] bg-[#00D558]/10 ring-1 ring-[#00D558]"
-                  : "border-gray-600 bg-gray-800 hover:border-gray-400"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-200">{opt.value}</span>
-                {opt.score >= 795 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700 shrink-0">
-                    likely match
-                  </span>
-                )}
-              </div>
-            </button>
-          ))}
-          {filteredOptions.length === 0 && (
-            <p className="text-sm text-gray-500 py-4 text-center">
-              No matching sets found
-            </p>
+          {loading ? (
+            <>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={`skel-${i}`}
+                  className="h-10 rounded-lg bg-gray-800/60 border border-gray-700 animate-pulse"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              {filteredOptions.map((opt) => (
+                <button
+                  key={`${opt.platformValue}-${opt.value}`}
+                  onClick={() => {
+                    setSelectedValue(opt.value);
+                    setUserPicked(true);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all text-sm ${
+                    selectedValue === opt.value
+                      ? "border-[#00D558] bg-[#00D558]/10 ring-1 ring-[#00D558]"
+                      : "border-gray-600 bg-gray-800 hover:border-gray-400"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-200">{opt.value}</span>
+                    {opt.score >= 795 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700 shrink-0">
+                        likely match
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {filteredOptions.length === 0 && (
+                <p className="text-sm text-gray-500 py-4 text-center">
+                  No matching sets found
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -296,9 +323,9 @@ export default function BaseSetPicker({
           </NeonButton>
           <NeonButton
             onClick={handleConfirm}
-            disabled={!selectedValue || confirming}
+            disabled={!selectedValue || confirming || loading}
           >
-            {confirming ? "Saving..." : "Confirm Base Set"}
+            {confirming ? "Saving..." : loading ? "Loading…" : "Confirm Base Set"}
           </NeonButton>
         </div>
       </div>
