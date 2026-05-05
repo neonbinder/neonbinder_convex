@@ -22,13 +22,13 @@ tags:
 # launching the app and waiting for the sign-in redirect to complete.
 #
 # SYNC COMPLETION PATTERN:
-#   Each sync level wraps the tap in `runFlow when: visible:` so runs are
-#   tolerant of pre-populated state from earlier flows in the same session.
-#   After tapping, we go straight to `scrollUntilVisible: "Sync X"` as the
-#   sole completion signal — we do NOT assert the intermediate "Syncing X"
-#   heading, because on fast/cached responses the form fires and closes before
-#   Maestro can check. The "Sync X" button reappearing below the populated list
-#   is the definitive cross-platform completion signal.
+#   EntityColumn auto-triggers sync (mode="sync") when a column renders with
+#   an empty items list. This means the "Sync X" button may never be tappable
+#   on a fresh DB — the form takes over before any tap can land. Each level
+#   guards on a known DATA indicator being absent (not on the button being
+#   present), then waits for that data indicator to appear (signaling sync
+#   complete and mode=idle). This is robust to both auto-sync and manual-sync
+#   paths.
 
 # ============================================================
 # RESET STATE — delete all selectorOptions + cardChecklist rows.
@@ -119,19 +119,19 @@ tags:
 # ============================================================
 # LEVEL 1 — Baseball
 # Sync if needed; tap the user-visible "Baseball" entry.
+#
+# AUTO-SYNC NOTE: Sports column auto-triggers sync when items are empty.
+# Guard on "Baseball" not being visible yet, and wait for it to appear
+# after auto-sync completes. No manual tap needed.
 # ============================================================
 
+# If "Baseball" is not yet in the list, wait for auto-sync to populate it.
 - runFlow:
     when:
-      visible: "Sync Sports"
+      notVisible: "Baseball"
     commands:
-      - tapOn: "Sync Sports"
-      # "Sync Sports" reappears below the list once ALL platforms have responded.
-      # Go straight to scrollUntilVisible — the form may close faster than
-      # Maestro can assert an intermediate "Syncing Sport Options" heading.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Sports"
+      - extendedWaitUntil:
+          visible: "Baseball"
           timeout: 60000
 
 - scrollUntilVisible:
@@ -143,21 +143,26 @@ tags:
 # ============================================================
 # LEVEL 2 — Year 2024
 # Sync if needed; tap the user-visible "2024" entry.
+#
+# AUTO-SYNC NOTE: The Years column auto-triggers sync when it renders with
+# an empty items list. The "Sync Years" button may never be tappable in
+# that case — the form takes over before a tap is possible. We guard on
+# "2024" not being visible (data absent) and wait for it to appear after
+# auto-sync completes, rather than trying to tap the button.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Years"
     timeout: 10000
 
+# If "2024" is not yet in the list, wait for auto-sync to complete and
+# populate it. 60 seconds covers both BSC + SL network round trips.
 - runFlow:
     when:
-      visible: "Sync Years"
+      notVisible: "2024"
     commands:
-      - tapOn: "Sync Years"
-      # "Sync Years" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Years"
+      - extendedWaitUntil:
+          visible: "2024"
           timeout: 60000
 
 - scrollUntilVisible:
@@ -169,21 +174,26 @@ tags:
 # ============================================================
 # LEVEL 3 — Topps
 # Sync if needed; search for "Topps" to avoid scrolling a long list.
+#
+# AUTO-SYNC NOTE: Same race condition as Years — "Sync Manufacturers" may
+# disappear before a tap lands. We guard on the search input NOT being
+# visible yet (data absent = form is active) and wait for it to appear,
+# which signals that auto-sync completed and mode returned to idle.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 10000
 
+# Wait for the search input to appear — it is rendered only when mode=idle
+# (i.e., sync has completed and items are populated). If it's already
+# visible, the runFlow block is skipped.
 - runFlow:
     when:
-      visible: "Sync Manufacturers"
+      notVisible: ".*Search manufacturers.*"
     commands:
-      - tapOn: "Sync Manufacturers"
-      # "Sync Manufacturers" reappears below the list once ALL platforms have responded.
-      - scrollUntilVisible:
-          element:
-            text: "Sync Manufacturers"
+      - extendedWaitUntil:
+          visible: ".*Search manufacturers.*"
           timeout: 60000
 
 # Use the search input to filter the list to "Topps".
@@ -209,21 +219,24 @@ tags:
 # ============================================================
 # LEVEL 4 — Topps Chrome
 # Sync if needed; search for "Topps Chrome" to avoid ambiguity.
+#
+# AUTO-SYNC NOTE: Same race condition — "Sync Sets" may disappear before
+# a tap lands. We guard on the search input NOT being visible (form active)
+# and wait for it to appear (mode=idle, sync complete). BSC set sync is
+# slow, so the timeout is generous.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 15000
 
+# Wait for the search input — only rendered when mode=idle (sync complete).
 - runFlow:
     when:
-      visible: "Sync Sets"
+      notVisible: ".*Search sets.*"
     commands:
-      - tapOn: "Sync Sets"
-      # BSC set sync across manufacturers is slow. "Sync Sets" does NOT reappear
-      # once data is populated. Wait for "Syncing Sets" to disappear instead.
       - extendedWaitUntil:
-          notVisible: "Syncing Sets"
+          visible: ".*Search sets.*"
           timeout: 90000
 
 # Use the search input to find "Topps Chrome" in the sets list.

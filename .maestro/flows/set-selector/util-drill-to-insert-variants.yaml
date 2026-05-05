@@ -1,0 +1,114 @@
+appId: com.neonbinder.web
+name: "Util — Drill to Insert variant type with Variants synced (leaves Variants column visible)"
+tags:
+  - util
+---
+# Shared prerequisite for parallel-grouping flows.
+#
+# When this util returns, the browser is on /set-selector with:
+#   - 2024 Topps Chrome selected (via util-drill-to-2024-topps-chrome)
+#   - "Insert" variant type selected at Level 5
+#   - Variants column visible at Level 6
+#   - Variants synced (ReconciliationModal dismissed if it appeared on first run)
+#   - "Group Parallels" button visible in the Variants column action row
+#
+# Why "Insert"?
+#   The Insert variant type for 2024 Topps Chrome has insert names that follow
+#   the prefix pattern the auto-detection targets (e.g. "Baseball Stars",
+#   "Baseball Stars Gold", "Baseball Stars Red"). This gives the auto-suggestion
+#   logic a realistic data set to work with.
+#
+# CALLER CONTRACT:
+#   - Caller must have already called launchApp and waited for sign-in redirect.
+#   - Caller must pass BSC_USERNAME, BSC_PASSWORD, SPORTLOTS_USERNAME,
+#     SPORTLOTS_PASSWORD in the env block of the runFlow call.
+#   - This util resets the DB via the AdminTools panel — safe only on dev/preview
+#     deployments where ALLOW_RESET_SET_BUILDER_DATA is set.
+#
+# NOTE: This util calls util-drill-to-2024-topps-chrome, which includes the DB
+# reset step. Do NOT also reset in the parent flow.
+
+# ============================================================
+# DRILL TO 2024 TOPPS CHROME + SYNC VARIANT TYPES
+# Leaves Variant Types column visible with Base / Insert / Parallel present.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# LEVEL 5 — Select "Insert" variant type
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# ============================================================
+# LEVEL 6 — Sync Variants for the Insert type
+# The VariantForm fetches both BSC and SL data. When both platforms
+# have data it opens the ReconciliationModal (Reconcile Variants).
+# We cancel the modal — we do NOT write thousands of variant rows.
+# On re-runs where variants are already present, the sync block is skipped.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Auto-sync fires immediately when the Variants column renders with an empty
+# items list — EntityColumn's useEffect sets mode="sync" before the user
+# can tap anything, so "Sync Variants" is never in the DOM in that case.
+#
+# Two cases after tapping "Insert":
+#   (A) Variants column is EMPTY  → auto-sync fires → ReconciliationModal
+#       opens automatically. Just wait for it and cancel.
+#   (B) Variants column is POPULATED (re-run) → auto-sync does NOT fire →
+#       "Group Parallels" is already visible. Skip the modal entirely.
+#
+# We distinguish the cases via "Group Parallels" visibility:
+#   - notVisible "Group Parallels" → column is empty or auto-syncing → wait
+#     for the modal (covers case A and the manual-sync path).
+#   - visible "Group Parallels" → already populated → skip (case B).
+- runFlow:
+    when:
+      notVisible: "Group Parallels"
+    commands:
+      # Wait for the ReconciliationModal that auto-sync produces.
+      # 90 seconds covers both BSC + SL network round trips.
+      - extendedWaitUntil:
+          visible: "Reconcile Variants"
+          timeout: 90000
+
+      # Cancel immediately — we only need the variants column to have
+      # triggered sync. The save step (thousands of rows) is out of scope.
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Reconcile Variants"
+          timeout: 10000
+
+# After cancelling the ReconciliationModal on a first run, the Variants
+# column will show the empty state again — that is expected. The "Group
+# Parallels" button still appears because a non-Base variantType is selected.
+# Subsequent flows (which run after this util) do not need variants to be
+# saved in order to test the modal open/close UI.
+
+# ============================================================
+# VERIFY "Group Parallels" button is visible in the Variants column
+# The button renders in the action row next to "Sync Variants" and
+# "+ Custom" when a non-Base variantType is selected.
+# ============================================================
+
+- assertVisible: "Variants"
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+    timeout: 10000
+- assertVisible: "Group Parallels"
