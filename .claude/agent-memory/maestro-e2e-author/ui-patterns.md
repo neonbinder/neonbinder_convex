@@ -97,6 +97,10 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 ## Custom entry button
 - Label: "+ Custom" (requires regex escape in tapOn: `"\\+ Custom"`)
 - assertVisible also needs the escape: `"\\+ Custom"`
+- MULTI-COLUMN INDEX RULE: When multiple columns are visible each has its own "+ Custom" button.
+  They appear in DOM order (left to right). Use `index: N` to target the correct column's button.
+  After drilling to Insert with Variants column visible: Sets col=index 0, Variant Types col=index 1, Variants col=index 2.
+  Tapping the wrong index adds an entry to the wrong level (e.g., a Variant Type instead of a Variant).
 
 ## Custom entry form
 - Heading: "Add Custom Entry"
@@ -126,7 +130,11 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 
 ## Cards panel (CardChecklist) — full-width below selector row
 - Panel heading: "Cards" (with count in parentheses when items exist, e.g., "Cards (42)")
+  IMPORTANT: The h2 renders as `Cards{" "}` (with trailing space). Maestro's `scrollUntilVisible: "Cards"`
+  is UNRELIABLE because it may not match the heading through the internal DOM structure.
+  Use the empty-state paragraph text or a unique button as the scroll target instead.
 - Empty state: "No cards in this checklist yet." + button "Fetch from Marketplaces"
+  Reliable assertion: `assertVisible: "No cards in this checklist yet."` or `assertVisible: "Fetch from Marketplaces"`
 - While fetching: button label changes to "Fetching..."
 - Last synced text: "Last synced: [date]"
 - Stale indicator (if >7 days old): "(stale)" in amber
