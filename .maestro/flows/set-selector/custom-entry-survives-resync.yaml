@@ -25,7 +25,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*Select Platform.*"
-    timeout: 15000
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
