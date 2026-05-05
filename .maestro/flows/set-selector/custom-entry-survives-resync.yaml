@@ -37,6 +37,17 @@ tags:
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
 
+# Re-navigate to /profile so the viewport resets to the top before the next
+# sub-flow runs. setup-bsc-credentials' save flow (run when BSC creds aren't
+# already saved) leaves the viewport below the credentials section. The next
+# sub-flow's `scrollUntilVisible "Select Platform"` only scrolls DOWN, so
+# without this reset it can never find the platform selector that's now above.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 20000
+
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
     env:
