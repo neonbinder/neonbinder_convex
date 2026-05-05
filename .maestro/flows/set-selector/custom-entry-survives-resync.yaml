@@ -22,10 +22,14 @@ tags:
 # so the sub-flows (which expect "Select Platform" on /profile) would fail if
 # the browser is still on /set-selector after sign-in redirect.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
+# Long timeout — on CI the Convex profile query is sometimes slow to
+# resolve right after navigating away from the heavier /set-selector page.
+# The credentials section renders "Loading credentials…" until the query
+# returns, then transitions to "Select Platform".
 - scrollUntilVisible:
     element:
       text: ".*Select Platform.*"
-    timeout: 20000
+    timeout: 45000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
