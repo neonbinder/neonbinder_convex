@@ -1,0 +1,164 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Parallel Grouping — accept suggestions and save; verify Variants column rerenders"
+tags:
+  - parallel-grouping
+  - regression
+---
+# Feature test: Accept All + Save happy path.
+#
+# WHAT THIS TESTS:
+#   After accepting auto-suggestions and saving, the modal closes and the
+#   underlying Variants column reflects the new groupings. Specifically:
+#     - "Stars Gold" and "Stars Red" should no longer appear as siblings of
+#       "Stars" in the flat list — they become parallels (nested under "Stars").
+#     - "Stars" remains visible in the Variants column as the parent insert.
+#
+# SETUP:
+#   Same three custom inserts as parallel-grouping-suggestions.yaml.
+#   The DB is reset by util-drill-to-2024-topps-chrome, so the custom entries
+#   are always freshly added.
+#
+# POST-SAVE ASSERTION STRATEGY:
+#   After save the modal closes and the query backing the Variants column
+#   re-fetches. "Stars" remains as a top-level insert. "Stars Gold" and
+#   "Stars Red" are now parallels (nested), so they may no longer appear
+#   in the flat EntitySelector list unless the user expands the parent.
+#   We assert:
+#     (a) the modal is gone
+#     (b) the Variants column heading is still present
+#     (c) "Stars" is still visible (still a top-level insert after grouping)
+#   We intentionally avoid asserting that "Stars Gold" / "Stars Red" are gone
+#   from the column because the EntitySelector rendering of nested parallels
+#   may display them differently depending on the column implementation.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO INSERT VARIANT TYPE (via util)
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-insert-variants.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD CONTROLLED CUSTOM INSERTS
+# ============================================================
+
+# --- Add "Stars" ---
+# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
+# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# the visible DOM text ("+ Custom"), not the aria-label.
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Gold" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Red" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Red"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# ============================================================
+# OPEN THE MODAL AND ACCEPT ALL SUGGESTIONS
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+
+# Wait for the tree to load — skeleton disappears
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Verify auto-suggestions appeared before accepting
+- assertVisible:
+    text: ".*Accept all suggestions.*"
+
+# Accept all — this registers the placements as user changes
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+# Save button should now show the change count
+- extendedWaitUntil:
+    visible:
+      text: ".*Save [0-9]+ change.*"
+    timeout: 5000
+
+# ============================================================
+# SAVE
+# The Save button is "Save 2 changes" after accepting the two suggestions.
+# After tapping, "Saving..." briefly appears, then the modal closes.
+# ============================================================
+
+- tapOn:
+    text: ".*Save [0-9]+ change.*"
+
+# Wait for the modal description to disappear — that text only appears inside
+# the modal, unlike "Group Parallels" which also appears on the action-row button.
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 30000
+
+# ============================================================
+# POST-SAVE VERIFICATION
+# The Variants column rerenders after the modal closes. "Stars" remains
+# a top-level insert (visible in the column). The modal backdrop is gone.
+# ============================================================
+
+- assertVisible: "Variants"
+
+# Confirm "Stars" is visible as a top-level insert in the Variants column.
+# After saving the groupings, "Stars Gold" and "Stars Red" become parallels
+# (nested under Stars), so only "Stars" remains in the top-level list.
+# With a single item the EntitySelector does not render a search box,
+# so we assert the row text directly.
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 10000
+- assertVisible: "Stars"

@@ -66,19 +66,19 @@ tags:
     visible: "Variants"
     timeout: 10000
 
-# Only sync if the Variants column is empty. If variants are already synced
-# from a previous run, we skip directly to the column-has-data assertions.
-# Empty state text from EntitySelector: "No variants available. Sync from
-# marketplaces to populate."
+# Only enter the sync verification block if the Variants column is empty.
+# When the column renders empty, EntityColumn auto-fires the sync form
+# (mode flips to "sync" via useEffect) — so "Sync Variants" is never
+# tappable in that state. We just wait for the ReconciliationModal that
+# auto-sync produces instead.
+# If variants are already synced from a previous run, the block is skipped.
 - runFlow:
     when:
       visible: "No variants available. Sync from marketplaces to populate."
     commands:
-      - tapOn: "Sync Variants"
-      # For Insert variant type, the VariantForm fetches both BSC and SL data
-      # then opens the ReconciliationModal. The ReconciliationModal waits for
-      # the existingVariantRows query to resolve before rendering.
-      # Wait up to 90 seconds for the modal to appear.
+      # Auto-sync fires the VariantForm immediately when the column is empty.
+      # The VariantForm fetches both BSC and SL data then opens the
+      # ReconciliationModal. Wait up to 90 seconds for it to appear.
       - extendedWaitUntil:
           visible: "Reconcile Variants"
           timeout: 90000

@@ -97,6 +97,10 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 ## Custom entry button
 - Label: "+ Custom" (requires regex escape in tapOn: `"\\+ Custom"`)
 - assertVisible also needs the escape: `"\\+ Custom"`
+- MULTI-COLUMN INDEX RULE: When multiple columns are visible each has its own "+ Custom" button.
+  They appear in DOM order (left to right). Use `index: N` to target the correct column's button.
+  After drilling to Insert with Variants column visible: Sets col=index 0, Variant Types col=index 1, Variants col=index 2.
+  Tapping the wrong index adds an entry to the wrong level (e.g., a Variant Type instead of a Variant).
 
 ## Custom entry form
 - Heading: "Add Custom Entry"
@@ -126,7 +130,11 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 
 ## Cards panel (CardChecklist) — full-width below selector row
 - Panel heading: "Cards" (with count in parentheses when items exist, e.g., "Cards (42)")
+  IMPORTANT: The h2 renders as `Cards{" "}` (with trailing space). Maestro's `scrollUntilVisible: "Cards"`
+  is UNRELIABLE because it may not match the heading through the internal DOM structure.
+  Use the empty-state paragraph text or a unique button as the scroll target instead.
 - Empty state: "No cards in this checklist yet." + button "Fetch from Marketplaces"
+  Reliable assertion: `assertVisible: "No cards in this checklist yet."` or `assertVisible: "Fetch from Marketplaces"`
 - While fetching: button label changes to "Fetching..."
 - Last synced text: "Last synced: [date]"
 - Stale indicator (if >7 days old): "(stale)" in amber
@@ -165,9 +173,21 @@ To find items that may be off-screen within a column: USE THE SEARCH BOX.
 - Manufacturers column: visible only after a year is selected
 - Sets column: visible only after a manufacturer is selected
 - Variant Types column: visible only after a set is selected
-- Variants column: visible only after a variant type is selected
+- Variants column: visible only after a non-Base variant type is selected
+  CRITICAL (PR #25): When "Base" is selected at Level 5, the Variants column is SUPPRESSED.
+  BaseMappingForm auto-mounts on the variantType row. BaseSetPicker opens immediately.
+  CardChecklist attaches directly to the Base variantType row (no Variants column).
+  Never write `extendedWaitUntil: visible: "Variants"` after tapping "Base".
 - Sub-Variants column: visible only after a variant is selected (optional)
 - Cards panel: visible only after a variant (or sub-variant) is selected
+
+## SL/BSC pills — terminal items only (PR #25 change)
+SL and BSC text pills now appear ONLY on terminal items:
+- Terminal: Base variantType rows, Variants entries, parallels
+- Non-terminal: Sports, Years, Manufacturers, Sets, Variant Types → NO pills
+
+Never `assertVisible: "BSC"` or `assertVisible: "SL"` at the Sports/Years/Manufacturers/Sets/VariantTypes levels.
+To verify a Sports column sync wrote data: `assertVisible: "Baseball"` instead.
 
 ## Collapsed selector pill
 - When a value is selected and the column collapses, shows the selected value text and a chevron-down icon
@@ -187,3 +207,30 @@ To find items that may be off-screen within a column: USE THE SEARCH BOX.
 - Test button: "Test Credentials"
 - BSC test success: ".*BSC account authenticated successfully.*"
 - SL test success: ".*Successfully logged into SportLots.*"
+
+## Maestro web: aria-label resolution (CRITICAL)
+
+Maestro web maps `aria-label` to `resource-id` in the accessibility hierarchy, NOT to the `text` attribute.
+
+Consequence:
+- `tapOn: "aria-label-value"` (plain string) uses text regex matching → FAILS for aria-label-only elements
+- `tapOn: {id: "aria-label-value"}` uses resource-id matching → WORKS
+- `scrollUntilVisible: element: text:` also uses text only → cannot scroll to aria-label-only elements
+- Visible DOM text (e.g. button inner text) IS matched by plain string `tapOn`
+
+Rule: if a button has BOTH visible text and an aria-label, tap by the visible text. If the button's only accessible name is the aria-label (no visible text, or ambiguous visible text), tap by `{id: "aria-label-value"}`.
+
+## ParallelGroupingModal — accessible selectors (post-restructure May 2026)
+
+- "Group Parallels" trigger button: plain visible text → `tapOn: "Group Parallels"` with preceding `scrollUntilVisible: element: text: "Group Parallels"`
+- "+ Custom" button in Variants column: visible text is `"+ Custom"` (ambiguous — all 3 columns have it). aria-label is `"Add custom Variants"` → `tapOn: {id: "Add custom Variants"}`
+- "+ Custom" button in Variant Types column: aria-label `"Add custom Variant Types"` → `tapOn: {id: "Add custom Variant Types"}`
+- "+ Custom" button in Sets column: aria-label `"Add custom Sets"` → `tapOn: {id: "Add custom Sets"}`
+- ✕ reject parallel button: aria-label `"Remove <value> from parallels"` → `tapOn: {id: "Remove Stars Gold from parallels"}`
+- Modal open signal (unique text): `".*Drag inserts under a parent.*"` (NOT "Group Parallels" which is also on the trigger button)
+- Modal footer — no changes: `"No changes yet"` (status text), `"No changes"` (disabled save button)
+- Modal footer — with changes: `".*N promotion.*"`, `".*Save N change.*"`
+- Accept all button: `".*Accept all suggestions.*"`
+- Suggested badge text: `"Suggested"` (appears inside suggested rows)
+- Parallels zone heading: `".*Parallels of.*Stars.*"` regex
+- Top-level inserts zone: `"Top-level inserts"`

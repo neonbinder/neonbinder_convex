@@ -29,6 +29,14 @@ export default function SetVariantSelector({
       getDisplayName={(variant) => variant.value as string}
       getDescription={() => undefined}
       selectedColor="bg-orange-100 dark:bg-orange-900 border-orange-300 dark:border-orange-700"
+      // Variant types are mostly intermediate (Insert/Parallel lead to a
+      // further Variants column), but Base is terminal — its checklist
+      // attaches directly to the variantType row, so its SL/BSC mapping
+      // is meaningful here.
+      isItemTerminal={(item) =>
+        typeof item.value === "string" &&
+        item.value.toLowerCase().trim() === "base"
+      }
     />
   );
 }

@@ -63,6 +63,16 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
 
+# CRITICAL: reload /profile between BSC and Sportlots setup.
+# After BSC setup completes, the page is scrolled down to the BSC credentials
+# section — "Select Platform" is now ABOVE the viewport.
+# setup-sportlots-credentials.yaml starts with scrollUntilVisible "Select Platform",
+# which only scrolls DOWN and will never find it. Reloading resets scroll to top.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: ".*Select Platform.*"
+    timeout: 15000
+
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
     env:

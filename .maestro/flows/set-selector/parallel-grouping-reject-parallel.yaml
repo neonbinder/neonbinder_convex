@@ -1,0 +1,171 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Parallel Grouping — reject (✕) button moves parallel back to top-level inserts"
+tags:
+  - parallel-grouping
+  - regression
+---
+# Feature test: the ✕ (reject) button on parallel rows inside a "Parallels of X" card.
+#
+# SCENARIO:
+#   1. Add custom inserts "Stars" and "Stars Gold".
+#   2. Open the modal — auto-detection suggests "Stars Gold" as a parallel of "Stars".
+#   3. Accept all suggestions so "Stars Gold" is placed inside "Parallels of Stars".
+#   4. Tap the ✕ button next to "Stars Gold" inside the Parallels card.
+#   5. Verify:
+#      - "Stars Gold" moves back to the "Top-level inserts" zone.
+#      - The footer reverts to "No changes yet" (the demotion undoes the prior promotion).
+#      - The Save button reverts to "No changes" (disabled).
+#
+# WHY THIS MATTERS:
+#   The ✕ button dispatches PLACE { kind: "ungrouped" } for a row that was
+#   previously placed as a child. After the reject, the net diff vs. original
+#   state is zero — so the save button must disable again. This is a subtle
+#   state invariant that could easily regress.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO INSERT VARIANT TYPE
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-insert-variants.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD CONTROLLED CUSTOM INSERTS
+# ============================================================
+
+# --- Add "Stars" ---
+# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
+# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# the visible DOM text ("+ Custom"), not the aria-label.
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Gold" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Champions" (a 3rd insert with no prefix match to "Stars",
+# so it stays in Top-level inserts after auto-detection. This ensures the
+# Variants column has 3 items, which is the layout state where the
+# Group Parallels button is reliably tappable.) ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Champions"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Champions"
+    timeout: 5000
+
+# ============================================================
+# OPEN MODAL AND ACCEPT ALL SUGGESTIONS
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Wait for auto-suggestion to appear
+- extendedWaitUntil:
+    visible:
+      text: ".*Accept all suggestions.*"
+    timeout: 10000
+
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+# "Stars Gold" is now inside "Parallels of Stars". Footer shows a change.
+- extendedWaitUntil:
+    visible:
+      text: ".*1 promotion.*"
+    timeout: 5000
+
+# The "Parallels of Stars" card is now visible with "Stars Gold" inside it.
+- assertVisible:
+    text: ".*Parallels of.*Stars.*"
+
+# ============================================================
+# TAP THE ✕ REJECT BUTTON NEXT TO "Stars Gold"
+# The ✕ button's accessible name (aria-label) is "Remove Stars Gold from parallels".
+# Maestro web maps aria-label to resource-id, so we select it via id: which
+# targets resource-id. The value is the aria-label string, not a DOM id attribute.
+# ============================================================
+
+- tapOn:
+    id: "Remove Stars Gold from parallels"
+
+# ============================================================
+# VERIFY STATE RESET
+# "Stars Gold" moved back to "Top-level inserts".
+# Net diff is zero (original: ungrouped → current: ungrouped).
+# Footer should show "No changes yet" and Save should be disabled.
+# ============================================================
+
+# Footer reverts to the no-changes state
+- extendedWaitUntil:
+    visible: "No changes yet"
+    timeout: 5000
+
+# Save button is disabled again
+- assertVisible: "No changes"
+
+# "Stars Gold" is visible in the Top-level inserts zone.
+# The "Suggested" badge is gone — the PLACE action always clears the
+# suggestion for the moved row (including a reject-PLACE). The row is
+# ungrouped with no badge, which is the correct post-reject state.
+- assertVisible: "Stars Gold"
+
+# ============================================================
+# CLOSE
+# ============================================================
+
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000

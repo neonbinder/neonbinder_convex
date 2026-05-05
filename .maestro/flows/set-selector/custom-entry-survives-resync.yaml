@@ -22,16 +22,31 @@ tags:
 # so the sub-flows (which expect "Select Platform" on /profile) would fail if
 # the browser is still on /set-selector after sign-in redirect.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
+# Long timeout — on CI the Convex profile query is sometimes slow to
+# resolve right after navigating away from the heavier /set-selector page.
+# The credentials section renders "Loading credentials…" until the query
+# returns, then transitions to "Select Platform".
 - scrollUntilVisible:
     element:
       text: ".*Select Platform.*"
-    timeout: 15000
+    timeout: 45000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
     env:
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
+
+# Re-navigate to /profile so the viewport resets to the top before the next
+# sub-flow runs. setup-bsc-credentials' save flow (run when BSC creds aren't
+# already saved) leaves the viewport below the credentials section. The next
+# sub-flow's `scrollUntilVisible "Select Platform"` only scrolls DOWN, so
+# without this reset it can never find the platform selector that's now above.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
@@ -144,6 +159,8 @@ tags:
     visible: "Set Selector"
     timeout: 15000
 
-# Marketplace-synced entries (BSC, SL) should be visible in the unfiltered list
-- assertVisible: "BSC"
-- assertVisible: "SL"
+# Marketplace-synced entries should be visible in the unfiltered list.
+# SL/BSC pills now appear only on terminal items — non-terminal levels like
+# Sports no longer show pills. "Baseball" appearing confirms marketplace data
+# was written to the Sports column during re-sync.
+- assertVisible: "Baseball"

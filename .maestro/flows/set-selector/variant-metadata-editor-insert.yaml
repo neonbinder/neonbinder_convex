@@ -1,0 +1,220 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Variant metadata editor — edit Prefix on a custom Insert variant and verify persistence"
+tags:
+  - set-selector
+  - regression
+---
+# Tests the VariantMetadataEditor component on an Insert variantType variant row.
+#
+# Why Insert, not Base?
+#   VariantMetadataEditor renders only when selectedVariantId or
+#   selectedVariantOfVariantId is set (SetSelector.tsx). Under the new model,
+#   Base is a terminal variantType — it has no Variants column, so there is no
+#   variant row to tap, and VariantMetadataEditor never renders for Base.
+#   Insert is the correct home for this test because:
+#     (a) VariantMetadataEditor still renders for Insert variants, unchanged.
+#     (b) The isInsert flag on the metadata is derived from variantType="Insert",
+#         making the Insert path the primary test case for the Insert + Parallel
+#         checkbox display.
+#
+# End-user story: user drills to 2024 Topps Chrome → Insert → adds a custom
+# Insert variant → taps it to select it → sees the Metadata panel below the
+# list (with Insert/Parallel flags and a Prefix field) → types a prefix →
+# saves it → confirms the Save button disappears.
+#
+# Why a custom variant (not a synced one)?
+#   After the DB reset embedded in util-drill-to-2024-topps-chrome, the Variants
+#   column for Insert is empty. The auto-sync fires the ReconciliationModal, which
+#   we cancel immediately (we do not want to write thousands of rows). This leaves
+#   the column empty. A custom variant named "META-TEST" gives us a stable, known
+#   tap target that exists regardless of marketplace data availability.
+#
+# VariantMetadataEditor is rendered inline in the Level 6 EntityColumn's selector
+# slot, directly below the VariantSelector. It appears as soon as a variant row
+# is selected (selectedVariantId is set). The component renders:
+#   - "Metadata" heading (h4, small caps)
+#   - "Insert" checkbox (read-only, checked because variantType = Insert)
+#   - "Parallel" checkbox (read-only, unchecked for a non-parallel variant)
+#   - "Prefix:" label + text input
+#   - "Save" button — appears only when the Prefix field has unsaved changes
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# PREREQUISITE: DB reset + credentials + drill to 2024 Topps Chrome
+# Returns with Variant Types column visible and Base/Insert/Parallel listed.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# LEVEL 5 — Select "Insert" variant type
+# This reveals the Level 6 Variants column. No BaseMappingForm appears.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# ============================================================
+# WAIT FOR VARIANTS COLUMN + HANDLE AUTO-SYNC
+# EntityColumn auto-fires the VariantForm when the Variants column renders
+# with an empty list. This opens the ReconciliationModal automatically —
+# no tap on "Sync Variants" is needed or possible.
+# Cancel the modal immediately; we only need the column visible.
+# On re-runs where variants are already populated, the modal is skipped.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# Wait for the auto-sync to complete: either the ReconciliationModal appears
+# (fresh DB) or the Variants column already has entries (re-run).
+# We detect the fresh-DB case by checking whether the modal heading is visible.
+- runFlow:
+    when:
+      notVisible: "Group Parallels"
+    commands:
+      # Auto-sync fires the VariantForm which fetches BSC + SL data then opens
+      # the ReconciliationModal. 90 seconds covers both network round trips.
+      - extendedWaitUntil:
+          visible: "Reconcile Variants"
+          timeout: 90000
+      # Cancel immediately — we do not want to write marketplace variant rows.
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Reconcile Variants"
+          timeout: 10000
+
+# ============================================================
+# ADD A CUSTOM INSERT VARIANT
+# The Variants column is empty after a fresh DB reset + cancel.
+# We add a custom variant named "META-TEST" to have a stable tap target.
+# On a re-run the column may already have variants, but we still add a
+# fresh custom entry to ensure the metadata test gets a clean prefix field.
+# The "+ Custom" button opens the Add Custom Entry form inline in the column.
+#
+# INDEX NOTE: At this point the visible columns are Sets (Topps Chrome),
+# Variant Types (Insert), and Variants — each with their own "+ Custom" button.
+# The Variants column's "+ Custom" is the THIRD one in DOM order (index 2).
+# We must use index: 2 to target the correct column; tapping the first one
+# would add a custom Set or Variant Type instead of a Variant.
+# ============================================================
+
+# Use the Variants column's aria-label-derived accessible name instead of
+# index — index counts every "+ Custom" in DOM order (6 columns rendered),
+# which is fragile across viewports. The aria-label "Add custom Variants"
+# is unique to the Variants column.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    timeout: 10000
+- tapOn:
+    id: "Add custom Variants"
+
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+
+# Type the custom variant name directly into the form (the input is autofocused
+# when the Add Custom Entry form opens)
+- tapOn: "Enter custom value..."
+- inputText: "META-TEST"
+
+# Tap the Add button to save the custom variant
+- tapOn:
+    text: "Add"
+    index: 0
+
+# The form closes when the entry is saved — use this as the save-confirmed signal
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# ============================================================
+# LOCATE AND TAP "META-TEST" IN THE VARIANTS COLUMN
+# After the custom entry is saved, the VariantSelector re-renders and
+# "META-TEST" appears as the only item in the column.
+# There is no search box when the column has only one item (search input
+# only renders when there are many items). Wait for the item directly.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "META-TEST"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "META-TEST"
+    timeout: 10000
+- tapOn: "META-TEST"
+
+# ============================================================
+# VERIFY VariantMetadataEditor panel appears below the Variants list
+# After tapping a variant row, SetSelector sets selectedVariantId and
+# VariantMetadataEditor renders inside the Level 6 EntityColumn.
+# ============================================================
+
+# The "Metadata" heading (h4) confirms the panel has rendered
+- scrollUntilVisible:
+    element:
+      text: "Metadata"
+    timeout: 10000
+- assertVisible: "Metadata"
+
+# "Insert" checkbox label — read-only, checked because variantType is "Insert"
+- assertVisible: "Insert"
+
+# "Parallel" checkbox label — read-only, unchecked for a non-parallel row
+- assertVisible: "Parallel"
+
+# The "Prefix:" label is visible above the text input
+- assertVisible: "Prefix:"
+
+# ============================================================
+# EDIT THE PREFIX FIELD — "Save" button should appear
+# Tap the "Prefix:" label to focus the associated input.
+# Use eraseText to clear any prior value (from a previous test run).
+# ============================================================
+
+- tapOn: "Prefix:"
+- eraseText: 20
+- inputText: "TEST-"
+
+# The Save button only appears when the field has unsaved changes (dirty=true)
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 5000
+- assertVisible: "Save"
+
+# ============================================================
+# SAVE — the "Save" button should disappear after the mutation completes
+# ============================================================
+
+- tapOn: "Save"
+
+# After the Convex mutation completes, dirty=false and the Save button disappears
+- extendedWaitUntil:
+    notVisible: "Save"
+    timeout: 10000
+
+# The Metadata panel and Prefix label remain visible after saving
+- assertVisible: "Metadata"
+- assertVisible: "Prefix:"

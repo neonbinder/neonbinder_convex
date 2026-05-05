@@ -63,7 +63,8 @@ tags:
       text: "Sync Sports"
     timeout: 60000
 
-# Verify sports were synced from both platforms
-# Entries from both BSC and SportLots should show their respective badges
-- assertVisible: "BSC"
-- assertVisible: "SL"
+# Verify sports were synced from both platforms.
+# SL/BSC pills now appear only on terminal items (Base variantType rows, Variants,
+# parallels) — non-terminal levels like Sports no longer show pills.
+# "Baseball" appearing confirms marketplace data was written to the Sports column.
+- assertVisible: "Baseball"

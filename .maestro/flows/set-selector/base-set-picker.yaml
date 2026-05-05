@@ -1,26 +1,34 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
-name: "Base variant flow — 2024 Topps Chrome Base sync creates Chrome row with SL + BSC badges"
+name: "Base flow — tap Base, confirm BaseSetPicker modal, verify Re-map Base button and Cards checklist appear"
 tags:
   - set-selector
   - regression
 ---
-# Canonical test for the "Base" variant type code path.
-# End-user goal: user drills to 2024 Topps Chrome, picks "Base" as the variant
-# type, syncs variants, confirms the BaseSetPicker modal by selecting "Chrome",
-# and sees the "Chrome" row appear in the Variants list with both SL and BSC
-# platform badges — confirming data from both marketplaces was written.
+# Canonical test for the Base variantType terminal code path.
 #
-# This is one of three merge-blocking flows for the variant-level set-sync milestone.
+# End-user story: user drills to 2024 Topps Chrome, taps "Base" at the Variant
+# Types column, and is immediately shown a modal (BaseSetPicker) asking them to
+# confirm which marketplace set represents the base cards. They accept the
+# auto-suggestion and the modal closes. The page then shows a "Re-map Base"
+# button (confirming the mapping was saved) and a Cards checklist section.
 #
-# Why "Chrome" is auto-selected:
-#   The BaseSetPicker scoring algorithm finds "Topps Chrome" on SL and pre-selects
-#   it as a "likely match". The user just confirms — no manual selection needed.
-#
-# After this test the Chrome variant row exists in the database. Sibling flows
-# (insert-variant-flow, reconciliation-modal, variant-metadata-read-only) can
-# re-use the drill prefix but treat the Chrome row as pre-existing — they
-# wrap "Sync Variants" in `runFlow when:` to stay tolerant.
+# KEY DIFFERENCES from the old flow:
+#   - No "Sync Variants" step — Base is now a terminal variantType; the Variants
+#     column never appears.
+#   - BaseMappingForm auto-mounts and immediately opens BaseSetPicker (with
+#     skeleton loaders) as soon as the ancestor chain resolves. The user does
+#     NOT tap any sync button.
+#   - The BaseSetPicker button reads "Loading…" while the fetch is in-flight,
+#     then changes to "Confirm Base Set" once data arrives and a selection is
+#     auto-picked. Waiting for "Confirm Base Set" to be visible is the correct
+#     signal that the data has loaded and the button is ready to tap.
+#   - After Confirm, the mapping is written to the variantType row (not a child
+#     Variants row). "Re-map Base" appears from SetSelector once the sportlots
+#     field is present on the row.
+#   - CardChecklist renders below the selector row using the variantType row
+#     as the checklist ID. Since the DB was reset, it shows the empty state:
+#     heading "Cards" and button "Fetch from Marketplaces".
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -32,8 +40,9 @@ tags:
     timeout: 45000
 
 # ============================================================
-# PREREQUISITE: credentials + drill to 2024 Topps Chrome
-# Returns with Variant Types column visible and list populated.
+# PREREQUISITE: DB reset + credentials + drill to 2024 Topps Chrome
+# Returns with Variant Types column visible and Base/Insert/Parallel listed.
+# (DB reset is embedded inside util-drill-to-2024-topps-chrome.)
 # ============================================================
 
 - runFlow:
@@ -46,9 +55,11 @@ tags:
 
 # ============================================================
 # LEVEL 5 — Select "Base" variant type
+# This triggers BaseMappingForm to auto-mount and immediately open
+# BaseSetPicker (with skeleton loaders while the fetch is in-flight).
+# No Variants column appears — Base is terminal.
 # ============================================================
 
-# Tap the "Base" variant type — this triggers the BaseSetPicker flow
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -56,69 +67,93 @@ tags:
 - tapOn: "Base"
 
 # ============================================================
-# LEVEL 6 — Sync Variants (triggers BaseSetPicker modal for Base type)
+# WAIT FOR BaseSetPicker MODAL to open
+# BaseMappingForm calls fetchRawOptions and sets pickerOpen=true before
+# the fetch resolves, so the modal heading appears almost immediately.
+# Give 60 seconds to cover cold-start Convex + BSC/SL network round trips.
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
-    timeout: 10000
-
-# Sync Variants only if the button is visible. If the Chrome variant row
-# already exists from a previous run, the button may not appear.
-- runFlow:
-    when:
-      visible: "Sync Variants"
-    commands:
-      - tapOn: "Sync Variants"
-      # For Base variant type, the VariantForm fetches SL data then opens
-      # the BaseSetPicker modal. Wait for the modal subtitle which uniquely
-      # confirms the modal is open (not just a heading match).
-      - extendedWaitUntil:
-          visible:
-            text: ".*Choose the base set for.*"
-          timeout: 60000
+    visible: "Select Base Set"
+    timeout: 60000
 
 # ============================================================
 # VERIFY BaseSetPicker modal contents
+# The subtitle always shows the set name ("Topps Chrome") in the sentence.
+# While the fetch is in-flight, the button reads "Loading…". Once data
+# arrives and the auto-suggestion fires, it reads "Confirm Base Set".
 # ============================================================
 
-# The modal heading confirms we are in the base-set selection step
-- assertVisible: "Select Base Set"
+# The subtitle confirms the modal is for this specific set
+- assertVisible:
+    text: ".*Choose the base set for.*"
 
-# "Chrome" should be auto-selected as the likely match for Topps Chrome
-- assertVisible: "Chrome"
+# The SL section label is visible in the modal
+- assertVisible:
+    text: ".*SportLots base.*"
 
-# The "likely match" badge confirms the scoring algorithm chose it
+# Wait for data to load: button changes from "Loading…" to "Confirm Base Set"
+# once fetchRawOptions resolves and the auto-selection logic runs.
+# 60 seconds covers BSC + SL network round trips on a cold Convex deployment.
+- extendedWaitUntil:
+    visible: "Confirm Base Set"
+    timeout: 60000
+
+# ============================================================
+# CONFIRM the auto-suggested base set
+# The scoring algorithm selects the highest-scoring SL option automatically
+# (for 2024 Topps Chrome, it finds a "Topps Chrome" or equivalent SL entry).
+# The "likely match" badge confirms the algorithm's choice.
+# ============================================================
+
 - assertVisible: "likely match"
 
-# ============================================================
-# CONFIRM the base set — writes the Chrome variant row
-# ============================================================
-
-# Scroll to the confirm button in case the modal has a long list
-- scrollUntilVisible:
-    element:
-      text: "Confirm Base Set"
-    timeout: 10000
 - tapOn: "Confirm Base Set"
 
-# Modal closes and VariantForm completes — the Variants column updates
+# ============================================================
+# WAIT FOR MODAL TO CLOSE
+# handlePickerConfirm calls writePlatformData (Convex mutation) then
+# setPickerOpen(false) + onClose(). The modal disappears once the mutation
+# completes. 60 seconds covers the Convex write round trip.
+# ============================================================
+
 - extendedWaitUntil:
     notVisible: "Select Base Set"
-    timeout: 15000
+    timeout: 60000
 
 # ============================================================
-# VERIFY the Chrome variant row appears with both platform badges
+# VERIFY BASE MAPPING PERSISTED — "Re-map Base" button appears
+# SetSelector renders <NeonButton>Re-map Base</NeonButton> when
+# baseHasMapping is true (sportlots field is set on the variantType row).
+# This is the definitive confirmation that the Convex mutation succeeded.
 # ============================================================
 
-# "Chrome" should now be listed in the Variants column
 - scrollUntilVisible:
     element:
-      text: "Chrome"
+      text: "Re-map Base"
     timeout: 15000
-- assertVisible: "Chrome"
+- assertVisible: "Re-map Base"
 
-# Both platform badges must be present on the Chrome row, confirming that
-# data from both BSC and SL was written when the user confirmed the base set
-- assertVisible: "SL"
-- assertVisible: "BSC"
+# ============================================================
+# VERIFY CardChecklist section appeared
+# SetSelector renders <CardChecklist variantId={selectedVariantTypeId} />
+# when Base is selected. On a fresh DB the checklist is empty and shows:
+#   empty-state text: "No cards in this checklist yet."
+#   button: "Fetch from Marketplaces"
+# We use the unique empty-state paragraph text for the assertion since
+# it is unambiguous and scrollUntilVisible reliably finds paragraph text.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "No cards in this checklist yet."
+    timeout: 15000
+- assertVisible: "No cards in this checklist yet."
+
+# "Fetch from Marketplaces" button confirms the checklist is in empty state
+# and the user can trigger a card sync from this page.
+- scrollUntilVisible:
+    element:
+      text: "Fetch from Marketplaces"
+    timeout: 5000
+- assertVisible: "Fetch from Marketplaces"

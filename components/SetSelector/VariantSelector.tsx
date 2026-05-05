@@ -29,6 +29,7 @@ export default function VariantSelector({
       getDisplayName={(item) => item.value as string}
       getDescription={() => undefined}
       selectedColor="bg-teal-100 dark:bg-teal-900 border-teal-300 dark:border-teal-700"
+      isItemTerminal={() => true}
     />
   );
 }

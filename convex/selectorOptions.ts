@@ -136,10 +136,12 @@ export const getUsedInsertIdentifiersBySet = query({
   },
 });
 
-// Returns the Base variant row (level=insert, parent=variantType=Base) for
-// a given setId, if one exists. Used by VariantForm to seed the SL prefix
-// filter when reconciling Insert/Parallel variants — the Base anchor's
-// name is typically a tighter SL-side prefix than the BSC set name.
+// Returns the Base variantType row for a given setId, if one exists.
+// Base is treated as a terminal node — it carries the SL/BSC platform
+// mapping directly on the variantType row (no child insert). Used by
+// VariantForm to seed the SL prefix filter when reconciling sibling
+// Insert/Parallel variantTypes — the Base anchor's SportLots name is a
+// tighter SL-side prefix than the BSC set name.
 export const getBaseVariantBySet = query({
   args: { setId: v.id("selectorOptions") },
   returns: v.union(
@@ -164,17 +166,9 @@ export const getBaseVariantBySet = query({
       (vt) => vt.value.toLowerCase().trim() === "base",
     );
     if (!baseVariantType) return null;
-    const inserts = await ctx.db
-      .query("selectorOptions")
-      .withIndex("by_level_and_parent", (q) =>
-        q.eq("level", "insert").eq("parentId", baseVariantType._id),
-      )
-      .collect();
-    if (inserts.length === 0) return null;
-    const base = inserts[0];
     return {
-      value: base.value,
-      platformData: base.platformData,
+      value: baseVariantType.value,
+      platformData: baseVariantType.platformData,
     };
   },
 });
@@ -634,6 +628,352 @@ export const deleteCard = mutation({
   },
 });
 
+// Returns all `level=insert` rows under a variantType, each with its own
+// `level=parallel` children inlined. Powers ParallelGroupingModal — one
+// round trip pulls the full tree for the modal to render and diff against.
+export const getInsertTreeByVariantType = query({
+  args: { variantTypeId: v.id("selectorOptions") },
+  returns: v.array(
+    v.object({
+      insert: v.object({
+        _id: v.id("selectorOptions"),
+        _creationTime: v.number(),
+        level: levelValidator,
+        value: v.string(),
+        platformData: v.object({
+          bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+          sportlots: v.optional(v.string()),
+        }),
+        parentId: v.optional(v.id("selectorOptions")),
+        children: v.optional(v.array(v.id("selectorOptions"))),
+        isCustom: v.optional(v.boolean()),
+        createdByUserId: v.optional(v.string()),
+        metadata: metadataValidator,
+        lastUpdated: v.number(),
+      }),
+      parallels: v.array(
+        v.object({
+          _id: v.id("selectorOptions"),
+          _creationTime: v.number(),
+          level: levelValidator,
+          value: v.string(),
+          platformData: v.object({
+            bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+            sportlots: v.optional(v.string()),
+          }),
+          parentId: v.optional(v.id("selectorOptions")),
+          children: v.optional(v.array(v.id("selectorOptions"))),
+          isCustom: v.optional(v.boolean()),
+          createdByUserId: v.optional(v.string()),
+          metadata: metadataValidator,
+          lastUpdated: v.number(),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const inserts = await ctx.db
+      .query("selectorOptions")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", "insert").eq("parentId", args.variantTypeId),
+      )
+      .collect();
+
+    const tree: Array<{
+      insert: (typeof inserts)[number];
+      parallels: (typeof inserts)[number][];
+    }> = [];
+    for (const ins of inserts) {
+      const parallels = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level_and_parent", (q) =>
+          q.eq("level", "parallel").eq("parentId", ins._id),
+        )
+        .collect();
+      tree.push({ insert: ins, parallels });
+    }
+    return tree;
+  },
+});
+
+// Atomic batch re-parenting for inserts/parallels under a single variantType.
+//
+// `promotions`: each entry moves an insert row down to be a parallel of a
+// target insert under the same variantType. Source must be level=insert with
+// no existing parallel children (otherwise we'd orphan a level — parallels
+// are always terminal).
+//
+// `demotions`: each entry moves a parallel back up to be a top-level insert
+// under the variantType.
+//
+// All assertions run before any patches so a partial failure rejects cleanly.
+// Children arrays on parents are kept consistent.
+export const applyParallelGroupings = mutation({
+  args: {
+    variantTypeId: v.id("selectorOptions"),
+    promotions: v.array(
+      v.object({
+        insertId: v.id("selectorOptions"),
+        targetInsertId: v.id("selectorOptions"),
+      }),
+    ),
+    demotions: v.array(
+      v.object({
+        parallelId: v.id("selectorOptions"),
+      }),
+    ),
+    // A parallel that's already under one insert moving to a different
+    // insert's parallel list. Single patch (parentId), level stays.
+    reparentings: v.optional(
+      v.array(
+        v.object({
+          parallelId: v.id("selectorOptions"),
+          newInsertId: v.id("selectorOptions"),
+        }),
+      ),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    promoted: v.number(),
+    demoted: v.number(),
+    reparented: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const variantType = await ctx.db.get(args.variantTypeId);
+    if (!variantType) {
+      throw new Error("Variant type not found");
+    }
+    if (variantType.level !== "variantType") {
+      throw new Error(
+        `applyParallelGroupings target must be a variantType row; got ${variantType.level}`,
+      );
+    }
+
+    // Track in-memory children sets keyed by row id so multiple promotions/
+    // demotions touching the same parent compose correctly without re-reading.
+    const childrenMap = new Map<Id<"selectorOptions">, Set<Id<"selectorOptions">>>();
+    const getChildren = async (
+      id: Id<"selectorOptions">,
+    ): Promise<Set<Id<"selectorOptions">>> => {
+      let set = childrenMap.get(id);
+      if (!set) {
+        const row = await ctx.db.get(id);
+        set = new Set(row?.children ?? []);
+        childrenMap.set(id, set);
+      }
+      return set;
+    };
+
+    const now = Date.now();
+
+    // ---- Validate everything first ----
+    const promotionTargets: Array<{
+      sourceId: Id<"selectorOptions">;
+      targetId: Id<"selectorOptions">;
+    }> = [];
+    for (const p of args.promotions) {
+      const source = await ctx.db.get(p.insertId);
+      if (!source) throw new Error(`Source insert ${p.insertId} not found`);
+      if (source.level !== "insert") {
+        throw new Error(
+          `Source ${p.insertId} is not an insert (level=${source.level})`,
+        );
+      }
+      if (source.parentId !== args.variantTypeId) {
+        throw new Error(
+          `Source ${p.insertId} is not under variantType ${args.variantTypeId}`,
+        );
+      }
+      const target = await ctx.db.get(p.targetInsertId);
+      if (!target) throw new Error(`Target insert ${p.targetInsertId} not found`);
+      if (target.level !== "insert") {
+        throw new Error(
+          `Target ${p.targetInsertId} is not an insert (level=${target.level})`,
+        );
+      }
+      if (target.parentId !== args.variantTypeId) {
+        throw new Error(
+          `Target ${p.targetInsertId} is not under variantType ${args.variantTypeId}`,
+        );
+      }
+      // Defensive: refuse to promote an insert that already has parallels
+      // beneath it (would create parallels-of-parallels).
+      const existingParallels = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level_and_parent", (q) =>
+          q.eq("level", "parallel").eq("parentId", p.insertId),
+        )
+        .first();
+      if (existingParallels) {
+        throw new Error(
+          `Cannot promote insert "${source.value}" to parallel — it already has parallels beneath it.`,
+        );
+      }
+      promotionTargets.push({ sourceId: p.insertId, targetId: p.targetInsertId });
+    }
+
+    const demotionTargets: Array<{
+      parallelId: Id<"selectorOptions">;
+      oldParentId: Id<"selectorOptions">;
+    }> = [];
+    for (const d of args.demotions) {
+      const row = await ctx.db.get(d.parallelId);
+      if (!row) throw new Error(`Parallel ${d.parallelId} not found`);
+      if (row.level !== "parallel") {
+        throw new Error(
+          `Source ${d.parallelId} is not a parallel (level=${row.level})`,
+        );
+      }
+      if (!row.parentId) {
+        throw new Error(`Parallel ${d.parallelId} has no parent`);
+      }
+      demotionTargets.push({ parallelId: d.parallelId, oldParentId: row.parentId });
+    }
+
+    const reparentingTargets: Array<{
+      parallelId: Id<"selectorOptions">;
+      oldParentId: Id<"selectorOptions">;
+      newParentId: Id<"selectorOptions">;
+    }> = [];
+    for (const r of args.reparentings ?? []) {
+      const row = await ctx.db.get(r.parallelId);
+      if (!row) throw new Error(`Parallel ${r.parallelId} not found`);
+      if (row.level !== "parallel") {
+        throw new Error(
+          `Reparent source ${r.parallelId} is not a parallel (level=${row.level})`,
+        );
+      }
+      if (!row.parentId) {
+        throw new Error(`Parallel ${r.parallelId} has no parent`);
+      }
+      if (row.parentId === r.newInsertId) {
+        // No-op: same parent. Skip silently.
+        continue;
+      }
+      const target = await ctx.db.get(r.newInsertId);
+      if (!target) throw new Error(`New insert ${r.newInsertId} not found`);
+      if (target.level !== "insert") {
+        throw new Error(
+          `Reparent target ${r.newInsertId} is not an insert (level=${target.level})`,
+        );
+      }
+      if (target.parentId !== args.variantTypeId) {
+        throw new Error(
+          `Reparent target ${r.newInsertId} is not under variantType ${args.variantTypeId}`,
+        );
+      }
+      reparentingTargets.push({
+        parallelId: r.parallelId,
+        oldParentId: row.parentId,
+        newParentId: r.newInsertId,
+      });
+    }
+
+    // ---- Apply promotions ----
+    const variantTypeChildren = await getChildren(args.variantTypeId);
+    for (const { sourceId, targetId } of promotionTargets) {
+      await ctx.db.patch(sourceId, {
+        level: "parallel",
+        parentId: targetId,
+        lastUpdated: now,
+      });
+      variantTypeChildren.delete(sourceId);
+      const targetChildren = await getChildren(targetId);
+      targetChildren.add(sourceId);
+    }
+
+    // ---- Apply demotions ----
+    for (const { parallelId, oldParentId } of demotionTargets) {
+      await ctx.db.patch(parallelId, {
+        level: "insert",
+        parentId: args.variantTypeId,
+        lastUpdated: now,
+      });
+      const oldParentChildren = await getChildren(oldParentId);
+      oldParentChildren.delete(parallelId);
+      variantTypeChildren.add(parallelId);
+    }
+
+    // ---- Apply reparentings ----
+    for (const { parallelId, oldParentId, newParentId } of reparentingTargets) {
+      await ctx.db.patch(parallelId, {
+        parentId: newParentId,
+        lastUpdated: now,
+      });
+      const oldChildren = await getChildren(oldParentId);
+      oldChildren.delete(parallelId);
+      const newChildren = await getChildren(newParentId);
+      newChildren.add(parallelId);
+    }
+
+    // ---- Flush children-array updates ----
+    for (const [id, set] of childrenMap) {
+      await ctx.db.patch(id, { children: Array.from(set), lastUpdated: now });
+    }
+
+    return {
+      success: true,
+      promoted: promotionTargets.length,
+      demoted: demotionTargets.length,
+      reparented: reparentingTargets.length,
+    };
+  },
+});
+
+// Patches platformData (and optional metadata) onto a Base variantType row.
+// Base is the terminal node in the cascade — its platform mapping lives on
+// the variantType row itself, not on a child insert. Asserts the target is
+// actually variantType=Base to prevent misuse on Insert/Parallel rows
+// (which go through `storeReconciledOptions`).
+export const setVariantTypePlatformData = mutation({
+  args: {
+    variantTypeId: v.id("selectorOptions"),
+    platformData: v.object({
+      bsc: v.optional(v.union(v.string(), v.array(v.string()))),
+      sportlots: v.optional(v.string()),
+    }),
+    metadata: v.optional(v.object({
+      cardNumberPrefix: v.optional(v.string()),
+      isInsert: v.optional(v.boolean()),
+      isParallel: v.optional(v.boolean()),
+    })),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.get(args.variantTypeId);
+    if (!row) {
+      throw new Error("Variant type row not found");
+    }
+    if (row.level !== "variantType") {
+      throw new Error(
+        `setVariantTypePlatformData only operates on variantType rows; got ${row.level}`,
+      );
+    }
+    if (row.value.toLowerCase().trim() !== "base") {
+      throw new Error(
+        `setVariantTypePlatformData only operates on Base variantTypes; got "${row.value}"`,
+      );
+    }
+    const merged: Record<string, unknown> = {
+      platformData: { ...row.platformData, ...args.platformData },
+      lastUpdated: Date.now(),
+    };
+    if (args.metadata) {
+      merged.metadata = { ...(row.metadata || {}), ...args.metadata };
+    }
+    await ctx.db.patch(args.variantTypeId, merged);
+    return { success: true, message: "Stored Base mapping" };
+  },
+});
+
 export const updateSelectorOptionMetadata = mutation({
   args: {
     id: v.id("selectorOptions"),
@@ -767,6 +1107,99 @@ export const resetCardChecklistBatch = internalMutation({
       await ctx.db.delete(row._id);
     }
     return { deleted: rows.length, hasMore: rows.length === RESET_BATCH_SIZE };
+  },
+});
+
+/**
+ * One-time cleanup: deletes legacy child rows under Base variantTypes.
+ *
+ * Before Base became a terminal node, the sync flow created a single
+ * `level=insert` row under each Base variantType to hold the SL/BSC
+ * platform mapping and any synced cardChecklist. This mutation removes
+ * those orphan rows (and any parallels under them, plus their checklist
+ * entries) so the Base variantType row itself can carry the platform
+ * mapping. Custom cards/inserts under those rows are dropped — by user
+ * direction.
+ *
+ * Re-runnable: idempotent. After the first run, no Base variantTypes will
+ * have children and subsequent runs are no-ops.
+ */
+export const wipeLegacyBaseChildren = mutation({
+  args: {},
+  returns: v.object({
+    baseVariantTypesScanned: v.number(),
+    insertsDeleted: v.number(),
+    parallelsDeleted: v.number(),
+    cardChecklistRowsDeleted: v.number(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const baseVariantTypes = (
+      await ctx.db.query("selectorOptions").withIndex("by_level").collect()
+    ).filter(
+      (row) =>
+        row.level === "variantType" &&
+        row.value.toLowerCase().trim() === "base",
+    );
+
+    let insertsDeleted = 0;
+    let parallelsDeleted = 0;
+    let cardChecklistRowsDeleted = 0;
+
+    for (const baseVT of baseVariantTypes) {
+      const inserts = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level_and_parent", (q) =>
+          q.eq("level", "insert").eq("parentId", baseVT._id),
+        )
+        .collect();
+
+      for (const ins of inserts) {
+        const parallels = await ctx.db
+          .query("selectorOptions")
+          .withIndex("by_level_and_parent", (q) =>
+            q.eq("level", "parallel").eq("parentId", ins._id),
+          )
+          .collect();
+
+        for (const par of parallels) {
+          const parCards = await ctx.db
+            .query("cardChecklist")
+            .withIndex("by_selector_option", (q) =>
+              q.eq("selectorOptionId", par._id),
+            )
+            .collect();
+          for (const c of parCards) {
+            await ctx.db.delete(c._id);
+            cardChecklistRowsDeleted += 1;
+          }
+          await ctx.db.delete(par._id);
+          parallelsDeleted += 1;
+        }
+
+        const insCards = await ctx.db
+          .query("cardChecklist")
+          .withIndex("by_selector_option", (q) =>
+            q.eq("selectorOptionId", ins._id),
+          )
+          .collect();
+        for (const c of insCards) {
+          await ctx.db.delete(c._id);
+          cardChecklistRowsDeleted += 1;
+        }
+        await ctx.db.delete(ins._id);
+        insertsDeleted += 1;
+      }
+
+      await ctx.db.patch(baseVT._id, { children: [], lastUpdated: Date.now() });
+    }
+
+    return {
+      baseVariantTypesScanned: baseVariantTypes.length,
+      insertsDeleted,
+      parallelsDeleted,
+      cardChecklistRowsDeleted,
+    };
   },
 });
 

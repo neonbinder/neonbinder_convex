@@ -1,0 +1,180 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Parallel Grouping — cancel discards changes; re-open modal shows original state"
+tags:
+  - parallel-grouping
+  - regression
+---
+# Feature test: Cancel discards pending changes and does not persist to the DB.
+#
+# SCENARIO:
+#   1. Open the modal. Tap an insert row to select it (click-to-place mode).
+#   2. Tap a "Parallels of X" drop zone to place the selected row there.
+#   3. Verify the footer shows a change (e.g. "1 promotion").
+#   4. Tap Cancel.
+#   5. Re-open the modal.
+#   6. Verify the row is back in "Top-level inserts" (original state).
+#
+# WHY THIS MATTERS:
+#   The reducer resets to emptyState when isOpen becomes false, then
+#   re-initialises from the live DB tree on the next open. If Cancel
+#   accidentally saved to the DB (it should not), the re-open would
+#   show the change persisted. This flow catches that regression.
+#
+# SETUP:
+#   Same three custom inserts — "Stars", "Stars Gold", "Stars Red".
+#   We use "Stars Gold" as the row we place then cancel.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO INSERT VARIANT TYPE
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-insert-variants.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD CONTROLLED CUSTOM INSERTS
+# ============================================================
+
+# --- Add "Stars" ---
+# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
+# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# the visible DOM text ("+ Custom"), not the aria-label.
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Gold" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Red" (ensures the EntitySelector renders with 3 items,
+# matching the layout state where the Group Parallels button tap reliably works) ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Red"
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Stars Red"
+    timeout: 5000
+
+# ============================================================
+# OPEN MODAL — ACCEPT ALL SUGGESTIONS to move "Stars Gold" under "Stars"
+# Using Accept All is the most reliable way to place a row without drag.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Wait for auto-suggestions to appear — "Stars Gold" should be suggested
+- extendedWaitUntil:
+    visible:
+      text: ".*Accept all suggestions.*"
+    timeout: 10000
+
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+# With 3 inserts (Stars, Stars Gold, Stars Red) and Accept All:
+# both Stars Gold and Stars Red are promoted → 2 promotions in the footer
+- extendedWaitUntil:
+    visible:
+      text: ".*2 promotion.*"
+    timeout: 5000
+
+# Verify the "Parallels of Stars" card is visible with promoted entries
+- assertVisible:
+    text: ".*Parallels of.*Stars.*"
+
+# ============================================================
+# CANCEL — discard the pending promotion
+# ============================================================
+
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+
+# ============================================================
+# RE-OPEN MODAL — verify state reset to original
+# Stars Gold should be back in "Top-level inserts", not under "Parallels of Stars".
+# The modal re-fetches the tree from the DB, which was never written to.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Both Stars Gold and Stars Red appear with "Suggested" badges — the modal
+# re-fetches the DB tree (unchanged by Cancel) and re-runs auto-detection.
+- assertVisible: "Suggested"
+
+# Footer shows 2 promotions because both suggested rows are pre-placed in
+# the Parallels zone — same state as on the initial open before Cancel.
+- assertVisible:
+    text: ".*2 promotion.*"
+
+# Save button is enabled from the start (suggestions count as changes)
+- assertVisible:
+    text: ".*Save 2 change.*"
+
+# Close cleanly
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
