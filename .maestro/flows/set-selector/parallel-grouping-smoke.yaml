@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
-name: "Parallel Grouping — smoke: open modal and cancel"
+name: "Parallel Grouping — smoke open modal and cancel"
 tags:
   - smoke
   - parallel-grouping
