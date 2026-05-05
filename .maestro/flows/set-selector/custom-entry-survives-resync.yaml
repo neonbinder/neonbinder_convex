@@ -144,6 +144,8 @@ tags:
     visible: "Set Selector"
     timeout: 15000
 
-# Marketplace-synced entries (BSC, SL) should be visible in the unfiltered list
-- assertVisible: "BSC"
-- assertVisible: "SL"
+# Marketplace-synced entries should be visible in the unfiltered list.
+# SL/BSC pills now appear only on terminal items — non-terminal levels like
+# Sports no longer show pills. "Baseball" appearing confirms marketplace data
+# was written to the Sports column during re-sync.
+- assertVisible: "Baseball"

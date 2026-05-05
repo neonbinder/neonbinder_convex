@@ -5,6 +5,33 @@ tags:
   - regression
   - wip
 ---
+# CATEGORY-3 REGRESSION — NEEDS HUMAN APPROVAL BEFORE FIX CAN BE APPLIED
+#
+# Root cause: change 1 (auto-sync of empty columns).
+# EntityColumn now flips mode to "sync" via useEffect the moment it renders
+# with an empty items list. This means the "Sync Sports" button is never
+# in the idle state when the column is empty — the form takes over immediately.
+#
+# What broke:
+#   - Line 33: assertVisible: "Sync Sports" → fails on empty column (button replaced by form)
+#   - Line 67: tapOn: "Sync Sports" → button is not in the DOM when column is empty
+#   - Line 87: assertVisible: "Sync Sports" → same issue
+#
+# Semantic intent of this flow (verify Sports column shows idle buttons before
+# any sync has run) can no longer be tested because the idle state with
+# "Sync Sports" visible only exists after data is already present.
+#
+# Proposed new test (requires human review of expected UX):
+#   Option A: Remove this flow — the "idle before sync" state no longer exists.
+#   Option B: Restructure to "verify auto-sync fires and completes on empty column"
+#             (new empty-state: column empty → auto-sync form appears → form closes
+#             → list populates). This tests a different UX than the original.
+#   Option C: Keep the flow but seed Sports data first (pre-populate), then assert
+#             "Sync Sports" is visible below the list (non-empty idle state).
+#
+# DO NOT apply a fix here without human approval — the semantic intent changes.
+#
+# --- original description below ---
 # This test verifies the empty state message that appears when the Sports
 # column has no entries yet (nothing has been synced or added manually).
 #

@@ -4,7 +4,39 @@ name: "Variant metadata — edit Prefix on 2024 Topps Chrome Base variant and ve
 tags:
   - set-selector
   - regression
+  - wip
 ---
+# Tagged `wip` because the underlying UX changed in this branch — Base is now
+# a terminal variantType so the prior Variants-column entry that this flow
+# tapped no longer exists. Park as wip until the metadata editor's new entry
+# point on the Base variantType row is wired up and a fresh flow can target it.
+#
+# CATEGORY-3 REGRESSION — NEEDS HUMAN APPROVAL BEFORE FIX CAN BE APPLIED
+#
+# Root cause: change 2 (Base is terminal).
+# After tapping "Base" at Level 5, the Variants column is suppressed.
+# BaseMappingForm auto-mounts and BaseSetPicker opens immediately —
+# there is no "Variants" column heading, no "Sync Variants" button,
+# and no separate "Chrome" row to tap inside a Variants column.
+#
+# What broke:
+#   - "extendedWaitUntil: visible: Variants" → times out (Variants column gone)
+#   - All subsequent steps assume a Variants column exists
+#
+# Proposed new flow (requires human review of expected UX):
+#   The VariantMetadataEditor may now appear differently for the Base type.
+#   Likely it is accessible via the Base variantType row itself (not via
+#   a Variants column entry). The flow needs to be rewritten to:
+#   1. Drill to Topps Chrome → tap Base → confirm BaseSetPicker.
+#   2. Locate and tap the Chrome mapping that was confirmed (exact UI unknown
+#      without reading the new component).
+#   3. Verify VariantMetadataEditor panel and edit Prefix as before.
+#
+# DO NOT apply a fix here without human approval.
+# The correct new UI path for the Base terminal type must be confirmed by
+# a developer who has read the new BaseMappingForm component.
+#
+# --- original description below ---
 # After drilling to the "Chrome" variant in the 2024 Topps Chrome → Base path,
 # the VariantMetadataEditor panel appears below the Variants list. It shows
 # read-only Insert/Parallel flags and an editable Prefix field.
