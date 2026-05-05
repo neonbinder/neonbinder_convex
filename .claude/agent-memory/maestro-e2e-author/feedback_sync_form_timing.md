@@ -97,3 +97,51 @@ patterns above.
 
 Confirmed working in util-drill-to-2024-topps-chrome.yaml and util-drill-to-insert-variants.yaml
 (smoke passing 2026-05-04).
+
+## PR #25 — New auto-sync patterns for insert/parallel Variants column
+
+After DB reset and selecting Insert or Parallel variantType, the Variants column renders
+empty and auto-sync fires ReconciliationModal immediately. For flows that verify the
+ReconciliationModal (insert-variant-flow.yaml, reconciliation-modal.yaml), the old pattern:
+
+```yaml
+- runFlow:
+    when:
+      visible: "No variants available. Sync from marketplaces to populate."
+    commands:
+      - tapOn: "Sync Variants"   # ← BROKEN: button is never in DOM, auto-sync took over
+      - extendedWaitUntil: ...
+```
+
+Must become:
+```yaml
+- runFlow:
+    when:
+      visible: "No variants available. Sync from marketplaces to populate."
+    commands:
+      # No tap needed — auto-sync fires the modal automatically
+      - extendedWaitUntil:
+          visible: "Reconcile Variants"
+          timeout: 90000
+```
+
+## PR #25 — Base as terminal variantType
+
+When `variantType.value === "Base"`, the Variants column (Level 6) is SUPPRESSED.
+BaseMappingForm auto-mounts and BaseSetPicker opens directly on the variantType row.
+Do NOT write flows that expect "Variants" heading after tapping "Base".
+
+Any flow that:
+- Taps "Base" at Level 5 AND then waits for "Variants" → category-3, needs rewrite
+- Uses `tapOn: index: 0` at Level 5 (alphabetically = "Base") → same issue
+
+Safe variantType values for testing Variants column: "Insert", "Parallel".
+
+## PR #25 — SL/BSC pills only on terminal items
+
+SL and BSC text pills no longer appear on non-terminal levels:
+- Sports, Years, Manufacturers, Sets, Variant Types → NO pills
+- Terminal items (Base variantType rows, Variants entries, parallels) → pills appear
+
+Any `assertVisible: "BSC"` or `assertVisible: "SL"` at the Sports level → replace
+with `assertVisible: "Baseball"` as the data-presence proof.

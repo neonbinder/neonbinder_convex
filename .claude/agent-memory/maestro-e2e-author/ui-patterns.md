@@ -165,9 +165,21 @@ To find items that may be off-screen within a column: USE THE SEARCH BOX.
 - Manufacturers column: visible only after a year is selected
 - Sets column: visible only after a manufacturer is selected
 - Variant Types column: visible only after a set is selected
-- Variants column: visible only after a variant type is selected
+- Variants column: visible only after a non-Base variant type is selected
+  CRITICAL (PR #25): When "Base" is selected at Level 5, the Variants column is SUPPRESSED.
+  BaseMappingForm auto-mounts on the variantType row. BaseSetPicker opens immediately.
+  CardChecklist attaches directly to the Base variantType row (no Variants column).
+  Never write `extendedWaitUntil: visible: "Variants"` after tapping "Base".
 - Sub-Variants column: visible only after a variant is selected (optional)
 - Cards panel: visible only after a variant (or sub-variant) is selected
+
+## SL/BSC pills — terminal items only (PR #25 change)
+SL and BSC text pills now appear ONLY on terminal items:
+- Terminal: Base variantType rows, Variants entries, parallels
+- Non-terminal: Sports, Years, Manufacturers, Sets, Variant Types → NO pills
+
+Never `assertVisible: "BSC"` or `assertVisible: "SL"` at the Sports/Years/Manufacturers/Sets/VariantTypes levels.
+To verify a Sports column sync wrote data: `assertVisible: "Baseball"` instead.
 
 ## Collapsed selector pill
 - When a value is selected and the column collapses, shows the selected value text and a chevron-down icon
