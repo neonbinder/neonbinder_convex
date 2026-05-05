@@ -118,14 +118,16 @@ tags:
 # would add a custom Set or Variant Type instead of a Variant.
 # ============================================================
 
+# Use the Variants column's aria-label-derived accessible name instead of
+# index — index counts every "+ Custom" in DOM order (6 columns rendered),
+# which is fragile across viewports. The aria-label "Add custom Variants"
+# is unique to the Variants column.
 - scrollUntilVisible:
     element:
-      text: "+ Custom"
-      index: 2
+      id: "Add custom Variants"
     timeout: 10000
 - tapOn:
-    text: "+ Custom"
-    index: 2
+    id: "Add custom Variants"
 
 - extendedWaitUntil:
     visible: "Add Custom Entry"

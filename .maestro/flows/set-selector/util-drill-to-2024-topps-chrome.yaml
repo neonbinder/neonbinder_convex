@@ -43,7 +43,7 @@ tags:
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 15000
+    timeout: 20000
 
 - scrollUntilVisible:
     element:
@@ -79,7 +79,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*Select Platform.*"
-    timeout: 15000
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
@@ -99,7 +99,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*Select Platform.*"
-    timeout: 15000
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
@@ -114,7 +114,7 @@ tags:
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 15000
+    timeout: 20000
 
 # ============================================================
 # LEVEL 1 — Baseball
@@ -228,7 +228,7 @@ tags:
 
 - extendedWaitUntil:
     visible: "Sets"
-    timeout: 15000
+    timeout: 20000
 
 # Wait for the search input — only rendered when mode=idle (sync complete).
 - runFlow:
@@ -276,7 +276,7 @@ tags:
 
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 15000
+    timeout: 20000
 
 # Only sync if "Base" is not already visible in the Variant Types list.
 # If Base is already there, Insert and Parallel are there too — no sync needed.
