@@ -135,12 +135,49 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
   Use the empty-state paragraph text or a unique button as the scroll target instead.
 - Empty state: "No cards in this checklist yet." + button "Fetch from Marketplaces"
   Reliable assertion: `assertVisible: "No cards in this checklist yet."` or `assertVisible: "Fetch from Marketplaces"`
-- While fetching: button label changes to "Fetching..."
+- Button label states (mutually exclusive, same element):
+  - "Fetch from Marketplaces" — empty checklist (cards.length === 0)
+  - "Refresh" — populated checklist (shown in bottom action row as secondary button)
+  - "Fetching..." — fetch in progress
+  - "Saving..." — commit in progress after dialog confirm
+- Success message (no unknowns path): `".*Saved [0-9]+ cards.*"` — appears in blue banner
+- Cancel message (after cancelling dialog): exact text `"Fetch cancelled — no cards saved."`
+- Error message (fetch failure): `"Error: <message>"` or `"Commit failed: <message>"`
+- BSC no-sellerId error: `".*BSC.*not configured.*|.*BSC.*sellerId.*|.*Connect your BSC account.*"`
 - Last synced text: "Last synced: [date]"
 - Stale indicator (if >7 days old): "(stale)" in amber
 - Sync message banner: shown in a blue box after fetch completes
 - Refresh button (visible once cards exist): "Refresh"
 - Add card button: "Add Card"
+
+## UnknownEntitiesDialog (modal — triggered by fetch finding new players/teams)
+- Open condition: `fetchCardChecklist` returns unknownPlayers.length > 0 OR unknownTeams.length > 0
+- Modal role: `role="dialog"`, aria-labelledby="unknown-entities-title"
+- Title: `"Confirm New Players & Teams"` (the &amp; renders as &)
+- Subtitle regex: `".*we don't have yet for.*"` (includes sport name)
+- Section headings: `"New Players (N)"`, `"New Teams (N)"`
+- Empty section text: `"No new players in this fetch."`, `"No new teams in this fetch."`
+- Checkbox rows: each player/team name appears as visible label text (checked = included by default)
+- Footer count: `".*will be created.*"` — decreases when items are unchecked
+- Confirm button: `".*Confirm [0-9]+ & Save.*"` regex (shows count of included items)
+  - When ALL items unchecked: `"Skip All & Save"` (no regex needed)
+  - While saving (committing): `"Saving..."` (disabled)
+- Cancel button: `"Cancel (Esc)"` (exact text — the Esc reminder is in the button label)
+- Confirm button is auto-focused on open (confirmButtonRef.current?.focus())
+- Enter on the dialog container div → handleConfirm (NOT a window keydown — pressKey: Enter MAY work)
+- Escape on document → onCancel (document-level listener — pressKey: Escape does NOT work in Maestro web)
+- Use `tapOn: ".*Confirm [0-9]+ & Save.*|Skip All & Save"` to hit the confirm regardless of count
+- Use `tapOn: "Cancel (Esc)"` to hit cancel (NOT `tapOn: "Cancel"` — the button text includes "(Esc)")
+
+## CardChecklistItem — card row fields
+- Card number: `#<cardNumber>` in mono font, e.g., `".*#[0-9].*"` regex
+- Sub-line format: `<team> · /<printRun> · <cardVariation> · <autographType> auto`
+  Example: `"Yankees · /99 · Refractor · On-Card auto"`
+- Attribute badges (text): `"RC"`, `"AU"`, `"RELIC"`, `"SP"`, `"SSP"`, `"#'d"`, `"SL only"`, `"BSC only"`
+  NOTE: `"unmatched-bsc"` token → badge label `"SL only"` (cards that came only from BSC are SL-missing)
+         `"unmatched-sl"` token → badge label `"BSC only"`
+- Platform badges: `"SL"`, `"BSC"`, `"Custom"` (Custom = isCustom=true, blue badge)
+- Hover-only actions: `"Edit"`, `"Del"` (opacity-0 until hover — may not be assertVisible in headless)
 
 ## Add Card form (CardChecklist)
 - Card number field placeholder: "#"
@@ -176,8 +213,9 @@ To find items that may be off-screen within a column: USE THE SEARCH BOX.
 - Variants column: visible only after a non-Base variant type is selected
   CRITICAL (PR #25): When "Base" is selected at Level 5, the Variants column is SUPPRESSED.
   BaseMappingForm auto-mounts on the variantType row. BaseSetPicker opens immediately.
-  CardChecklist attaches directly to the Base variantType row (no Variants column).
-  Never write `extendedWaitUntil: visible: "Variants"` after tapping "Base".
+  After confirming "Confirm Base Set", `baseHasMapping` becomes true and CardChecklist renders
+  DIRECTLY attached to the variantType row — no Level 6 selection needed.
+  Never write `extendedWaitUntil: visible: "Variants"` or try to tap Level 6 items after "Base".
 - Sub-Variants column: visible only after a variant is selected (optional)
 - Cards panel: visible only after a variant (or sub-variant) is selected
 
