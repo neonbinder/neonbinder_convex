@@ -4,9 +4,37 @@ import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
 import NeonButton from "../modules/NeonButton";
+import UnknownEntitiesDialog from "./UnknownEntitiesDialog";
 
 type CardChecklistProps = {
   variantId: GenericId<"selectorOptions">;
+};
+
+/**
+ * Preview shape returned by fetchCardChecklist. We hold this in component
+ * state between fetch (action) and commit (mutation) so the user can
+ * confirm new players/teams in UnknownEntitiesDialog before the entities
+ * are persisted.
+ */
+type FetchPreview = {
+  sport: string;
+  cards: Array<{
+    cardNumber: string;
+    cardName: string;
+    team?: string;
+    teams?: string[];
+    players?: string[];
+    attributes?: string[];
+    isRookie?: boolean;
+    isRelic?: boolean;
+    printRun?: number;
+    autographType?: string;
+    cardVariation?: string;
+    platformData: { bsc?: string; sportlots?: string };
+    unmatched?: "bsc" | "sl";
+  }>;
+  unknownPlayers: string[];
+  unknownTeams: string[];
 };
 
 export default function CardChecklist({ variantId }: CardChecklistProps) {
@@ -14,23 +42,49 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     selectorOptionId: variantId,
   });
   const fetchChecklist = useAction(api.selectorOptions.fetchCardChecklist);
+  const commitChecklist = useMutation(api.selectorOptions.commitCardChecklist);
   const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
 
   const [syncing, setSyncing] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newCardName, setNewCardName] = useState("");
   const [newTeam, setNewTeam] = useState("");
+  const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
 
+  /**
+   * Two-phase pipeline:
+   *   1. fetchChecklist → preview (no DB writes; player/team strings, not IDs)
+   *   2. If unknowns: open dialog → user confirms subset → commit
+   *      Otherwise: commit immediately with empty confirmedNew*.
+   * Either way, commitCardChecklist is the only path that writes
+   * cardChecklist rows + new player/team entities.
+   */
   const handleSync = async () => {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const result = await fetchChecklist({
-        selectorOptionId: variantId,
-      });
-      setSyncMessage(result.message);
+      const result = await fetchChecklist({ selectorOptionId: variantId });
+      if (!result.success || !result.sport) {
+        setSyncMessage(result.message);
+        return;
+      }
+      const preview: FetchPreview = {
+        sport: result.sport,
+        cards: result.cards,
+        unknownPlayers: result.unknownPlayers,
+        unknownTeams: result.unknownTeams,
+      };
+      if (preview.unknownPlayers.length === 0 && preview.unknownTeams.length === 0) {
+        await runCommit(preview, [], []);
+        setSyncMessage(`Saved ${result.cards.length} cards.`);
+      } else {
+        // Stash preview; dialog handles the rest.
+        setPendingPreview(preview);
+        setSyncMessage(result.message);
+      }
     } catch (error) {
       setSyncMessage(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -38,6 +92,43 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const runCommit = async (
+    preview: FetchPreview,
+    confirmedPlayers: string[],
+    confirmedTeams: string[],
+  ) => {
+    setCommitting(true);
+    try {
+      const result = await commitChecklist({
+        selectorOptionId: variantId,
+        sport: preview.sport,
+        cards: preview.cards,
+        confirmedNewPlayers: confirmedPlayers,
+        confirmedNewTeams: confirmedTeams,
+      });
+      const enrichmentNote =
+        result.createdPlayerIds.length || result.createdTeamIds.length
+          ? ` (${result.createdPlayerIds.length} players + ${result.createdTeamIds.length} teams enriching from Wikidata in background)`
+          : "";
+      setSyncMessage(`Saved ${result.count} cards.${enrichmentNote}`);
+    } catch (error) {
+      setSyncMessage(
+        `Commit failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  const handleConfirmUnknowns = async (
+    confirmedPlayers: string[],
+    confirmedTeams: string[],
+  ) => {
+    if (!pendingPreview) return;
+    await runCommit(pendingPreview, confirmedPlayers, confirmedTeams);
+    setPendingPreview(null);
   };
 
   const handleAddCard = async () => {
@@ -67,13 +158,19 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     );
   }
 
-  // Sort cards by sortOrder
   const sortedCards = [...cards].sort((a, b) => a.sortOrder - b.sortOrder);
-
-  // Find the most recent lastUpdated timestamp
   const lastSynced = cards.length > 0
     ? Math.max(...cards.map((c: { lastUpdated: number }) => c.lastUpdated))
     : null;
+
+  const busy = syncing || committing;
+  const fetchLabel = syncing
+    ? "Fetching..."
+    : committing
+      ? "Saving..."
+      : sortedCards.length === 0
+        ? "Fetch from Marketplaces"
+        : "Refresh";
 
   return (
     <div className="w-full flex flex-col gap-4">
@@ -115,8 +212,8 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No cards in this checklist yet.
             </p>
-            <NeonButton onClick={handleSync} disabled={syncing}>
-              {syncing ? "Fetching..." : "Fetch from Marketplaces"}
+            <NeonButton onClick={handleSync} disabled={busy}>
+              {fetchLabel}
             </NeonButton>
           </div>
         ) : (
@@ -172,12 +269,25 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             Add Card
           </NeonButton>
           {sortedCards.length > 0 && (
-            <NeonButton secondary onClick={handleSync} disabled={syncing}>
-              {syncing ? "Syncing..." : "Refresh"}
+            <NeonButton secondary onClick={handleSync} disabled={busy}>
+              {fetchLabel}
             </NeonButton>
           )}
         </div>
       )}
+
+      <UnknownEntitiesDialog
+        isOpen={pendingPreview !== null}
+        unknownPlayers={pendingPreview?.unknownPlayers ?? []}
+        unknownTeams={pendingPreview?.unknownTeams ?? []}
+        sport={pendingPreview?.sport ?? ""}
+        saving={committing}
+        onConfirm={handleConfirmUnknowns}
+        onCancel={() => {
+          setPendingPreview(null);
+          setSyncMessage("Fetch cancelled — no cards saved.");
+        }}
+      />
     </div>
   );
 }

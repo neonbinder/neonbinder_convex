@@ -227,7 +227,110 @@ export const fetchBscSelectorOptions = action({
 });
 
 /**
- * Fetch card checklist from BSC for a specific set
+ * Validator for the per-card payload returned by fetchBscChecklist
+ * and accepted by the SportLots adapter (with most fields left empty).
+ * Carries everything we can source at *checklist* time. Per-copy fields
+ * (grade, condition, cert) belong on a future cardInventory table.
+ *
+ * Team is intentionally optional and often empty — BSC's bulk-upload
+ * catalog endpoint doesn't carry team data (it lives on listings, not
+ * the catalog template). Team gets resolved at listing time from the
+ * player's career history (Wikidata) or a user prompt.
+ */
+const checklistCardValidator = v.object({
+  cardNumber: v.string(),
+  cardName: v.string(),
+  // Optional fallback for callers that have a team display string handy.
+  team: v.optional(v.string()),
+  teams: v.optional(v.array(v.string())),
+  players: v.optional(v.array(v.string())),
+  // De-duped union of BSC playerAttribute tokens + variant-derived flags.
+  attributes: v.optional(v.array(v.string())),
+  printRun: v.optional(v.number()),
+  autographType: v.optional(v.string()),
+  cardVariation: v.optional(v.string()),
+  platformRef: v.optional(v.string()),
+  sportlotsRef: v.optional(v.string()),
+});
+
+/**
+ * Parse a BSC printRun field — varies between number, "/99" string, and
+ * "99" string. Returns undefined for unnumbered cards.
+ */
+function parsePrintRun(raw: unknown): number | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw !== "string") return undefined;
+  const cleaned = raw.replace(/[^0-9]/g, "");
+  if (!cleaned) return undefined;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Coerce a BSC field that may be string | string[] | undefined into a
+ * deduped string[]. Empty strings are dropped.
+ */
+function asStringArray(raw: unknown): string[] {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of arr) {
+    if (typeof v !== "string") continue;
+    const trimmed = v.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+/**
+ * Parse BSC's `playerAttribute` field (a comma-separated string like
+ * "RC", "SP, VAR", or "AU, RC") into a normalized de-duped token array
+ * we treat as card attributes.
+ */
+function parsePlayerAttributeTokens(raw: unknown): string[] {
+  if (!raw) return [];
+  const flatString = Array.isArray(raw) ? raw.join(",") : String(raw);
+  const tokens = flatString
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return Array.from(new Set(tokens));
+}
+
+/**
+ * Pull a card-variation description out of BSC's `playerAttributeDesc`
+ * field. Bulk-upload stores variation text here prefixed with markers
+ * like "VAR:", "SSP:", etc. — strip the leading marker so the residual
+ * is a clean human-readable string. Returns undefined when empty.
+ */
+function parseVariationDescription(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  return trimmed.replace(/^[A-Z]{2,4}:\s*/, "").trim() || undefined;
+}
+
+/**
+ * Fetch card checklist from BSC for a specific set/variant.
+ *
+ * Uses POST /search/bulk-upload/results — BSC's catalog endpoint. This
+ * returns the same set of cards every authenticated user sees on the
+ * "Bulk Upload" page; it does NOT scope to a specific seller's listings.
+ * That means dev/test accounts without inventory get the same data as
+ * a seasoned seller, and we don't need a per-user sellerId for fetch
+ * (any valid bearer token authenticates).
+ *
+ * Trade-off vs the older /search/seller/results endpoint we ported
+ * from the 2022 cardlister script: this endpoint is slimmer. It does
+ * NOT carry team, printRun, autograph, features[], or sportlots
+ * cross-reference fields. Those are listing-level concerns (per-copy)
+ * that we'll source at list time from the player's Wikidata career
+ * history or a user prompt.
+ *
+ * Response shape: a flat JSON array (not wrapped in `{ results, total }`).
  */
 export const fetchBscChecklist = action({
   args: {
@@ -237,17 +340,10 @@ export const fetchBscChecklist = action({
   },
   returns: v.object({
     success: v.boolean(),
-    cards: v.array(
-      v.object({
-        cardNumber: v.string(),
-        cardName: v.string(),
-        team: v.optional(v.string()),
-        platformRef: v.optional(v.string()),
-      }),
-    ),
+    cards: v.array(checklistCardValidator),
     message: v.optional(v.string()),
   }),
-  handler: async (ctx, args): Promise<{ success: boolean; cards: Array<{ cardNumber: string; cardName: string; team?: string; platformRef?: string }>; message?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; cards: Array<{ cardNumber: string; cardName: string; team?: string; teams?: string[]; players?: string[]; attributes?: string[]; printRun?: number; autographType?: string; cardVariation?: string; platformRef?: string; sportlotsRef?: string }>; message?: string }> => {
     await requireAdmin(ctx);
     try {
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
@@ -263,11 +359,21 @@ export const fetchBscChecklist = action({
         };
       }
 
-      // Build filters from pre-resolved BSC slugs, falling back to display labels
+      // Build nested `filters: { sport: [...], year: [...], ... }`.
+      // For most levels (sport/year/setName) we trust the pre-resolved BSC
+      // slugs from `platformFilters`. variantType is a tiny enum
+      // (base/insert/parallel) where the BSC slug always equals the
+      // lowercased display value, so we derive it directly from
+      // `parentFilters.variantType`. This avoids a class of bug where the
+      // variant entity's `platformData.bsc` got corrupted by an earlier
+      // mis-saved BaseSetPicker mapping (the slug ended up pointing at
+      // the parent setName instead of the variant) — confirmed live in
+      // dev. Sourcing variant from the display value is robust regardless
+      // of what's on the variant entity.
       const filters: Record<string, string[]> = {};
-
       if (args.platformFilters) {
         for (const [lvl, values] of Object.entries(args.platformFilters)) {
+          if (lvl === "variantType") continue; // see comment above
           const facet = LEVEL_TO_BSC_FACET[lvl];
           if (facet) {
             filters[facet] = values;
@@ -284,33 +390,32 @@ export const fetchBscChecklist = action({
         if (args.parentFilters.setName) {
           filters.setName = [args.parentFilters.setName];
         }
-        if (args.parentFilters.variantType) {
-          filters.variant = [args.parentFilters.variantType];
-        }
+      }
+      if (args.parentFilters.variantType) {
+        filters.variant = [args.parentFilters.variantType.toLowerCase()];
       }
 
-      // TODO(BSC-card-checklist): port this to the real endpoint used by
-      // cardlister-server/script-frontend/src/listing-sites/bsc.ts#getBSCCards —
-      // POST {BSC_API_BASE}/search/seller/results with a seller-scoped body.
-      // Blocked on obtaining the current user's BSC sellerId. Leaving the
-      // previous call shape behind a constant so the file compiles; this
-      // function is not exercised by the smoke test and is known-broken.
-      const BSC_LEGACY_CHECKLIST_URL =
-        "https://www.buysportscards.com/seller/bulk-upload/results";
-      const response = await fetch(BSC_LEGACY_CHECKLIST_URL, {
+      // Single call — confirmed live: BSC's /search/bulk-upload/results
+      // ignores `size`/`page` and returns the full filtered result set
+      // in one response. No pagination loop. We pass `size` as a defense
+      // anyway in case behavior changes upstream.
+      //
+      // Hard cap at 5000 cards to stay well under Convex's 8192 array
+      // length limit on action return values. Most sets are ≤1000; the
+      // largest mainstream sets (e.g. Bowman Chrome) are ~600 cards. A
+      // 5000-card response would be surprising and worth investigating.
+      const MAX_CARDS = 5000;
+      const body = {
+        condition: "all",
+        page: 0,
+        size: MAX_CARDS,
+        sort: "default",
+        filters,
+      };
+      const response = await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenResult.token}`,
-        },
-        body: JSON.stringify({
-          condition: "near_mint",
-          currentListings: false,
-          productType: "raw",
-          filters,
-          page: 1,
-          pageSize: 500, // Get as many cards as possible
-        }),
+        headers: bscHeaders(tokenResult.token),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -322,41 +427,76 @@ export const fetchBscChecklist = action({
       }
 
       const data = await response.json();
-      const results = data.results || data.cards || [];
-      const cards: Array<{
-        cardNumber: string;
-        cardName: string;
-        team?: string;
-        platformRef?: string;
-      }> = [];
-
-      for (const result of results) {
-        const cardNumber =
-          result.cardNumber ||
-          result.number ||
-          result.cardNo ||
-          "";
-        const cardName =
-          result.playerName ||
-          result.name ||
-          result.cardName ||
-          result.title ||
-          "";
-
-        if (cardNumber) {
-          cards.push({
-            cardNumber: String(cardNumber),
-            cardName: cardName || `Card #${cardNumber}`,
-            team: result.team || result.teamName,
-            platformRef: result.id || result.productId,
-          });
-        }
+      const results = Array.isArray(data) ? data : [];
+      const rawCards: Record<string, unknown>[] = [];
+      for (const r of results) {
+        if (r && typeof r === "object") rawCards.push(r as Record<string, unknown>);
+        if (rawCards.length >= MAX_CARDS) break;
       }
+
+      console.log(
+        `[fetchBscChecklist] returned=${results.length} kept=${rawCards.length} (bulk-upload catalog)`,
+      );
+      if (results.length >= MAX_CARDS) {
+        console.warn(
+          `[fetchBscChecklist] hit MAX_CARDS=${MAX_CARDS} ceiling — set may be larger than expected.`,
+        );
+      }
+
+      // Map raw → checklist card shape. Bulk-upload row keys are:
+      //   id, setName, players (string), cardNo, playerAttribute,
+      //   playerAttributeDesc, imgFront, imgBack, cardNoOrder,
+      //   cardNoSequence, cardNoSort.
+      // No team, year, sport, features, printRun, autograph, sportlots —
+      // those don't exist on the catalog template.
+      const cards = rawCards
+        .map((r) => {
+          const cardNumberRaw = r.cardNo ?? r.cardNumber ?? r.number;
+          const cardNumber = typeof cardNumberRaw === "string" || typeof cardNumberRaw === "number"
+            ? String(cardNumberRaw).trim()
+            : "";
+          if (!cardNumber) return null;
+
+          // `players` is a single comma- or slash-separated string in
+          // the bulk-upload response. Normalize to a trimmed array.
+          const playersRaw = typeof r.players === "string" ? r.players : "";
+          const players = playersRaw
+            .split(/\s*[/,]\s*/)
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+          const attributes = parsePlayerAttributeTokens(r.playerAttribute);
+          const cardVariation = parseVariationDescription(r.playerAttributeDesc);
+
+          const cardName = players.length
+            ? players.join(" / ")
+            : `Card #${cardNumber}`;
+
+          const platformRefRaw = r.id;
+          const platformRef = typeof platformRefRaw === "string" || typeof platformRefRaw === "number"
+            ? String(platformRefRaw)
+            : undefined;
+
+          return {
+            cardNumber,
+            cardName,
+            team: undefined,
+            teams: undefined,
+            players: players.length ? players : undefined,
+            attributes: attributes.length ? attributes : undefined,
+            printRun: undefined,
+            autographType: undefined,
+            cardVariation,
+            platformRef,
+            sportlotsRef: undefined,
+          };
+        })
+        .filter((c): c is NonNullable<typeof c> => c !== null);
 
       return {
         success: true,
         cards,
-        message: `Found ${cards.length} cards from BSC`,
+        message: `Found ${cards.length} cards from BSC catalog`,
       };
     } catch (error) {
       console.error("[fetchBscChecklist] Error:", error);

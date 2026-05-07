@@ -147,7 +147,50 @@ export const getSiteCredentials = action({
 });
 
 /**
- * Get site token from browser service (internal use only — for Convex adapters).
+ * How close to expiry we treat a token as stale and force a refresh
+ * before handing it back. 5 minutes accounts for clock skew + the
+ * couple of seconds a downstream fetch might take to reach the
+ * marketplace. Without this buffer, getSiteToken happily returns a
+ * token that expires mid-request and produces a confusing 401.
+ */
+const TOKEN_REFRESH_LEEWAY_MS = 5 * 60 * 1000;
+
+/**
+ * Read the raw token + expiresAt from the browser service's secret
+ * store. Returns null on 404 (no creds saved) or any non-OK response.
+ * Internal helper for getSiteToken — does NOT trigger refresh.
+ */
+async function readCachedToken(
+  site: string,
+  userId: string,
+): Promise<{ token: string; expiresAt?: number } | null> {
+  const key = credKey(site, userId);
+  const response = await fetch(`${browserUrl()}/credentials/${key}/token`, {
+    method: "GET",
+    headers: internalHeaders(),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) return null;
+  return (await response.json()) as { token: string; expiresAt?: number };
+}
+
+/**
+ * Get site token, transparently refreshing if the cached token has
+ * expired (or is within `TOKEN_REFRESH_LEEWAY_MS` of expiry).
+ *
+ * This is the single entry point Convex adapters should use to obtain
+ * a marketplace token. The architecture intent: a user signs into
+ * BSC/SportLots once via Profile → Site Credentials, and from then on
+ * fetches "just work" without having to re-click "Test Credentials"
+ * every hour. When the token goes stale, this helper invokes the
+ * site's authenticate action (which calls the browser service's
+ * cached-or-fresh login flow), then re-reads the token. The browser
+ * service's existing logic — validate cached token via the
+ * marketplace's profile endpoint, fall through to Puppeteer on 401 —
+ * means refresh is fast (~300ms) when the token is genuinely fresh
+ * but stored with a wrong expiresAt, and only slow (~10s) on a real
+ * re-auth.
+ *
  * Returns only the token, never username/password.
  */
 export const getSiteToken = action({
@@ -161,29 +204,74 @@ export const getSiteToken = action({
     }),
     v.null(),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ token: string; expiresAt?: number } | null> => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
 
     try {
-      const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}/token`, {
-        method: "GET",
-        headers: internalHeaders(),
-      });
+      const cached = await readCachedToken(args.site, userId);
+      if (!cached) return null;
 
-      if (response.status === 404) return null;
-      if (!response.ok) return null;
+      const isFresh =
+        typeof cached.expiresAt === "number" &&
+        cached.expiresAt > Date.now() + TOKEN_REFRESH_LEEWAY_MS;
+      if (isFresh) return cached;
 
-      return await response.json() as { token: string; expiresAt?: number };
+      // Stale (or unknown expiry) — kick off a re-auth via the site's
+      // own authenticate action. Each site has its own action because
+      // the login flow + post-login bookkeeping (e.g. BSC sellerId
+      // capture) differs per marketplace.
+      const refreshed = await refreshSiteToken(ctx, args.site);
+      if (!refreshed) {
+        // Refresh failed; fall back to the (likely stale) cached
+        // token rather than null — let the caller's 401 path surface
+        // a clear "please re-login" error if the cache really is dead.
+        return cached;
+      }
+
+      const fresh = await readCachedToken(args.site, userId);
+      return fresh ?? cached;
     } catch (error) {
       console.error(`Failed to retrieve token for ${args.site}`);
       return null;
     }
   },
 });
+
+/**
+ * Internal helper — invoke the site's authenticate action to refresh
+ * its token. Returns true on success, false on any failure. Does not
+ * throw. Site list is intentionally explicit (no dynamic dispatch) so
+ * adding a new marketplace requires explicit wiring here — which is
+ * the right place to confirm the new site's auth flow handles cached
+ * tokens properly.
+ */
+async function refreshSiteToken(
+  ctx: { runAction: (ref: any, args: any) => Promise<unknown> },
+  site: string,
+): Promise<boolean> {
+  try {
+    if (site === "buysportscards") {
+      const result = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
+        success: boolean;
+      };
+      return result.success;
+    }
+    if (site === "sportlots") {
+      const result = (await ctx.runAction(api.credentials.authenticateSportlots, {})) as {
+        success: boolean;
+      };
+      return result.success;
+    }
+    console.warn(`[refreshSiteToken] no refresh handler for site: ${site}`);
+    return false;
+  } catch (error) {
+    console.error(`[refreshSiteToken] ${site} refresh threw:`, error);
+    return false;
+  }
+}
 
 /**
  * Delete credentials for a site via browser service.
@@ -376,7 +464,7 @@ export const authenticateBsc = action({
         };
       }
 
-      const loginResult = await response.json() as { success: boolean; message?: string; storeName?: string };
+      const loginResult = await response.json() as { success: boolean; message?: string; storeName?: string; sellerId?: string };
 
       if (!loginResult.success) {
         const detail = loginResult.message || "Login failed";
@@ -389,6 +477,19 @@ export const authenticateBsc = action({
           success: false,
           message: "BSC login failed. Please check your credentials and try again.",
         };
+      }
+
+      // Persist BSC sellerId on the user's profile so subsequent
+      // fetchBscChecklist calls don't have to re-derive it. The browser
+      // service may legitimately return success without sellerId if BSC's
+      // /marketplace/user/profile shape changes — in that case we skip the
+      // upsert and fall back to env-var seller in fetchBscChecklist.
+      if (loginResult.sellerId) {
+        await ctx.runMutation(internal.userProfile.setMarketplaceAccountIdInternal, {
+          userId,
+          site: "buysportscards",
+          accountId: loginResult.sellerId,
+        });
       }
 
       return {

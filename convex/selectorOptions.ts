@@ -250,6 +250,7 @@ export const getAncestorChain = query({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
       }),
+      metadata: metadataValidator,
     }),
   ),
   handler: async (ctx, args) => {
@@ -259,6 +260,7 @@ export const getAncestorChain = query({
       level: Level;
       value: string;
       platformData: { bsc?: string | string[]; sportlots?: string };
+      metadata?: { cardNumberPrefix?: string; isInsert?: boolean; isParallel?: boolean };
     }> = [];
     let currentId: Id<"selectorOptions"> | undefined = args.id;
 
@@ -270,6 +272,7 @@ export const getAncestorChain = query({
         level: option.level,
         value: option.value,
         platformData: option.platformData || {},
+        metadata: option.metadata,
       });
       currentId = option.parentId;
     }
@@ -288,7 +291,18 @@ export const getCardChecklist = query({
       cardNumber: v.string(),
       cardName: v.string(),
       team: v.optional(v.string()),
+      playerIds: v.optional(v.array(v.id("players"))),
+      teamOnCardIds: v.optional(v.array(v.id("teams"))),
       attributes: v.optional(v.array(v.string())),
+      isRookie: v.optional(v.boolean()),
+      isRelic: v.optional(v.boolean()),
+      printRun: v.optional(v.number()),
+      autographType: v.optional(v.string()),
+      cardVariation: v.optional(v.string()),
+      imageUrls: v.optional(v.object({
+        front: v.optional(v.string()),
+        back: v.optional(v.string()),
+      })),
       platformData: v.object({
         bsc: v.optional(v.string()),
         sportlots: v.optional(v.string()),
@@ -472,21 +486,35 @@ export const addCustomSelectorOption = mutation({
   },
 });
 
+/**
+ * Validator for the rich per-card payload that storeCardChecklist accepts.
+ * Mirrors the shape returned by fetchBscChecklist + fetchSportLotsChecklist
+ * after reconciliation. Player/team strings have already been resolved to
+ * IDs by the time this runs (commitCardChecklist handles findOrCreate and
+ * passes IDs in here).
+ */
+const richChecklistCardValidator = v.object({
+  cardNumber: v.string(),
+  cardName: v.string(),
+  team: v.optional(v.string()),
+  playerIds: v.optional(v.array(v.id("players"))),
+  teamOnCardIds: v.optional(v.array(v.id("teams"))),
+  attributes: v.optional(v.array(v.string())),
+  isRookie: v.optional(v.boolean()),
+  isRelic: v.optional(v.boolean()),
+  printRun: v.optional(v.number()),
+  autographType: v.optional(v.string()),
+  cardVariation: v.optional(v.string()),
+  platformData: v.object({
+    bsc: v.optional(v.string()),
+    sportlots: v.optional(v.string()),
+  }),
+});
+
 export const storeCardChecklist = mutation({
   args: {
     selectorOptionId: v.id("selectorOptions"),
-    cards: v.array(
-      v.object({
-        cardNumber: v.string(),
-        cardName: v.string(),
-        team: v.optional(v.string()),
-        attributes: v.optional(v.array(v.string())),
-        platformData: v.object({
-          bsc: v.optional(v.string()),
-          sportlots: v.optional(v.string()),
-        }),
-      }),
-    ),
+    cards: v.array(richChecklistCardValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -517,7 +545,7 @@ export const storeCardChecklist = mutation({
 
       const existing = existingByNumber.get(card.cardNumber);
       if (existing) {
-        // Merge platform data
+        // Merge platform data — keep prior IDs if the new payload omits one side
         const mergedPlatformData = {
           ...existing.platformData,
           ...card.platformData,
@@ -525,7 +553,14 @@ export const storeCardChecklist = mutation({
         await ctx.db.patch(existing._id, {
           cardName: card.cardName,
           team: card.team,
+          playerIds: card.playerIds,
+          teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
+          isRookie: card.isRookie,
+          isRelic: card.isRelic,
+          printRun: card.printRun,
+          autographType: card.autographType,
+          cardVariation: card.cardVariation,
           platformData: mergedPlatformData,
           sortOrder: i,
           lastUpdated: Date.now(),
@@ -536,7 +571,14 @@ export const storeCardChecklist = mutation({
           cardNumber: card.cardNumber,
           cardName: card.cardName,
           team: card.team,
+          playerIds: card.playerIds,
+          teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
+          isRookie: card.isRookie,
+          isRelic: card.isRelic,
+          printRun: card.printRun,
+          autographType: card.autographType,
+          cardVariation: card.cardVariation,
           platformData: card.platformData,
           sortOrder: i,
           lastUpdated: Date.now(),
@@ -1025,10 +1067,17 @@ export const resetSetBuilderData = action({
   returns: v.object({
     selectorOptionsDeleted: v.number(),
     cardChecklistDeleted: v.number(),
+    playersDeleted: v.number(),
+    teamsDeleted: v.number(),
   }),
   handler: async (
     ctx,
-  ): Promise<{ selectorOptionsDeleted: number; cardChecklistDeleted: number }> => {
+  ): Promise<{
+    selectorOptionsDeleted: number;
+    cardChecklistDeleted: number;
+    playersDeleted: number;
+    teamsDeleted: number;
+  }> => {
     // Auth and env-var gate are enforced in the internal mutations called
     // below — keeping the destructive guard as close to the actual delete
     // as possible. If either check fails on the first batch, the loop
@@ -1054,7 +1103,33 @@ export const resetSetBuilderData = action({
       if (!result.hasMore) break;
     }
 
-    return { selectorOptionsDeleted, cardChecklistDeleted };
+    // Players + teams are populated alongside cardChecklist by the
+    // commitCardChecklist flow. Wipe them too so subsequent dev/test
+    // runs see a clean "unknown entities" state and the
+    // UnknownEntitiesDialog re-opens for confirmation. Without this,
+    // E2E flows that rely on the dialog appearing fail because the
+    // entities from prior runs are already known.
+    let playersDeleted = 0;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.selectorOptions.resetPlayersBatch,
+        {},
+      );
+      playersDeleted += result.deleted;
+      if (!result.hasMore) break;
+    }
+
+    let teamsDeleted = 0;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.selectorOptions.resetTeamsBatch,
+        {},
+      );
+      teamsDeleted += result.deleted;
+      if (!result.hasMore) break;
+    }
+
+    return { selectorOptionsDeleted, cardChecklistDeleted, playersDeleted, teamsDeleted };
   },
 });
 
@@ -1103,6 +1178,58 @@ export const resetCardChecklistBatch = internalMutation({
       );
     }
     const rows = await ctx.db.query("cardChecklist").take(RESET_BATCH_SIZE);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return { deleted: rows.length, hasMore: rows.length === RESET_BATCH_SIZE };
+  },
+});
+
+/**
+ * Internal: delete up to RESET_BATCH_SIZE rows from players.
+ * Used by resetSetBuilderData (action) in a loop until no rows remain.
+ */
+export const resetPlayersBatch = internalMutation({
+  args: {},
+  returns: v.object({
+    deleted: v.number(),
+    hasMore: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
+      throw new Error(
+        "Reset Set Builder Data is not enabled in this environment. " +
+          "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
+      );
+    }
+    const rows = await ctx.db.query("players").take(RESET_BATCH_SIZE);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return { deleted: rows.length, hasMore: rows.length === RESET_BATCH_SIZE };
+  },
+});
+
+/**
+ * Internal: delete up to RESET_BATCH_SIZE rows from teams.
+ * Used by resetSetBuilderData (action) in a loop until no rows remain.
+ */
+export const resetTeamsBatch = internalMutation({
+  args: {},
+  returns: v.object({
+    deleted: v.number(),
+    hasMore: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
+      throw new Error(
+        "Reset Set Builder Data is not enabled in this environment. " +
+          "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
+      );
+    }
+    const rows = await ctx.db.query("teams").take(RESET_BATCH_SIZE);
     for (const row of rows) {
       await ctx.db.delete(row._id);
     }
@@ -1613,6 +1740,144 @@ export const syncSetsAcrossManufacturers = action({
   },
 });
 
+/**
+ * Lowercase + strip punctuation + token-sort. Same shape as
+ * normalizePlayerName/normalizeTeamName in convex/players.ts and
+ * convex/teams.ts — kept inline here to avoid pulling those modules into
+ * the action runtime (Convex bundles per-file). Used both for fuzzy
+ * matching during reconciliation and for matching against the existing
+ * players/teams tables.
+ */
+function normalizeName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[.,'"`’]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+/**
+ * Jaro similarity between two strings. Returns 0..1. Implementation
+ * follows the canonical algorithm: count matching characters within a
+ * window of floor(max(|a|,|b|)/2)-1 positions, then count transpositions.
+ */
+function jaroSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (!a.length || !b.length) return 0;
+
+  const matchDistance = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1);
+  const aMatches = new Array(a.length).fill(false);
+  const bMatches = new Array(b.length).fill(false);
+  let matches = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    const start = Math.max(0, i - matchDistance);
+    const end = Math.min(i + matchDistance + 1, b.length);
+    for (let j = start; j < end; j++) {
+      if (bMatches[j] || a[i] !== b[j]) continue;
+      aMatches[i] = true;
+      bMatches[j] = true;
+      matches++;
+      break;
+    }
+  }
+  if (!matches) return 0;
+
+  let transpositions = 0;
+  let k = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (!aMatches[i]) continue;
+    while (!bMatches[k]) k++;
+    if (a[i] !== b[k]) transpositions++;
+    k++;
+  }
+  transpositions /= 2;
+
+  return (
+    (matches / a.length + matches / b.length + (matches - transpositions) / matches) / 3
+  );
+}
+
+/**
+ * Jaro-Winkler — Jaro plus a prefix bonus that rewards strings sharing
+ * an initial prefix. Used for player-name reconciliation across BSC and
+ * SportLots when card numbers don't match (parallels, inserts with
+ * different numbering schemes between marketplaces).
+ *
+ * Threshold of 0.92 picks up "Mike Trout" ≈ "Michael Trout" while
+ * keeping "Mike Trout" and "Mike Stanton" distinct.
+ */
+function jaroWinkler(a: string, b: string): number {
+  const jaro = jaroSimilarity(a, b);
+  let prefix = 0;
+  const max = Math.min(4, a.length, b.length);
+  for (let i = 0; i < max; i++) {
+    if (a[i] === b[i]) prefix++;
+    else break;
+  }
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
+
+interface ReconciledCard {
+  cardNumber: string;
+  cardName: string;
+  team?: string;
+  teams?: string[];
+  players?: string[];
+  attributes?: string[];
+  isRookie?: boolean;
+  isRelic?: boolean;
+  printRun?: number;
+  autographType?: string;
+  cardVariation?: string;
+  platformData: { bsc?: string; sportlots?: string };
+  /**
+   * Reconciliation marker for cards that landed on only one side. UI
+   * surfaces these as needing human review; reconciled cards (from both
+   * sides) carry no such tag.
+   */
+  unmatched?: "bsc" | "sl";
+}
+
+const previewCardValidator = v.object({
+  cardNumber: v.string(),
+  cardName: v.string(),
+  team: v.optional(v.string()),
+  teams: v.optional(v.array(v.string())),
+  players: v.optional(v.array(v.string())),
+  attributes: v.optional(v.array(v.string())),
+  isRookie: v.optional(v.boolean()),
+  isRelic: v.optional(v.boolean()),
+  printRun: v.optional(v.number()),
+  autographType: v.optional(v.string()),
+  cardVariation: v.optional(v.string()),
+  platformData: v.object({
+    bsc: v.optional(v.string()),
+    sportlots: v.optional(v.string()),
+  }),
+  unmatched: v.optional(v.union(v.literal("bsc"), v.literal("sl"))),
+});
+
+/**
+ * Action — fetch reconciled checklist preview without persisting.
+ *
+ * Pipeline:
+ *   1. Resolve ancestor chain → sport, year, set/variant filters
+ *   2. Fetch BSC + SL in parallel; tolerate single-side failure
+ *   3. Reconcile by cardNumber (with cardNumberPrefix from selectorOption
+ *      metadata applied), then BSC→SL cross-ref via BSC.sportlotsRef,
+ *      then Jaro-Winkler ≥ 0.92 fuzzy match on player names
+ *   4. Bucket player/team names against existing players/teams tables
+ *      → return `unknownPlayers` / `unknownTeams` for the dialog
+ *
+ * Persistence happens in commitCardChecklist after the user confirms
+ * unknowns. Splitting fetch/commit lets the dialog gate entity creation
+ * — per the explicit requirement that the user confirm new players/
+ * teams before they hit the database.
+ */
 export const fetchCardChecklist = action({
   args: {
     selectorOptionId: v.id("selectorOptions"),
@@ -1620,11 +1885,35 @@ export const fetchCardChecklist = action({
   returns: v.object({
     success: v.boolean(),
     message: v.string(),
-    count: v.number(),
+    sport: v.optional(v.string()),
+    cards: v.array(previewCardValidator),
+    unknownPlayers: v.array(v.string()),
+    unknownTeams: v.array(v.string()),
   }),
-  handler: async (ctx, args): Promise<{ success: boolean; message: string; count: number }> => {
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    message: string;
+    sport?: string;
+    cards: Array<{
+      cardNumber: string;
+      cardName: string;
+      team?: string;
+      teams?: string[];
+      players?: string[];
+      attributes?: string[];
+      isRookie?: boolean;
+      isRelic?: boolean;
+      printRun?: number;
+      autographType?: string;
+      cardVariation?: string;
+      platformData: { bsc?: string; sportlots?: string };
+      unmatched?: "bsc" | "sl";
+    }>;
+    unknownPlayers: string[];
+    unknownTeams: string[];
+  }> => {
     try {
-      // Get the ancestor chain to build parent filters
+      // Resolve ancestor chain → filter map + sport + cardNumberPrefix
       const chain = await ctx.runQuery(
         api.selectorOptions.getAncestorChain,
         { id: args.selectorOptionId },
@@ -1633,9 +1922,15 @@ export const fetchCardChecklist = action({
       const filters: Record<string, string> = {};
       const slPlatformFilters: Record<string, string> = {};
       const bscPlatformFilters: Record<string, string[]> = {};
+      let sport: string | undefined;
+      let cardNumberPrefix: string | undefined;
 
       for (const ancestor of chain) {
         filters[ancestor.level] = ancestor.value;
+        if (ancestor.level === "sport") sport = ancestor.value.toLowerCase();
+        if (ancestor.metadata?.cardNumberPrefix) {
+          cardNumberPrefix = ancestor.metadata.cardNumberPrefix;
+        }
         if (ancestor.platformData?.sportlots) {
           slPlatformFilters[ancestor.level] = ancestor.platformData.sportlots;
         }
@@ -1646,100 +1941,401 @@ export const fetchCardChecklist = action({
       }
 
       console.log(
-        `[fetchCardChecklist] Fetching checklist for:`,
-        filters,
-        `SL slugs:`, slPlatformFilters,
-        `BSC slugs:`, bscPlatformFilters,
+        `[fetchCardChecklist] sport=${sport} prefix=${cardNumberPrefix}`,
+        `filters:`, filters,
       );
 
-      const allCards: Array<{
+      const [slResult, bscResult] = await Promise.all([
+        ctx.runAction(api.adapters.sportlots.fetchSportLotsChecklist, {
+          parentFilters: filters,
+          platformFilters: slPlatformFilters,
+        }).catch((err) => {
+          console.error(`[fetchCardChecklist] SportLots error:`, err);
+          return { success: false, cards: [] as any[], message: String(err) };
+        }),
+        ctx.runAction(api.adapters.buysportscards.fetchBscChecklist, {
+          parentFilters: filters,
+          platformFilters: bscPlatformFilters,
+        }).catch((err) => {
+          console.error(`[fetchCardChecklist] BSC error:`, err);
+          return { success: false, cards: [] as any[], message: String(err) };
+        }),
+      ]);
+
+      const slCards = (slResult.success ? slResult.cards : []) as Array<{
         cardNumber: string;
         cardName: string;
         team?: string;
+        teams?: string[];
+        players?: string[];
         attributes?: string[];
-        platformData: { bsc?: string; sportlots?: string };
-      }> = [];
+        printRun?: number;
+        autographType?: string;
+        cardVariation?: string;
+        platformRef?: string;
+        sportlotsRef?: string;
+      }>;
+      const bscCards = (bscResult.success ? bscResult.cards : []) as typeof slCards;
 
-      // Fetch from SportLots
-      try {
-        const slCards = await ctx.runAction(
-          api.adapters.sportlots.fetchSportLotsChecklist,
-          { parentFilters: filters, platformFilters: slPlatformFilters },
-        );
-        if (slCards.success && slCards.cards) {
-          allCards.push(
-            ...slCards.cards.map((c: { cardNumber: string; cardName: string; team?: string; platformRef?: string }) => ({
-              cardNumber: c.cardNumber,
-              cardName: c.cardName,
-              team: c.team,
-              platformData: { sportlots: c.platformRef },
-            })),
-          );
-        }
-      } catch (error) {
-        console.error(`[fetchCardChecklist] SportLots error:`, error);
+      // Index SL by both cardNumber and (after prefix-strip) for prefix-aware
+      // BSC matching, AND by sportlotsRef so BSC's built-in cross-reference
+      // can short-circuit fuzzy matching.
+      const slByNumber = new Map<string, typeof slCards[0]>();
+      const slByRef = new Map<string, typeof slCards[0]>();
+      for (const c of slCards) {
+        slByNumber.set(c.cardNumber, c);
+        if (c.sportlotsRef) slByRef.set(c.sportlotsRef, c);
       }
 
-      // Fetch from BSC
-      try {
-        const bscCards = await ctx.runAction(
-          api.adapters.buysportscards.fetchBscChecklist,
-          { parentFilters: filters, platformFilters: bscPlatformFilters },
-        );
-        if (bscCards.success && bscCards.cards) {
-          for (const card of bscCards.cards) {
-            // Try to merge with existing by card number
-            const existing = allCards.find(
-              (c) => c.cardNumber === card.cardNumber,
-            );
-            if (existing) {
-              existing.platformData.bsc = card.platformRef;
-              if (!existing.cardName && card.cardName) {
-                existing.cardName = card.cardName;
-              }
-            } else {
-              allCards.push({
-                cardNumber: card.cardNumber,
-                cardName: card.cardName,
-                team: card.team,
-                platformData: { bsc: card.platformRef },
-              });
+      const out: ReconciledCard[] = [];
+      const claimedSlNumbers = new Set<string>();
+
+      // 1. Walk BSC, attach matching SL data
+      for (const bsc of bscCards) {
+        const stripped = cardNumberPrefix && bsc.cardNumber.startsWith(cardNumberPrefix)
+          ? bsc.cardNumber.slice(cardNumberPrefix.length)
+          : bsc.cardNumber;
+
+        let sl: typeof slCards[0] | undefined =
+          (bsc.sportlotsRef && slByRef.get(bsc.sportlotsRef))
+          || slByNumber.get(bsc.cardNumber)
+          || slByNumber.get(stripped);
+
+        // 2. Fuzzy fallback: pick the unclaimed SL card whose first player
+        //    name is most similar to BSC's first player. Threshold 0.92.
+        if (!sl && bsc.players?.[0]) {
+          const target = normalizeName(bsc.players[0]);
+          let best: { card: typeof slCards[0]; score: number } | null = null;
+          for (const candidate of slCards) {
+            if (claimedSlNumbers.has(candidate.cardNumber)) continue;
+            const candName = candidate.cardName ? normalizeName(candidate.cardName) : "";
+            if (!candName) continue;
+            const score = jaroWinkler(target, candName);
+            if (score >= 0.92 && (!best || score > best.score)) {
+              best = { card: candidate, score };
             }
           }
+          if (best) sl = best.card;
         }
-      } catch (error) {
-        console.error(`[fetchCardChecklist] BSC error:`, error);
+
+        if (sl) claimedSlNumbers.add(sl.cardNumber);
+
+        const attributes = Array.from(new Set([
+          ...(bsc.attributes ?? []),
+          ...(sl?.attributes ?? []),
+        ]));
+        const printRun = bsc.printRun ?? sl?.printRun;
+        const players = bsc.players ?? (sl?.players ?? undefined);
+        const teamsArr = bsc.teams ?? (sl?.teams ?? undefined);
+
+        out.push({
+          cardNumber: bsc.cardNumber,
+          cardName: bsc.cardName || sl?.cardName || `Card #${bsc.cardNumber}`,
+          team: bsc.team ?? sl?.team,
+          teams: teamsArr,
+          players,
+          attributes: attributes.length ? attributes : undefined,
+          isRookie: attributes.includes("RC") || undefined,
+          isRelic: attributes.includes("RELIC") || undefined,
+          printRun,
+          autographType: bsc.autographType ?? sl?.autographType,
+          cardVariation: bsc.cardVariation,
+          platformData: {
+            bsc: bsc.platformRef,
+            sportlots: sl?.platformRef,
+          },
+        });
       }
 
-      if (allCards.length === 0) {
-        return {
-          success: true,
-          message: "No cards found from marketplace APIs",
-          count: 0,
-        };
+      // 3. SL cards never claimed by BSC: emit as unmatched-bsc rows so
+      //    a human can review (they may be valid cards BSC's seller catalog
+      //    doesn't carry, or genuine numbering mismatches we should fix).
+      for (const sl of slCards) {
+        if (claimedSlNumbers.has(sl.cardNumber)) continue;
+        out.push({
+          cardNumber: sl.cardNumber,
+          cardName: sl.cardName || `Card #${sl.cardNumber}`,
+          team: sl.team,
+          teams: sl.teams,
+          players: sl.players,
+          attributes: sl.attributes,
+          isRookie: sl.attributes?.includes("RC") || undefined,
+          isRelic: sl.attributes?.includes("RELIC") || undefined,
+          printRun: sl.printRun,
+          autographType: sl.autographType,
+          platformData: { sportlots: sl.platformRef },
+          unmatched: "bsc",
+        });
       }
 
-      // Store via mutation
-      const result: { success: boolean; count: number } = await ctx.runMutation(
-        api.selectorOptions.storeCardChecklist,
-        {
-          selectorOptionId: args.selectorOptionId,
-          cards: allCards,
-        },
+      // 4. Bucket unique player + team names against existing tables.
+      //    Skip bucketing entirely if we can't infer sport (sets without
+      //    a sport ancestor — shouldn't happen but guard anyway).
+      const unknownPlayers: string[] = [];
+      const unknownTeams: string[] = [];
+      if (sport) {
+        const playerSet = new Set<string>();
+        const teamSet = new Set<string>();
+        for (const c of out) {
+          for (const p of c.players ?? []) if (p.trim()) playerSet.add(p.trim());
+          for (const t of c.teams ?? []) if (t.trim()) teamSet.add(t.trim());
+          if (c.team && c.team.trim() && !c.teams?.length) teamSet.add(c.team.trim());
+        }
+
+        for (const name of playerSet) {
+          const existing = await ctx.runQuery(api.players.findByNameAndSport, { name, sport });
+          if (!existing) unknownPlayers.push(name);
+        }
+        for (const name of teamSet) {
+          const existing = await ctx.runQuery(api.teams.findByNameAndSport, { name, sport });
+          if (!existing) unknownTeams.push(name);
+        }
+      }
+
+      console.log(
+        `[fetchCardChecklist] reconciled ${out.length} cards`,
+        `(${unknownPlayers.length} new players, ${unknownTeams.length} new teams)`,
       );
 
       return {
-        success: result.success,
-        message: `Fetched ${result.count} cards from marketplaces`,
-        count: result.count,
+        success: true,
+        message: `Found ${out.length} cards${unknownPlayers.length || unknownTeams.length ? `; ${unknownPlayers.length} new players + ${unknownTeams.length} new teams need confirmation` : ""}`,
+        sport,
+        cards: out,
+        unknownPlayers,
+        unknownTeams,
       };
     } catch (error) {
       console.error(`[fetchCardChecklist] Error:`, error);
       return {
         success: false,
         message: `Failed to fetch checklist: ${error instanceof Error ? error.message : "Unknown error"}`,
-        count: 0,
+        cards: [],
+        unknownPlayers: [],
+        unknownTeams: [],
       };
     }
+  },
+});
+
+/**
+ * Mutation — commit a fetched checklist preview. Confirmed unknowns are
+ * created via findOrCreate (player/team), card playerIds/teamOnCardIds
+ * are resolved, the checklist is persisted, and Wikidata enrichment is
+ * scheduled in the background for newly created entities.
+ *
+ * confirmedNewPlayers / confirmedNewTeams: subset of unknownPlayers/
+ * unknownTeams the user approved in the dialog. Skipped names are kept
+ * as free-text on the card (`team`) and DON'T get an entity row.
+ */
+export const commitCardChecklist = mutation({
+  args: {
+    selectorOptionId: v.id("selectorOptions"),
+    sport: v.string(),
+    cards: v.array(previewCardValidator),
+    confirmedNewPlayers: v.array(v.string()),
+    confirmedNewTeams: v.array(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    count: v.number(),
+    createdPlayerIds: v.array(v.id("players")),
+    createdTeamIds: v.array(v.id("teams")),
+  }),
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    count: number;
+    createdPlayerIds: Array<Id<"players">>;
+    createdTeamIds: Array<Id<"teams">>;
+  }> => {
+    await requireAdmin(ctx);
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Helper — same normalization as players.ts/teams.ts
+    const norm = (s: string) =>
+      s.toLowerCase()
+        .replace(/[.,'"`’]/g, "")
+        .replace(/[^a-z0-9\s-]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort()
+        .join(" ");
+
+    // Resolve every player/team name appearing on any card to an Id where
+    // possible. Build name → Id maps so the per-card resolution below is
+    // O(1) instead of repeated DB lookups.
+    const allPlayerNames = new Set<string>();
+    const allTeamNames = new Set<string>();
+    for (const c of args.cards) {
+      for (const p of c.players ?? []) if (p.trim()) allPlayerNames.add(p.trim());
+      for (const t of c.teams ?? []) if (t.trim()) allTeamNames.add(t.trim());
+      if (c.team && c.team.trim() && !c.teams?.length) allTeamNames.add(c.team.trim());
+    }
+
+    const confirmedPlayersNorm = new Set(args.confirmedNewPlayers.map(norm));
+    const confirmedTeamsNorm = new Set(args.confirmedNewTeams.map(norm));
+
+    const playerIdByName = new Map<string, Id<"players">>();
+    const createdPlayerIds: Array<Id<"players">> = [];
+    for (const name of allPlayerNames) {
+      const normalized = norm(name);
+      const matches = await ctx.db
+        .query("players")
+        .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", normalized))
+        .collect();
+      const existing = matches.find((p) => p.primarySport === args.sport);
+      if (existing) {
+        playerIdByName.set(name, existing._id);
+      } else if (confirmedPlayersNorm.has(normalized)) {
+        const id = await ctx.db.insert("players", {
+          name: name.trim(),
+          nameNormalized: normalized,
+          primarySport: args.sport,
+          createdByUserId: userId,
+          lastUpdated: Date.now(),
+        });
+        playerIdByName.set(name, id);
+        createdPlayerIds.push(id);
+      }
+      // else: user skipped this name — leave unresolved; card keeps free-text
+    }
+
+    const teamIdByName = new Map<string, Id<"teams">>();
+    const createdTeamIds: Array<Id<"teams">> = [];
+    for (const name of allTeamNames) {
+      const normalized = norm(name);
+      const matches = await ctx.db
+        .query("teams")
+        .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", normalized))
+        .collect();
+      const existing = matches.find((t) => t.sport === args.sport);
+      if (existing) {
+        teamIdByName.set(name, existing._id);
+      } else if (confirmedTeamsNorm.has(normalized)) {
+        const id = await ctx.db.insert("teams", {
+          name: name.trim(),
+          nameNormalized: normalized,
+          sport: args.sport,
+          lastUpdated: Date.now(),
+        });
+        teamIdByName.set(name, id);
+        createdTeamIds.push(id);
+      }
+    }
+
+    // Resolve per-card playerIds / teamOnCardIds. Cards whose names are
+    // all skipped end up with empty arrays (left undefined).
+    const richCards = args.cards.map((c) => {
+      const playerIds: Array<Id<"players">> = [];
+      for (const p of c.players ?? []) {
+        const id = playerIdByName.get(p.trim());
+        if (id) playerIds.push(id);
+      }
+      const teamOnCardIds: Array<Id<"teams">> = [];
+      const teamSources = c.teams?.length ? c.teams : c.team ? [c.team] : [];
+      for (const t of teamSources) {
+        const id = teamIdByName.get(t.trim());
+        if (id) teamOnCardIds.push(id);
+      }
+      return {
+        cardNumber: c.cardNumber,
+        cardName: c.cardName,
+        team: c.team,
+        playerIds: playerIds.length ? playerIds : undefined,
+        teamOnCardIds: teamOnCardIds.length ? teamOnCardIds : undefined,
+        attributes: c.unmatched
+          ? Array.from(new Set([...(c.attributes ?? []), `unmatched-${c.unmatched}`]))
+          : c.attributes,
+        isRookie: c.isRookie,
+        isRelic: c.isRelic,
+        printRun: c.printRun,
+        autographType: c.autographType,
+        cardVariation: c.cardVariation,
+        platformData: c.platformData,
+      };
+    });
+
+    // Same delete-stale-rows behavior as before, inlined here so we can
+    // keep the rich-card persistence path under a single mutation entry.
+    const existingCards = await ctx.db
+      .query("cardChecklist")
+      .withIndex("by_selector_option", (q) =>
+        q.eq("selectorOptionId", args.selectorOptionId),
+      )
+      .collect();
+    const existingByNumber = new Map<string, typeof existingCards[0]>();
+    for (const card of existingCards) existingByNumber.set(card.cardNumber, card);
+    const processedNumbers = new Set<string>();
+
+    for (let i = 0; i < richCards.length; i++) {
+      const card = richCards[i];
+      processedNumbers.add(card.cardNumber);
+      const existing = existingByNumber.get(card.cardNumber);
+      if (existing) {
+        const mergedPlatformData = {
+          ...existing.platformData,
+          ...card.platformData,
+        };
+        await ctx.db.patch(existing._id, {
+          cardName: card.cardName,
+          team: card.team,
+          playerIds: card.playerIds,
+          teamOnCardIds: card.teamOnCardIds,
+          attributes: card.attributes,
+          isRookie: card.isRookie,
+          isRelic: card.isRelic,
+          printRun: card.printRun,
+          autographType: card.autographType,
+          cardVariation: card.cardVariation,
+          platformData: mergedPlatformData,
+          sortOrder: i,
+          lastUpdated: Date.now(),
+        });
+      } else {
+        await ctx.db.insert("cardChecklist", {
+          selectorOptionId: args.selectorOptionId,
+          cardNumber: card.cardNumber,
+          cardName: card.cardName,
+          team: card.team,
+          playerIds: card.playerIds,
+          teamOnCardIds: card.teamOnCardIds,
+          attributes: card.attributes,
+          isRookie: card.isRookie,
+          isRelic: card.isRelic,
+          printRun: card.printRun,
+          autographType: card.autographType,
+          cardVariation: card.cardVariation,
+          platformData: card.platformData,
+          sortOrder: i,
+          lastUpdated: Date.now(),
+        });
+      }
+    }
+
+    for (const existing of existingCards) {
+      if (!processedNumbers.has(existing.cardNumber) && !existing.isCustom) {
+        await ctx.db.delete(existing._id);
+      }
+    }
+
+    // Schedule Wikidata enrichment as a single chained queue rather than
+    // N parallel actions. processEnrichmentQueue serializes requests
+    // globally (one entity at a time, with INTER_ENTITY_DELAY_MS between
+    // each) so a 300-player fetch doesn't burst-429 Wikidata.
+    if (createdPlayerIds.length > 0 || createdTeamIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.adapters.wikidata.processEnrichmentQueue,
+        { playerIds: createdPlayerIds, teamIds: createdTeamIds },
+      );
+    }
+
+    return {
+      success: true,
+      count: richCards.length,
+      createdPlayerIds,
+      createdTeamIds,
+    };
   },
 });

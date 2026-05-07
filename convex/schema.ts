@@ -25,6 +25,11 @@ export default defineSchema({
       hasCredentials: v.boolean(),
       lastUpdated: v.optional(v.string()),
     }))),
+    // Per-marketplace account identifiers captured at login time so callers
+    // (e.g. fetchBscChecklist) don't have to re-derive them on every request.
+    marketplaceAccountIds: v.optional(v.object({
+      bscSellerId: v.optional(v.string()),
+    })),
     preferences: v.optional(v.object({
       defaultSport: v.optional(v.string()),
       defaultYear: v.optional(v.number()),
@@ -64,13 +69,45 @@ export default defineSchema({
     .index("by_value", ["value"])
     .index("by_level_and_parent", ["level", "parentId"]),
 
-  // Card Checklist - stores individual cards within a set variant
+  // Card Checklist - stores individual cards within a set variant.
+  // Carries enough metadata to drive an eBay Sell Inventory API listing
+  // without re-fetching from marketplaces. Inventory-copy fields (grade,
+  // condition, cert #) belong on a future cardInventory table — NOT here.
   cardChecklist: defineTable({
     selectorOptionId: v.id("selectorOptions"), // Points to variant-level option
     cardNumber: v.string(),
     cardName: v.string(),
+    // Free-text fallback retained for legacy rows + display when no team
+    // entity is linked yet. Going forward, prefer teamOnCardIds.
     team: v.optional(v.string()),
-    attributes: v.optional(v.array(v.string())), // ["RC", "AU", "SP"]
+    // Many-to-many links to entity tables. Multi-player cards (dual autos,
+    // checklist tickets) carry multiple playerIds. teamOnCardIds is the
+    // team(s) printed on the card — independent of players[].teamYears,
+    // which can drift in the offseason before sets are released.
+    playerIds: v.optional(v.array(v.id("players"))),
+    teamOnCardIds: v.optional(v.array(v.id("teams"))),
+    // De-duped union of BSC playerAttribute[] + BSC features[] + variant
+    // metadata. Tokens: ["RC","AU","RELIC","SP","SSP","NUM",...]. Drives
+    // both the eBay Features aspect and the boolean derivations below.
+    attributes: v.optional(v.array(v.string())),
+    // Boolean derivations from attributes — denormalized for query speed.
+    isRookie: v.optional(v.boolean()),
+    isRelic: v.optional(v.boolean()),
+    // Numbered card print run (e.g. /99). Derived from BSC printRun or
+    // set-level metadata; absent on unnumbered cards.
+    printRun: v.optional(v.number()),
+    // Autograph signal: presence of autographType implies the card is
+    // autographed. Values: "On-Card" / "Sticker" / "Cut".
+    autographType: v.optional(v.string()),
+    // BSC variantName: "Gold", "Refractor", "/199", etc. Used as eBay
+    // Parallel/Variety aspect tail and for title generation.
+    cardVariation: v.optional(v.string()),
+    // User-uploaded scans only — we do NOT mirror BSC image URLs into our
+    // schema (their CDN, their quotas). Empty at fetch time.
+    imageUrls: v.optional(v.object({
+      front: v.optional(v.string()),
+      back: v.optional(v.string()),
+    })),
     platformData: v.object({
       bsc: v.optional(v.string()),
       sportlots: v.optional(v.string()),
@@ -81,6 +118,52 @@ export default defineSchema({
   })
     .index("by_selector_option", ["selectorOptionId"])
     .index("by_selector_option_and_number", ["selectorOptionId", "cardNumber"]),
+
+  // Players — first-class entity. Created from BSC `players[]` / SL desc
+  // parse / user input. Enriched async from Wikidata SPARQL after user
+  // confirmation in the UnknownEntitiesDialog.
+  players: defineTable({
+    name: v.string(),
+    // lowercase + token-sort dedup key. Built by normalizePlayerName().
+    nameNormalized: v.string(),
+    primarySport: v.string(),
+    // Career teams from Wikidata P54 with P580/P582 qualifiers. teamId
+    // points at our teams table once the team is created/known.
+    teamYears: v.optional(v.array(v.object({
+      teamId: v.id("teams"),
+      fromYear: v.number(),
+      toYear: v.optional(v.number()),
+    }))),
+    isHallOfFame: v.optional(v.boolean()),
+    externalIds: v.optional(v.object({
+      wikidataId: v.optional(v.string()), // e.g. "Q123456"
+    })),
+    createdByUserId: v.optional(v.string()),
+    lastUpdated: v.number(),
+  })
+    .index("by_name_normalized", ["nameNormalized"])
+    .index("by_sport", ["primarySport"]),
+
+  // Teams — first-class entity. Modeled with city + yearsActive to support
+  // defunct franchises (Expos → Nationals, SuperSonics, etc.) since vintage
+  // sets reference teams that no longer exist.
+  teams: defineTable({
+    name: v.string(),
+    nameNormalized: v.string(),
+    sport: v.string(),
+    league: v.optional(v.string()),
+    city: v.optional(v.string()),
+    yearsActive: v.optional(v.object({
+      from: v.number(),
+      to: v.optional(v.number()),
+    })),
+    externalIds: v.optional(v.object({
+      wikidataId: v.optional(v.string()),
+    })),
+    lastUpdated: v.number(),
+  })
+    .index("by_name_normalized", ["nameNormalized"])
+    .index("by_sport", ["sport"]),
 
   // Set Selections - stores user's selected set parameters
   setSelections: defineTable({
