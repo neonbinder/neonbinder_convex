@@ -307,13 +307,15 @@ tags:
 - assertVisible: "No cards in this checklist yet."
 - tapOn: "Fetch from Marketplaces"
 
+# NOTE: "Fetching..." is NOT asserted here. When BSC credentials are absent
+# and SL has no set mapping for this custom-entry path, both platforms return
+# instantly with empty arrays — the fetch completes before Maestro can assert
+# the transient "Fetching..." state. We go straight to the completion assertion.
+# The screenshot at failure showed "Saved 0 cards." already rendered when the
+# "Fetching..." wait ran — confirmed the fetch was instant.
 - extendedWaitUntil:
-    visible: "Fetching..."
-    timeout: 10000
-
-# Fetch completes: BSC absent → 0 BSC cards; SL no set mapping → 0 SL cards.
-- extendedWaitUntil:
-    notVisible: "Fetching..."
+    visible:
+      text: ".*Saved 0 cards.*"
     timeout: 30000
 
 # ============================================================
