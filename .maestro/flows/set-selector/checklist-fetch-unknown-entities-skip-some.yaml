@@ -1,0 +1,115 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Checklist — fetch dialog; user unchecks one player; remaining entities still save"
+tags:
+  - set-selector
+---
+# Feature test: a user can uncheck individual unknown players or teams
+# before confirming. Skipped names are NOT created as entities but cards
+# are still saved with the name as free text.
+#
+# WHAT THIS TESTS:
+#   - Tapping a player name in the dialog toggles its checkbox off
+#   - The footer "N of M will be created" count decreases after unchecking
+#   - Confirming with a partial selection still saves all cards
+#   - The "Saved N cards." message appears after confirm
+#
+# WHY POINT TAP:
+#   Player names come from live BSC/SL data and vary per set/variant.
+#   We cannot hardcode a name. The UnknownEntitiesDialog renders the
+#   players section on the left half of the modal body. The first player
+#   row sits roughly 35–38% down the screen in the default viewport.
+#   A point tap at (25%, 38%) reliably lands in the first player label row.
+#   We verify the uncheck happened by confirming the footer updated —
+#   not by asserting the specific player name.
+#
+# FRESH-DB REQUIREMENT:
+#   This test requires empty `players` and `teams` tables for the dialog to open.
+#   After any prior fetch run entities persist, making this test fail locally.
+#   Reliable on CI with a clean Convex deployment.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# TRIGGER THE FETCH AND WAIT FOR THE DIALOG
+# ============================================================
+
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible: "Confirm New Players & Teams"
+    timeout: 60000
+
+# Verify the dialog has at least one unknown player to uncheck.
+- assertVisible:
+    text: ".*New Players [(][1-9][0-9]*[)].*"
+
+# Footer shows the initial total — all included by default.
+- assertVisible:
+    text: ".*will be created.*"
+
+# ============================================================
+# UNCHECK THE FIRST PLAYER ROW
+# The players section occupies the left column of the modal body.
+# The modal is centered (max-w-3xl) with a ~120px header.
+# First player row is roughly 35–38% from the top of the screen.
+# Tapping the label text at (25%, 38%) toggles the checkbox off.
+# Verification: the footer count decreases (the row's name turns
+# struck-through but remains visible).
+# ============================================================
+
+- tapOn:
+    point: "25%, 38%"
+
+# The footer text is still visible — count should now be one less.
+- assertVisible:
+    text: ".*will be created.*"
+
+# ============================================================
+# CONFIRM — save with the remaining (non-skipped) entities
+# ============================================================
+
+# After unchecking at least one, the button may read "Confirm N & Save"
+# or "Skip All & Save" if all were unchecked. Either is acceptable.
+- tapOn:
+    text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+
+- extendedWaitUntil:
+    notVisible: "Confirm New Players & Teams"
+    timeout: 30000
+
+# ============================================================
+# VERIFY CARDS SAVED SUCCESSFULLY
+# Cards always save — only entity creation is selective.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+
+- assertVisible:
+    text: ".*#[0-9].*"

@@ -1,0 +1,87 @@
+appId: com.neonbinder.web
+name: "Util — Ensure BSC credentials are saved and authenticated (sellerId is fresh)"
+tags:
+  - util
+---
+# Shared prerequisite for flows that depend on a live BSC fetch.
+#
+# WHY THIS EXISTS:
+#   setup-bsc-credentials.yaml (called inside util-drill-to-2024-topps-chrome) is
+#   idempotent: when credentials are already saved it skips the save entirely, which
+#   means no new BSC login runs and no sellerId is refreshed. If the sellerId is
+#   stale or absent, BSC fetch returns 0 cards and the UnknownEntitiesDialog never
+#   opens — causing all data-dependent checklist flows to fail silently.
+#
+#   This util forces a "Test Credentials" call (which re-runs the Puppeteer BSC login
+#   and refreshes the sellerId in the DB) regardless of whether credentials were
+#   already present. It is safe to call before util-drill-to-base-variant because the
+#   drill util's credential step is also idempotent and will no-op cleanly when it
+#   finds credentials already saved.
+#
+# WHEN TO CALL:
+#   Call this util (via runFlow) before util-drill-to-base-variant in any flow that:
+#     - Triggers "Fetch from Marketplaces" and expects real BSC card data
+#     - Depends on the UnknownEntitiesDialog appearing (needs cards returned by BSC)
+#
+# CALLER CONTRACT:
+#   - Caller must have called launchApp and waited for sign-in redirect.
+#   - Caller must pass BSC_USERNAME and BSC_PASSWORD in the env block.
+#   - Caller is expected to call util-drill-to-base-variant after this util returns.
+#   - This util leaves the browser on /profile (the drill util will navigate from there).
+
+# ============================================================
+# NAVIGATE TO PROFILE
+# The browser may be anywhere after launchApp redirect. Navigate explicitly.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 20000
+
+# ============================================================
+# ENSURE BSC CREDENTIALS ARE SAVED
+# Uses the idempotent helper — saves only if credentials are absent.
+# If credentials are already present this is a no-op (correct: we just need
+# them to exist so "Test Credentials" can fire).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: ".*Select Platform.*"
+    timeout: 20000
+
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+# ============================================================
+# FORCE A FRESH BSC LOGIN — tap "Test Credentials"
+# The "Test Credentials" button triggers the Puppeteer BSC login and
+# refreshes the sellerId stored in the DB. This is the step that
+# setup-bsc-credentials.yaml skips when creds are already present.
+# Cloud Run cold-starts can add 20–30 s to the login round-trip.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- scrollUntilVisible:
+    element:
+      text: "Test Credentials"
+    timeout: 20000
+- tapOn: "Test Credentials"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
+    timeout: 90000
+
+# ============================================================
+# CONFIRM AUTHENTICATED
+# At this point the sellerId is fresh and valid in the DB.
+# The caller may now run util-drill-to-base-variant safely.
+# ============================================================
+
+- assertVisible:
+    text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"

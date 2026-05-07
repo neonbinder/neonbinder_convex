@@ -1,0 +1,89 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
+tags:
+  - set-selector
+---
+# Feature test: pressing Cancel on the UnknownEntitiesDialog aborts the
+# commit. No cards are written to the checklist and no entities are created.
+#
+# WHAT THIS TESTS:
+#   - Tapping "Cancel (Esc)" on the dialog closes it without saving
+#   - The status message reads "Fetch cancelled — no cards saved."
+#   - The checklist remains empty (empty state text still visible)
+#   - The "Fetch from Marketplaces" button is still available for a retry
+#
+# NOTE ON ESCAPE KEY:
+#   Maestro's web driver cannot trigger document-level keydown listeners,
+#   so the physical Escape key path is not tested here. The "Cancel (Esc)"
+#   button calls the same onCancel callback as the key — testing the button
+#   is sufficient to confirm the cancel logic runs correctly.
+#
+# FRESH-DB REQUIREMENT:
+#   This test requires that the `players` and `teams` tables are EMPTY so that
+#   the UnknownEntitiesDialog opens on first fetch. The DB reset only clears
+#   `selectorOptions` and `cardChecklist` rows — not players/teams. After a
+#   first successful fetch run, entities are persisted and the dialog no longer
+#   opens, causing this test to fail locally. This test is reliable on CI where
+#   each preview deployment starts with an empty Convex database.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# TRIGGER THE FETCH AND WAIT FOR THE DIALOG
+# On a fresh DB all entities are unknown so the dialog always appears.
+# ============================================================
+
+- assertVisible: "No cards in this checklist yet."
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible: "Confirm New Players & Teams"
+    timeout: 60000
+
+# ============================================================
+# CANCEL — tap the "Cancel (Esc)" button to abort without saving
+# ============================================================
+
+- tapOn: "Cancel (Esc)"
+
+# Dialog disappears
+- extendedWaitUntil:
+    notVisible: "Confirm New Players & Teams"
+    timeout: 10000
+
+# ============================================================
+# VERIFY NO CARDS WERE SAVED
+# ============================================================
+
+# The exact cancel message set by the onCancel callback in CardChecklist.
+- assertVisible: "Fetch cancelled — no cards saved."
+
+# The checklist is still empty — no card rows with "#NNN" numbers.
+- assertVisible: "No cards in this checklist yet."
+
+# "Fetch from Marketplaces" is still available for a retry.
+- assertVisible: "Fetch from Marketplaces"

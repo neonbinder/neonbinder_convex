@@ -1,0 +1,119 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Checklist — fetch opens dialog for unknown entities; user confirms all"
+tags:
+  - set-selector
+---
+# Feature test: the UnknownEntitiesDialog opens when the fetch finds player
+# or team names that are not yet in the database. Confirming all saves
+# the cards with full playerIds/teamOnCardIds linkage.
+#
+# WHAT THIS TESTS:
+#   - Dialog renders with "Confirm New Players & Teams" heading
+#   - Player and team sections list each unknown name with a checkbox
+#   - Footer shows "N of M will be created" count
+#   - Tapping the confirm button saves the cards and creates the entities
+#   - A card row appears with the team name in its sub-line after save
+#   - "BSC" and "SL" platform badges appear on synced cards
+#
+# SETUP:
+#   A fresh DB (after the util's reset) guarantees all players and teams
+#   from the BSC/SL fetch are unknown. This produces a non-empty dialog
+#   on every first fetch without requiring any special test data.
+#
+# FRESH-DB REQUIREMENT:
+#   This test requires that the `players` and `teams` tables are EMPTY so
+#   the dialog opens. The DB reset only clears `selectorOptions` + `cardChecklist`.
+#   After any prior fetch run, entities persist and the dialog no longer opens,
+#   causing this test to fail locally. Reliable on CI with empty Convex DB.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# TRIGGER THE FETCH
+# ============================================================
+
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+# Wait for either the dialog (unknowns found) or the message box (none).
+# On a reset DB, the dialog is guaranteed because no players/teams exist yet.
+- extendedWaitUntil:
+    visible: "Confirm New Players & Teams"
+    timeout: 60000
+
+# ============================================================
+# VERIFY DIALOG CONTENT
+# ============================================================
+
+# Title is visible
+- assertVisible: "Confirm New Players & Teams"
+
+# At least one section is populated (players or teams).
+# The "New Players (N)" or "New Teams (N)" heading confirms both sections render.
+- assertVisible:
+    text: ".*New Players [(][0-9]+[)].*"
+- assertVisible:
+    text: ".*New Teams [(][0-9]+[)].*"
+
+# Footer shows the include count
+- assertVisible:
+    text: ".*will be created.*"
+
+# The confirm button shows the count of included entities
+- assertVisible:
+    text: ".*Confirm [0-9]+ & Save.*"
+
+# Cancel button is also present
+- assertVisible: "Cancel (Esc)"
+
+# ============================================================
+# CONFIRM ALL — tap the confirm button to save with all entities
+# ============================================================
+
+- tapOn:
+    text: ".*Confirm [0-9]+ & Save.*"
+
+# Dialog disappears while saving
+- extendedWaitUntil:
+    notVisible: "Confirm New Players & Teams"
+    timeout: 30000
+
+# ============================================================
+# VERIFY CARDS SAVED WITH ENTITY LINKAGE
+# ============================================================
+
+# Success message confirms the count
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+
+# Card rows are visible — at least one "#NNN" card number
+- assertVisible:
+    text: ".*#[0-9].*"
+
+# BSC platform badge appears on at least one card
+- assertVisible: "BSC"

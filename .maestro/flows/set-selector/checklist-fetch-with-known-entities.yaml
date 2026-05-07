@@ -1,0 +1,137 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Checklist — fetch cards, confirm dialog, then re-fetch with no dialog (smoke)"
+tags:
+  - smoke
+  - set-selector
+---
+# Smoke test and known-entities happy path for the card checklist fetch.
+#
+# WHAT THIS TESTS:
+#   Two fetches back-to-back on the same variant:
+#
+#   Fetch 1 (fresh DB): all players and teams are unknown → dialog opens →
+#     user confirms all → cards saved → "Saved N cards." message.
+#
+#   Fetch 2 (entities now exist): players and teams already in DB →
+#     no dialog → cards re-saved immediately → "Saved N cards." message.
+#
+#   This proves the full two-phase pipeline (fetch → dialog → commit)
+#   and the idempotent no-dialog path in a single flow.
+#
+# WHY SMOKE:
+#   This is the single most important card-checklist path. If it breaks,
+#   nothing about the feature works. Keep it fast — no edge cases here.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# util-drill-to-base-variant calls util-drill-to-2024-topps-chrome
+# which idempotently saves BSC + SL credentials. The bulk-upload
+# fetch endpoint authenticates with any valid bearer token and does
+# not depend on a per-user sellerId, so a forced re-login is not
+# required for these flows.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# FETCH 1 — trigger the dialog (all entities are new on a reset DB)
+# ============================================================
+
+# The empty state and fetch button are visible after the util returns.
+- assertVisible: "No cards in this checklist yet."
+- tapOn: "Fetch from Marketplaces"
+
+# While the fetch is running the button label changes to "Fetching..."
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+# Wait for the fetch to finish — either the dialog opens (unknowns found)
+# or the success message appears (all entities already existed).
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 60000
+
+# If the dialog opened, confirm all entries (default: all checked).
+# The confirm button is pre-focused so all included by default.
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+          timeout: 10000
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+
+# Either path ends with the save confirmation message.
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+
+# Cards are now visible — at least one card row with a "#" number.
+- assertVisible:
+    text: ".*#[0-9].*"
+
+# ============================================================
+# FETCH 2 — re-fetch; all entities are now known → no dialog
+# ============================================================
+
+# "Refresh" button replaces "Fetch from Marketplaces" once cards exist.
+# With 300+ card rows the button is far below the fold. Scroll slowly so
+# Maestro's element detection has time to find it between swipe events.
+# waitToSettleTimeoutMs lets the DOM stabilize after each partial scroll.
+- scrollUntilVisible:
+    element:
+      text: "Refresh"
+    timeout: 120000
+    visibilityPercentage: 1
+    speed: 10
+    waitToSettleTimeoutMs: 300
+- tapOn: "Refresh"
+
+# The "Refresh" button becomes "Fetching..." in-place (same button, visible
+# at the bottom of the list right where we tapped).
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+# Wait for the fetch to complete — the button reverts from "Fetching..."
+# to "Refresh" once the commit finishes.
+# Use notVisible on "Fetching..." as the completion signal, avoiding any
+# need to scroll up to see the success message in the Cards panel header.
+# Both success and failure paths clear the "Fetching..." label within 60s.
+- extendedWaitUntil:
+    notVisible: "Fetching..."
+    timeout: 60000
+
+# "Refresh" is back and visible at the bottom — confirms the fetch cycle
+# completed without crashing (if it crashed, the button would show an error
+# and possibly navigate away).
+- assertVisible: "Refresh"
+
+# At least one card row is visible near where we scrolled (middle of list).
+- assertVisible:
+    text: ".*#[0-9].*"

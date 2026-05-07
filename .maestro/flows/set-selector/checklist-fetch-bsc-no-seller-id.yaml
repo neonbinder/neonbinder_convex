@@ -1,0 +1,383 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+name: "Checklist — fetch completes silently with 0 BSC cards when BSC is not configured"
+tags:
+  - set-selector
+---
+# Edge-case test: the checklist fetch completes gracefully when BSC credentials
+# are missing. fetchCardChecklist catches platform-level errors internally.
+# BSC returns an empty card list; the SL adapter also returns empty (no SL
+# set mapping exists). The commit saves 0 cards, no dialog opens.
+#
+# WHAT THIS TESTS:
+#   - When BSC credentials are absent, "Fetch from Marketplaces" does not crash
+#   - The fetch cycle completes (Fetching... appears then disappears)
+#   - "Saved 0 cards." message appears (BSC auth fails = 0 BSC cards,
+#     SL has no set-level mapping for a custom set = 0 SL cards)
+#   - The UnknownEntitiesDialog does NOT open (no players/teams to confirm)
+#   - The checklist remains empty ("No cards in this checklist yet." stays)
+#   - The "Fetch from Marketplaces" button remains for a retry
+#
+# ARCHITECTURE NOTE:
+#   fetchCardChecklist catches individual platform errors and treats them as
+#   empty arrays. It always returns success:true with an out.length count.
+#   A BSC auth failure → bscCards = [] → 0 total cards → "Saved 0 cards."
+#   This is intentional UX: the user can add BSC credentials and try again.
+#
+# SETUP STRATEGY:
+#   1. Reset DB and set up BSC+SL credentials using util-drill-to-2024-topps-chrome.
+#      This writes Sports/Years/Manufacturers/Sets/Variant Types data to DB.
+#   2. Navigate to /profile and CLEAR BSC credentials.
+#   3. Navigate back to /set-selector and re-drill manually:
+#      - Sports/Years/Manufacturers use CACHED data (no auto-sync since items exist)
+#      - Sets level: auto-sync fires without BSC → "No BSC token" error → empty state
+#        Dismiss error modal, then add "Topps Chrome" via + Custom (index 2)
+#      - Variant Types level: auto-sync fires for custom set → empty state
+#        Dismiss error, add "Base" via + Custom (index 3)
+#      - BaseMappingForm: SL has no set ID for custom set → auto-closes (Path B)
+#   4. Tap "Fetch from Marketplaces" → BSC absent → 0 BSC cards
+#      SL absent (no set mapping for custom set) → 0 SL cards → "Saved 0 cards."
+#
+# "+ Custom" INDEX GUIDE (when 3-4 columns are visible):
+#   At Sets level (Years + Manufacturers + Sets visible):
+#     index 0 = Years column, index 1 = Manufacturers, index 2 = Sets
+#   At Variant Types level (Years + Manufacturers + Sets + Variant Types):
+#     index 0 = Years, index 1 = Manufacturers, index 2 = Sets, index 3 = Variant Types
+#
+# LOCAL vs CI NOTE:
+#   This test requires BSC auth to SUCCEED during the initial util run (to populate
+#   Sports/Years/Sets data in DB). BSC auth during TEARDOWN may fail intermittently
+#   if BSC rate-limits rapid clear/restore cycles — the test tolerates this by waiting
+#   for "Clear Credentials" (storage confirmed) rather than "Credentials saved
+#   successfully" (which requires active BSC auth). On CI (fresh deployments) BSC auth
+#   reliably succeeds. Locally, repeated test runs may invalidate the BSC token.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# STEP 1 — RESET DB AND SET UP CREDENTIALS
+# util-drill-to-2024-topps-chrome resets DB, sets up BSC+SL credentials,
+# and drills to Topps Chrome. After this, Sports/Years/Manufacturers/Sets/
+# Variant Types data is in the DB. The page is on /set-selector.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# STEP 2 — CLEAR BSC CREDENTIALS
+# Navigate to /profile and clear BSC creds. Sportlots creds stay.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 20000
+# "BuySportsCards Credentials" is below the fold; scroll into view rather
+# than waiting for it to appear in the initial viewport.
+- scrollUntilVisible:
+    element:
+      text: "BuySportsCards Credentials"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 10000
+- tapOn: "Clear Credentials"
+- extendedWaitUntil:
+    visible: ".*Yes, Clear.*"
+    timeout: 5000
+- tapOn: "Yes, Clear"
+- extendedWaitUntil:
+    visible: ".*Credentials cleared.*"
+    timeout: 15000
+
+# ============================================================
+# STEP 3 — NAVIGATE BACK AND RE-DRILL WITH BSC ABSENT
+# Sports/Years/Manufacturers columns show cached data (no auto-sync when
+# items already exist in DB). Sets column auto-syncs when Topps is selected
+# (selecting parent triggers child sync). The BSC-less sync empties Sets.
+# We handle this by dismissing the error modal and using + Custom.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# Sports — cached, shows immediately (no auto-sync since items exist in DB)
+- runFlow:
+    when:
+      notVisible: "Baseball"
+    commands:
+      - extendedWaitUntil:
+          visible: "Baseball"
+          timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# Years — cached
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 10000
+- runFlow:
+    when:
+      notVisible: "2024"
+    commands:
+      - extendedWaitUntil:
+          visible: "2024"
+          timeout: 30000
+- tapOn: "2024"
+
+# Manufacturers — cached
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 10000
+- runFlow:
+    when:
+      notVisible: ".*Search manufacturers.*"
+    commands:
+      - extendedWaitUntil:
+          visible: ".*Search manufacturers.*"
+          timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Sets — BSC sync fires when Topps is selected. Without a token it fails fast.
+# Wait for either the BSC error modal or the search box.
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      text: ".*No BSC token.*|.*Search sets.*"
+    timeout: 30000
+
+# Dismiss the BSC error modal.
+- runFlow:
+    when:
+      visible: ".*No BSC token.*"
+    commands:
+      - tapOn: "Close"
+      - extendedWaitUntil:
+          notVisible: ".*No BSC token.*"
+          timeout: 5000
+
+# After dismissing: check whether Sets column has cached data or is empty.
+- extendedWaitUntil:
+    visible:
+      text: ".*Search sets.*|.*No sets available.*"
+    timeout: 10000
+
+# If Sets is EMPTY (BSC sync erased cached data), add "Topps Chrome" via + Custom.
+# With Years (2024) and Manufacturers (Topps) visible and selected, plus the
+# active Sets column: "+ Custom" at index 2 targets the Sets column.
+- runFlow:
+    when:
+      visible: ".*No sets available.*"
+    commands:
+      - tapOn:
+          text: "+ Custom"
+          index: 2
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Topps Chrome"
+      - tapOn: "Add"
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+# Search for "Topps Chrome" (from cache or from the custom entry just added).
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Variant Types — selecting a custom "Topps Chrome" triggers Variant Types sync.
+# Without BSC the sync fails and shows the error modal. If we selected the
+# BSC-synced Topps Chrome (from cache), Base/Insert/Parallel are shown from DB.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# Wait for either BSC error modal OR "Base" (cached data) OR empty state.
+- extendedWaitUntil:
+    visible:
+      text: ".*No BSC token.*|Base|.*No variant types.*"
+    timeout: 30000
+
+# Dismiss BSC error at Variant Types if present.
+- runFlow:
+    when:
+      visible: ".*No BSC token.*"
+    commands:
+      - tapOn: "Close"
+      - extendedWaitUntil:
+          notVisible: ".*No BSC token.*"
+          timeout: 5000
+
+# Wait for Base or empty state after modal closes.
+- extendedWaitUntil:
+    visible:
+      text: "Base|.*No variant types.*"
+    timeout: 20000
+
+# If no Base is available, add it via + Custom (index 3 = Variant Types column).
+- runFlow:
+    when:
+      visible: ".*No variant types.*"
+    commands:
+      - tapOn:
+          text: "+ Custom"
+          index: 3
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Base"
+      - tapOn: "Add"
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+- tapOn: "Base"
+
+# BaseMappingForm — SL has no set identifier for a custom set → auto-closes (Path B).
+# If SL has options (Path A), confirm.
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Fetch from Marketplaces.*"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 10000
+
+- extendedWaitUntil:
+    visible: "Fetch from Marketplaces"
+    timeout: 15000
+
+# ============================================================
+# STEP 4 — ATTEMPT THE FETCH (BSC credentials are absent)
+# ============================================================
+
+- assertVisible: "No cards in this checklist yet."
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible: "Fetching..."
+    timeout: 10000
+
+# Fetch completes: BSC absent → 0 BSC cards; SL no set mapping → 0 SL cards.
+- extendedWaitUntil:
+    notVisible: "Fetching..."
+    timeout: 30000
+
+# ============================================================
+# VERIFY GRACEFUL BEHAVIOR — 0 cards saved, no dialog, retry possible
+# ============================================================
+
+- assertVisible:
+    text: ".*Saved 0 cards.*"
+
+- assertNotVisible: "Confirm New Players & Teams"
+
+- assertVisible: "No cards in this checklist yet."
+
+- assertVisible: "Fetch from Marketplaces"
+
+# ============================================================
+# TEARDOWN — RESTORE BSC CREDENTIALS
+# This flow cleared BSC credentials to test the no-creds path.
+# Restore them so subsequent flows are not contaminated.
+#
+# We wait for "Clear Credentials" (storage confirmed) NOT
+# "Credentials saved successfully" (requires active BSC auth).
+# BSC auto-auth can fail intermittently after rapid clear/restore
+# cycles without affecting the stored credentials — subsequent
+# flows using setup-bsc-credentials.yaml (idempotent) will see
+# "Clear Credentials" and skip the save, using the stored creds.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 20000
+# "BuySportsCards Credentials" is below the fold; scroll into view rather
+# than waiting for it to appear in the initial viewport.
+- scrollUntilVisible:
+    element:
+      text: "BuySportsCards Credentials"
+    timeout: 20000
+
+# Scroll to find "Clear Credentials" — only present when credentials exist.
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 5000
+    optional: true
+
+# If BSC credentials are NOT present, save them now.
+- runFlow:
+    when:
+      notVisible: "Clear Credentials"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Save Credentials"
+          timeout: 10000
+      - tapOn:
+          id: "username"
+      - inputText: ${BSC_USERNAME}
+      - tapOn:
+          id: "password"
+      - inputText: ${BSC_PASSWORD}
+      - tapOn: "Save Credentials"
+      # Wait for "Clear Credentials" — confirms storage succeeded,
+      # regardless of whether BSC auto-authentication succeeded.
+      - extendedWaitUntil:
+          visible: "Clear Credentials"
+          timeout: 60000

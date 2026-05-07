@@ -222,8 +222,14 @@ tags:
 - assertVisible: ".*#[0-9].*"
 
 # Verify the "Refresh" button is now available (replaces the fetch button
-# once the checklist is populated)
-- assertVisible: "Refresh"
+# once the checklist is populated). With 300+ card rows in the list the
+# button sits far below the fold — use high speed + low threshold.
+- scrollUntilVisible:
+    element:
+      text: "Refresh"
+    timeout: 60000
+    visibilityPercentage: 1
+    speed: 90
 
 # Verify platform badges are shown on at least one card
 - assertVisible: "BSC"
