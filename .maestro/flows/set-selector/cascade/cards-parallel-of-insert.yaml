@@ -142,10 +142,11 @@ tags:
     when:
       notVisible: "Group Parallels"
     commands:
+      # 10s — surface real backend hangs instead of masking with 240s.
       - extendedWaitUntil:
           visible:
             text: ".*Reconcile Variants.*|.*Group Parallels.*"
-          timeout: 240000
+          timeout: 10000
       - runFlow:
           when:
             visible: "Reconcile Variants"

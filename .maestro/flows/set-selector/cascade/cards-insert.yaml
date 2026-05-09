@@ -140,10 +140,12 @@ tags:
     when:
       notVisible: "Group Parallels"
     commands:
+      # 10s — backend should respond <10s; if it doesn't, that's a real bug
+      # we want to surface, not mask with a 240s timeout.
       - extendedWaitUntil:
           visible:
             text: ".*Reconcile Variants.*|.*Group Parallels.*"
-          timeout: 240000
+          timeout: 10000
       - runFlow:
           when:
             visible: "Reconcile Variants"
