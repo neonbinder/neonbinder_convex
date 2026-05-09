@@ -1,0 +1,274 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Cascade — add custom inserts, group parallels-of-inserts, save groupings"
+tags:
+  - set-selector
+  - cascade
+  - regression
+  - requires:setup-done
+  - provides:sets-loaded
+  - provides:parallels-of-inserts-moved
+---
+# Cascade node: depends on setup-done, contributes to sets-loaded AND
+# provides the more granular parallels-of-inserts-moved state.
+#
+# WHAT THIS DOES:
+#   After fast-drilling to Topps Chrome → Insert, adds three custom insert
+#   variants ("Stars", "Stars Gold", "Stars Red"), opens the Group Parallels
+#   modal, accepts all auto-suggestions (Stars Gold and Stars Red become
+#   parallels of Stars), and saves the groupings.
+#
+# WHY THIS MATTERS:
+#   The cards-parallel-of-insert.yaml cascade flow must run after this one,
+#   because it navigates to a parallel-of-insert entry. The runner schedules
+#   cards-parallel-of-insert with requires:parallels-of-inserts-moved, which
+#   is satisfied only when this flow succeeds.
+#
+# POST-SAVE STATE:
+#   "Stars" remains visible as the top-level insert.
+#   "Stars Gold" and "Stars Red" become parallels (nested under Stars).
+#   The modal is closed and the Variants column rerenders.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome → Insert
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Insert"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# Wait for Variants column to appear.
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+# If auto-sync fires (empty column), wait for either ReconciliationModal
+# (cross-platform path) or the column to settle into idle mode (single-platform
+# path or no-results — "Group Parallels" appears once mode=idle).
+- runFlow:
+    when:
+      notVisible: "Group Parallels"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+          timeout: 240000
+      - runFlow:
+          when:
+            visible: "Reconcile Variants"
+          commands:
+            - tapOn: "Cancel"
+            - extendedWaitUntil:
+                notVisible: "Reconcile Variants"
+                timeout: 10000
+
+# Confirm "Group Parallels" button is visible before adding custom entries.
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+    timeout: 10000
+- assertVisible: "Group Parallels"
+
+# ============================================================
+# ADD CONTROLLED CUSTOM INSERTS
+# Uses aria-label id: targeting (aria-label maps to resource-id in Maestro web).
+# ============================================================
+
+# --- Add "Stars" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Gold" ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Red" (third entry ensures button layout is stable for tapping Group Parallels) ---
+- tapOn:
+    id: "Add custom Variants"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Red"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
+- tapOn: "Add"
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# ============================================================
+# OPEN GROUP PARALLELS MODAL
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Auto-suggestions: "Stars Gold" and "Stars Red" suggested as parallels of "Stars".
+- assertVisible: "Suggested"
+- assertVisible:
+    text: ".*Accept all suggestions.*"
+
+# ============================================================
+# ACCEPT ALL SUGGESTIONS AND SAVE
+# ============================================================
+
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Save [0-9]+ change.*"
+    timeout: 5000
+
+- tapOn:
+    text: ".*Save [0-9]+ change.*"
+
+# Wait for modal to close. "Drag inserts under a parent" disappears on close.
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 30000
+
+# ============================================================
+# VERIFY POST-SAVE STATE
+# "Stars" remains as the top-level insert.
+# Modal is gone. Variants column heading still present.
+# ============================================================
+
+- assertVisible: "Variants"
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 10000
+- assertVisible: "Stars"

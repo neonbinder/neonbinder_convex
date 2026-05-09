@@ -22,8 +22,12 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    # Full smoke + regression suite runs sequentially to avoid Clerk concurrent
-    # sign-in throttling, so we allow up to 60 minutes.
+    # Full smoke + regression suite runs across MAESTRO_PARALLELISM workers
+    # (configured below). Worker 0 owns the serial lane (set-selector +
+    # marketplace flows); other workers share parallel-safe flows. Per-worker
+    # accounts (TEST_EMAIL_${worker} / NEW_PROFILE_TEST_EMAIL_${worker}) must
+    # be configured on the Vercel preview env. 60-minute ceiling is a safety
+    # net — actual runs should be considerably shorter than serial.
     timeout-minutes: 60
 
     steps:
@@ -177,6 +181,10 @@ jobs:
           SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          # Number of parallel workers. Worker 0 runs the serial lane
+          # (serial-global + serial-marketplace flows); workers 1..N-1 share
+          # parallel-safe flows. Lower this if test accounts run out.
+          MAESTRO_PARALLELISM: "3"
           REPORT_DIR: maestro-report
         # Runs every flow in .maestro/flows/ (no tag filter) — smoke + regression
         # are the merge-blocking gate since we deploy main directly to prod.

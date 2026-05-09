@@ -12,6 +12,27 @@ function browserUrl() {
   return process.env.NEONBINDER_BROWSER_URL || "http://localhost:8080";
 }
 
+const BROWSER_FETCH_TIMEOUT_MS = 15_000;
+
+async function browserFetch(
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(`${browserUrl()}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(BROWSER_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(
+        `Browser service request timed out after ${BROWSER_FETCH_TIMEOUT_MS / 1000}s: ${path}`,
+      );
+    }
+    throw err;
+  }
+}
+
 function credKey(site: string, userId: string) {
   return `${site}-credentials-${userId}`;
 }
@@ -58,7 +79,7 @@ export const storeSiteCredentials = action({
 
       // Store credentials without marketplace validation.
       // Use "Test Credentials" to validate against the marketplace separately.
-      const response = await fetch(`${browserUrl()}/credentials/${key}`, {
+      const response = await browserFetch(`/credentials/${key}`, {
         method: "PUT",
         headers: internalHeaders(),
         body: JSON.stringify({
@@ -119,7 +140,7 @@ export const getSiteCredentials = action({
 
     try {
       const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}/metadata`, {
+      const response = await browserFetch(`/credentials/${key}/metadata`, {
         method: "GET",
         headers: internalHeaders(),
       });
@@ -165,7 +186,7 @@ async function readCachedToken(
   userId: string,
 ): Promise<{ token: string; expiresAt?: number } | null> {
   const key = credKey(site, userId);
-  const response = await fetch(`${browserUrl()}/credentials/${key}/token`, {
+  const response = await browserFetch(`/credentials/${key}/token`, {
     method: "GET",
     headers: internalHeaders(),
   });
@@ -292,7 +313,7 @@ export const deleteSiteCredentials = action({
 
     try {
       const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}`, {
+      const response = await browserFetch(`/credentials/${key}`, {
         method: "DELETE",
         headers: internalHeaders(),
       });
@@ -335,7 +356,7 @@ export const listUserSites = action({
 
     try {
       const keys = SUPPORTED_SITES.map((site) => credKey(site, userId));
-      const response = await fetch(`${browserUrl()}/credentials/check`, {
+      const response = await browserFetch(`/credentials/check`, {
         method: "POST",
         headers: internalHeaders(),
         body: JSON.stringify({ keys }),
@@ -441,12 +462,14 @@ export const authenticateBsc = action({
       const url = browserUrl();
       console.log(`[authenticateBsc] Using browser URL: ${url}, key: ${key}`);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally
+      // Call browser service to log in — it reads credentials from Secret Manager internally.
+      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
       console.log("[authenticateBsc] Calling browser service POST /login/bsc");
       const response = await fetch(`${url}/login/bsc`, {
         method: "POST",
         headers: internalHeaders(),
         body: JSON.stringify({ key }),
+        signal: AbortSignal.timeout(60_000),
       });
       console.log(`[authenticateBsc] Login response status: ${response.status}`);
 
@@ -534,11 +557,13 @@ export const authenticateSportlots = action({
     try {
       const key = credKey("sportlots", userId);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally
+      // Call browser service to log in — it reads credentials from Secret Manager internally.
+      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
       const response = await fetch(`${browserUrl()}/login/sportlots`, {
         method: "POST",
         headers: internalHeaders(),
         body: JSON.stringify({ key }),
+        signal: AbortSignal.timeout(60_000),
       });
 
       if (!response.ok) {

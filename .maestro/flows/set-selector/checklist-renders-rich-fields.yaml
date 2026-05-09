@@ -1,8 +1,9 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — card rows render card number, sub-line, attribute badges, and platform badges"
 tags:
   - set-selector
+  - requires:setup-done
 ---
 # Feature test: after a successful fetch, each card row renders its full
 # set of structured fields — not just a name.

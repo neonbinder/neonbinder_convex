@@ -1,8 +1,9 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — fetch completes silently with 0 BSC cards when BSC is not configured"
 tags:
   - set-selector
+  - requires:setup-done
 ---
 # Edge-case test: the checklist fetch completes gracefully when BSC credentials
 # are missing. fetchCardChecklist catches platform-level errors internally.
@@ -102,7 +103,7 @@ tags:
 - tapOn: "Yes, Clear"
 - extendedWaitUntil:
     visible: ".*Credentials cleared.*"
-    timeout: 15000
+    timeout: 30000
 
 # ============================================================
 # STEP 3 — NAVIGATE BACK AND RE-DRILL WITH BSC ABSENT

@@ -13,6 +13,14 @@ function TestingSignInContent() {
   // creation flows pass "new-profile" so they sign in as the always-empty
   // NEW_PROFILE_TEST_EMAIL user. Server validates the value.
   const account = searchParams.get("account") || "main";
+  // Optional worker index — picks a per-parallel-worker test account so
+  // concurrent flows don't share the same Convex user state. Server resolves
+  // TEST_EMAIL_${worker} (falls back to TEST_EMAIL if unset).
+  const workerParam = searchParams.get("worker");
+  const worker =
+    workerParam !== null && workerParam !== "" && /^\d+$/.test(workerParam)
+      ? Number(workerParam)
+      : null;
   const [status, setStatus] = useState("Initializing...");
 
   useEffect(() => {
@@ -53,7 +61,7 @@ function TestingSignInContent() {
             "Content-Type": "application/json",
             ...(testingSecret ? { "x-testing-auth": testingSecret } : {}),
           },
-          body: JSON.stringify({ account }),
+          body: JSON.stringify(worker !== null ? { account, worker } : { account }),
         });
 
         if (!res.ok) {
@@ -163,7 +171,7 @@ function TestingSignInContent() {
 
     autoSignIn();
     return () => ac.abort();
-  }, [isLoaded, signIn, isSignedIn, redirect, account, navigate, setActive]);
+  }, [isLoaded, signIn, isSignedIn, redirect, account, worker, navigate, setActive]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

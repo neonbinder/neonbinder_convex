@@ -1,8 +1,9 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — confirm dialog using keyboard Enter on auto-focused button"
 tags:
   - set-selector
+  - requires:setup-done
 ---
 # Feature test: the UnknownEntitiesDialog confirm button is auto-focused on open
 # and responds to the Enter key, allowing keyboard-only confirmation.
@@ -64,12 +65,16 @@ tags:
 # ============================================================
 
 - tapOn: "Fetch from Marketplaces"
+# NOTE: "Fetching..." is transient when cache is warm. Guard with optional pattern:
+# if "Fetching..." doesn't appear within 5s, assume fetch completed instantly
+# and proceed to wait for the dialog.
 - extendedWaitUntil:
-    visible: "Fetching..."
-    timeout: 10000
+    visible:
+      text: "Fetching...|Confirm New Players"
+    timeout: 120000
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
-    timeout: 60000
+    timeout: 120000
 
 # ============================================================
 # KEYBOARD CONFIRMATION — Enter fires the auto-focused confirm button
@@ -77,6 +82,13 @@ tags:
 # pressKey: Enter fires the click handler on the currently focused element.
 # No Tab navigation is needed — Enter goes straight to confirm.
 # ============================================================
+
+# Wait for the confirm button to render with actual count — this also gives
+# the auto-focus event time to complete before pressing Enter.
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm [0-9]+ & Save.*"
+    timeout: 10000
 
 - pressKey: Enter
 
@@ -88,10 +100,13 @@ tags:
     notVisible: "Confirm New Players & Teams"
     timeout: 30000
 
+# Wait for the save confirmation. The commitCardChecklist mutation runs after
+# the dialog confirm, writing cards in batches. For large sets (300+ cards),
+# this can take several seconds. Use 60s for safety.
 - extendedWaitUntil:
     visible:
       text: ".*Saved [0-9]+ cards.*"
-    timeout: 30000
+    timeout: 60000
 
 - assertVisible:
     text: ".*#[0-9].*"

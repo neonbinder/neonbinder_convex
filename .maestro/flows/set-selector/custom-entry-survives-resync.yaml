@@ -1,8 +1,9 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
@@ -22,14 +23,12 @@ tags:
 # so the sub-flows (which expect "Select Platform" on /profile) would fail if
 # the browser is still on /set-selector after sign-in redirect.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
-# Long timeout — on CI the Convex profile query is sometimes slow to
-# resolve right after navigating away from the heavier /set-selector page.
-# The credentials section renders "Loading credentials…" until the query
-# returns, then transitions to "Select Platform".
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 45000
+# Wait for the profile page to render. setup-bsc-credentials now scrolls to
+# "BuySportsCards Credentials" (the section <h2>) which is always in the DOM,
+# so no pre-scroll is needed here — just confirm the page has loaded.
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
@@ -38,14 +37,12 @@ tags:
       BSC_PASSWORD: ${BSC_PASSWORD}
 
 # Re-navigate to /profile so the viewport resets to the top before the next
-# sub-flow runs. setup-bsc-credentials' save flow (run when BSC creds aren't
-# already saved) leaves the viewport below the credentials section. The next
-# sub-flow's `scrollUntilVisible "Select Platform"` only scrolls DOWN, so
-# without this reset it can never find the platform selector that's now above.
+# sub-flow runs. setup-bsc-credentials may have scrolled to the BSC section.
+# openLink reloads /profile at top so setup-sportlots-credentials can scroll
+# down to "BuySportsCards Credentials" reliably.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
+- extendedWaitUntil:
+    visible: "Profile Settings"
     timeout: 20000
 
 - runFlow:
@@ -96,6 +93,11 @@ tags:
 # cannot see items below the fold. The search box filters the internal list,
 # making TestCustomSport visible regardless of how many entries precede it
 # alphabetically. The search input shows "Search sports..." as placeholder.
+- scrollUntilVisible:
+    element:
+      text: "Search sports..."
+    direction: UP
+    timeout: 10000
 - tapOn: "Search sports..."
 - inputText: "TestCustomSport"
 - extendedWaitUntil:
@@ -140,6 +142,11 @@ tags:
 # Use the search box to find "TestCustomSport" — the Sports column has an
 # internal scroll container so page-level scrolling cannot reveal it.
 # After the page reload in Step 2, the search input shows the placeholder.
+- scrollUntilVisible:
+    element:
+      text: "Search sports..."
+    direction: UP
+    timeout: 10000
 - tapOn: "Search sports..."
 - inputText: "TestCustomSport"
 - extendedWaitUntil:

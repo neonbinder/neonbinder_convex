@@ -12,18 +12,35 @@ import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
 // Vercel handler.
 type DevTestAccount = "main" | "new-profile";
 const DEV_TEST_ACCOUNTS = ["main", "new-profile"] as const satisfies readonly DevTestAccount[];
+const DEV_MAX_WORKER_INDEX = 31;
 
 function isDevTestAccount(value: unknown): value is DevTestAccount {
   return typeof value === "string" && (DEV_TEST_ACCOUNTS as readonly string[]).includes(value);
 }
 
-function resolveDevTestEmail(account: DevTestAccount): string | undefined {
-  switch (account) {
-    case "main":
-      return process.env.TEST_EMAIL;
-    case "new-profile":
-      return process.env.NEW_PROFILE_TEST_EMAIL;
+function parseDevWorkerIndex(
+  value: unknown,
+): { ok: true; index: number | null } | { ok: false } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true, index: null };
   }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > DEV_MAX_WORKER_INDEX) {
+    return { ok: false };
+  }
+  return { ok: true, index: n };
+}
+
+function resolveDevTestEmail(
+  account: DevTestAccount,
+  worker: number | null,
+): string | undefined {
+  const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+  if (worker !== null) {
+    const indexed = process.env[`${baseKey}_${worker}`];
+    if (indexed) return indexed;
+  }
+  return process.env[baseKey];
 }
 
 function clerkTestingApiPlugin(): Plugin {
@@ -57,10 +74,10 @@ function clerkTestingApiPlugin(): Plugin {
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(chunk as Buffer);
         const raw = Buffer.concat(chunks).toString("utf8");
-        let parsedBody: { account?: unknown } = {};
+        let parsedBody: { account?: unknown; worker?: unknown } = {};
         if (raw) {
           try {
-            parsedBody = JSON.parse(raw) as { account?: unknown };
+            parsedBody = JSON.parse(raw) as { account?: unknown; worker?: unknown };
           } catch {
             res.statusCode = 400;
             res.setHeader("Content-Type", "application/json");
@@ -77,13 +94,23 @@ function clerkTestingApiPlugin(): Plugin {
         }
         const account: DevTestAccount =
           requestedAccount === undefined ? "main" : requestedAccount;
-        const testEmail = resolveDevTestEmail(account);
+        const parsedWorker = parseDevWorkerIndex(parsedBody.worker);
+        if (!parsedWorker.ok) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid worker index" }));
+          return;
+        }
+        const worker = parsedWorker.index;
+        const testEmail = resolveDevTestEmail(account, worker);
         if (!testEmail) {
+          const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+          const detail = worker !== null ? ` (tried ${baseKey}_${worker} and ${baseKey})` : "";
           res.statusCode = 500;
           res.setHeader("Content-Type", "application/json");
           res.end(
             JSON.stringify({
-              error: `${account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL"} not configured for account "${account}"`,
+              error: `${baseKey} not configured for account "${account}"${detail}`,
             }),
           );
           return;

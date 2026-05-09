@@ -1,8 +1,9 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Refresh SportLots credentials
 tags:
   - set-selector
   - wip
+  - serial-global
 ---
 # Refreshes the SportLots session for the test user. Bypasses the native
 # <select> dropdown by setting its value via JS, then dispatching a change

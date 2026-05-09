@@ -1,8 +1,9 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Add Custom Card to Checklist
 tags:
   - set-selector
   - wip
+  - serial-global
 # FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # A user manually adds a card to the checklist using the "Add Card" form.

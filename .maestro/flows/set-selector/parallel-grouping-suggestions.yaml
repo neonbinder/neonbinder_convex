@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — auto-suggestions render and Accept All clears them"
 tags:
   - parallel-grouping
   - regression
+  - requires:setup-done
 ---
 # Feature test: auto-suggestion display and Accept All behaviour.
 #
@@ -64,6 +65,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -76,6 +81,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Gold"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -88,6 +97,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Red"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"

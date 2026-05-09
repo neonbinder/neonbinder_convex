@@ -1,9 +1,11 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Set Selector Empty State — No Options Available
 tags:
   - set-selector
   - regression
   - wip
+  - isolated:true
+  - serial-global
 ---
 # CATEGORY-3 REGRESSION — NEEDS HUMAN APPROVAL BEFORE FIX CAN BE APPLIED
 #

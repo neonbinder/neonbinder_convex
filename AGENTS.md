@@ -1531,3 +1531,59 @@ NeonBinder blends a **90s hobby-shop neon aesthetic** with **modern minimalism**
 - When writing code we should only ever update the Maestro file if the text on the screen is slightly different that it would require us to udpate a matcher. 
 - If flow changes while writing code and it breaks a test only update it with permission from the user and an explination of why it broke
 - No code change should be considered finished without running `npm run test:e2e:single` for each test associated with this code change and `npm run test:e2e:smoke` once to validate no regression
+
+## Scheduling tags (`run-e2e-smoke.sh`)
+
+Every Maestro flow declares its scheduling profile via tags in its top-level `tags:` block. The runner reads these to decide when each flow is allowed to start, and which workers it lands on.
+
+| Tag | When to use it | Effect |
+|---|---|---|
+| `requires:<state>` | Your flow asserts on a state of the app/DB that another flow produces (sets loaded, cards loaded, hierarchy populated, etc.). | Flow runs only after every flow tagged `provides:<state>` has succeeded. |
+| `provides:<state>` | Your flow leaves the system in a known state that downstream flows can build on (sync sets, sync card checklists, populate hierarchy, etc.). | The named state is considered achieved when ALL providers complete. |
+| `isolated:true` | Your flow does its own destructive reset (clicks "Reset Set Builder Data" or otherwise wipes global tables) and assumes a fresh DB. | Flow runs alone, serially, on a dedicated worker. The cascade (`provides:`/`requires:`) lane is blocked until all isolated flows finish. |
+| `serial-marketplace` | Your flow saves or tests BSC / SportLots credentials, hitting `/login/bsc` or `/login/sportlots` on the browser service. | Flow serializes with other marketplace flows on a dedicated worker (the browser service 503s under concurrent marketplace logins). Runs concurrently with everything else. |
+| (none of the above) | Your flow is parallel-safe — it touches only the per-worker test user's own state and doesn't depend on global data. | Distributed across workers in parallel. |
+
+`<state>` is a free-form string. Pick a name that describes the data state (`setup-done`, `sets-loaded`, `cards-loaded`). The runner doesn't interpret it — same string = same dependency edge.
+
+Examples:
+
+```yaml
+# A new feature that needs card checklists loaded but doesn't itself produce state:
+tags:
+  - smoke
+  - card-pricing
+  - requires:cards-loaded
+```
+
+```yaml
+# A flow that's part of the cascade — depends on setup, contributes to sets-loaded:
+tags:
+  - regression
+  - requires:setup-done
+  - provides:sets-loaded
+```
+
+```yaml
+# An edge-case test that needs a wiped DB:
+tags:
+  - regression
+  - empty-state
+  - isolated:true
+```
+
+Order tags any way you like; the runner only looks at the `requires:` / `provides:` / `isolated:` / `serial-marketplace` prefixes.
+
+## Cascade pattern (set-selector)
+
+The set-selector cascade lives at `.maestro/flows/set-selector/cascade/` and looks like:
+
+- `setup.yaml` → `provides:setup-done` (does global reset, hierarchy drill, credential setup)
+- `sets-*.yaml` → `requires:setup-done`, `provides:sets-loaded`
+- `cards-*.yaml` → `requires:sets-loaded`, `provides:cards-loaded`
+
+When you add a new feature flow that depends on cards being loaded, just tag it `requires:cards-loaded`. The runner schedules it after the cascade completes — no runner changes needed.
+
+## Legacy `serial-global` tag
+
+`serial-global` is a legacy alias for `isolated:true` and is still recognized for backwards compat. Prefer `isolated:true` in new flows.

@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — cancel discards changes; re-open modal shows original state"
 tags:
   - parallel-grouping
   - regression
+  - requires:setup-done
 ---
 # Feature test: Cancel discards pending changes and does not persist to the DB.
 #
@@ -61,6 +62,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -73,6 +78,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Gold"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -86,6 +95,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Red"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"

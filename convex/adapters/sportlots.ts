@@ -13,6 +13,24 @@ const NEWINVEN_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/newinven.tpl`;
 const DEALSETS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/dealsets.tpl`;
 const LISTCARDS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/listcards.tpl`;
 
+const SL_FETCH_TIMEOUT_MS = 30_000;
+
+async function slFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(SL_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(
+        `SportLots request timed out after ${SL_FETCH_TIMEOUT_MS / 1000}s: ${url}`,
+      );
+    }
+    throw err;
+  }
+}
+
 // Map selector levels to SportLots form field names
 const LEVEL_TO_TARGET_SELECT: Record<string, string> = {
   sport: "sprt",
@@ -171,7 +189,7 @@ export const fetchSportLotsSelectorOptions = action({
         formData.set("brd", platformBrand);
       }
 
-      const response = await fetch(NEWINVEN_URL, {
+      const response = await slFetch(NEWINVEN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -274,7 +292,7 @@ async function fetchSetNames(
 
   // POST to dealsets.tpl to get set radio buttons
   const formData = new URLSearchParams(commonFields);
-  const response = await fetch(DEALSETS_URL, {
+  const response = await slFetch(DEALSETS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -465,7 +483,7 @@ export const fetchSportLotsChecklist = action({
         start: "1",
       });
 
-      const response = await fetch(LISTCARDS_URL, {
+      const response = await slFetch(LISTCARDS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -589,7 +607,7 @@ export const testCredentials = action({
 
     try {
       // Validate by fetching a protected page
-      const response = await fetch(NEWINVEN_URL, {
+      const response = await slFetch(NEWINVEN_URL, {
         method: "GET",
         headers: { Cookie: sessionCookie },
       });

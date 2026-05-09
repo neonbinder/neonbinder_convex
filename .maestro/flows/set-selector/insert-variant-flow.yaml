@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Insert variant flow — 2024 Topps Chrome Insert sync opens ReconciliationModal"
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # Canonical test for the "Insert" variant type code path.
 # End-user goal: user drills to 2024 Topps Chrome, picks "Insert" as the
@@ -78,10 +79,12 @@ tags:
     commands:
       # Auto-sync fires the VariantForm immediately when the column is empty.
       # The VariantForm fetches both BSC and SL data then opens the
-      # ReconciliationModal. Wait up to 90 seconds for it to appear.
+      # ReconciliationModal. Wait up to 240 seconds — the browser service
+      # makes network calls to both platforms and can be slow on cold sessions.
+      # Local runs have recorded 213s total flow time; 240s provides margin.
       - extendedWaitUntil:
           visible: "Reconcile Variants"
-          timeout: 90000
+          timeout: 240000
 
       # ============================================================
       # VERIFY ReconciliationModal contents

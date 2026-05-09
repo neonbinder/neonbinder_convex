@@ -10,6 +10,8 @@ import { requireAdmin } from "../auth";
 const BSC_API_BASE = "https://api-prod.buysportscards.com";
 const BSC_FILTERS_PATH = "/search/bulk-upload/filters";
 
+const BSC_FETCH_TIMEOUT_MS = 30_000;
+
 // Map our levels to BSC API aggregation keys. BSC does NOT expose a
 // NeonBinder → BSC facet mapping. NB's hierarchy differs from BSC's:
 //   NB manufacturer  → SL only (no BSC facet)
@@ -168,11 +170,22 @@ export const fetchBscSelectorOptions = action({
         };
       }
 
-      const response = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
-        method: "POST",
-        headers: bscHeaders(tokenResult.token),
-        body: JSON.stringify({ filters }),
-      });
+      let response: Response;
+      try {
+        response = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
+          method: "POST",
+          headers: bscHeaders(tokenResult.token),
+          body: JSON.stringify({ filters }),
+          signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
+        });
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "TimeoutError";
+        const msg = isTimeout
+          ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+          : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(`[fetchBscSelectorOptions] ${msg}`);
+        return { success: false, options: [], message: msg };
+      }
 
       if (!response.ok) {
         const errText = await response.text().catch(() => "");
@@ -412,11 +425,21 @@ export const fetchBscChecklist = action({
         sort: "default",
         filters,
       };
-      const response = await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
-        method: "POST",
-        headers: bscHeaders(tokenResult.token),
-        body: JSON.stringify(body),
-      });
+      let response: Response;
+      try {
+        response = await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
+          method: "POST",
+          headers: bscHeaders(tokenResult.token),
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
+        });
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "TimeoutError";
+        const msg = isTimeout
+          ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+          : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
+        return { success: false, cards: [], message: msg };
+      }
 
       if (!response.ok) {
         return {

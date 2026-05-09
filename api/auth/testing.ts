@@ -3,11 +3,13 @@ import { issueClerkTestingTokens } from "../../lib/testing/issue-clerk-tokens.js
 
 // POST /api/auth/testing — mints Clerk sign-in + testing tokens for E2E runs.
 //
-// Body: optional { account: "main" | "new-profile" }. Defaults to "main".
-//   - main         → process.env.TEST_EMAIL (pre-provisioned account)
-//   - new-profile  → process.env.NEW_PROFILE_TEST_EMAIL (always-empty account
-//                    used by profile-creation/edit tests that need a fresh
-//                    starting state)
+// Body: optional { account?: "main" | "new-profile", worker?: number }.
+//   - account: "main" (default) or "new-profile"
+//   - worker: integer index (0..N-1) used to pick a per-parallel-worker test
+//     account so concurrent flows don't trample each other's user state.
+//     When set, resolves TEST_EMAIL_${worker} / NEW_PROFILE_TEST_EMAIL_${worker};
+//     falls back to unindexed TEST_EMAIL / NEW_PROFILE_TEST_EMAIL when the
+//     indexed var isn't configured (single-worker / legacy setups).
 //
 // Security layers:
 // 1. Vercel env-var scoping: CLERK_TESTING_ENABLED, TEST_EMAIL, CLERK_SECRET_KEY,
@@ -23,18 +25,30 @@ import { issueClerkTestingTokens } from "../../lib/testing/issue-clerk-tokens.js
 type TestAccount = "main" | "new-profile";
 
 const TEST_ACCOUNTS = ["main", "new-profile"] as const satisfies readonly TestAccount[];
+const MAX_WORKER_INDEX = 31;
 
 function isTestAccount(value: unknown): value is TestAccount {
   return typeof value === "string" && (TEST_ACCOUNTS as readonly string[]).includes(value);
 }
 
-function resolveTestEmail(account: TestAccount): string | undefined {
-  switch (account) {
-    case "main":
-      return process.env.TEST_EMAIL;
-    case "new-profile":
-      return process.env.NEW_PROFILE_TEST_EMAIL;
+function parseWorkerIndex(value: unknown): { ok: true; index: number | null } | { ok: false } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true, index: null };
   }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > MAX_WORKER_INDEX) {
+    return { ok: false };
+  }
+  return { ok: true, index: n };
+}
+
+function resolveTestEmail(account: TestAccount, worker: number | null): string | undefined {
+  const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+  if (worker !== null) {
+    const indexed = process.env[`${baseKey}_${worker}`];
+    if (indexed) return indexed;
+  }
+  return process.env[baseKey];
 }
 
 export default async function handler(
@@ -72,7 +86,8 @@ export default async function handler(
   // Layer 4: account selector — restrict to the explicit allowlist of
   // known accounts; reject anything else. VercelRequest auto-parses JSON
   // bodies when Content-Type is application/json.
-  const requestedAccount = (req.body as { account?: unknown } | undefined)?.account;
+  const body = (req.body as { account?: unknown; worker?: unknown } | undefined) ?? {};
+  const requestedAccount = body.account;
   const account: TestAccount = requestedAccount === undefined ? "main" : (
     isTestAccount(requestedAccount) ? requestedAccount : "main"
   );
@@ -80,10 +95,18 @@ export default async function handler(
     res.status(400).json({ error: "Unknown account" });
     return;
   }
-  const testEmail = resolveTestEmail(account);
+  const parsedWorker = parseWorkerIndex(body.worker);
+  if (!parsedWorker.ok) {
+    res.status(400).json({ error: "Invalid worker index" });
+    return;
+  }
+  const worker = parsedWorker.index;
+  const testEmail = resolveTestEmail(account, worker);
   if (!testEmail) {
+    const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+    const detail = worker !== null ? ` (tried ${baseKey}_${worker} and ${baseKey})` : "";
     res.status(500).json({
-      error: `${account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL"} not configured for account "${account}"`,
+      error: `${baseKey} not configured for account "${account}"${detail}`,
     });
     return;
   }
@@ -105,6 +128,7 @@ export default async function handler(
       ok: result.ok,
       ip,
       account,
+      worker,
       email: testEmail,
       deploymentUrl,
       vercelEnv,

@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — modal close via Cancel button and backdrop tap"
 tags:
   - parallel-grouping
   - regression
+  - requires:setup-done
 ---
 # Feature test: modal close mechanisms.
 #

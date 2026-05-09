@@ -74,10 +74,15 @@ tags:
 
 # Brief wait to let the BaseMappingForm decide whether to hold the picker
 # open (SL data found) or auto-confirm and close (no SL data).
+# 60s covers: SL fetch round trip (~50s) + Puppeteer session re-auth if needed.
+# Wait for either the BaseSetPicker modal (SL data present) OR the post-confirm
+# "Re-map Base" control (Path B — modal auto-closed). Re-map Base sits in the
+# variant-type row and stays in viewport, unlike "Fetch from Marketplaces"
+# which renders below in the column's overflow.
 - extendedWaitUntil:
     visible:
-      text: ".*Select Base Set.*|.*Fetch from Marketplaces.*"
-    timeout: 20000
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
 
 # If the picker is open (SL data present), confirm the pre-selected set.
 - runFlow:
@@ -93,10 +98,14 @@ tags:
 # VERIFY CARD CHECKLIST PANEL IS VISIBLE
 # CardChecklist renders immediately after baseHasMapping becomes true.
 # No Level 6 Variants column — Base is terminal.
-# The "Fetch from Marketplaces" button is the reliable visibility anchor.
+# The CardChecklist is below the variant-type row and below the fold on the
+# headless 1024×629 viewport — scroll to surface "Fetch from Marketplaces".
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Fetch from Marketplaces"
-    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    timeout: 30000
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 - assertVisible: "No cards in this checklist yet."

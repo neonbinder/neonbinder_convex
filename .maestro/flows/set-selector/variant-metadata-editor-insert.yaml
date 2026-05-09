@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Variant metadata editor — edit Prefix on a custom Insert variant and verify persistence"
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # Tests the VariantMetadataEditor component on an Insert variantType variant row.
 #
@@ -93,15 +94,20 @@ tags:
       notVisible: "Group Parallels"
     commands:
       # Auto-sync fires the VariantForm which fetches BSC + SL data then opens
-      # the ReconciliationModal. 90 seconds covers both network round trips.
+      # the ReconciliationModal. 240 seconds — same budget as insert-variant-flow;
+      # local runs recorded 213s total for the same BSC+SL Insert fetch.
       - extendedWaitUntil:
-          visible: "Reconcile Variants"
-          timeout: 90000
-      # Cancel immediately — we do not want to write marketplace variant rows.
-      - tapOn: "Cancel"
-      - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
-          timeout: 10000
+          visible:
+            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+          timeout: 240000
+      - runFlow:
+          when:
+            visible: "Reconcile Variants"
+          commands:
+            - tapOn: "Cancel"
+            - extendedWaitUntil:
+                notVisible: "Reconcile Variants"
+                timeout: 10000
 
 # ============================================================
 # ADD A CUSTOM INSERT VARIANT

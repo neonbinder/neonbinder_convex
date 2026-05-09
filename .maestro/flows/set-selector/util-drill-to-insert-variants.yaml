@@ -77,22 +77,41 @@ tags:
 #   - notVisible "Group Parallels" → column is empty or auto-syncing → wait
 #     for the modal (covers case A and the manual-sync path).
 #   - visible "Group Parallels" → already populated → skip (case B).
+# "Group Parallels" sits below the variant-type list in the column's overflow
+# area — on the headless 1024×629 viewport it can be below the fold even when
+# it exists in the DOM. Scroll the column to surface it (optional — if it's
+# not present yet the scroll silently times out and we fall through to the
+# auto-sync wait below).
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+    timeout: 5000
+    optional: true
+
 - runFlow:
     when:
       notVisible: "Group Parallels"
     commands:
-      # Wait for the ReconciliationModal that auto-sync produces.
-      # 90 seconds covers both BSC + SL network round trips.
+      # Auto-sync produces either:
+      #   - ReconciliationModal (cross-platform path: BSC + SL both returned items), or
+      #   - Single-platform direct save → form auto-closes → Group Parallels appears.
+      # Wait for either signal. 240s — VariantForm hits BSC + SL; the action can be
+      # slow when both platforms need fresh sessions (213s observed locally).
       - extendedWaitUntil:
-          visible: "Reconcile Variants"
-          timeout: 90000
+          visible:
+            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+          timeout: 240000
 
-      # Cancel immediately — we only need the variants column to have
-      # triggered sync. The save step (thousands of rows) is out of scope.
-      - tapOn: "Cancel"
-      - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
-          timeout: 10000
+      # If the modal opened, cancel it. We only need the column to have triggered
+      # sync — saving thousands of rows is out of scope.
+      - runFlow:
+          when:
+            visible: "Reconcile Variants"
+          commands:
+            - tapOn: "Cancel"
+            - extendedWaitUntil:
+                notVisible: "Reconcile Variants"
+                timeout: 10000
 
 # After cancelling the ReconciliationModal on a first run, the Variants
 # column will show the empty state again — that is expected. The "Group

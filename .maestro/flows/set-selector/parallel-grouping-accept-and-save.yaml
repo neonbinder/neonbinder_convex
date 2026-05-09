@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — accept suggestions and save; verify Variants column rerenders"
 tags:
   - parallel-grouping
   - regression
+  - requires:setup-done
 ---
 # Feature test: Accept All + Save happy path.
 #
@@ -68,6 +69,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -80,6 +85,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Gold"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
@@ -92,6 +101,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Red"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
 - tapOn: "Add"
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"

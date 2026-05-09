@@ -1,0 +1,199 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Cascade — select Base variant type, confirm BaseSetPicker, verify CardChecklist appears"
+tags:
+  - set-selector
+  - cascade
+  - regression
+  - requires:setup-done
+  - provides:sets-loaded
+---
+# Cascade node: depends on setup-done, contributes to sets-loaded.
+#
+# The setup flow left the Convex deployment with:
+#   - Baseball → 2024 → Topps → Topps Chrome in the selectorOptions table
+#   - Base, Insert, and Parallel in the variant types list
+#
+# This flow starts fresh in a new browser session. The user navigates to
+# /set-selector, drills quickly to Topps Chrome using the FAST path (data is
+# already in the DB — no syncs needed), then selects "Base" to exercise the
+# BaseSetPicker confirmation and CardChecklist appearance.
+#
+# FAST DRILL PATTERN:
+#   Because the hierarchy data was already written by setup.yaml, each column
+#   renders with items immediately (no auto-sync fires on non-empty columns).
+#   The fast drill avoids syncs — just taps: Baseball → 2024 → Topps → Topps Chrome.
+#
+# BASE IS TERMINAL:
+#   Selecting "Base" triggers BaseMappingForm (BaseSetPicker modal).
+#   No Level 6 Variants column appears — Base is terminal.
+#   CardChecklist attaches directly to the variantType row.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
+# Data is already in DB from setup.yaml — columns render with items immediately.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# Level 1 — Baseball (already in DB, appears immediately)
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# Level 2 — 2024 (already in DB)
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+# Level 3 — Topps (already in DB; search to avoid long list)
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Level 4 — Topps Chrome (already in DB; search to avoid long list)
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Level 5 — Variant Types (already in DB from setup.yaml)
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+
+# ============================================================
+# SELECT BASE — triggers BaseMappingForm (BaseSetPicker modal)
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- tapOn: "Base"
+
+# Wait for either the BaseSetPicker modal OR the post-confirm "Re-map Base"
+# control (Path B — SL data already mapped, modal auto-closes).
+# "Re-map Base" sits in the variant type row directly under the Variant Types
+# column and stays in viewport, unlike "Fetch from Marketplaces" which renders
+# below in the column's overflow area.
+# 60s covers SL Puppeteer session re-auth if session lapsed.
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+
+# If the picker is open (SL data present), confirm the pre-selected set.
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      # Wait for "Confirm Base Set" button — appears once data loads and auto-selection fires.
+      - extendedWaitUntil:
+          visible: "Confirm Base Set"
+          timeout: 60000
+      # Verify the modal contents before confirming.
+      - assertVisible:
+          text: ".*Choose the base set for.*"
+      - assertVisible:
+          text: ".*SportLots base.*"
+      - assertVisible: "likely match"
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# ============================================================
+# VERIFY CARDCHECKLIST APPEARS
+# After BaseMappingForm confirms (or auto-closes), CardChecklist renders.
+# ============================================================
+
+# Scroll the CardChecklist into view — it renders below the variant-type row
+# and is initially below the fold on the headless 1024×629 viewport.
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    timeout: 30000
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+- assertVisible: "No cards in this checklist yet."
+
+# Re-map Base button confirms the sportlots mapping was written.
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    timeout: 30000
+- assertVisible: "Re-map Base"
