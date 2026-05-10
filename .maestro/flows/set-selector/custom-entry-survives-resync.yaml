@@ -88,13 +88,15 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# Find TestCustomSport-${TEST_USERNAME}. Custom entries sort to the top
-# of the column (EntitySelector.tsx sorts isCustom rows above synced
-# rows, ordered by lastUpdated DESC), so the just-added entry sits above
-# the column's `max-h-[400px]` internal-scroll fold and is visible
-# without a search-filter step. Maestro's `inputText` to the search
-# input doesn't reliably trigger the controlled input's React onChange
-# in headless Chrome — sorting custom-first sidesteps that path.
+# Find TestCustomSport-${TEST_USERNAME} via the Sports column's search
+# input. The Sports column has an internal `max-h-[400px] overflow-y-auto`
+# scroll container; with ~20 standard sports + custom entries the new
+# entry sits below the column's fold and Maestro's page-level scroll
+# can't reach it. The search input filters the column's list so the
+# entry becomes visible inside the 400 px viewport.
+- tapOn:
+    id: "Search sports"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
 - extendedWaitUntil:
     visible: "TestCustomSport-${TEST_USERNAME}"
     timeout: 5000
@@ -134,9 +136,11 @@ tags:
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
-# Find TestCustomSport-${TEST_USERNAME} again after the re-sync. The
-# custom-first sort still applies, so the entry is at the top of the
-# column above the internal-scroll fold.
+# Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Same
+# search-input approach as STEP 1.
+- tapOn:
+    id: "Search sports"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
 - extendedWaitUntil:
     visible: "TestCustomSport-${TEST_USERNAME}"
     timeout: 5000

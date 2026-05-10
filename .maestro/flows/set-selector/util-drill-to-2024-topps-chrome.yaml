@@ -130,12 +130,17 @@ tags:
     text: ${SET || "Topps Chrome"}
     index: 1
 
-# Level 5 — Variant Types. May fire auto-sync when first selected for a
-# new set; 60 s is the documented cold-sync ceiling.
+# Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
+# column first opens for a new set. The sync hits BSC + SL adapters in
+# parallel, but for some sets one platform's session is slow to warm
+# (>60s observed for Topps Tribute / Five Star / Triple Threads in CI).
+# 180s covers the worst-case cold-sync; the existing default path
+# (Topps Chrome, pre-synced by cascade) finishes in <5s so the wait
+# adds negligible cost.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 - extendedWaitUntil:
     visible: "Base"
-    timeout: 60000
+    timeout: 180000
 - assertVisible: "Base"
