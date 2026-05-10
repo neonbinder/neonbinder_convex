@@ -63,6 +63,35 @@ tags:
     timeout: 45000
 
 # ============================================================
+# STEP 0 — ENSURE BSC + SL CREDENTIALS ARE SAVED FOR THIS WORKER'S USER
+# Cascade `setup.yaml` runs at level 0 on a single worker (the scheduler picks
+# one) and only saves credentials for that worker's user. Other workers'
+# users have no credentials when this flow runs. STEP 2 below then expects
+# "Clear Credentials" on /profile (proof creds are saved) so it can clear
+# BSC creds — without this priming step, "Clear Credentials" never appears
+# and the test fails before reaching its actual assertions.
+#
+# Both setup-* flows are idempotent — they no-op if "Clear Credentials" is
+# already visible — so this is safe regardless of which worker we're on.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- runFlow:
+    file: ../profile/setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
 # STEP 1 — RESET DB AND SET UP CREDENTIALS
 # util-drill-to-2024-topps-chrome resets DB, sets up BSC+SL credentials,
 # and drills to Topps Chrome. After this, Sports/Years/Manufacturers/Sets/
