@@ -107,27 +107,21 @@ tags:
 # CardChecklist renders immediately after baseHasMapping becomes true.
 # No Level 6 Variants column — Base is terminal.
 #
-# Jump to the bottom of the page with End — Maestro's swipe-based
-# scrollUntilVisible runs CDP `executeJS` per try, and that fails with
-# `MismatchedInputException: No content to map due to end-of-input` on
-# heavy pages (e.g. when the checklist already has ~99 card rows from a
-# prior fetch on the same worker). The End key sends a real keyboard
-# event, no JS execution required, so the scroll always lands.
-#
-# After End, Add Card and the Fetch / Refresh button (in the same flex
-# row) are both at the bottom of the viewport. This works whether the
-# checklist is empty ("Fetch from Marketplaces") or populated by a
-# prior run ("Refresh").
+# Scroll to find Add Card — sits in the same flex row as the Refresh /
+# Fetch from Marketplaces button. Anchor on Add Card so the assertion
+# after works whether the checklist is empty (button labels "Fetch from
+# Marketplaces") or populated by a prior run (button labels "Refresh").
+# visibilityPercentage 50 — strict 100 fails on viewport-edge clipping.
 #
 # We do NOT assert "No cards in this checklist yet." here. The util's
 # contract is "leaves CardChecklist visible", not "leaves it empty";
-# callers that genuinely need the empty-state should assert it themselves
-# after deciding to reset cardChecklist for their worker's user.
+# callers that genuinely need the empty-state should assert it themselves.
 # ============================================================
 
-- pressKey: End
-- extendedWaitUntil:
-    visible: "Add Card"
-    timeout: 5000
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    visibilityPercentage: 50
+    timeout: 30000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"

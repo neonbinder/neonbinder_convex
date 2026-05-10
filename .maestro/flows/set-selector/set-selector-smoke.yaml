@@ -65,9 +65,14 @@ tags:
     visible:
       text: ".*Syncing Sport Options|Sync Sports.*"
     timeout: 15000
+# Re-finding "Sync Sports" is the completion signal — the button is hidden
+# while the sync is in flight and reappears below the populated list once
+# all platforms respond. visibilityPercentage: 50 matches the rest of this
+# flow (1-2 px viewport-edge clipping fails the strict default 100).
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
+    visibilityPercentage: 50
     timeout: 60000
 
 # Verify sports were synced from both platforms.

@@ -152,20 +152,15 @@ tags:
           notVisible: "Select Base Set"
           timeout: 30000
 
-# Jump to the bottom of the page with End — Maestro's swipe-based
-# scrollUntilVisible runs CDP `executeJS` per try, and that fails with
-# `MismatchedInputException: No content to map due to end-of-input` on
-# heavy pages (e.g. when the checklist already has ~99 card rows from a
-# prior fetch on the same worker). The End key sends a real keyboard
-# event, no JS execution required, so the scroll always lands.
-#
-# After End, Add Card sits in the visible viewport (it's the last
-# element on the page), and the Fetch / Refresh button is in the same
-# flex row right next to it.
-- pressKey: End
-- extendedWaitUntil:
-    visible: "Add Card"
-    timeout: 5000
+# Scroll to find Add Card — sits in the same flex row as the Fetch /
+# Refresh button. Anchor on Add Card so the assertion after works
+# whether the checklist is empty or populated. visibilityPercentage 50
+# — strict 100 fails on viewport-edge clipping.
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    visibilityPercentage: 50
+    timeout: 30000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
 

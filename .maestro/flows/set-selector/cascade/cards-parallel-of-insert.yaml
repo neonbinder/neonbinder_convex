@@ -167,26 +167,26 @@ tags:
 # where Stars Gold is directly visible.
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Stars"
-    timeout: 15000
+# With residual variants from prior PR runs (PGCancel-/PGSave-/RPItem-/etc),
+# "Stars" sits below the fold of the Variants column. Skip the viewport-only
+# extendedWaitUntil and go straight to scrollUntilVisible. visibility 50
+# matches the rest of this PR's pattern for viewport-edge anchors.
 - scrollUntilVisible:
     element:
       text: "Stars"
-    timeout: 10000
+    visibilityPercentage: 50
+    timeout: 15000
 - tapOn: "Stars"
 
 # Tapping the parent insert opens a new "Parallels" column.
 - extendedWaitUntil:
     visible: "Parallels"
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Stars Gold"
-    timeout: 15000
 - scrollUntilVisible:
     element:
       text: "Stars Gold"
-    timeout: 10000
+    visibilityPercentage: 50
+    timeout: 15000
 - tapOn: "Stars Gold"
 
 # ============================================================

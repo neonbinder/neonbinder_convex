@@ -63,6 +63,11 @@ tags:
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
@@ -78,6 +83,11 @@ tags:
     timeout: 10000
 
 # --- Add "PGSave-${TEST_USERNAME} Gold" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
@@ -93,6 +103,11 @@ tags:
     timeout: 10000
 
 # --- Add "PGSave-${TEST_USERNAME} Red" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:

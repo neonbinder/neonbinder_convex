@@ -54,6 +54,11 @@ tags:
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
@@ -69,6 +74,11 @@ tags:
     timeout: 10000
 
 # --- Add "RPItem-${TEST_USERNAME} Gold" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
@@ -87,6 +97,11 @@ tags:
 # so it stays in Top-level inserts after auto-detection. This ensures the
 # Variants column has 3 items, which is the layout state where the
 # Group Parallels button is reliably tappable.) ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
