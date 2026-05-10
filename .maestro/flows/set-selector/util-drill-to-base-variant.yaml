@@ -121,6 +121,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    centerElement: true
     visibilityPercentage: 50
     timeout: 60000
 - assertVisible:

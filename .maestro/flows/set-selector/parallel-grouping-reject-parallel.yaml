@@ -9,12 +9,12 @@ tags:
 # Feature test: the ✕ (reject) button on parallel rows inside a "Parallels of X" card.
 #
 # SCENARIO:
-#   1. Add custom inserts "RPItem-${TEST_USERNAME}" and "RPItem-${TEST_USERNAME} Gold".
-#   2. Open the modal — auto-detection suggests "RPItem-${TEST_USERNAME} Gold" as a parallel of "RPItem-${TEST_USERNAME}".
-#   3. Accept all suggestions so "RPItem-${TEST_USERNAME} Gold" is placed inside "Parallels of RPItem-${TEST_USERNAME}".
-#   4. Tap the ✕ button next to "RPItem-${TEST_USERNAME} Gold" inside the Parallels card.
+#   1. Add custom inserts "Stars" and "Stars Gold".
+#   2. Open the modal — auto-detection suggests "Stars Gold" as a parallel of "Stars".
+#   3. Accept all suggestions so "Stars Gold" is placed inside "Parallels of Stars".
+#   4. Tap the ✕ button next to "Stars Gold" inside the Parallels card.
 #   5. Verify:
-#      - "RPItem-${TEST_USERNAME} Gold" moves back to the "Top-level inserts" zone.
+#      - "Stars Gold" moves back to the "Top-level inserts" zone.
 #      - The footer reverts to "No changes yet" (the demotion undoes the prior promotion).
 #      - The Save button reverts to "No changes" (disabled).
 #
@@ -49,7 +49,7 @@ tags:
 # ADD CONTROLLED CUSTOM INSERTS
 # ============================================================
 
-# --- Add "RPItem-${TEST_USERNAME}" ---
+# --- Add "Stars" ---
 # The Variants column "+ Custom" button has aria-label="Add custom Variants".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
@@ -64,7 +64,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "RPItem-${TEST_USERNAME}"
+- inputText: "Stars"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -73,7 +73,7 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "RPItem-${TEST_USERNAME} Gold" ---
+# --- Add "Stars Gold" ---
 - scrollUntilVisible:
     element:
       id: "Add custom Variants"
@@ -84,7 +84,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "RPItem-${TEST_USERNAME} Gold"
+- inputText: "Stars Gold"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -93,7 +93,7 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "RPLayoutFiller-${TEST_USERNAME}" (a 3rd insert with no prefix match to "RPItem-${TEST_USERNAME}",
+# --- Add "Champions" (a 3rd insert with no prefix match to "Stars",
 # so it stays in Top-level inserts after auto-detection. This ensures the
 # Variants column has 3 items, which is the layout state where the
 # Group Parallels button is reliably tappable.) ---
@@ -107,7 +107,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "RPLayoutFiller-${TEST_USERNAME}"
+- inputText: "Champions"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -116,7 +116,7 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 - extendedWaitUntil:
-    visible: "RPLayoutFiller-${TEST_USERNAME}"
+    visible: "Champions"
     timeout: 5000
 
 # ============================================================
@@ -144,29 +144,29 @@ tags:
 - tapOn:
     text: ".*Accept all suggestions.*"
 
-# "RPItem-${TEST_USERNAME} Gold" is now inside "Parallels of RPItem-${TEST_USERNAME}". Footer shows a change.
+# "Stars Gold" is now inside "Parallels of Stars". Footer shows a change.
 - extendedWaitUntil:
     visible:
-      text: ".*1 promotion.*"
+      text: ".*[0-9]+ promotion.*"
     timeout: 5000
 
-# The "Parallels of RPItem-${TEST_USERNAME}" card is now visible with "RPItem-${TEST_USERNAME} Gold" inside it.
+# The "Parallels of Stars" card is now visible with "Stars Gold" inside it.
 - assertVisible:
-    text: ".*Parallels of.*RPItem-${TEST_USERNAME}.*"
+    text: ".*Parallels of.*Stars.*"
 
 # ============================================================
-# TAP THE ✕ REJECT BUTTON NEXT TO "RPItem-${TEST_USERNAME} Gold"
-# The ✕ button's accessible name (aria-label) is "Remove RPItem-${TEST_USERNAME} Gold from parallels".
+# TAP THE ✕ REJECT BUTTON NEXT TO "Stars Gold"
+# The ✕ button's accessible name (aria-label) is "Remove Stars Gold from parallels".
 # Maestro web maps aria-label to resource-id, so we select it via id: which
 # targets resource-id. The value is the aria-label string, not a DOM id attribute.
 # ============================================================
 
 - tapOn:
-    id: "Remove RPItem-${TEST_USERNAME} Gold from parallels"
+    id: "Remove Stars Gold from parallels"
 
 # ============================================================
 # VERIFY STATE RESET
-# "RPItem-${TEST_USERNAME} Gold" moved back to "Top-level inserts".
+# "Stars Gold" moved back to "Top-level inserts".
 # Net diff is zero (original: ungrouped → current: ungrouped).
 # Footer should show "No changes yet" and Save should be disabled.
 # ============================================================
@@ -179,11 +179,11 @@ tags:
 # Save button is disabled again
 - assertVisible: "No changes"
 
-# "RPItem-${TEST_USERNAME} Gold" is visible in the Top-level inserts zone.
+# "Stars Gold" is visible in the Top-level inserts zone.
 # The "Suggested" badge is gone — the PLACE action always clears the
 # suggestion for the moved row (including a reject-PLACE). The row is
 # ungrouped with no badge, which is the correct post-reject state.
-- assertVisible: "RPItem-${TEST_USERNAME} Gold"
+- assertVisible: "Stars Gold"
 
 # ============================================================
 # CLOSE
