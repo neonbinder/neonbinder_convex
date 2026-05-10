@@ -47,7 +47,7 @@ tags:
       SPORT: "Baseball"
       YEAR: "2024"
       MANUFACTURER: "Topps"
-      SET: "Topps Living"
+      SET: "Topps Pro Debut"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}

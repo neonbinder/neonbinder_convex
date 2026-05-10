@@ -118,17 +118,16 @@ tags:
 # callers that genuinely need the empty-state should assert it themselves.
 # ============================================================
 
-# 120 s timeout (NOT a flake-mask): on heavy CardChecklist pages with
-# ~99 rows, Maestro's swipe-based scroll runs CDP `executeJS` which
-# fails intermittently with `MismatchedInputException: No content to
-# map due to end-of-input`. Each failure costs ~1.5 s; the prior 60 s
-# was insufficient on slower CI runners. 120 s gives ~80 retries which
-# reliably traverses the failures.
+# Add Card sits in the CardChecklist action row at the TOP of the
+# checklist. After BaseMappingForm closes, the page can land scrolled
+# down into the card rows (#133+), so we scroll UP to find Add Card.
+# Default DOWN direction would scroll past it forever.
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    direction: UP
     centerElement: true
     visibilityPercentage: 50
-    timeout: 120000
+    timeout: 10000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"

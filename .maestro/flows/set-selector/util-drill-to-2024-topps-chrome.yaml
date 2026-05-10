@@ -131,16 +131,17 @@ tags:
     index: 1
 
 # Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
-# column first opens for a new set. The sync hits BSC + SL adapters in
-# parallel, but for some sets one platform's session is slow to warm
-# (>60s observed for Topps Tribute / Five Star / Triple Threads in CI).
-# 180s covers the worst-case cold-sync; the existing default path
-# (Topps Chrome, pre-synced by cascade) finishes in <5s so the wait
-# adds negligible cost.
+# column first opens for a new set. Default path (Topps Chrome, pre-
+# synced by cascade) finishes in <5s. Cold-sync for new sets goes
+# through fetchAggregatedOptions → BSC + SL adapters; those calls
+# should complete in <10s but occasionally hang on slower runners
+# under worker contention. If that timer fires, the underlying bug is
+# in the variantType action serializing BSC/SL or hanging on a
+# session warm — chase that, not the timeout. Tracked in NEO-8.
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 20000
+    timeout: 10000
 - extendedWaitUntil:
     visible: "Base"
-    timeout: 180000
+    timeout: 60000
 - assertVisible: "Base"
