@@ -159,9 +159,14 @@ tags:
 # "Fetch from Marketplaces") or already populated by an earlier flow on
 # the same worker (button labels "Refresh"). 10 s respects the <10 s
 # response budget — the page is finite, this is not a marketplace round-trip.
+#
+# visibilityPercentage: 50 — the default 100 fails when Add Card lands at
+# the viewport's bottom edge with a 1-2 px cutoff (which the 1024×629
+# headless driver hits routinely on this short, empty-state page).
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    visibilityPercentage: 50
     timeout: 10000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"

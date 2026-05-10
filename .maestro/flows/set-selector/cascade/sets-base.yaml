@@ -192,14 +192,18 @@ tags:
 - assertVisible: "No cards in this checklist yet."
 
 # Re-map Base button confirms the sportlots mapping was written.
-# Re-map Base sits ABOVE the CardChecklist's "Fetch from Marketplaces"
-# button (in the variant-type row), so after the previous scroll-DOWN the
-# viewport is past it — search UP to find it. 10 s is plenty: the button
-# is at most one viewport above. If it can't be found in 10 s, that's a
-# real bug worth surfacing, not a flake to mask with a longer timeout.
+# It renders in the variant-type row directly above the CardChecklist; the
+# previous scroll-DOWN to surface Fetch may have nudged the viewport past
+# it. Scroll back UP to bring Re-map Base into view.
+#
+# visibilityPercentage: 50 — Maestro's default 100 fails when an element
+# lands at a viewport edge with even a 1-2 px cutoff on the 1024×629
+# headless driver. 50 % is plenty: a half-visible button is tappable and
+# is what a real user would see and act on.
 - scrollUntilVisible:
     element:
       text: "Re-map Base"
     direction: UP
+    visibilityPercentage: 50
     timeout: 10000
 - assertVisible: "Re-map Base"

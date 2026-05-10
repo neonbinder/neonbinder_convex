@@ -115,6 +115,12 @@ tags:
 # the same worker (button labels "Refresh") — the long card list between
 # the panel header and the action row no longer blocks the anchor.
 #
+# visibilityPercentage: 50 — the default 100 fails when Add Card lands at
+# the viewport's bottom edge (a 1-2 px cutoff is enough to fail the strict
+# check on the headless 1024×629 driver). 50 % is plenty: a button that
+# half-overlaps the viewport bottom is still tappable and a real user can
+# see it.
+#
 # We do NOT assert "No cards in this checklist yet." here. The util's
 # contract is "leaves CardChecklist visible", not "leaves it empty";
 # callers that genuinely need the empty-state should assert it themselves
@@ -124,6 +130,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    visibilityPercentage: 50
     timeout: 10000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
