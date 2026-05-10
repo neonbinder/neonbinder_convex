@@ -308,9 +308,13 @@ tags:
 
 # BaseMappingForm — SL has no set identifier for a custom set → auto-closes (Path B).
 # If SL has options (Path A), confirm.
+# Three acceptable post-Base-tap states:
+# 1. BaseSetPicker modal opened ("Select Base Set") — no prior mapping
+# 2. Re-map Base button rendered — prior mapping exists in DB
+# 3. CardChecklist Fetch button visible — modal auto-closed already
 - extendedWaitUntil:
     visible:
-      text: ".*Select Base Set.*|.*Fetch from Marketplaces.*"
+      text: ".*Select Base Set.*|.*Fetch from Marketplaces.*|.*Re-map Base.*"
     timeout: 20000
 - runFlow:
     when:
@@ -321,9 +325,13 @@ tags:
           notVisible: "Select Base Set"
           timeout: 10000
 
-- extendedWaitUntil:
-    visible: "Fetch from Marketplaces"
-    timeout: 15000
+# Find Fetch from Marketplaces — may sit below the variant-type row /
+# Re-map Base button on the page. Scroll DOWN with vis:50.
+- scrollUntilVisible:
+    element:
+      text: "Fetch from Marketplaces"
+    visibilityPercentage: 50
+    timeout: 30000
 
 # ============================================================
 # STEP 4 — ATTEMPT THE FETCH (BSC credentials are absent)
