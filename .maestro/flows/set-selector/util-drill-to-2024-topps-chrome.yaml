@@ -32,13 +32,20 @@ tags:
     visible: "Set Selector"
     timeout: 20000
 
-# Level 1 — Sport (defaults to Baseball)
+# Level 1 — Sport (defaults to Baseball). Use the Sports search input to
+# filter the column's internal-scroll list down to the target sport — most
+# sports past the first ~7 (alphabetical) sit below the column's
+# `max-h-[400px] overflow-y-auto` fold and Maestro's page-level scroll
+# can't reach them. The search input is targeted by its aria-label
+# `Search sports` (added on EntitySelector.tsx).
+- extendedWaitUntil:
+    visible: "Sports"
+    timeout: 30000
+- tapOn:
+    id: "Search sports"
+- inputText: ${SPORT || "Baseball"}
 - extendedWaitUntil:
     visible: ${SPORT || "Baseball"}
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ${SPORT || "Baseball"}
     timeout: 10000
 - tapOn: ${SPORT || "Baseball"}
 

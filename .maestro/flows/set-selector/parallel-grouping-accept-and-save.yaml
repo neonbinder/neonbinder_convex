@@ -53,10 +53,10 @@ tags:
       # table; using a unique Sport per test keeps each test's custom
       # variants under a distinct (Sport, Year, Manuf, Set, VariantType)
       # parent so they don't pollute each other across CI runs.
-      SPORT: "Hockey"
+      SPORT: "Baseball"
       YEAR: "2024"
       MANUFACTURER: "Topps"
-      SET: "Topps Chrome"
+      SET: "2024 Bowman"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
