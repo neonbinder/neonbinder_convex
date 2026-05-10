@@ -63,39 +63,13 @@ tags:
     timeout: 45000
 
 # ============================================================
-# STEP 0 — ENSURE BSC + SL CREDENTIALS ARE SAVED FOR THIS WORKER'S USER
-# Cascade `setup.yaml` runs at level 0 on a single worker (the scheduler picks
-# one) and only saves credentials for that worker's user. Other workers'
-# users have no credentials when this flow runs. STEP 2 below then expects
-# "Clear Credentials" on /profile (proof creds are saved) so it can clear
-# BSC creds — without this priming step, "Clear Credentials" never appears
-# and the test fails before reaching its actual assertions.
-#
-# Both setup-* flows are idempotent — they no-op if "Clear Credentials" is
-# already visible — so this is safe regardless of which worker we're on.
-# ============================================================
-
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
-- runFlow:
-    file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
-
-# ============================================================
-# STEP 1 — RESET DB AND SET UP CREDENTIALS
-# util-drill-to-2024-topps-chrome resets DB, sets up BSC+SL credentials,
-# and drills to Topps Chrome. After this, Sports/Years/Manufacturers/Sets/
-# Variant Types data is in the DB. The page is on /set-selector.
+# STEP 1 — DRILL TO 2024 TOPPS CHROME (uses cached DB data)
+# util-drill-to-2024-topps-chrome assumes the cascade setup has already
+# populated the hierarchy and saved credentials for the running worker's
+# user. The BSC/SL credential env vars only reach worker 0 and the
+# marketplace lane (per run-e2e-smoke.sh:run_flow_on_worker), so when this
+# flow lands on worker 1 or 2 the creds may not be saved — STEP 2 below
+# tolerates either state.
 # ============================================================
 
 - runFlow:
@@ -107,8 +81,12 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
-# STEP 2 — CLEAR BSC CREDENTIALS
-# Navigate to /profile and clear BSC creds. Sportlots creds stay.
+# STEP 2 — ENSURE BSC CREDENTIALS ARE ABSENT
+# Navigate to /profile. If BSC creds are saved (worker 0 receives the env
+# vars and the cascade setup persists them), clear them. If they are
+# already absent (workers 1/2 — env vars never reached this user), this
+# step is a no-op. Either way the rest of the flow runs against an empty
+# BSC credential state.
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
@@ -121,18 +99,26 @@ tags:
     element:
       text: "BuySportsCards Credentials"
     timeout: 20000
+# Optional scroll — if "Clear Credentials" exists, this finds it; if not,
+# the optional flag lets the scroll silently complete and the runFlow
+# branch below handles both states.
 - scrollUntilVisible:
     element:
       text: "Clear Credentials"
-    timeout: 10000
-- tapOn: "Clear Credentials"
-- extendedWaitUntil:
-    visible: ".*Yes, Clear.*"
     timeout: 5000
-- tapOn: "Yes, Clear"
-- extendedWaitUntil:
-    visible: ".*Credentials cleared.*"
-    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: "Clear Credentials"
+    commands:
+      - tapOn: "Clear Credentials"
+      - extendedWaitUntil:
+          visible: ".*Yes, Clear.*"
+          timeout: 5000
+      - tapOn: "Yes, Clear"
+      - extendedWaitUntil:
+          visible: ".*Credentials cleared.*"
+          timeout: 30000
 
 # ============================================================
 # STEP 3 — NAVIGATE BACK AND RE-DRILL WITH BSC ABSENT
