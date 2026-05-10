@@ -192,8 +192,14 @@ tags:
 - assertVisible: "No cards in this checklist yet."
 
 # Re-map Base button confirms the sportlots mapping was written.
+# Re-map Base sits ABOVE the CardChecklist's "Fetch from Marketplaces"
+# button (in the variant-type row), so after the previous scroll-DOWN the
+# viewport is past it — search UP to find it. 10 s is plenty: the button
+# is at most one viewport above. If it can't be found in 10 s, that's a
+# real bug worth surfacing, not a flake to mask with a longer timeout.
 - scrollUntilVisible:
     element:
       text: "Re-map Base"
-    timeout: 30000
+    direction: UP
+    timeout: 10000
 - assertVisible: "Re-map Base"
