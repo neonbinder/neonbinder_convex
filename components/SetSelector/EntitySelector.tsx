@@ -126,6 +126,7 @@ export default function EntitySelector({
           onChange={(e) => setSearchFilter(e.target.value)}
           className="w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm"
           placeholder={`Search ${title.toLowerCase()}...`}
+          aria-label={`Search ${title.toLowerCase()}`}
         />
       )}
       <div className="space-y-2 max-h-[400px] overflow-y-auto">

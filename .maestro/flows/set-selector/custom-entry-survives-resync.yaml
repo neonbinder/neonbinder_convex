@@ -88,16 +88,23 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# Find TestCustomSport-${TEST_USERNAME} in the Sports column. The previous
-# search-input approach was unreliable (Maestro's tap on the placeholder
-# sometimes lost focus before inputText reached the field, leaving the
-# list unfiltered). Use scrollUntilVisible directly with vis:50 — works
-# whether the entry sits at the bottom of an unfiltered list or filtered.
-- scrollUntilVisible:
-    element:
-      text: "TestCustomSport-${TEST_USERNAME}"
-    visibilityPercentage: 50
-    timeout: 30000
+# Find TestCustomSport-${TEST_USERNAME} via the Sports column's search
+# input. The Sports column has an internal `max-h-[400px] overflow-y-auto`
+# scroll container; with ~20 standard sports + custom entries the new
+# entry sits below the column's fold and Maestro's page-level scroll
+# can't reach it. The search input filters the column's list so the
+# entry becomes visible inside the 400 px viewport.
+#
+# We target the input by its aria-label `Search sports` (added in
+# `components/SetSelector/EntitySelector.tsx`) — Maestro web's `id:`
+# selector resolves to either resource-id or aria-label, so this is the
+# accessible-name path that matches what a screen reader announces.
+- tapOn:
+    id: "Search sports"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
+- extendedWaitUntil:
+    visible: "TestCustomSport-${TEST_USERNAME}"
+    timeout: 5000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # Verify the "Custom" badge is shown next to the entry
@@ -134,14 +141,14 @@ tags:
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
-# Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Use
-# scrollUntilVisible directly (search-input approach was unreliable
-# above).
-- scrollUntilVisible:
-    element:
-      text: "TestCustomSport-${TEST_USERNAME}"
-    visibilityPercentage: 50
-    timeout: 30000
+# Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Same
+# search-input approach as STEP 1 (aria-label-based id selector).
+- tapOn:
+    id: "Search sports"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
+- extendedWaitUntil:
+    visible: "TestCustomSport-${TEST_USERNAME}"
+    timeout: 5000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # The "Custom" badge must still be shown on the entry
