@@ -118,14 +118,13 @@ tags:
 # callers that genuinely need the empty-state should assert it themselves.
 # ============================================================
 
-# Add Card sits in the CardChecklist action row at the TOP of the
-# checklist. After BaseMappingForm closes, the page can land scrolled
-# down into the card rows (#133+), so we scroll UP to find Add Card.
-# Default DOWN direction would scroll past it forever.
+# Add Card sits in the CardChecklist action row, rendered below the
+# selector columns and Re-map Base button after BaseMappingForm closes.
+# Scroll DOWN with default direction; vis:50 to handle viewport-edge
+# clipping.
 - scrollUntilVisible:
     element:
       text: "Add Card"
-    direction: UP
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000

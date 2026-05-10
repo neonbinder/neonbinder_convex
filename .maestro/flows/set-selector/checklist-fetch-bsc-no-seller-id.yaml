@@ -325,14 +325,12 @@ tags:
           notVisible: "Select Base Set"
           timeout: 10000
 
-# Find Fetch from Marketplaces — sits in the CardChecklist action row
-# alongside Add Card. After BaseMappingForm closes, the page can land
-# scrolled into the card list, so search UP to bring the action row
-# into view.
+# Find Fetch from Marketplaces — sits in the CardChecklist action row.
+# Default direction (DOWN) since the action row renders below the
+# selector columns. vis:50 handles viewport-edge clipping.
 - scrollUntilVisible:
     element:
       text: "Fetch from Marketplaces"
-    direction: UP
     visibilityPercentage: 50
     timeout: 10000
 

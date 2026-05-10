@@ -161,14 +161,16 @@ tags:
 # just at the bottom edge), giving more headroom for the page to render
 # the action row reliably and avoiding the strict-100 visibility issue.
 #
-# Add Card sits in the CardChecklist action row at the TOP of the
-# checklist. After BaseMappingForm closes, the page can land scrolled
-# down into the card rows (#133+), so we scroll UP to find Add Card.
-# Default DOWN direction would scroll past it forever.
+# Add Card sits in the CardChecklist action row, rendered below the
+# selector columns and Re-map Base button after BaseMappingForm closes.
+# Scroll DOWN with default direction; vis:50 to handle viewport-edge
+# clipping. cards-base is currently failing on heavy CardChecklist
+# pages because CDP swipe-then-query hits empty responses on a 99-row
+# DOM — that's a real CardChecklist virtualization bug, tracked as
+# follow-up work.
 - scrollUntilVisible:
     element:
       text: "Add Card"
-    direction: UP
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000

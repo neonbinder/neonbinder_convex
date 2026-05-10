@@ -34,6 +34,27 @@ tags:
     timeout: 45000
 
 # ============================================================
+# ENSURE BSC CREDENTIALS PRESENT
+# checklist-fetch-bsc-no-seller-id (cascade dep-graph sibling) clears
+# this worker's BSC creds and may fail before its own restore step
+# runs, leaving the worker with no creds. The variantType auto-sync
+# for our per-test SET (Topps Pro Debut, etc.) needs BSC to populate
+# Base/Insert/Parallel; without creds it returns 0 options and "Base"
+# never appears. setup-bsc-credentials is idempotent — sees "Clear
+# Credentials" and skips when creds are already saved.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+# ============================================================
 # DRILL TO INSERT VARIANT TYPE
 # ============================================================
 
