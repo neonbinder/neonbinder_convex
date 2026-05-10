@@ -682,29 +682,52 @@ export default function ProfilePage() {
               </p>
             ) : (
               <>
-              {/* Site Selector */}
+              {/* Site Selector — tab-style buttons. Native <select> is not
+                  drivable by Maestro web (it can focus the element but
+                  cannot tap inside the native <option> popup, and
+                  inputText doesn't simulate the keyboard event the
+                  browser needs to type-to-select). Buttons are
+                  click-driven, accessible (role="tab" each + role="tablist"),
+                  and announce as a platform group to screen readers. */}
               <div>
-                <label
-                  htmlFor="site-select"
+                <span
+                  id="site-select-label"
                   className="block text-sm font-medium mb-2"
                 >
                   Select Platform
-                </label>
-                <select
-                  id="site-select"
-                  aria-label="Select Platform"
-                  value={selectedSite}
-                  onChange={(e) => setSelectedSite(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
+                </span>
+                <div
+                  role="tablist"
+                  aria-labelledby="site-select-label"
+                  className="flex flex-wrap gap-2"
                 >
-                  {SUPPORTED_SITES.map((site) => (
-                    <option key={site.key} value={site.key}>
-                      {site.label}
-                    </option>
-                  ))}
-                </select>
+                  {SUPPORTED_SITES.map((site) => {
+                    const isSelected = selectedSite === site.key;
+                    return (
+                      <button
+                        key={site.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={isSelected}
+                        aria-controls="site-credentials-panel"
+                        onClick={() => setSelectedSite(site.key)}
+                        className={
+                          "px-4 py-2 rounded-md border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 " +
+                          (isSelected
+                            ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-300"
+                            : "border-slate-300 dark:border-slate-600 hover:border-green-500 text-foreground")
+                        }
+                      >
+                        {site.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            <div>
+            <div
+              id="site-credentials-panel"
+              role="tabpanel"
+            >
               <h2 className="text-xl font-semibold mb-2">
                 {siteMeta?.label} Credentials
               </h2>
