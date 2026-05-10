@@ -6,12 +6,20 @@ tags:
 # Shared prerequisite for all card-checklist flows.
 #
 # When this util returns, the browser is on /set-selector with:
-#   - DB reset (all selectorOptions + cardChecklist rows deleted)
-#   - BSC + SL credentials saved (idempotent)
 #   - Baseball → 2024 → Topps → Topps Chrome → Base selected
 #   - BaseSetPicker confirmed (SportLots base set mapped)
-#   - CardChecklist panel visible below the selector row
+#   - CardChecklist panel visible below the selector row (may be empty
+#     OR populated from prior runs — the util does not reset cardChecklist)
 #   - NO Level 6 Variants column (Base is a terminal variant type)
+#
+# CALLER NOTES:
+#   - Assumes cascade `setup.yaml` (level 0) has populated the shared
+#     hierarchy and saved BSC/SL credentials for the running worker's user.
+#     setup.yaml only saves credentials for the worker that ran it (level 0
+#     picks one worker), so callers running on other workers must save
+#     credentials themselves before invoking this util.
+#   - Does NOT reset cardChecklist; if your test premise requires an empty
+#     checklist, reset state explicitly.
 #
 # CRITICAL — BASE IS TERMINAL:
 #   Selecting "Base" at Level 5 suppresses the Variants column entirely.
@@ -98,14 +106,24 @@ tags:
 # VERIFY CARD CHECKLIST PANEL IS VISIBLE
 # CardChecklist renders immediately after baseHasMapping becomes true.
 # No Level 6 Variants column — Base is terminal.
-# The CardChecklist is below the variant-type row and below the fold on the
-# headless 1024×629 viewport — scroll to surface "Fetch from Marketplaces".
+#
+# We anchor the scroll on "Add Card" — it sits in the same flex row as the
+# Refresh / Fetch from Marketplaces button (CardChecklist.tsx renders both
+# inside the same `<div className="flex gap-2">`), so once Add Card is in
+# view the action button is too. This works whether the checklist is empty
+# (button labels "Fetch from Marketplaces") or populated by a prior run on
+# the same worker (button labels "Refresh") — the long card list between
+# the panel header and the action row no longer blocks the anchor.
+#
+# We do NOT assert "No cards in this checklist yet." here. The util's
+# contract is "leaves CardChecklist visible", not "leaves it empty";
+# callers that genuinely need the empty-state should assert it themselves
+# after deciding to reset cardChecklist for their worker's user.
 # ============================================================
 
 - scrollUntilVisible:
     element:
-      text: ".*Fetch from Marketplaces.*|Refresh"
-    timeout: 30000
+      text: "Add Card"
+    timeout: 10000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
-- assertVisible: "No cards in this checklist yet."

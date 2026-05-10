@@ -58,11 +58,12 @@ tags:
 # FETCH AND CONFIRM (same pattern as the confirm flow)
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
-- extendedWaitUntil:
-    visible: "Fetching..."
-    timeout: 10000
-
+# The CardChecklist may already have rows from a prior flow on the same
+# worker — in that state the button label is "Refresh", not "Fetch from
+# Marketplaces". Match either label so the test premise survives a populated
+# starting state. Either label drives the same fetchCardChecklist code path.
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 - extendedWaitUntil:
     visible:
       text: ".*Confirm New Players.*|.*Saved [0-9]+.*"

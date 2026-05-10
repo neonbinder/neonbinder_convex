@@ -64,7 +64,11 @@ tags:
 # TRIGGER THE FETCH
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
+# If a prior flow on this worker has already populated the checklist, the
+# button label is "Refresh" instead of "Fetch from Marketplaces" — both
+# drive fetchCardChecklist, so match either.
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 # NOTE: "Fetching..." is transient when cache is warm. Guard with optional pattern:
 # if "Fetching..." doesn't appear within 5s, assume fetch completed instantly
 # and proceed to wait for the dialog.
