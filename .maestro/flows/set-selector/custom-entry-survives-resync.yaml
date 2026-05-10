@@ -88,21 +88,16 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# Use the search box to find "TestCustomSport-${TEST_USERNAME}" in the Sports column.
-# The Sports list has an internal scroll container — page-level assertVisible
-# cannot see items below the fold. The search box filters the internal list,
-# making TestCustomSport-${TEST_USERNAME} visible regardless of how many entries precede it
-# alphabetically. The search input shows "Search sports..." as placeholder.
+# Find TestCustomSport-${TEST_USERNAME} in the Sports column. The previous
+# search-input approach was unreliable (Maestro's tap on the placeholder
+# sometimes lost focus before inputText reached the field, leaving the
+# list unfiltered). Use scrollUntilVisible directly with vis:50 — works
+# whether the entry sits at the bottom of an unfiltered list or filtered.
 - scrollUntilVisible:
     element:
-      text: "Search sports..."
-    direction: UP
-    timeout: 10000
-- tapOn: "Search sports..."
-- inputText: "TestCustomSport-${TEST_USERNAME}"
-- extendedWaitUntil:
-    visible: "TestCustomSport-${TEST_USERNAME}"
-    timeout: 10000
+      text: "TestCustomSport-${TEST_USERNAME}"
+    visibilityPercentage: 50
+    timeout: 30000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # Verify the "Custom" badge is shown next to the entry
@@ -139,19 +134,14 @@ tags:
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
-# Use the search box to find "TestCustomSport-${TEST_USERNAME}" — the Sports column has an
-# internal scroll container so page-level scrolling cannot reveal it.
-# After the page reload in Step 2, the search input shows the placeholder.
+# Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Use
+# scrollUntilVisible directly (search-input approach was unreliable
+# above).
 - scrollUntilVisible:
     element:
-      text: "Search sports..."
-    direction: UP
-    timeout: 10000
-- tapOn: "Search sports..."
-- inputText: "TestCustomSport-${TEST_USERNAME}"
-- extendedWaitUntil:
-    visible: "TestCustomSport-${TEST_USERNAME}"
-    timeout: 15000
+      text: "TestCustomSport-${TEST_USERNAME}"
+    visibilityPercentage: 50
+    timeout: 30000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # The "Custom" badge must still be shown on the entry
