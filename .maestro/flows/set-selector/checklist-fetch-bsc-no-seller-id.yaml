@@ -147,18 +147,27 @@ tags:
     timeout: 10000
 - tapOn: "Baseball"
 
-# Years — cached
+# Years — cached. The list defaults to most-recent year first (2026, 2025,
+# 2024…) so "2024" sits below the fold on the headless viewport. Use the
+# search-input pattern that the cascade flows use — it filters the list
+# down to just the matching year, which is reliably in-viewport.
 - extendedWaitUntil:
     visible: "Years"
     timeout: 10000
-- runFlow:
-    when:
-      notVisible: "2024"
-    commands:
-      - extendedWaitUntil:
-          visible: "2024"
-          timeout: 30000
-- tapOn: "2024"
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
 
 # Manufacturers — cached
 - extendedWaitUntil:
