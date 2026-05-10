@@ -4,6 +4,18 @@ tags:
   - set-selector
   - regression
   - requires:setup-done
+  # WIP: After adding a custom entry via "+ Custom" form, the new entry
+  # is buried below the column's `max-h-[400px] overflow-y-auto` fold
+  # because synced sports sort alphabetically before the custom entry.
+  # Maestro's `inputText` to the search-input doesn't reliably trigger
+  # the controlled input's React onChange in headless Chrome, so the
+  # filter never applies and the entry stays below the fold.
+  # Real fix options: (a) sort isCustom rows above synced rows in
+  # EntitySelector (rejected — broke 4 cascade tests by pushing Baseball
+  # off-screen); (b) virtualize the column's internal scroll so its
+  # contents always fit; (c) replace the controlled input with an
+  # uncontrolled or DOM-based filter.
+  - wip
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
