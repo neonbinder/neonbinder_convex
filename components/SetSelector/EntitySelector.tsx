@@ -60,8 +60,21 @@ export default function EntitySelector({
 
   if (!items) return <div>Loading {title.toLowerCase()}...</div>;
 
-  // Sort items by their display names
+  // Sort items: custom entries first (most-recently-added at top),
+  // then synced entries alphabetically (or numerically for years).
+  // Floating custom entries up keeps a user-just-added row above the
+  // column's `max-h-[400px]` internal-scroll fold so it stays visible
+  // without requiring a search-filter step.
   const sortedItems = [...items].sort((a, b) => {
+    const aCustom = isCustom(a);
+    const bCustom = isCustom(b);
+    if (aCustom !== bCustom) return aCustom ? -1 : 1;
+    if (aCustom && bCustom) {
+      const aTime = typeof a.lastUpdated === "number" ? a.lastUpdated : 0;
+      const bTime = typeof b.lastUpdated === "number" ? b.lastUpdated : 0;
+      return bTime - aTime;
+    }
+
     const nameA = getDisplayName(a);
     const nameB = getDisplayName(b);
 

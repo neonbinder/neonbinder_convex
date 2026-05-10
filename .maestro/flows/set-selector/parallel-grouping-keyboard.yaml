@@ -47,7 +47,7 @@ tags:
       SPORT: "Baseball"
       YEAR: "2024"
       MANUFACTURER: "Topps"
-      SET: "2024 Stadium Club"
+      SET: "Topps Tribute"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}

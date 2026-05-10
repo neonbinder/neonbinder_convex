@@ -64,7 +64,7 @@ tags:
       SPORT: "Baseball"
       YEAR: "2024"
       MANUFACTURER: "Topps"
-      SET: "2024 Topps Update"
+      SET: "Topps Triple Threads"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
