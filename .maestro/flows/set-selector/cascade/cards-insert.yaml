@@ -136,24 +136,26 @@ tags:
     visible: "Variants"
     timeout: 10000
 
+# The Reconcile Variants modal only opens when auto-sync fires on an empty
+# Variants column. When variants already exist (cascade left them), no modal
+# opens and Group Parallels is in the DOM but may be below the fold on the
+# headless 1024×629 viewport. Don't branch on `notVisible: Group Parallels`
+# (false-positive: viewport-only check) — handle the modal if it really
+# shows up, then unconditionally scroll Group Parallels into view.
 - runFlow:
     when:
-      notVisible: "Group Parallels"
+      visible: "Reconcile Variants"
     commands:
-      # 10s — backend should respond <10s; if it doesn't, that's a real bug
-      # we want to surface, not mask with a 240s timeout.
+      - tapOn: "Cancel"
       - extendedWaitUntil:
-          visible:
-            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+          notVisible: "Reconcile Variants"
           timeout: 10000
-      - runFlow:
-          when:
-            visible: "Reconcile Variants"
-          commands:
-            - tapOn: "Cancel"
-            - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
-                timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+    timeout: 10000
+- assertVisible: "Group Parallels"
 
 # ============================================================
 # ADD A CUSTOM INSERT VARIANT
