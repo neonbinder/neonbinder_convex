@@ -2,11 +2,6 @@ appId: com.neonbinder.web
 name: "Util — drill to a (Sport, Year, Manufacturer, Set) — accepts env overrides"
 tags:
   - util
-env:
-  SPORT: "Baseball"
-  YEAR: "2024"
-  MANUFACTURER: "Topps"
-  SET: "Topps Chrome"
 ---
 # FAST drill when called with defaults — assumes the cascade `setup.yaml`
 # flow has already populated:
@@ -39,13 +34,13 @@ env:
 
 # Level 1 — Sport (defaults to Baseball)
 - extendedWaitUntil:
-    visible: ${SPORT}
+    visible: ${SPORT || "Baseball"}
     timeout: 30000
 - scrollUntilVisible:
     element:
-      text: ${SPORT}
+      text: ${SPORT || "Baseball"}
     timeout: 10000
-- tapOn: ${SPORT}
+- tapOn: ${SPORT || "Baseball"}
 
 # Level 2 — Year. Wait for the Years column search input as the auto-sync
 # completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
@@ -61,14 +56,14 @@ env:
     timeout: 10000
 - tapOn:
     text: ".*Search years.*"
-- inputText: ${YEAR}
+- inputText: ${YEAR || "2024"}
 - extendedWaitUntil:
     visible:
-      text: ${YEAR}
+      text: ${YEAR || "2024"}
       index: 1
     timeout: 10000
 - tapOn:
-    text: ${YEAR}
+    text: ${YEAR || "2024"}
     index: 1
 
 # Level 3 — Manufacturer. 90 s covers cold sync.
@@ -84,14 +79,14 @@ env:
     timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
-- inputText: ${MANUFACTURER}
+- inputText: ${MANUFACTURER || "Topps"}
 - extendedWaitUntil:
     visible:
-      text: ${MANUFACTURER}
+      text: ${MANUFACTURER || "Topps"}
       index: 1
     timeout: 10000
 - tapOn:
-    text: ${MANUFACTURER}
+    text: ${MANUFACTURER || "Topps"}
     index: 1
 
 # Level 4 — Set. 120 s covers cold sync.
@@ -107,14 +102,14 @@ env:
     timeout: 10000
 - tapOn:
     text: ".*Search sets.*"
-- inputText: ${SET}
+- inputText: ${SET || "Topps Chrome"}
 - extendedWaitUntil:
     visible:
-      text: ${SET}
+      text: ${SET || "Topps Chrome"}
       index: 1
     timeout: 10000
 - tapOn:
-    text: ${SET}
+    text: ${SET || "Topps Chrome"}
     index: 1
 
 # Level 5 — Variant Types. May fire auto-sync when first selected for a
