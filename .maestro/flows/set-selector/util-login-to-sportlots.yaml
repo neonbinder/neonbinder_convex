@@ -81,9 +81,8 @@ tags:
       text: ".*Select Platform.*"
     timeout: 20000
 
-# Switch to SportLots in the platform selector before testing
-- tapOn:
-    id: "site-select"
+# Switch to SportLots in the platform tablist (was a native <select> —
+# now role="tab" buttons; tap the visible label).
 - tapOn: "Sportlots"
 
 - scrollUntilVisible:
