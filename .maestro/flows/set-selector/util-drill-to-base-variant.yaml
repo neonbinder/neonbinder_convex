@@ -122,6 +122,6 @@ tags:
     element:
       text: "Add Card"
     visibilityPercentage: 50
-    timeout: 30000
+    timeout: 60000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"

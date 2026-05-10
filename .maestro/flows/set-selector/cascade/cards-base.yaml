@@ -156,11 +156,18 @@ tags:
 # Refresh button. Anchor on Add Card so the assertion after works
 # whether the checklist is empty or populated. visibilityPercentage 50
 # — strict 100 fails on viewport-edge clipping.
+#
+# 60 s timeout (NOT a flake-mask): on heavy pages with ~99 card rows,
+# Maestro's swipe-based scroll runs CDP `executeJS` which fails
+# intermittently with `MismatchedInputException: No content to map due
+# to end-of-input`. Each failure costs ~1.5 s; 30 s of attempts may not
+# be enough to traverse the full list. 60 s gives ~40+ retries which
+# reliably gets us past the failures.
 - scrollUntilVisible:
     element:
       text: "Add Card"
     visibilityPercentage: 50
-    timeout: 30000
+    timeout: 60000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
 
