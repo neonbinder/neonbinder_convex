@@ -2,6 +2,11 @@ appId: com.neonbinder.web
 name: "Util — Drill to Insert variant type with Variants synced (leaves Variants column visible)"
 tags:
   - util
+env:
+  SPORT: "Baseball"
+  YEAR: "2024"
+  MANUFACTURER: "Topps"
+  SET: "Topps Chrome"
 ---
 # Shared prerequisite for parallel-grouping flows.
 #
@@ -36,6 +41,10 @@ tags:
 - runFlow:
     file: util-drill-to-2024-topps-chrome.yaml
     env:
+      SPORT: ${SPORT}
+      YEAR: ${YEAR}
+      MANUFACTURER: ${MANUFACTURER}
+      SET: ${SET}
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}

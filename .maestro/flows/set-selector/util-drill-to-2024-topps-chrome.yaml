@@ -1,22 +1,34 @@
 appId: com.neonbinder.web
-name: "Util — FAST drill to 2024 Topps Chrome (assumes cascade setup already ran)"
+name: "Util — drill to a (Sport, Year, Manufacturer, Set) — accepts env overrides"
 tags:
   - util
+env:
+  SPORT: "Baseball"
+  YEAR: "2024"
+  MANUFACTURER: "Topps"
+  SET: "Topps Chrome"
 ---
-# FAST drill — assumes the cascade `setup.yaml` flow has already populated the
-# shared Convex deployment with:
+# FAST drill when called with defaults — assumes the cascade `setup.yaml`
+# flow has already populated:
 #   - BSC + SL credentials saved
 #   - Baseball → 2024 → Topps → Topps Chrome in selectorOptions
 #   - Variant Types (Base, Insert, Parallel) for that set
+# Most callers (cards-base, sets-base, all checklist-* flows etc.) use the
+# defaults and pay zero extra cost.
 #
-# Every legacy caller of this util now declares `requires:setup-done` so the
-# scheduler runs them only after the cascade root completes. No reset, no
-# credential setup, no auto-sync waits — just four taps.
+# OVERRIDE PATH — when the caller passes a different SPORT (or YEAR /
+# MANUFACTURER / SET) via its `runFlow.env` block, the data may NOT be
+# pre-synced. The drill still works because each level's auto-sync fires
+# on column open; the `extendedWaitUntil` waits for the search input
+# (which signals sync completion) accommodate the longer marketplace
+# round-trip. This is the "lazy per-test sync" pattern documented in the
+# plan at ~/.claude/plans/we-ve-been-trying-to-delegated-ullman.md.
 #
 # CALLER CONTRACT:
 #   - Caller has called launchApp and waited for sign-in redirect.
 #   - Caller flow tags include `requires:setup-done`.
-#   - The browser is on /set-selector when this util is invoked.
+#   - The browser is on /set-selector when this util is invoked, OR
+#     the openLink below brings it there.
 #
 # Returns with the Variant Types column visible and Base/Insert/Parallel listed.
 
@@ -25,90 +37,92 @@ tags:
     visible: "Set Selector"
     timeout: 20000
 
-# Level 1 — Baseball
+# Level 1 — Sport (defaults to Baseball)
 - extendedWaitUntil:
-    visible: "Baseball"
+    visible: ${SPORT}
     timeout: 30000
 - scrollUntilVisible:
     element:
-      text: "Baseball"
+      text: ${SPORT}
     timeout: 10000
-- tapOn: "Baseball"
+- tapOn: ${SPORT}
 
-# Level 2 — 2024
+# Level 2 — Year. Wait for the Years column search input as the auto-sync
+# completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
 - extendedWaitUntil:
     visible: "Years"
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search years.*"
-    timeout: 30000
+    timeout: 180000
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
     timeout: 10000
 - tapOn:
     text: ".*Search years.*"
-- inputText: "2024"
+- inputText: ${YEAR}
 - extendedWaitUntil:
     visible:
-      text: "2024"
+      text: ${YEAR}
       index: 1
     timeout: 10000
 - tapOn:
-    text: "2024"
+    text: ${YEAR}
     index: 1
 
-# Level 3 — Topps (search to avoid long list)
+# Level 3 — Manufacturer. 90 s covers cold sync.
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
-    timeout: 30000
+    timeout: 90000
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
     timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
-- inputText: "Topps"
+- inputText: ${MANUFACTURER}
 - extendedWaitUntil:
     visible:
-      text: "Topps"
+      text: ${MANUFACTURER}
       index: 1
     timeout: 10000
 - tapOn:
-    text: "Topps"
+    text: ${MANUFACTURER}
     index: 1
 
-# Level 4 — Topps Chrome (search to avoid long list)
+# Level 4 — Set. 120 s covers cold sync.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search sets.*"
-    timeout: 30000
+    timeout: 120000
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
     timeout: 10000
 - tapOn:
     text: ".*Search sets.*"
-- inputText: "Topps Chrome"
+- inputText: ${SET}
 - extendedWaitUntil:
     visible:
-      text: "Topps Chrome"
+      text: ${SET}
       index: 1
     timeout: 10000
 - tapOn:
-    text: "Topps Chrome"
+    text: ${SET}
     index: 1
 
-# Level 5 — Variant Types (already in DB from setup.yaml)
+# Level 5 — Variant Types. May fire auto-sync when first selected for a
+# new set; 60 s is the documented cold-sync ceiling.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 - extendedWaitUntil:
     visible: "Base"
-    timeout: 30000
+    timeout: 60000
 - assertVisible: "Base"
