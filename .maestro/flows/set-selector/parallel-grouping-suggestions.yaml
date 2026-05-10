@@ -5,12 +5,6 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
-  # `provides:variants-clean-tested` forces the polluting flows (cancel-discards,
-  # accept-and-save) into a later cascade level so they can't run on the same
-  # worker before this flow does. Custom-variant adds via "+ Custom" persist to
-  # selectorOptions immediately and would corrupt this test's clean-state premise
-  # (auto-detection assertions, exact promotion counts) if a polluter ran first.
-  - provides:variants-clean-tested
 ---
 # Feature test: auto-suggestion display and Accept All behaviour.
 #
