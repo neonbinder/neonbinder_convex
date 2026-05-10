@@ -7,13 +7,6 @@ tags:
   - regression
   - requires:sets-loaded
   - provides:cards-loaded
-  # WIP: CardChecklist heavy-page CDP failure. The component renders all
-  # ~99 card rows at once, and Maestro's swipe-then-CDP-query pipeline
-  # gets MismatchedInputException ("No content to map due to end-of-input")
-  # while DOM is mutating. Real fix: virtualize CardChecklist via
-  # react-virtuoso or react-window so only ~10-20 visible rows are in DOM.
-  # Tracked separately; re-enable after virtualization lands.
-  - wip
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
 #
@@ -171,10 +164,8 @@ tags:
 # Add Card sits in the CardChecklist action row, rendered below the
 # selector columns and Re-map Base button after BaseMappingForm closes.
 # Scroll DOWN with default direction; vis:50 to handle viewport-edge
-# clipping. cards-base is currently failing on heavy CardChecklist
-# pages because CDP swipe-then-query hits empty responses on a 99-row
-# DOM — that's a real CardChecklist virtualization bug, tracked as
-# follow-up work.
+# clipping. The checklist is virtualized (Virtuoso) so only ~15-20 rows
+# are in the DOM at a time, which keeps CDP swipe-then-query responsive.
 - scrollUntilVisible:
     element:
       text: "Add Card"

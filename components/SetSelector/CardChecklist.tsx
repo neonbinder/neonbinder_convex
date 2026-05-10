@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
+import { Virtuoso } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
@@ -217,11 +218,17 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             </NeonButton>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {sortedCards.map((card) => (
-              <CardChecklistItem key={card._id} card={card} />
-            ))}
-          </div>
+          <Virtuoso
+            data={sortedCards}
+            computeItemKey={(_, card) => card._id}
+            itemContent={(_, card) => (
+              <div className="pb-1.5">
+                <CardChecklistItem card={card} />
+              </div>
+            )}
+            style={{ height: "min(70vh, 800px)" }}
+            increaseViewportBy={{ top: 200, bottom: 400 }}
+          />
         )}
       </div>
 
