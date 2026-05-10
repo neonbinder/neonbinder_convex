@@ -33,11 +33,18 @@ tags:
     timeout: 20000
 
 # Level 1 — Sport (defaults to Baseball). Use the Sports search input to
-# filter the column's internal-scroll list down to the target sport — most
-# sports past the first ~7 (alphabetical) sit below the column's
+# filter the column's internal-scroll list down to the target sport —
+# most sports past the first ~7 (alphabetical) sit below the column's
 # `max-h-[400px] overflow-y-auto` fold and Maestro's page-level scroll
 # can't reach them. The search input is targeted by its aria-label
 # `Search sports` (added on EntitySelector.tsx).
+#
+# IMPORTANT: after typing in the search input, the input itself has
+# `text=${SPORT}` (its current value) and the same `resource-id=Search sports`
+# we just tapped. A bare `tapOn: ${SPORT}` would re-match the input
+# (DOM order: input first), not the filtered button below. Use
+# `index: 1` to skip the input and tap the actual button — same pattern
+# the Year/Manufacturer/Set drills below use for the same reason.
 - extendedWaitUntil:
     visible: "Sports"
     timeout: 30000
@@ -45,9 +52,13 @@ tags:
     id: "Search sports"
 - inputText: ${SPORT || "Baseball"}
 - extendedWaitUntil:
-    visible: ${SPORT || "Baseball"}
+    visible:
+      text: ${SPORT || "Baseball"}
+      index: 1
     timeout: 10000
-- tapOn: ${SPORT || "Baseball"}
+- tapOn:
+    text: ${SPORT || "Baseball"}
+    index: 1
 
 # Level 2 — Year. Wait for the Years column search input as the auto-sync
 # completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
