@@ -107,19 +107,17 @@ tags:
 # CardChecklist renders immediately after baseHasMapping becomes true.
 # No Level 6 Variants column — Base is terminal.
 #
-# We anchor the scroll on "Add Card" — it sits in the same flex row as the
-# Refresh / Fetch from Marketplaces button (CardChecklist.tsx renders both
-# inside the same `<div className="flex gap-2">`), so once Add Card is in
-# view the action button is too. This works whether the checklist is empty
-# (button labels "Fetch from Marketplaces") or populated by a prior run on
-# the same worker (button labels "Refresh") — the long card list between
-# the panel header and the action row no longer blocks the anchor.
+# Jump to the bottom of the page with End — Maestro's swipe-based
+# scrollUntilVisible runs CDP `executeJS` per try, and that fails with
+# `MismatchedInputException: No content to map due to end-of-input` on
+# heavy pages (e.g. when the checklist already has ~99 card rows from a
+# prior fetch on the same worker). The End key sends a real keyboard
+# event, no JS execution required, so the scroll always lands.
 #
-# visibilityPercentage: 50 — the default 100 fails when Add Card lands at
-# the viewport's bottom edge (a 1-2 px cutoff is enough to fail the strict
-# check on the headless 1024×629 driver). 50 % is plenty: a button that
-# half-overlaps the viewport bottom is still tappable and a real user can
-# see it.
+# After End, Add Card and the Fetch / Refresh button (in the same flex
+# row) are both at the bottom of the viewport. This works whether the
+# checklist is empty ("Fetch from Marketplaces") or populated by a
+# prior run ("Refresh").
 #
 # We do NOT assert "No cards in this checklist yet." here. The util's
 # contract is "leaves CardChecklist visible", not "leaves it empty";
@@ -127,10 +125,9 @@ tags:
 # after deciding to reset cardChecklist for their worker's user.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      text: "Add Card"
-    visibilityPercentage: 50
-    timeout: 10000
+- pressKey: End
+- extendedWaitUntil:
+    visible: "Add Card"
+    timeout: 5000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"

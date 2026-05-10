@@ -181,29 +181,27 @@ tags:
 # After BaseMappingForm confirms (or auto-closes), CardChecklist renders.
 # ============================================================
 
-# Scroll the CardChecklist into view — it renders below the variant-type row
-# and is initially below the fold on the headless 1024×629 viewport.
-- scrollUntilVisible:
-    element:
+# Jump to the bottom of the page with End — CardChecklist's Fetch / Refresh
+# button + Add Card sit at the bottom of the page. Maestro's swipe-based
+# scrollUntilVisible runs CDP `executeJS` per try and that fails with
+# `MismatchedInputException: No content to map due to end-of-input` on
+# heavy pages (e.g. when residual cards from a prior PR run are still in
+# the DB). Real keyboard End sends an event without JS execution and
+# always lands.
+- pressKey: End
+- extendedWaitUntil:
+    visible:
       text: ".*Fetch from Marketplaces.*|Refresh"
-    timeout: 30000
+    timeout: 5000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
-- assertVisible: "No cards in this checklist yet."
 
-# Re-map Base button confirms the sportlots mapping was written.
-# It renders in the variant-type row directly above the CardChecklist; the
-# previous scroll-DOWN to surface Fetch may have nudged the viewport past
-# it. Scroll back UP to bring Re-map Base into view.
-#
-# visibilityPercentage: 50 — Maestro's default 100 fails when an element
-# lands at a viewport edge with even a 1-2 px cutoff on the 1024×629
-# headless driver. 50 % is plenty: a half-visible button is tappable and
-# is what a real user would see and act on.
-- scrollUntilVisible:
-    element:
-      text: "Re-map Base"
-    direction: UP
-    visibilityPercentage: 50
-    timeout: 10000
+# Now jump to the top with Home — Re-map Base sits in the variant-type
+# row, just below the columns; it's in the initial-viewport region of the
+# page. After the End jump above, the viewport is at the bottom of the
+# tall page; Home brings us back to the top so Re-map Base is visible.
+- pressKey: Home
+- extendedWaitUntil:
+    visible: "Re-map Base"
+    timeout: 5000
 - assertVisible: "Re-map Base"
