@@ -161,18 +161,18 @@ tags:
 # just at the bottom edge), giving more headroom for the page to render
 # the action row reliably and avoiding the strict-100 visibility issue.
 #
-# 60 s timeout (NOT a flake-mask): on heavy pages with ~99 card rows,
+# 120 s timeout (NOT a flake-mask): on heavy pages with ~99 card rows,
 # Maestro's swipe-based scroll runs CDP `executeJS` which fails
 # intermittently with `MismatchedInputException: No content to map due
-# to end-of-input`. Each failure costs ~1.5 s; 30 s of attempts may not
-# be enough to traverse the full list. 60 s gives ~40+ retries which
+# to end-of-input`. Each failure costs ~1.5 s; the prior 60 s was
+# insufficient on slower CI runners. 120 s gives ~80 retries which
 # reliably gets us past the failures.
 - scrollUntilVisible:
     element:
       text: "Add Card"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 60000
+    timeout: 120000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
 

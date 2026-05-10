@@ -327,11 +327,13 @@ tags:
 
 # Find Fetch from Marketplaces — may sit below the variant-type row /
 # Re-map Base button on the page. Scroll DOWN with vis:50.
+# 120 s timeout: on heavy CardChecklist pages CDP swipe-then-query
+# fails intermittently; matches the Add Card scroll budget.
 - scrollUntilVisible:
     element:
       text: "Fetch from Marketplaces"
     visibilityPercentage: 50
-    timeout: 30000
+    timeout: 120000
 
 # ============================================================
 # STEP 4 — ATTEMPT THE FETCH (BSC credentials are absent)
