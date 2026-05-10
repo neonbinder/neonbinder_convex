@@ -69,11 +69,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
@@ -85,11 +84,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Gold"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
@@ -101,11 +99,10 @@ tags:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Red"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000

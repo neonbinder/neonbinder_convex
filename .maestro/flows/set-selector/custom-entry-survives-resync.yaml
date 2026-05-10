@@ -74,13 +74,13 @@ tags:
 # Type a unique custom sport name that will be easy to find after re-sync
 - tapOn: "Enter custom value..."
 - inputText: "TestCustomSport"
-# Scroll the "Add" button into view — the Sports list above the form may push
-# it below the fold when the list is already populated from a previous sync.
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
+# Press Enter to submit — the input's `onKeyDown` handler
+# (EntityColumn.tsx:129) calls handleCustomSubmit on Enter. We avoid
+# `tapOn: "Add"` because `text: "Add"` ambiguously matches the
+# "Add Custom Entry" heading and the "Add" button; with the heading
+# above the button in DOM order, Index: 0 sometimes resolves to the
+# heading (a non-tappable element).
+- pressKey: Enter
 
 # Wait for the "Add Custom Entry" form to close before checking the list.
 # The form disappearing confirms the entry was saved to the database.

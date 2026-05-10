@@ -138,14 +138,14 @@ tags:
     timeout: 5000
 
 # Type the custom variant name directly into the form (the input is autofocused
-# when the Add Custom Entry form opens)
+# when the Add Custom Entry form opens) and press Enter to submit. The input's
+# `onKeyDown` handler (EntityColumn.tsx:129) calls handleCustomSubmit on Enter,
+# so we skip the "Add" button tap — `text: "Add"` is ambiguous (it also
+# matches the "Add Custom Entry" heading and "Add Card" button) and Index: 0
+# resolves to a non-tappable element on some renders.
 - tapOn: "Enter custom value..."
 - inputText: "META-TEST"
-
-# Tap the Add button to save the custom variant
-- tapOn:
-    text: "Add"
-    index: 0
+- pressKey: Enter
 
 # The form closes when the entry is saved — use this as the save-confirmed signal
 - extendedWaitUntil:
