@@ -5,6 +5,12 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
+  # This flow ADDS "Champions" via "+ Custom" — that write to selectorOptions
+  # persists even when the modal save is cancelled. To keep clean-state
+  # consumers (parallel-grouping-suggestions, parallel-grouping-reject-parallel)
+  # unaffected, declare the consumer-state requirement so the scheduler runs
+  # us in a later cascade level.
+  - requires:variants-clean-tested
 ---
 # Feature test: Cancel discards pending changes and does not persist to the DB.
 #

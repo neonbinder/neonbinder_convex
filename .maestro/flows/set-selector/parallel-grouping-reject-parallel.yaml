@@ -5,6 +5,12 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
+  # `provides:variants-clean-tested` forces the polluting flows (cancel-discards,
+  # accept-and-save) into a later cascade level so they can't run on the same
+  # worker before this flow does. accept-and-save permanently saves grouped
+  # variants under Stars, which would inflate this test's promotion count
+  # ("1 promotion" expected) and break the reject-button invariant check.
+  - provides:variants-clean-tested
 ---
 # Feature test: the ✕ (reject) button on parallel rows inside a "Parallels of X" card.
 #

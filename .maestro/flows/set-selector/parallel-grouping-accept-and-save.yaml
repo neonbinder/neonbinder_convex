@@ -5,6 +5,12 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
+  # This flow PERMANENTLY saves grouped variants under Stars (Stars Gold + Stars
+  # Red become parallels) — the saved rows persist in selectorOptions for the
+  # rest of the suite. To keep clean-state consumers (parallel-grouping-suggestions,
+  # parallel-grouping-reject-parallel) unaffected, declare the consumer-state
+  # requirement so the scheduler runs us in a later cascade level.
+  - requires:variants-clean-tested
 ---
 # Feature test: Accept All + Save happy path.
 #
