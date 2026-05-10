@@ -161,8 +161,19 @@ tags:
 - assertVisible: ".*sportlots.com/dealers.*${TEST_USERNAME}.*"
 - assertVisible: ".*myslabs.to/.*"
 
-# Payment links
+# Payment links — Marketplace Stores render at the top of the public profile,
+# Payment Handles below the fold. Scroll each into view before asserting; we
+# already do this for Cash App + the social links below, just bring PayPal
+# and Venmo in line.
+- scrollUntilVisible:
+    element:
+      text: ".*paypal.me/${TEST_USERNAME}-pp.*"
+    timeout: 5000
 - assertVisible: ".*paypal.me/${TEST_USERNAME}-pp.*"
+- scrollUntilVisible:
+    element:
+      text: ".*venmo.com/${TEST_USERNAME}-venmo.*"
+    timeout: 5000
 - assertVisible: ".*venmo.com/${TEST_USERNAME}-venmo.*"
 - scrollUntilVisible:
     element:
