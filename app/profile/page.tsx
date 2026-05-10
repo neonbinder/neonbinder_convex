@@ -692,6 +692,7 @@ export default function ProfilePage() {
                 </label>
                 <select
                   id="site-select"
+                  aria-label="Select Platform"
                   value={selectedSite}
                   onChange={(e) => setSelectedSite(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-green-500"
