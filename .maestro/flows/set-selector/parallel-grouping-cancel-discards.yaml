@@ -23,8 +23,8 @@ tags:
 #   show the change persisted. This flow catches that regression.
 #
 # SETUP:
-#   Same three custom inserts — "Stars", "Stars Gold", "Stars Red".
-#   We use "Stars Gold" as the row we place then cancel.
+#   Same three custom inserts — "PGCancel-${TEST_USERNAME}", "PGCancel-${TEST_USERNAME} Gold", "PGCancel-${TEST_USERNAME} Red".
+#   We use "PGCancel-${TEST_USERNAME} Gold" as the row we place then cancel.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -51,7 +51,7 @@ tags:
 # ADD CONTROLLED CUSTOM INSERTS
 # ============================================================
 
-# --- Add "Stars" ---
+# --- Add "PGCancel-${TEST_USERNAME}" ---
 # The Variants column "+ Custom" button has aria-label="Add custom Variants".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
@@ -61,7 +61,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars"
+- inputText: "PGCancel-${TEST_USERNAME}"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -70,13 +70,13 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Gold" ---
+# --- Add "PGCancel-${TEST_USERNAME} Gold" ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Gold"
+- inputText: "PGCancel-${TEST_USERNAME} Gold"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -85,14 +85,14 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Red" (ensures the EntitySelector renders with 3 items,
+# --- Add "PGCancel-${TEST_USERNAME} Red" (ensures the EntitySelector renders with 3 items,
 # matching the layout state where the Group Parallels button tap reliably works) ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Red"
+- inputText: "PGCancel-${TEST_USERNAME} Red"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -101,11 +101,11 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 - extendedWaitUntil:
-    visible: "Stars Red"
+    visible: "PGCancel-${TEST_USERNAME} Red"
     timeout: 5000
 
 # ============================================================
-# OPEN MODAL — ACCEPT ALL SUGGESTIONS to move "Stars Gold" under "Stars"
+# OPEN MODAL — ACCEPT ALL SUGGESTIONS to move "PGCancel-${TEST_USERNAME} Gold" under "PGCancel-${TEST_USERNAME}"
 # Using Accept All is the most reliable way to place a row without drag.
 # ============================================================
 
@@ -121,7 +121,7 @@ tags:
     visible: "Top-level inserts"
     timeout: 15000
 
-# Wait for auto-suggestions to appear — "Stars Gold" should be suggested
+# Wait for auto-suggestions to appear — "PGCancel-${TEST_USERNAME} Gold" should be suggested
 - extendedWaitUntil:
     visible:
       text: ".*Accept all suggestions.*"
@@ -130,16 +130,16 @@ tags:
 - tapOn:
     text: ".*Accept all suggestions.*"
 
-# With 3 inserts (Stars, Stars Gold, Stars Red) and Accept All:
-# both Stars Gold and Stars Red are promoted → 2 promotions in the footer
+# With 3 inserts (PGCancel-${TEST_USERNAME}, PGCancel-${TEST_USERNAME} Gold, PGCancel-${TEST_USERNAME} Red) and Accept All:
+# both PGCancel-${TEST_USERNAME} Gold and PGCancel-${TEST_USERNAME} Red are promoted → 2 promotions in the footer
 - extendedWaitUntil:
     visible:
       text: ".*2 promotion.*"
     timeout: 5000
 
-# Verify the "Parallels of Stars" card is visible with promoted entries
+# Verify the "Parallels of PGCancel-${TEST_USERNAME}" card is visible with promoted entries
 - assertVisible:
-    text: ".*Parallels of.*Stars.*"
+    text: ".*Parallels of.*PGCancel-${TEST_USERNAME}.*"
 
 # ============================================================
 # CANCEL — discard the pending promotion
@@ -153,7 +153,7 @@ tags:
 
 # ============================================================
 # RE-OPEN MODAL — verify state reset to original
-# Stars Gold should be back in "Top-level inserts", not under "Parallels of Stars".
+# PGCancel-${TEST_USERNAME} Gold should be back in "Top-level inserts", not under "Parallels of PGCancel-${TEST_USERNAME}".
 # The modal re-fetches the tree from the DB, which was never written to.
 # ============================================================
 
@@ -169,14 +169,21 @@ tags:
     visible: "Top-level inserts"
     timeout: 15000
 
-# Both Stars Gold and Stars Red appear with "Suggested" badges — the modal
-# re-fetches the DB tree (unchanged by Cancel) and re-runs auto-detection.
-- assertVisible: "Suggested"
-
 # Footer shows 2 promotions because both suggested rows are pre-placed in
 # the Parallels zone — same state as on the initial open before Cancel.
+# (Footer is fixed at the modal bottom, always in viewport.)
 - assertVisible:
     text: ".*2 promotion.*"
+
+# Both PGCancel-${TEST_USERNAME} Gold and PGCancel-${TEST_USERNAME} Red appear with "Suggested" badges in the
+# "Parallels of PGCancel-${TEST_USERNAME}" zone — that zone is below the fold in the modal's
+# internal scroll. Scroll until at least one Suggested badge is visible.
+- scrollUntilVisible:
+    element:
+      text: "Suggested"
+    visibilityPercentage: 50
+    timeout: 10000
+- assertVisible: "Suggested"
 
 # Save button is enabled from the start (suggestions count as changes)
 - assertVisible:

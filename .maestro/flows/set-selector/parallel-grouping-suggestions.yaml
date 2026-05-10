@@ -14,9 +14,9 @@ tags:
 #   (which is slow and writes to a shared DB), we add a small controlled set
 #   of custom inserts whose names are guaranteed to trigger the prefix-match
 #   algorithm. We use:
-#     "Stars" — the base insert (parent candidate)
-#     "Stars Gold" — should be auto-suggested as a parallel of "Stars"
-#     "Stars Red" — should be auto-suggested as a parallel of "Stars"
+#     "PGSuggestion-${TEST_USERNAME}" — the base insert (parent candidate)
+#     "PGSuggestion-${TEST_USERNAME} Gold" — should be auto-suggested as a parallel of "PGSuggestion-${TEST_USERNAME}"
+#     "PGSuggestion-${TEST_USERNAME} Red" — should be auto-suggested as a parallel of "PGSuggestion-${TEST_USERNAME}"
 #   After the DB reset in util-drill-to-2024-topps-chrome these names will
 #   not exist, so the custom-entry step is always needed.
 #
@@ -50,11 +50,11 @@ tags:
 # ============================================================
 # ADD CONTROLLED CUSTOM INSERTS
 # We add three names that follow the prefix pattern:
-#   "Stars" (base) + "Stars Gold" (parallel) + "Stars Red" (parallel)
+#   "PGSuggestion-${TEST_USERNAME}" (base) + "PGSuggestion-${TEST_USERNAME} Gold" (parallel) + "PGSuggestion-${TEST_USERNAME} Red" (parallel)
 # Each is added via the "+ Custom" button in the Variants column.
 # ============================================================
 
-# --- Add "Stars" ---
+# --- Add "PGSuggestion-${TEST_USERNAME}" ---
 # The Variants column "+ Custom" button has aria-label="Add custom Variants".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
@@ -64,7 +64,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars"
+- inputText: "PGSuggestion-${TEST_USERNAME}"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -73,13 +73,13 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Gold" ---
+# --- Add "PGSuggestion-${TEST_USERNAME} Gold" ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Gold"
+- inputText: "PGSuggestion-${TEST_USERNAME} Gold"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -88,13 +88,13 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Red" ---
+# --- Add "PGSuggestion-${TEST_USERNAME} Red" ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Red"
+- inputText: "PGSuggestion-${TEST_USERNAME} Red"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -125,28 +125,39 @@ tags:
 
 # ============================================================
 # VERIFY SUGGESTIONS APPEAR
-# The auto-detection flags "Stars Gold" and "Stars Red" as suggested
-# parallels of "Stars". The modal pre-positions them inside the
-# "Parallels of Stars" zone immediately on open — they count as
+# The auto-detection flags "PGSuggestion-${TEST_USERNAME} Gold" and "PGSuggestion-${TEST_USERNAME} Red" as suggested
+# parallels of "PGSuggestion-${TEST_USERNAME}". The modal pre-positions them inside the
+# "Parallels of PGSuggestion-${TEST_USERNAME}" zone immediately on open — they count as
 # promotions from the start. Each gets a "Suggested" badge.
 # The header shows "Accept all suggestions (N)".
 # ============================================================
 
-# "Suggested" badge text appears on the auto-detected rows
-- assertVisible: "Suggested"
-
-# Header button shows the count — we expect 2 suggestions
+# Header button shows the count — we expect 2 suggestions. This is
+# rendered at the modal header, always in viewport.
 - assertVisible:
     text: ".*Accept all suggestions.*"
 
 # Footer immediately shows 2 promotions because suggested rows are
-# pre-placed inside the Parallels zone (not in Top-level inserts).
+# pre-placed inside the Parallels zone. Footer is fixed at the modal
+# bottom, always in viewport.
 - assertVisible:
     text: ".*2 promotion.*"
 
 # Save button is enabled from the start (suggestions are counted as changes)
 - assertVisible:
     text: ".*Save 2 change.*"
+
+# "Suggested" badge text appears on auto-detected rows inside the
+# "Parallels of PGSuggestion-${TEST_USERNAME}" zone — that zone is below the fold in the modal's
+# internal scroll. Scroll until at least one Suggested badge is visible.
+# visibilityPercentage: 50 because the badge is small and sometimes lands
+# at the viewport edge.
+- scrollUntilVisible:
+    element:
+      text: "Suggested"
+    visibilityPercentage: 50
+    timeout: 10000
+- assertVisible: "Suggested"
 
 # ============================================================
 # ACCEPT ALL SUGGESTIONS

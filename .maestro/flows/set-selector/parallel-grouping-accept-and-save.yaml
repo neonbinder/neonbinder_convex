@@ -11,9 +11,9 @@ tags:
 # WHAT THIS TESTS:
 #   After accepting auto-suggestions and saving, the modal closes and the
 #   underlying Variants column reflects the new groupings. Specifically:
-#     - "Stars Gold" and "Stars Red" should no longer appear as siblings of
-#       "Stars" in the flat list — they become parallels (nested under "Stars").
-#     - "Stars" remains visible in the Variants column as the parent insert.
+#     - "PGSave-${TEST_USERNAME} Gold" and "PGSave-${TEST_USERNAME} Red" should no longer appear as siblings of
+#       "PGSave-${TEST_USERNAME}" in the flat list — they become parallels (nested under "PGSave-${TEST_USERNAME}").
+#     - "PGSave-${TEST_USERNAME}" remains visible in the Variants column as the parent insert.
 #
 # SETUP:
 #   Same three custom inserts as parallel-grouping-suggestions.yaml.
@@ -22,14 +22,14 @@ tags:
 #
 # POST-SAVE ASSERTION STRATEGY:
 #   After save the modal closes and the query backing the Variants column
-#   re-fetches. "Stars" remains as a top-level insert. "Stars Gold" and
-#   "Stars Red" are now parallels (nested), so they may no longer appear
+#   re-fetches. "PGSave-${TEST_USERNAME}" remains as a top-level insert. "PGSave-${TEST_USERNAME} Gold" and
+#   "PGSave-${TEST_USERNAME} Red" are now parallels (nested), so they may no longer appear
 #   in the flat EntitySelector list unless the user expands the parent.
 #   We assert:
 #     (a) the modal is gone
 #     (b) the Variants column heading is still present
-#     (c) "Stars" is still visible (still a top-level insert after grouping)
-#   We intentionally avoid asserting that "Stars Gold" / "Stars Red" are gone
+#     (c) "PGSave-${TEST_USERNAME}" is still visible (still a top-level insert after grouping)
+#   We intentionally avoid asserting that "PGSave-${TEST_USERNAME} Gold" / "PGSave-${TEST_USERNAME} Red" are gone
 #   from the column because the EntitySelector rendering of nested parallels
 #   may display them differently depending on the column implementation.
 
@@ -58,7 +58,7 @@ tags:
 # ADD CONTROLLED CUSTOM INSERTS
 # ============================================================
 
-# --- Add "Stars" ---
+# --- Add "PGSave-${TEST_USERNAME}" ---
 # The Variants column "+ Custom" button has aria-label="Add custom Variants".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
@@ -68,7 +68,7 @@ tags:
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars"
+- inputText: "PGSave-${TEST_USERNAME}"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -77,13 +77,13 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Gold" ---
+# --- Add "PGSave-${TEST_USERNAME} Gold" ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Gold"
+- inputText: "PGSave-${TEST_USERNAME} Gold"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -92,13 +92,13 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# --- Add "Stars Red" ---
+# --- Add "PGSave-${TEST_USERNAME} Red" ---
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
-- inputText: "Stars Red"
+- inputText: "PGSave-${TEST_USERNAME} Red"
 # Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
 # calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
 # (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
@@ -157,18 +157,18 @@ tags:
 
 # ============================================================
 # POST-SAVE VERIFICATION
-# The Variants column rerenders after the modal closes. "Stars" remains
+# The Variants column rerenders after the modal closes. "PGSave-${TEST_USERNAME}" remains
 # a top-level insert (visible in the column). The modal backdrop is gone.
 # ============================================================
 
 - assertVisible: "Variants"
 
-# Confirm "Stars" is visible as a top-level insert in the Variants column.
-# After saving the groupings, "Stars Gold" and "Stars Red" become parallels
-# (nested under Stars), so only "Stars" remains in the top-level list.
+# Confirm "PGSave-${TEST_USERNAME}" is visible as a top-level insert in the Variants column.
+# After saving the groupings, "PGSave-${TEST_USERNAME} Gold" and "PGSave-${TEST_USERNAME} Red" become parallels
+# (nested under PGSave-${TEST_USERNAME}), so only "PGSave-${TEST_USERNAME}" remains in the top-level list.
 # With a single item the EntitySelector does not render a search box,
 # so we assert the row text directly.
 - extendedWaitUntil:
-    visible: "Stars"
+    visible: "PGSave-${TEST_USERNAME}"
     timeout: 10000
-- assertVisible: "Stars"
+- assertVisible: "PGSave-${TEST_USERNAME}"

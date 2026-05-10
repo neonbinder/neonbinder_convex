@@ -73,7 +73,7 @@ tags:
 
 # Type a unique custom sport name that will be easy to find after re-sync
 - tapOn: "Enter custom value..."
-- inputText: "TestCustomSport"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
 # Press Enter to submit — the input's `onKeyDown` handler
 # (EntityColumn.tsx:129) calls handleCustomSubmit on Enter. We avoid
 # `tapOn: "Add"` because `text: "Add"` ambiguously matches the
@@ -88,10 +88,10 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
-# Use the search box to find "TestCustomSport" in the Sports column.
+# Use the search box to find "TestCustomSport-${TEST_USERNAME}" in the Sports column.
 # The Sports list has an internal scroll container — page-level assertVisible
 # cannot see items below the fold. The search box filters the internal list,
-# making TestCustomSport visible regardless of how many entries precede it
+# making TestCustomSport-${TEST_USERNAME} visible regardless of how many entries precede it
 # alphabetically. The search input shows "Search sports..." as placeholder.
 - scrollUntilVisible:
     element:
@@ -99,11 +99,11 @@ tags:
     direction: UP
     timeout: 10000
 - tapOn: "Search sports..."
-- inputText: "TestCustomSport"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
 - extendedWaitUntil:
-    visible: "TestCustomSport"
+    visible: "TestCustomSport-${TEST_USERNAME}"
     timeout: 10000
-- assertVisible: "TestCustomSport"
+- assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # Verify the "Custom" badge is shown next to the entry
 - assertVisible: "Custom"
@@ -139,7 +139,7 @@ tags:
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
-# Use the search box to find "TestCustomSport" — the Sports column has an
+# Use the search box to find "TestCustomSport-${TEST_USERNAME}" — the Sports column has an
 # internal scroll container so page-level scrolling cannot reveal it.
 # After the page reload in Step 2, the search input shows the placeholder.
 - scrollUntilVisible:
@@ -148,11 +148,11 @@ tags:
     direction: UP
     timeout: 10000
 - tapOn: "Search sports..."
-- inputText: "TestCustomSport"
+- inputText: "TestCustomSport-${TEST_USERNAME}"
 - extendedWaitUntil:
-    visible: "TestCustomSport"
+    visible: "TestCustomSport-${TEST_USERNAME}"
     timeout: 15000
-- assertVisible: "TestCustomSport"
+- assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # The "Custom" badge must still be shown on the entry
 - assertVisible: "Custom"
