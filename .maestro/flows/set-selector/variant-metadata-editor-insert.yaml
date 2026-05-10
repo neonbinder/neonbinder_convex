@@ -57,6 +57,14 @@ tags:
 - runFlow:
     file: util-drill-to-2024-topps-chrome.yaml
     env:
+      # Per-test sport isolation — selectorOptions is a global Convex
+      # table; using a unique Sport per test keeps each test's custom
+      # variants under a distinct parent so they don't pollute each
+      # other across CI runs.
+      SPORT: "MMA"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET: "Topps Chrome"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}

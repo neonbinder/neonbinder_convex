@@ -42,6 +42,14 @@ tags:
 - runFlow:
     file: util-drill-to-insert-variants.yaml
     env:
+      # Per-test sport isolation — selectorOptions is a global Convex
+      # table; using a unique Sport per test keeps each test's custom
+      # variants under a distinct (Sport, Year, Manuf, Set, VariantType)
+      # parent so they don't pollute each other across CI runs.
+      SPORT: "Basketball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET: "Topps Chrome"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
