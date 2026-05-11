@@ -4,6 +4,16 @@ name: "Checklist — fetch dialog; user unchecks one player; remaining entities 
 tags:
   - set-selector
   - requires:setup-done
+  # WIP: Two failure modes seen in CI on PR #26:
+  # 1) Maestro framework null cast (`null cannot be cast to non-null type
+  #    kotlin.Int`) on the initial "Set Selector" visibility assertion —
+  #    a CdpWebDriver race during view-hierarchy refresh, not a product
+  #    issue.
+  # 2) Worker-state pollution: when a prior flow saved players + teams,
+  #    fetchCardChecklist finds zero unknowns and the UnknownEntitiesDialog
+  #    never opens, failing the "Confirm New Players & Teams" assertion.
+  # Both need separate test-isolation work. Re-enable after.
+  - wip
 ---
 # Feature test: a user can uncheck individual unknown players or teams
 # before confirming. Skipped names are NOT created as entities but cards
