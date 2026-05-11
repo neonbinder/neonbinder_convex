@@ -4,6 +4,16 @@ name: "Checklist — confirm dialog using keyboard Enter on auto-focused button"
 tags:
   - set-selector
   - requires:setup-done
+  # WIP (NEO-9-adjacent): Same worker-state pollution as cancel-dialog —
+  # when this flow runs on a worker where a prior test populated players
+  # and teams, fetchCardChecklist returns zero unknowns and the
+  # UnknownEntitiesDialog never opens, failing the
+  # "Fetching...|Confirm New Players" composite wait. Even the 120s
+  # timeout doesn't save the test because "Fetching..." only flashes
+  # for a sub-second when cache is warm and there's nothing to confirm.
+  # Re-enable after cardChecklist + players + teams are reset
+  # per-test (not just per-suite).
+  - wip
 ---
 # Feature test: the UnknownEntitiesDialog confirm button is auto-focused on open
 # and responds to the Enter key, allowing keyboard-only confirmation.
