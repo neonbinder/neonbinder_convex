@@ -63,7 +63,11 @@ tags:
 
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
-    timeout: 10000
+    # 45s — fetchCardChecklist scrapes BSC (~30s ceiling) + SL in parallel,
+    # then commits. Even with warm Cloud Run, the worst case runs longer
+    # than the 10s UI-interaction budget. This wait is for a backend
+    # marketplace fetch, not a user-perceived response.
+    timeout: 45000
 
 # ============================================================
 # CANCEL — tap the "Cancel (Esc)" button to abort without saving

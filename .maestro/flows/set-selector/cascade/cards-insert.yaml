@@ -178,7 +178,10 @@ tags:
 
 - extendedWaitUntil:
     visible: "Baseball Stars"
-    timeout: 10000
+    # 30s — addCustomVariant mutation + selectorOptions re-query.
+    # Custom variant appears after the Convex query refetches (1-2s
+    # typical, longer if a parallel auto-sync is in-flight).
+    timeout: 30000
 - scrollUntilVisible:
     element:
       text: "Baseball Stars"
