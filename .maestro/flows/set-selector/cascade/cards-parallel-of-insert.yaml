@@ -35,7 +35,7 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
 # FAST DRILL — Baseball → 2024 → Topps → Topps Chrome → Insert
@@ -48,7 +48,7 @@ tags:
 
 - extendedWaitUntil:
     visible: "Baseball"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -60,7 +60,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search years.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
@@ -82,7 +82,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
@@ -104,7 +104,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search sets.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
@@ -126,7 +126,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: "Insert"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Insert"
@@ -198,7 +198,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*Fetch from Marketplaces.*|Refresh"
-    timeout: 30000
+    timeout: 10000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
 - assertVisible: "No cards in this checklist yet."

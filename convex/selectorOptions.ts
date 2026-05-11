@@ -1413,16 +1413,27 @@ export const fetchAggregatedOptions = action({
 
       const platformErrors: Record<string, string> = {};
 
-      // 1. Fetch from SportLots via HTTP
-      try {
-        const sportlotsOptions = await ctx.runAction(
-          api.adapters.sportlots.fetchSportLotsSelectorOptions,
-          {
-            level,
-            parentFilters: parentFilters || {},
-            ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
-          },
-        );
+      // Fetch SportLots and BSC in parallel. Sequential awaits gave a worst-
+      // case latency of SL_TIMEOUT + BSC_TIMEOUT (~60s) and overran the
+      // 10s UI budget on cold Cloud Run revisions of the browser service.
+      // Promise.allSettled keeps one slow/failing platform from blocking
+      // the other; per-platform errors are still captured into
+      // platformErrors for the PostHog event + warning suffix.
+      const [slSettled, bscSettled] = await Promise.allSettled([
+        ctx.runAction(api.adapters.sportlots.fetchSportLotsSelectorOptions, {
+          level,
+          parentFilters: parentFilters || {},
+          ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
+        }),
+        ctx.runAction(api.adapters.buysportscards.fetchBscSelectorOptions, {
+          level,
+          parentFilters: parentFilters || {},
+          ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
+        }),
+      ]);
+
+      if (slSettled.status === "fulfilled") {
+        const sportlotsOptions = slSettled.value;
         if (sportlotsOptions.success && sportlotsOptions.options) {
           allOptions.push(
             ...sportlotsOptions.options.map((o: { value: string; platformValue: string }) => ({
@@ -1433,22 +1444,14 @@ export const fetchAggregatedOptions = action({
         } else if (!sportlotsOptions.success) {
           platformErrors.sportlots = sportlotsOptions.message || "Unknown error";
         }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
+      } else {
+        const msg = slSettled.reason instanceof Error ? slSettled.reason.message : "Unknown error";
         platformErrors.sportlots = msg;
-        console.error(`[fetchAggregatedOptions] SportLots error:`, error);
+        console.error(`[fetchAggregatedOptions] SportLots error:`, slSettled.reason);
       }
 
-      // 2. Fetch from BSC API
-      try {
-        const bscOptions = await ctx.runAction(
-          api.adapters.buysportscards.fetchBscSelectorOptions,
-          {
-            level,
-            parentFilters: parentFilters || {},
-            ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
-          },
-        );
+      if (bscSettled.status === "fulfilled") {
+        const bscOptions = bscSettled.value;
         if (bscOptions.success && bscOptions.options) {
           allOptions.push(
             ...bscOptions.options.map((o: { value: string; platformValue: string }) => ({
@@ -1459,10 +1462,10 @@ export const fetchAggregatedOptions = action({
         } else if (!bscOptions.success) {
           platformErrors.bsc = bscOptions.message || "Unknown error";
         }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
+      } else {
+        const msg = bscSettled.reason instanceof Error ? bscSettled.reason.message : "Unknown error";
         platformErrors.bsc = msg;
-        console.error(`[fetchAggregatedOptions] BSC error:`, error);
+        console.error(`[fetchAggregatedOptions] BSC error:`, bscSettled.reason);
       }
 
       // Debug: log platform errors and result counts

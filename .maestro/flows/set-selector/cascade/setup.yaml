@@ -33,7 +33,7 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
 # RESET STATE
@@ -160,7 +160,7 @@ tags:
     commands:
       - extendedWaitUntil:
           visible: ".*Search years.*"
-          timeout: 180000
+          timeout: 10000
 
 # Use the search input to filter to "2024", then tap the matching result.
 # Years column lists newest first (2026, 2025, 2024…), so 2024 may be off-fold

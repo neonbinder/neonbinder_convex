@@ -35,7 +35,7 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
@@ -63,7 +63,7 @@ tags:
 
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
-    timeout: 60000
+    timeout: 10000
 
 # ============================================================
 # CANCEL — tap the "Cancel (Esc)" button to abort without saving
