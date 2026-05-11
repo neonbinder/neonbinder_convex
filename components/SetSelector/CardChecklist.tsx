@@ -219,6 +219,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
           </div>
         ) : (
           <Virtuoso
+            useWindowScroll
             data={sortedCards}
             computeItemKey={(_, card) => card._id}
             itemContent={(_, card) => (
@@ -226,7 +227,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
                 <CardChecklistItem card={card} />
               </div>
             )}
-            style={{ height: "min(70vh, 800px)" }}
             increaseViewportBy={{ top: 200, bottom: 400 }}
           />
         )}
