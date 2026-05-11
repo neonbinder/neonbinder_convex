@@ -48,21 +48,6 @@ tags:
     visible: "Set Selector"
     timeout: 45000
 
-# Per-worker BSC + SL credential setup (idempotent — skips if already saved
-# on this worker). cascade/setup.yaml saves creds on only one worker; other
-# workers must save their own before any fetchCardChecklist call.
-- runFlow:
-    file: ../profile/setup-marketplace-creds.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
@@ -91,7 +76,7 @@ tags:
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
-- inputText: "KO-${TEST_USERNAME}"
+- inputText: "9002-${TEST_USERNAME}"
 - tapOn: "Player name"
 - inputText: "Keyboard Dialog Test ${TEST_USERNAME}"
 - scrollUntilVisible:

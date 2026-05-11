@@ -37,21 +37,6 @@ tags:
     visible: "Set Selector"
     timeout: 10000
 
-# Per-worker BSC + SL credential setup (idempotent — skips if already saved
-# on this worker). cascade/setup.yaml saves creds on only one worker; other
-# workers must save their own before any fetchCardChecklist call.
-- runFlow:
-    file: ../profile/setup-marketplace-creds.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
@@ -86,7 +71,7 @@ tags:
     visible: "Player name"
     timeout: 5000
 # The card number input is auto-focused on form open.
-- inputText: "CD-${TEST_USERNAME}"
+- inputText: "9001-${TEST_USERNAME}"
 - tapOn: "Player name"
 - inputText: "Cancel Dialog Test ${TEST_USERNAME}"
 # The Players input is the 4th row of the form — below the fold on the
