@@ -176,7 +176,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
   return (
     <div className="w-full flex flex-col gap-4">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h2 className="text-xl font-semibold">
             Cards{" "}
             {cards.length > 0 && (
@@ -185,6 +185,18 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               </span>
             )}
           </h2>
+          {!showAddForm && (
+            <div className="flex gap-2">
+              <NeonButton onClick={() => setShowAddForm(true)}>
+                Add Card
+              </NeonButton>
+              {sortedCards.length > 0 && (
+                <NeonButton secondary onClick={handleSync} disabled={busy}>
+                  {fetchLabel}
+                </NeonButton>
+              )}
+            </div>
+          )}
         </div>
 
         {lastSynced && (
@@ -219,7 +231,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
           </div>
         ) : (
           <Virtuoso
-            useWindowScroll
             data={sortedCards}
             computeItemKey={(_, card) => card._id}
             itemContent={(_, card) => (
@@ -227,13 +238,14 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
                 <CardChecklistItem card={card} />
               </div>
             )}
+            style={{ height: "min(70vh, 800px)" }}
             increaseViewportBy={{ top: 200, bottom: 400 }}
           />
         )}
       </div>
 
-      {/* Add Card Form */}
-      {showAddForm ? (
+      {/* Add Card Form (only rendered when user opens it from the header action) */}
+      {showAddForm && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
           <h3 className="font-semibold text-sm">Add Card</h3>
           <div className="flex gap-2">
@@ -269,17 +281,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               Cancel
             </NeonButton>
           </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <NeonButton onClick={() => setShowAddForm(true)}>
-            Add Card
-          </NeonButton>
-          {sortedCards.length > 0 && (
-            <NeonButton secondary onClick={handleSync} disabled={busy}>
-              {fetchLabel}
-            </NeonButton>
-          )}
         </div>
       )}
 
