@@ -74,15 +74,21 @@ tags:
 # fetchCardChecklist reconciliation via cardChecklist.pendingPlayerNames.
 # ============================================================
 
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
 - tapOn: "Add Card"
 - extendedWaitUntil:
-    visible:
-      text: "Player(s) — comma separated, optional"
+    visible: "Player name"
     timeout: 5000
 - inputText: "US-${TEST_USERNAME}"
-- tapOn:
-    text: "Player name"
+- tapOn: "Player name"
 - inputText: "Skip Some Test ${TEST_USERNAME}"
+- scrollUntilVisible:
+    element:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
 - tapOn:
     text: "Player(s) — comma separated, optional"
 - inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"

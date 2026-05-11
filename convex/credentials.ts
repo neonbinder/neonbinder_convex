@@ -464,14 +464,42 @@ export const authenticateBsc = action({
 
       // Call browser service to log in — it reads credentials from Secret Manager internally.
       // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
+      //
+      // Retry on 503: the browser service serializes BSC logins (only one
+      // active Puppeteer browser at a time) and returns 503 when another
+      // login is in flight. This happens in CI when multiple workers — each
+      // a different Clerk user with their own saved BSC credentials — race
+      // to /login/bsc at the start of their flows. We back off and retry a
+      // few times so the second/third worker waits its turn instead of
+      // surfacing a misleading "BSC login failed" to the caller.
       console.log("[authenticateBsc] Calling browser service POST /login/bsc");
-      const response = await fetch(`${url}/login/bsc`, {
-        method: "POST",
-        headers: internalHeaders(),
-        body: JSON.stringify({ key }),
-        signal: AbortSignal.timeout(60_000),
-      });
-      console.log(`[authenticateBsc] Login response status: ${response.status}`);
+      let response: Response | null = null;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch(`${url}/login/bsc`, {
+          method: "POST",
+          headers: internalHeaders(),
+          body: JSON.stringify({ key }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        console.log(
+          `[authenticateBsc] Login response status: ${response.status} (attempt ${attempt}/${maxAttempts})`,
+        );
+        if (response.status !== 503) break;
+        if (attempt < maxAttempts) {
+          // Linear backoff: 5s, 10s, 15s. A full BSC login takes ~10-30s
+          // server-side, so these gaps usually catch the prior call wrapping
+          // up.
+          const delayMs = 5_000 * attempt;
+          console.log(
+            `[authenticateBsc] 503 from browser service — backing off ${delayMs}ms before retry`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+      }
+      if (!response) {
+        throw new Error("No response from browser service after retries");
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -559,12 +587,31 @@ export const authenticateSportlots = action({
 
       // Call browser service to log in — it reads credentials from Secret Manager internally.
       // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
-      const response = await fetch(`${browserUrl()}/login/sportlots`, {
-        method: "POST",
-        headers: internalHeaders(),
-        body: JSON.stringify({ key }),
-        signal: AbortSignal.timeout(60_000),
-      });
+      //
+      // Retry on 503: same rationale as authenticateBsc — the browser
+      // service serializes Puppeteer logins, so concurrent workers race
+      // and the loser sees 503. Linear backoff lets the queue drain.
+      let response: Response | null = null;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch(`${browserUrl()}/login/sportlots`, {
+          method: "POST",
+          headers: internalHeaders(),
+          body: JSON.stringify({ key }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (response.status !== 503) break;
+        if (attempt < maxAttempts) {
+          const delayMs = 5_000 * attempt;
+          console.log(
+            `[authenticateSportlots] 503 from browser service — backing off ${delayMs}ms before retry`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+      }
+      if (!response) {
+        throw new Error("No response from browser service after retries");
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));

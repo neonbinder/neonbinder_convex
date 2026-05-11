@@ -296,135 +296,40 @@ tags:
 # (parallel-grouping-cancel-discards → Topps Update,
 #  parallel-grouping-keyboard      → Topps Pro Debut,
 #  variant-metadata-editor-insert  → Topps Wonderland).
-# Same Sync Variant Types code path as the Topps Chrome block above;
-# exercises the real BSC + SL adapter calls in setup so the downstream
-# tests start with cached variant types and don't race the 60s wait on
-# cold Cloud Run instances. Net cost: ~30s/set on cold start, near zero
-# once minScale=1 warms the browser-service Cloud Run instance.
+#
+# Reuse util-drill-to-2024-topps-chrome with SET overrides — that util
+# already does a fresh /set-selector navigation, drills Sport → Year →
+# Manuf → Set, and auto-syncs variant types when the column is empty
+# (waits up to 60s for "Base" to appear). Exercises the real BSC + SL
+# adapter calls during setup so the downstream tests start with cached
+# variant types and don't race the 60s wait on cold Cloud Run instances.
+# Net cost: ~30s/set on cold start, near zero once minScale=1 warms
+# the browser-service Cloud Run instance.
 # ============================================================
 
-# --- Topps Update -----------------------------------------------------
-- tapOn:
-    text: ".*Search sets.*"
-- eraseText
-- inputText: "Topps Update"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Update"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Update"
-    index: 1
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
 - runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 10000
-      - tapOn: "Sync Variant Types"
-      - extendedWaitUntil:
-          notVisible: "Syncing Variant Types"
-          timeout: 60000
-      - runFlow:
-          when:
-            visible: "Close"
-          commands:
-            - tapOn: "Close"
-            - extendedWaitUntil:
-                visible: "Sync Variant Types"
-                timeout: 10000
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    timeout: 10000
-- assertVisible: "Base"
+    file: ../util-drill-to-2024-topps-chrome.yaml
+    env:
+      SET: "Topps Update"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-# --- Topps Pro Debut --------------------------------------------------
-- tapOn:
-    text: ".*Search sets.*"
-- eraseText
-- inputText: "Topps Pro Debut"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Pro Debut"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Pro Debut"
-    index: 1
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
 - runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 10000
-      - tapOn: "Sync Variant Types"
-      - extendedWaitUntil:
-          notVisible: "Syncing Variant Types"
-          timeout: 60000
-      - runFlow:
-          when:
-            visible: "Close"
-          commands:
-            - tapOn: "Close"
-            - extendedWaitUntil:
-                visible: "Sync Variant Types"
-                timeout: 10000
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    timeout: 10000
-- assertVisible: "Base"
+    file: ../util-drill-to-2024-topps-chrome.yaml
+    env:
+      SET: "Topps Pro Debut"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
-# --- Topps Wonderland -------------------------------------------------
-- tapOn:
-    text: ".*Search sets.*"
-- eraseText
-- inputText: "Topps Wonderland"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Wonderland"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Wonderland"
-    index: 1
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
 - runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 10000
-      - tapOn: "Sync Variant Types"
-      - extendedWaitUntil:
-          notVisible: "Syncing Variant Types"
-          timeout: 60000
-      - runFlow:
-          when:
-            visible: "Close"
-          commands:
-            - tapOn: "Close"
-            - extendedWaitUntil:
-                visible: "Sync Variant Types"
-                timeout: 10000
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    timeout: 10000
-- assertVisible: "Base"
+    file: ../util-drill-to-2024-topps-chrome.yaml
+    env:
+      SET: "Topps Wonderland"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}

@@ -75,15 +75,26 @@ tags:
 # the same worker from colliding on the same cardChecklist row.
 # ============================================================
 
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
 - tapOn: "Add Card"
+# Wait for the form to open. "Player name" is the 2nd input's placeholder
+# and reliably becomes visible after the autoFocused "#" input renders.
 - extendedWaitUntil:
-    visible:
+    visible: "Player name"
+    timeout: 5000
+# The card number input is auto-focused on form open.
+- inputText: "CD-${TEST_USERNAME}"
+- tapOn: "Player name"
+- inputText: "Cancel Dialog Test ${TEST_USERNAME}"
+# The Players input is the 4th row of the form — below the fold on the
+# default 1024x629 headless viewport. Scroll to it before tapping.
+- scrollUntilVisible:
+    element:
       text: "Player(s) — comma separated, optional"
     timeout: 5000
-- inputText: "CD-${TEST_USERNAME}"
-- tapOn:
-    text: "Player name"
-- inputText: "Cancel Dialog Test ${TEST_USERNAME}"
 - tapOn:
     text: "Player(s) — comma separated, optional"
 - inputText: "CDPlayer-${TEST_USERNAME}"
