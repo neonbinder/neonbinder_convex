@@ -39,7 +39,7 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
 # DRILL TO INSERT VARIANT TYPE (via util)
@@ -143,7 +143,7 @@ tags:
 - extendedWaitUntil:
     notVisible:
       text: ".*Drag inserts under a parent.*"
-    timeout: 30000
+    timeout: 10000
 
 # ============================================================
 # POST-SAVE VERIFICATION
