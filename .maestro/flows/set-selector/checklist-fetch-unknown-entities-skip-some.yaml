@@ -4,16 +4,6 @@ name: "Checklist — fetch dialog; user unchecks one player; remaining entities 
 tags:
   - set-selector
   - requires:setup-done
-  # WIP: Two failure modes seen in CI on PR #26:
-  # 1) Maestro framework null cast (`null cannot be cast to non-null type
-  #    kotlin.Int`) on the initial "Set Selector" visibility assertion —
-  #    a CdpWebDriver race during view-hierarchy refresh, not a product
-  #    issue.
-  # 2) Worker-state pollution: when a prior flow saved players + teams,
-  #    fetchCardChecklist finds zero unknowns and the UnknownEntitiesDialog
-  #    never opens, failing the "Confirm New Players & Teams" assertion.
-  # Both need separate test-isolation work. Re-enable after.
-  - wip
 ---
 # Feature test: a user can uncheck individual unknown players or teams
 # before confirming. Skipped names are NOT created as entities but cards
@@ -48,6 +38,21 @@ tags:
     visible: "Set Selector"
     timeout: 45000
 
+# Per-worker BSC + SL credential setup (idempotent — skips if already saved
+# on this worker). cascade/setup.yaml saves creds on only one worker; other
+# workers must save their own before any fetchCardChecklist call.
+- runFlow:
+    file: ../profile/setup-marketplace-creds.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
@@ -61,15 +66,37 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
+# ADD A CUSTOM CARD WITH TWO UNIQUE PLAYER NAMES
+# Guarantees the dialog opens with multiple unknown players so the
+# "uncheck one player, others still save" semantic can be exercised
+# regardless of what other tests have already committed to the global
+# `players` table. The custom card's players go through
+# fetchCardChecklist reconciliation via cardChecklist.pendingPlayerNames.
+# ============================================================
+
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
+- inputText: "US-${TEST_USERNAME}"
+- tapOn:
+    text: "Player name"
+- inputText: "Skip Some Test ${TEST_USERNAME}"
+- tapOn:
+    text: "Player(s) — comma separated, optional"
+- inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Skip Some Test ${TEST_USERNAME}"
+    timeout: 10000
+
+# ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
-
-- extendedWaitUntil:
-    visible: "Fetching..."
-    timeout: 10000
-
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
     timeout: 60000

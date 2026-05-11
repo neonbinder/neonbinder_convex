@@ -4,16 +4,6 @@ name: "Checklist — confirm dialog using keyboard Enter on auto-focused button"
 tags:
   - set-selector
   - requires:setup-done
-  # WIP (NEO-9-adjacent): Same worker-state pollution as cancel-dialog —
-  # when this flow runs on a worker where a prior test populated players
-  # and teams, fetchCardChecklist returns zero unknowns and the
-  # UnknownEntitiesDialog never opens, failing the
-  # "Fetching...|Confirm New Players" composite wait. Even the 120s
-  # timeout doesn't save the test because "Fetching..." only flashes
-  # for a sub-second when cache is warm and there's nothing to confirm.
-  # Re-enable after cardChecklist + players + teams are reset
-  # per-test (not just per-suite).
-  - wip
 ---
 # Feature test: the UnknownEntitiesDialog confirm button is auto-focused on open
 # and responds to the Enter key, allowing keyboard-only confirmation.
@@ -58,6 +48,21 @@ tags:
     visible: "Set Selector"
     timeout: 45000
 
+# Per-worker BSC + SL credential setup (idempotent — skips if already saved
+# on this worker). cascade/setup.yaml saves creds on only one worker; other
+# workers must save their own before any fetchCardChecklist call.
+- runFlow:
+    file: ../profile/setup-marketplace-creds.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
@@ -71,6 +76,31 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
+# ADD A CUSTOM CARD WITH A UNIQUE PLAYER NAME
+# Guarantees the dialog opens regardless of what other tests have
+# already committed to the global `players` table. The custom card's
+# player goes through fetchCardChecklist reconciliation via the
+# cardChecklist.pendingPlayerNames field.
+# ============================================================
+
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
+- inputText: "KO-${TEST_USERNAME}"
+- tapOn:
+    text: "Player name"
+- inputText: "Keyboard Dialog Test ${TEST_USERNAME}"
+- tapOn:
+    text: "Player(s) — comma separated, optional"
+- inputText: "KOPlayer-${TEST_USERNAME}"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Keyboard Dialog Test ${TEST_USERNAME}"
+    timeout: 10000
+
+# ============================================================
 # TRIGGER THE FETCH
 # ============================================================
 
@@ -79,16 +109,12 @@ tags:
 # drive fetchCardChecklist, so match either.
 - tapOn:
     text: ".*Fetch from Marketplaces.*|Refresh"
-# NOTE: "Fetching..." is transient when cache is warm. Guard with optional pattern:
-# if "Fetching..." doesn't appear within 5s, assume fetch completed instantly
-# and proceed to wait for the dialog.
-- extendedWaitUntil:
-    visible:
-      text: "Fetching...|Confirm New Players"
-    timeout: 120000
+# The custom-card preamble guarantees an unknown player, so the dialog
+# always opens. 60s covers the backend marketplace fetch (BSC ~30s ceiling
+# + SL in parallel).
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
-    timeout: 120000
+    timeout: 60000
 
 # ============================================================
 # KEYBOARD CONFIRMATION — Enter fires the auto-focused confirm button

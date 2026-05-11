@@ -53,6 +53,10 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newCardName, setNewCardName] = useState("");
   const [newTeam, setNewTeam] = useState("");
+  // Comma-separated player names — forwarded to addCustomCard.players so
+  // the next fetchCardChecklist surfaces them in the UnknownEntitiesDialog
+  // (which lets the user confirm Wikidata enrichment). Optional.
+  const [newPlayers, setNewPlayers] = useState("");
   const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
 
   /**
@@ -134,16 +138,24 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
 
   const handleAddCard = async () => {
     if (!newCardNumber.trim()) return;
+    const players = newPlayers
+      .split(",")
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    const teamTrimmed = newTeam.trim();
     try {
       await addCustomCard({
         selectorOptionId: variantId,
         cardNumber: newCardNumber.trim(),
         cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
-        team: newTeam.trim() || undefined,
+        team: teamTrimmed || undefined,
+        ...(players.length > 0 ? { players } : {}),
+        ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
       });
       setNewCardNumber("");
       setNewCardName("");
       setNewTeam("");
+      setNewPlayers("");
       setShowAddForm(false);
     } catch (error) {
       console.error("Failed to add card:", error);
@@ -269,11 +281,18 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             type="text"
             value={newTeam}
             onChange={(e) => setNewTeam(e.target.value)}
+            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+            placeholder="Team (optional)"
+          />
+          <input
+            type="text"
+            value={newPlayers}
+            onChange={(e) => setNewPlayers(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleAddCard();
             }}
             className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Team (optional)"
+            placeholder="Player(s) — comma separated, optional"
           />
           <div className="flex gap-2">
             <NeonButton onClick={handleAddCard}>Add</NeonButton>

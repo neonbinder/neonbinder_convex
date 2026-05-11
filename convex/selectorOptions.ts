@@ -308,6 +308,8 @@ export const getCardChecklist = query({
         sportlots: v.optional(v.string()),
       }),
       isCustom: v.optional(v.boolean()),
+      pendingPlayerNames: v.optional(v.array(v.string())),
+      pendingTeamNames: v.optional(v.array(v.string())),
       sortOrder: v.number(),
       lastUpdated: v.number(),
     }),
@@ -604,6 +606,14 @@ export const addCustomCard = mutation({
     cardName: v.string(),
     team: v.optional(v.string()),
     attributes: v.optional(v.array(v.string())),
+    // Player names the user wants linked to this custom card. Surface as
+    // unknownPlayers on the next fetchCardChecklist run so the user can
+    // confirm Wikidata enrichment via the UnknownEntitiesDialog.
+    // commitCardChecklist clears confirmed names from pendingPlayerNames
+    // so the dialog doesn't re-prompt for the same player.
+    players: v.optional(v.array(v.string())),
+    // Team names — same flow as players, but for the teams table.
+    teams: v.optional(v.array(v.string())),
   },
   returns: v.id("cardChecklist"),
   handler: async (ctx, args) => {
@@ -621,6 +631,13 @@ export const addCustomCard = mutation({
       -1,
     );
 
+    const pendingPlayerNames = args.players
+      ?.map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    const pendingTeamNames = args.teams
+      ?.map((n) => n.trim())
+      .filter((n) => n.length > 0);
+
     return await ctx.db.insert("cardChecklist", {
       selectorOptionId: args.selectorOptionId,
       cardNumber: args.cardNumber,
@@ -629,6 +646,12 @@ export const addCustomCard = mutation({
       attributes: args.attributes,
       platformData: {},
       isCustom: true,
+      ...(pendingPlayerNames && pendingPlayerNames.length > 0
+        ? { pendingPlayerNames }
+        : {}),
+      ...(pendingTeamNames && pendingTeamNames.length > 0
+        ? { pendingTeamNames }
+        : {}),
       sortOrder: maxSortOrder + 1,
       lastUpdated: Date.now(),
     });
@@ -2085,6 +2108,24 @@ export const fetchCardChecklist = action({
           if (c.team && c.team.trim() && !c.teams?.length) teamSet.add(c.team.trim());
         }
 
+        // Custom cards (added via addCustomCard) can declare pending player /
+        // team names that should also be surfaced as unknown until the user
+        // confirms them via the dialog. Without this pass, users who add a
+        // custom card for a brand-new player would never get prompted to
+        // enrich that player via the standard confirmation flow.
+        const customRows = await ctx.runQuery(
+          api.selectorOptions.getCardChecklist,
+          { selectorOptionId: args.selectorOptionId },
+        );
+        for (const r of customRows) {
+          for (const p of r.pendingPlayerNames ?? []) {
+            if (p.trim()) playerSet.add(p.trim());
+          }
+          for (const t of r.pendingTeamNames ?? []) {
+            if (t.trim()) teamSet.add(t.trim());
+          }
+        }
+
         for (const name of playerSet) {
           const existing = await ctx.runQuery(api.players.findByNameAndSport, { name, sport });
           if (!existing) unknownPlayers.push(name);
@@ -2174,6 +2215,26 @@ export const commitCardChecklist = mutation({
       for (const p of c.players ?? []) if (p.trim()) allPlayerNames.add(p.trim());
       for (const t of c.teams ?? []) if (t.trim()) allTeamNames.add(t.trim());
       if (c.team && c.team.trim() && !c.teams?.length) allTeamNames.add(c.team.trim());
+    }
+
+    // Fold in pending* names from custom cards on this variant. Those rows
+    // aren't in args.cards (which is the BSC/SL fetch preview), so without
+    // this pass a confirmedNewPlayers entry pointing at a custom card's
+    // pending player would never get inserted into the players table.
+    const existingForPending = await ctx.db
+      .query("cardChecklist")
+      .withIndex("by_selector_option", (q) =>
+        q.eq("selectorOptionId", args.selectorOptionId),
+      )
+      .collect();
+    for (const r of existingForPending) {
+      if (!r.isCustom) continue;
+      for (const p of r.pendingPlayerNames ?? []) {
+        if (p.trim()) allPlayerNames.add(p.trim());
+      }
+      for (const t of r.pendingTeamNames ?? []) {
+        if (t.trim()) allTeamNames.add(t.trim());
+      }
     }
 
     const confirmedPlayersNorm = new Set(args.confirmedNewPlayers.map(norm));
@@ -2319,6 +2380,40 @@ export const commitCardChecklist = mutation({
     for (const existing of existingCards) {
       if (!processedNumbers.has(existing.cardNumber) && !existing.isCustom) {
         await ctx.db.delete(existing._id);
+      }
+    }
+
+    // Clear pendingPlayerNames / pendingTeamNames entries on custom cards
+    // for names that are now resolved (either pre-existing in players/teams
+    // or just created via the confirmed-new lists). Without this, every
+    // subsequent fetchCardChecklist would keep re-prompting for the same
+    // custom-card player names because they'd stay in pending* forever.
+    for (const existing of existingCards) {
+      if (!existing.isCustom) continue;
+      const patch: {
+        pendingPlayerNames?: string[];
+        pendingTeamNames?: string[];
+      } = {};
+      if (existing.pendingPlayerNames && existing.pendingPlayerNames.length > 0) {
+        const stillPending = existing.pendingPlayerNames.filter(
+          (n) => !playerIdByName.has(n.trim()),
+        );
+        if (stillPending.length !== existing.pendingPlayerNames.length) {
+          patch.pendingPlayerNames =
+            stillPending.length > 0 ? stillPending : undefined;
+        }
+      }
+      if (existing.pendingTeamNames && existing.pendingTeamNames.length > 0) {
+        const stillPending = existing.pendingTeamNames.filter(
+          (n) => !teamIdByName.has(n.trim()),
+        );
+        if (stillPending.length !== existing.pendingTeamNames.length) {
+          patch.pendingTeamNames =
+            stillPending.length > 0 ? stillPending : undefined;
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(existing._id, patch);
       }
     }
 

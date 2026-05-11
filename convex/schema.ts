@@ -113,6 +113,13 @@ export default defineSchema({
       sportlots: v.optional(v.string()),
     }),
     isCustom: v.optional(v.boolean()),
+    // Player names declared on a custom card before the players exist as
+    // entities. fetchCardChecklist's reconciliation surfaces these as
+    // unknownPlayers in the UnknownEntitiesDialog; commitCardChecklist
+    // clears entries that the user confirms (so subsequent fetches don't
+    // re-prompt for the same player).
+    pendingPlayerNames: v.optional(v.array(v.string())),
+    pendingTeamNames: v.optional(v.array(v.string())),
     sortOrder: v.number(),
     lastUpdated: v.number(),
   })

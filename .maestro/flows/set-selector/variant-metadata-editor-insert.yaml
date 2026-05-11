@@ -5,13 +5,6 @@ tags:
   - set-selector
   - regression
   - requires:setup-done
-  # WIP (NEO-12 residual): Same root cause as
-  # parallel-grouping-cancel-discards — fetchAggregatedOptions for variant
-  # types on a non-Topps-Chrome set (Topps Wonderland) takes longer than
-  # the 60s "Base" assertion budget on cold Cloud Run instances. Re-enable
-  # after BSC+SL variant-type responses are cached or per-worker workers
-  # share warmed sessions.
-  - wip
 ---
 # Tests the VariantMetadataEditor component on an Insert variantType variant row.
 #
@@ -55,6 +48,22 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 10000
+
+# Per-worker BSC + SL credential setup (idempotent — skips if already saved
+# on this worker). cascade/setup.yaml saves creds on only one worker; other
+# workers must save their own before any Level-6 Variants sync (which calls
+# the BSC adapter).
+- runFlow:
+    file: ../profile/setup-marketplace-creds.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
 
 # ============================================================
 # PREREQUISITE: DB reset + credentials + drill to 2024 Topps Chrome

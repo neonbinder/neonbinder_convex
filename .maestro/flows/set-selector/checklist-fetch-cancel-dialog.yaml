@@ -4,15 +4,6 @@ name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
 tags:
   - set-selector
   - requires:setup-done
-  # WIP (NEO-9-adjacent): The "Fetching..." transient asserts at line ~61.
-  # When the test runs on a worker where a prior flow already populated
-  # cardChecklist for Topps Chrome 2024 Base, BSC returns the same data,
-  # commit dedupes to 0 NEW rows, and the entire fetch resolves in <1s.
-  # "Fetching..." flashes too fast for Maestro's view-hierarchy polling
-  # (~500ms cadence) to observe. Either the test must reset cardChecklist
-  # before fetch, or the assertion needs `optional: true`. Re-enable once
-  # the test is restructured.
-  - wip
 ---
 # Feature test: pressing Cancel on the UnknownEntitiesDialog aborts the
 # commit. No cards are written to the checklist and no entities are created.
@@ -46,6 +37,21 @@ tags:
     visible: "Set Selector"
     timeout: 10000
 
+# Per-worker BSC + SL credential setup (idempotent — skips if already saved
+# on this worker). cascade/setup.yaml saves creds on only one worker; other
+# workers must save their own before any fetchCardChecklist call.
+- runFlow:
+    file: ../profile/setup-marketplace-creds.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
@@ -59,45 +65,72 @@ tags:
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
+# ADD A CUSTOM CARD WITH A UNIQUE PLAYER NAME
+# This guarantees the next fetch returns at least one unknown player,
+# so the UnknownEntitiesDialog reliably opens regardless of what other
+# tests have already committed to the global `players` table on this
+# worker. The custom card's player goes through fetchCardChecklist's
+# reconciliation via the cardChecklist.pendingPlayerNames field.
+# Per-test cardNumber prefix ("CD-") keeps multiple checklist tests on
+# the same worker from colliding on the same cardChecklist row.
+# ============================================================
+
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
+- inputText: "CD-${TEST_USERNAME}"
+- tapOn:
+    text: "Player name"
+- inputText: "Cancel Dialog Test ${TEST_USERNAME}"
+- tapOn:
+    text: "Player(s) — comma separated, optional"
+- inputText: "CDPlayer-${TEST_USERNAME}"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Cancel Dialog Test ${TEST_USERNAME}"
+    timeout: 10000
+
+# ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
-# On a fresh DB all entities are unknown so the dialog always appears.
+# The custom-card preamble guarantees the dialog opens with our unique
+# player. The end-state composite handles "dialog opened" OR "saved"
+# (in case some flake shortcuts the dialog).
 # ============================================================
 
-- assertVisible: "No cards in this checklist yet."
-- tapOn: "Fetch from Marketplaces"
-
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 - extendedWaitUntil:
-    visible: "Fetching..."
-    timeout: 10000
+    visible:
+      text: "Confirm New Players & Teams|.*Saved [0-9]+ cards.*"
+    # 60s — fetchCardChecklist scrapes BSC (~30s ceiling) + SL in parallel.
+    # This wait is for a backend marketplace fetch, not a user-perceived
+    # response, so it sits outside the 10s UI-interaction budget.
+    timeout: 60000
 
-- extendedWaitUntil:
-    visible: "Confirm New Players & Teams"
-    # 45s — fetchCardChecklist scrapes BSC (~30s ceiling) + SL in parallel,
-    # then commits. Even with warm Cloud Run, the worst case runs longer
-    # than the 10s UI-interaction budget. This wait is for a backend
-    # marketplace fetch, not a user-perceived response.
-    timeout: 45000
-
-# ============================================================
-# CANCEL — tap the "Cancel (Esc)" button to abort without saving
-# ============================================================
-
-- tapOn: "Cancel (Esc)"
-
-# Dialog disappears
-- extendedWaitUntil:
-    notVisible: "Confirm New Players & Teams"
-    timeout: 10000
+# If the dialog did appear (fast path), cancel it. The post-cancel
+# message asserts below cover the "did not open" branch implicitly
+# (in that branch the message is "Saved N cards." not "Fetch cancelled").
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - tapOn: "Cancel (Esc)"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 10000
 
 # ============================================================
-# VERIFY NO CARDS WERE SAVED
+# VERIFY THE BSC/SL CARDS WERE NOT SAVED
 # ============================================================
 
-# The exact cancel message set by the onCancel callback in CardChecklist.
+# Cancel message — set by the onCancel callback in CardChecklist.
 - assertVisible: "Fetch cancelled — no cards saved."
 
-# The checklist is still empty — no card rows with "#NNN" numbers.
-- assertVisible: "No cards in this checklist yet."
+# Our custom card is still there (cancel only discards BSC/SL preview).
+- assertVisible: "Cancel Dialog Test ${TEST_USERNAME}"
 
-# "Fetch from Marketplaces" is still available for a retry.
-- assertVisible: "Fetch from Marketplaces"
+# Fetch/Refresh button still available.
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"

@@ -5,15 +5,6 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
-  # WIP (NEO-12 residual): The flow drills to a non-Topps-Chrome set
-  # (Topps Update) whose Variant Types have never been synced. Selecting
-  # the Sets row triggers fetchAggregatedOptions to populate variant types,
-  # which hits BSC + SL even with the Promise.allSettled parallelization
-  # from c25624b. On a cold Cloud Run instance the round-trip exceeds the
-  # 60s wait for "Base" to appear in the Variant Types column. minScale=1
-  # warms one instance but parallel workers fan out to more. Re-enable
-  # after BSC adapter response is cached at the set+sport level.
-  - wip
 ---
 # Feature test: Cancel discards pending changes and does not persist to the DB.
 #
@@ -43,6 +34,22 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
+
+# Per-worker BSC + SL credential setup (idempotent — skips if already saved
+# on this worker). cascade/setup.yaml saves creds on only one worker; other
+# workers must save their own before any Level-6 Variants sync (which calls
+# the BSC adapter).
+- runFlow:
+    file: ../profile/setup-marketplace-creds.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
 
 # ============================================================
 # DRILL TO INSERT VARIANT TYPE
