@@ -86,8 +86,8 @@ export default function ParallelForm({
       }
 
       // Defensive empty-with-errors guard — see VariantForm.doSync for the
-      // full rationale. Surfacing a visible error here keeps the parallel
-      // column out of the "auto-synced but empty" trap.
+      // full rationale. Surface the error AND return to idle so the panel-
+      // header actions remain reachable.
       if (
         result.bscOptions.length === 0 &&
         result.slOptions.length === 0 &&
@@ -97,6 +97,7 @@ export default function ParallelForm({
           .map((e) => `${e.platform}: ${e.message}`)
           .join("; ");
         setMessage(`${SYNC_FAILED_PREFIX}. ${detail}`);
+        onDone?.();
         return;
       }
 

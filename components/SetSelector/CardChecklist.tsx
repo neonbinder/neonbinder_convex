@@ -288,9 +288,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             type="text"
             value={newPlayers}
             onChange={(e) => setNewPlayers(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddCard();
-            }}
             className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
             placeholder="Player(s) — comma separated, optional"
           />

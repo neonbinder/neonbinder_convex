@@ -371,6 +371,28 @@ export const storeSelectorOptions = mutation({
     const processedValues = new Set<string>();
     const insertedIds: Id<"selectorOptions">[] = [];
 
+    // Levels where downstream fetches require BOTH BSC and SL slugs.
+    // A row that ends up missing either slug at these levels will cause
+    // fetchCardChecklist / fetchRawOptions to error on its precondition.
+    // Log a warning so we can see the row being created with a gap.
+    const BOTH_REQUIRED_LEVELS = new Set(["sport", "year", "setName"]);
+    const warnIfIncomplete = (
+      rowId: Id<"selectorOptions"> | "new",
+      value: string,
+      pd: { bsc?: string | string[]; sportlots?: string },
+    ) => {
+      if (!BOTH_REQUIRED_LEVELS.has(level)) return;
+      const missing: string[] = [];
+      if (!pd.bsc) missing.push("bsc");
+      if (!pd.sportlots) missing.push("sportlots");
+      if (missing.length === 0) return;
+      console.warn(
+        `[storeSelectorOptions] row missing platform key(s) — level=${level} ` +
+          `value=${value} id=${rowId} missing=${missing.join(",")}. ` +
+          `Downstream BSC/SL fetches will hit the missing-slug precondition.`,
+      );
+    };
+
     for (const option of options) {
       const normalizedValue = option.value.toLowerCase().trim();
       processedValues.add(normalizedValue);
@@ -382,12 +404,14 @@ export const storeSelectorOptions = mutation({
           ...existing.platformData,
           ...option.platformData,
         };
+        warnIfIncomplete(existing._id, option.value, mergedPlatformData);
         await ctx.db.patch(existing._id, {
           platformData: mergedPlatformData,
           lastUpdated: Date.now(),
         });
         insertedIds.push(existing._id);
       } else {
+        warnIfIncomplete("new", option.value, option.platformData);
         const id = await ctx.db.insert("selectorOptions", {
           level,
           value: option.value,
@@ -1388,12 +1412,13 @@ export const fetchAggregatedOptions = action({
       );
 
       // Build platform-specific filters from the ancestor chain so each
-      // adapter receives its own slugs instead of display labels.
-      // When an ancestor has no platformData for a given platform, fall back
-      // to the display value — this handles cross-platform levels (e.g. year
-      // may only have SL slug but BSC still needs the year filter).
+      // adapter receives its own slugs instead of display labels. Catch
+      // missing slugs for the levels each platform actually filters on
+      // (matches the invariant in setReconciliation.fetchRawOptions).
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
+      const aggMissingBsc: string[] = [];
+      const aggMissingSl: string[] = [];
 
       if (parentId) {
         const chain = await ctx.runQuery(
@@ -1404,16 +1429,24 @@ export const fetchAggregatedOptions = action({
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
+        const BSC_REQUIRED = new Set(["sport", "year", "setName"]);
+        const SL_REQUIRED = new Set(["setName"]);
+
         for (const ancestor of chain) {
           const lvl = ancestor.level;
           if (ancestor.platformData?.sportlots) {
             slPlatformFilters[lvl] = ancestor.platformData.sportlots;
+          } else if (SL_REQUIRED.has(lvl)) {
+            aggMissingSl.push(`${lvl}=${ancestor.value}`);
           }
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
             bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          } else if (BSC_REQUIRED.has(lvl)) {
+            aggMissingBsc.push(`${lvl}=${ancestor.value}`);
           } else if (ancestor.value) {
-            // Fall back to display value (e.g. year "2022") when no BSC slug stored
+            // Display-value fallback acceptable for non-required levels
+            // only (manufacturer/variantType-style display passthroughs).
             bscPlatformFilters[lvl] = [ancestor.value.toLowerCase()];
           }
         }
@@ -1424,6 +1457,26 @@ export const fetchAggregatedOptions = action({
           `BSC:`,
           bscPlatformFilters,
         );
+      }
+
+      if (aggMissingBsc.length > 0 || aggMissingSl.length > 0) {
+        const parts: string[] = [];
+        if (aggMissingBsc.length > 0) {
+          parts.push(`platformData.bsc missing on: ${aggMissingBsc.join(", ")}`);
+        }
+        if (aggMissingSl.length > 0) {
+          parts.push(`platformData.sportlots missing on: ${aggMissingSl.join(", ")}`);
+        }
+        const msg =
+          `Cannot sync ${level} options — ancestor rows are missing platform slugs. ` +
+          parts.join("; ") +
+          `. Upstream selectorOptions hydration did not write the slugs we need.`;
+        console.error(`[fetchAggregatedOptions] precondition failed: ${msg}`);
+        return {
+          success: false,
+          message: msg,
+          optionsCount: 0,
+        };
       }
 
       const allOptions: Array<{
@@ -1964,6 +2017,57 @@ export const fetchCardChecklist = action({
           const bscVal = ancestor.platformData.bsc;
           bscPlatformFilters[ancestor.level] = Array.isArray(bscVal) ? bscVal : [bscVal];
         }
+      }
+
+      // Data-integrity precondition. Both BSC and SL are stable services
+      // that consistently return data for properly-filtered queries. If
+      // we're about to call an adapter with an incomplete filter, that
+      // means our own `selectorOptions.platformData` is missing slugs we
+      // should have populated upstream. Surface this loudly instead of
+      // silently sending an under-filtered request that returns 0 cards
+      // and looks like "the marketplace had nothing" to the caller.
+      //
+      // Required platform data per adapter (variantType is derived from
+      // the ancestor's `value`, not its platformData, so it's exempt):
+      //   BSC: sport, year, setName, insert (if present in the chain)
+      //   SL:  setName (the radio-button ID — SL's API requires it)
+      //
+      // manufacturer is intentionally absent — BSC has no manufacturer
+      // facet (LEVEL_TO_BSC_FACET) and SL derives manufacturer from the
+      // setName radio implicitly.
+      const BSC_REQUIRED_LEVELS = new Set(["sport", "year", "setName", "insert"]);
+      const SL_REQUIRED_LEVELS = new Set(["setName"]);
+      const missingBsc: string[] = [];
+      const missingSl: string[] = [];
+      for (const ancestor of chain) {
+        if (BSC_REQUIRED_LEVELS.has(ancestor.level) && !ancestor.platformData?.bsc) {
+          missingBsc.push(`${ancestor.level}=${ancestor.value}`);
+        }
+        if (SL_REQUIRED_LEVELS.has(ancestor.level) && !ancestor.platformData?.sportlots) {
+          missingSl.push(`${ancestor.level}=${ancestor.value}`);
+        }
+      }
+      if (missingBsc.length > 0 || missingSl.length > 0) {
+        const parts: string[] = [];
+        if (missingBsc.length > 0) {
+          parts.push(`platformData.bsc missing on: ${missingBsc.join(", ")}`);
+        }
+        if (missingSl.length > 0) {
+          parts.push(`platformData.sportlots missing on: ${missingSl.join(", ")}`);
+        }
+        const msg =
+          `Cannot fetch checklist — ancestor rows are missing platform slugs. ` +
+          parts.join("; ") +
+          `. This indicates a bug in the upstream sync (selectorOptions hydration).`;
+        console.error(`[fetchCardChecklist] precondition failed: ${msg}`);
+        return {
+          success: false,
+          message: msg,
+          sport,
+          cards: [],
+          unknownPlayers: [],
+          unknownTeams: [],
+        };
       }
 
       console.log(

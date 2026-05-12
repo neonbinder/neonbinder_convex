@@ -243,6 +243,8 @@ export const fetchRawOptions = action({
       // Build platform-specific filters from the ancestor chain
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
+      const precondMissingBsc: string[] = [];
+      const precondMissingSl: string[] = [];
 
       if (parentId) {
         const chain = await ctx.runQuery(
@@ -253,16 +255,33 @@ export const fetchRawOptions = action({
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
+        // Data-integrity precondition: missing platform slugs lead to
+        // under-filtered queries returning 0 results, which the form's
+        // empty-with-errors guard then surfaces. Catch the missing slugs
+        // *here* so the error names the actual broken level instead of a
+        // generic "could not load variants". See fetchCardChecklist for
+        // the same invariant and the level matrix.
+        const BSC_REQUIRED = new Set(["sport", "year", "setName"]);
+        const SL_REQUIRED = new Set(["setName"]);
+
         for (const ancestor of chain) {
           const lvl = ancestor.level;
           if (ancestor.platformData?.sportlots) {
             slPlatformFilters[lvl] = ancestor.platformData.sportlots;
+          } else if (SL_REQUIRED.has(lvl)) {
+            precondMissingSl.push(`${lvl}=${ancestor.value}`);
           }
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
             bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          } else if (BSC_REQUIRED.has(lvl)) {
+            precondMissingBsc.push(`${lvl}=${ancestor.value}`);
           } else if (ancestor.value) {
-            // Fall back to display value when no BSC slug stored
+            // Display-value fallback is only acceptable for levels that
+            // are NOT in BSC_REQUIRED. The intent is to forward
+            // manufacturer/variantType-style display values when no slug
+            // mapping exists; for sport/year/setName we want a clean
+            // precondition error instead of a silently-wrong filter.
             bscPlatformFilters[lvl] = [ancestor.value.toLowerCase()];
           }
         }
@@ -273,6 +292,36 @@ export const fetchRawOptions = action({
           `BSC:`,
           bscPlatformFilters,
         );
+      }
+
+      if (precondMissingBsc.length > 0 || precondMissingSl.length > 0) {
+        const errs: Array<{ platform: string; message: string }> = [];
+        if (precondMissingBsc.length > 0) {
+          errs.push({
+            platform: "bsc",
+            message: `Missing platformData.bsc on: ${precondMissingBsc.join(", ")}`,
+          });
+        }
+        if (precondMissingSl.length > 0) {
+          errs.push({
+            platform: "sportlots",
+            message: `Missing platformData.sportlots on: ${precondMissingSl.join(", ")}`,
+          });
+        }
+        console.error(
+          `[fetchRawOptions] precondition failed:`,
+          JSON.stringify(errs),
+        );
+        return {
+          success: true,
+          bscOptions: [],
+          slOptions: [],
+          autoMatched: [],
+          unmatchedBsc: [],
+          unmatchedSl: [],
+          errors: errs,
+          message: errs.map((e) => `${e.platform}: ${e.message}`).join("; "),
+        };
       }
 
       let bscOptions: PlatformItem[] = [];

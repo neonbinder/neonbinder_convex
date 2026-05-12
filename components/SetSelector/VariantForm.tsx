@@ -102,11 +102,11 @@ export default function VariantForm({
       }
 
       // Defensive: if both adapters returned no options AND at least one
-      // reported an error, surface a visible error instead of silently
-      // closing the form. Silent close (onDone) would cause EntityColumn
-      // to mark the (level,parentId) auto-synced and the user would be
-      // stuck on the "No variants available" empty state with no way to
-      // retry. See: feat/card-checklist-fetch bug report.
+      // reported an error, surface a visible error AND return EntityColumn
+      // to idle so the panel-header actions ("Group Parallels", etc.) are
+      // reachable. The auto-synced-key set prevents this from immediately
+      // re-firing; the user (or test) can re-trigger sync explicitly via
+      // the sync button.
       if (
         result.bscOptions.length === 0 &&
         result.slOptions.length === 0 &&
@@ -116,6 +116,7 @@ export default function VariantForm({
           .map((e) => `${e.platform}: ${e.message}`)
           .join("; ");
         setMessage(`${SYNC_FAILED_PREFIX}. ${detail}`);
+        onDone?.();
         return;
       }
 
