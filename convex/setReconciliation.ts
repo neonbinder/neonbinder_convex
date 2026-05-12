@@ -244,7 +244,6 @@ export const fetchRawOptions = action({
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
       const precondMissingBsc: string[] = [];
-      const precondMissingSl: string[] = [];
 
       if (parentId) {
         const chain = await ctx.runQuery(
@@ -255,21 +254,19 @@ export const fetchRawOptions = action({
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
-        // Data-integrity precondition: missing platform slugs lead to
-        // under-filtered queries returning 0 results, which the form's
-        // empty-with-errors guard then surfaces. Catch the missing slugs
-        // *here* so the error names the actual broken level instead of a
-        // generic "could not load variants". See fetchCardChecklist for
-        // the same invariant and the level matrix.
+        // Data-integrity precondition for BSC only. Missing BSC slugs at
+        // sport/year/setName lead to under-filtered queries returning 0
+        // results, which the form's empty-with-errors guard then surfaces
+        // as a generic "could not load variants". Catch the missing slugs
+        // here so the error names the actual broken level. SL is
+        // intentionally not preconditioned — see fetchCardChecklist for
+        // the rationale (SL has no setName-level concept).
         const BSC_REQUIRED = new Set(["sport", "year", "setName"]);
-        const SL_REQUIRED = new Set(["setName"]);
 
         for (const ancestor of chain) {
           const lvl = ancestor.level;
           if (ancestor.platformData?.sportlots) {
             slPlatformFilters[lvl] = ancestor.platformData.sportlots;
-          } else if (SL_REQUIRED.has(lvl)) {
-            precondMissingSl.push(`${lvl}=${ancestor.value}`);
           }
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
@@ -294,20 +291,11 @@ export const fetchRawOptions = action({
         );
       }
 
-      if (precondMissingBsc.length > 0 || precondMissingSl.length > 0) {
-        const errs: Array<{ platform: string; message: string }> = [];
-        if (precondMissingBsc.length > 0) {
-          errs.push({
-            platform: "bsc",
-            message: `Missing platformData.bsc on: ${precondMissingBsc.join(", ")}`,
-          });
-        }
-        if (precondMissingSl.length > 0) {
-          errs.push({
-            platform: "sportlots",
-            message: `Missing platformData.sportlots on: ${precondMissingSl.join(", ")}`,
-          });
-        }
+      if (precondMissingBsc.length > 0) {
+        const errs = [{
+          platform: "bsc",
+          message: `Missing platformData.bsc on: ${precondMissingBsc.join(", ")}`,
+        }];
         console.error(
           `[fetchRawOptions] precondition failed:`,
           JSON.stringify(errs),

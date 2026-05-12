@@ -371,25 +371,24 @@ export const storeSelectorOptions = mutation({
     const processedValues = new Set<string>();
     const insertedIds: Id<"selectorOptions">[] = [];
 
-    // Levels where downstream fetches require BOTH BSC and SL slugs.
-    // A row that ends up missing either slug at these levels will cause
-    // fetchCardChecklist / fetchRawOptions to error on its precondition.
-    // Log a warning so we can see the row being created with a gap.
-    const BOTH_REQUIRED_LEVELS = new Set(["sport", "year", "setName"]);
+    // Levels where downstream fetches require a BSC slug. SL is excluded
+    // — its adapter doesn't filter on setName and does its own DB lookup
+    // for the radio-button ID, so a setName row legitimately can lack
+    // platformData.sportlots. A missing BSC slug at sport/year/setName
+    // *will* cause fetchCardChecklist / fetchRawOptions to fail the
+    // precondition, so warn early to make the cascade upstream visible.
+    const BSC_REQUIRED_LEVELS = new Set(["sport", "year", "setName"]);
     const warnIfIncomplete = (
       rowId: Id<"selectorOptions"> | "new",
       value: string,
       pd: { bsc?: string | string[]; sportlots?: string },
     ) => {
-      if (!BOTH_REQUIRED_LEVELS.has(level)) return;
-      const missing: string[] = [];
-      if (!pd.bsc) missing.push("bsc");
-      if (!pd.sportlots) missing.push("sportlots");
-      if (missing.length === 0) return;
+      if (!BSC_REQUIRED_LEVELS.has(level)) return;
+      if (pd.bsc) return;
       console.warn(
-        `[storeSelectorOptions] row missing platform key(s) — level=${level} ` +
-          `value=${value} id=${rowId} missing=${missing.join(",")}. ` +
-          `Downstream BSC/SL fetches will hit the missing-slug precondition.`,
+        `[storeSelectorOptions] row missing BSC platform slug — level=${level} ` +
+          `value=${value} id=${rowId}. Downstream BSC fetches will hit the ` +
+          `missing-slug precondition.`,
       );
     };
 
@@ -1413,12 +1412,12 @@ export const fetchAggregatedOptions = action({
 
       // Build platform-specific filters from the ancestor chain so each
       // adapter receives its own slugs instead of display labels. Catch
-      // missing slugs for the levels each platform actually filters on
-      // (matches the invariant in setReconciliation.fetchRawOptions).
+      // missing slugs for BSC at the levels it actually filters on; SL
+      // is intentionally not preconditioned because its adapter does its
+      // own DB lookup / has no setName-level concept (see fetchCardChecklist).
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
       const aggMissingBsc: string[] = [];
-      const aggMissingSl: string[] = [];
 
       if (parentId) {
         const chain = await ctx.runQuery(
@@ -1430,14 +1429,11 @@ export const fetchAggregatedOptions = action({
         bscPlatformFilters = {};
 
         const BSC_REQUIRED = new Set(["sport", "year", "setName"]);
-        const SL_REQUIRED = new Set(["setName"]);
 
         for (const ancestor of chain) {
           const lvl = ancestor.level;
           if (ancestor.platformData?.sportlots) {
             slPlatformFilters[lvl] = ancestor.platformData.sportlots;
-          } else if (SL_REQUIRED.has(lvl)) {
-            aggMissingSl.push(`${lvl}=${ancestor.value}`);
           }
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
@@ -1459,18 +1455,11 @@ export const fetchAggregatedOptions = action({
         );
       }
 
-      if (aggMissingBsc.length > 0 || aggMissingSl.length > 0) {
-        const parts: string[] = [];
-        if (aggMissingBsc.length > 0) {
-          parts.push(`platformData.bsc missing on: ${aggMissingBsc.join(", ")}`);
-        }
-        if (aggMissingSl.length > 0) {
-          parts.push(`platformData.sportlots missing on: ${aggMissingSl.join(", ")}`);
-        }
+      if (aggMissingBsc.length > 0) {
         const msg =
-          `Cannot sync ${level} options — ancestor rows are missing platform slugs. ` +
-          parts.join("; ") +
-          `. Upstream selectorOptions hydration did not write the slugs we need.`;
+          `Cannot sync ${level} options — ancestor rows are missing BSC platform ` +
+          `slugs on: ${aggMissingBsc.join(", ")}. Upstream selectorOptions ` +
+          `hydration did not write the BSC slugs we need.`;
         console.error(`[fetchAggregatedOptions] precondition failed: ${msg}`);
         return {
           success: false,
@@ -2019,46 +2008,37 @@ export const fetchCardChecklist = action({
         }
       }
 
-      // Data-integrity precondition. Both BSC and SL are stable services
-      // that consistently return data for properly-filtered queries. If
-      // we're about to call an adapter with an incomplete filter, that
-      // means our own `selectorOptions.platformData` is missing slugs we
-      // should have populated upstream. Surface this loudly instead of
-      // silently sending an under-filtered request that returns 0 cards
-      // and looks like "the marketplace had nothing" to the caller.
+      // Data-integrity precondition for BSC only. BSC is a stable service
+      // that consistently returns data for properly-filtered queries; a
+      // 0-card result almost always means our filter was incomplete.
+      // Surface this loudly instead of silently sending an under-filtered
+      // request and treating the empty response as "the marketplace had
+      // nothing".
       //
-      // Required platform data per adapter (variantType is derived from
-      // the ancestor's `value`, not its platformData, so it's exempt):
+      // Required platform data:
       //   BSC: sport, year, setName, insert (if present in the chain)
-      //   SL:  setName (the radio-button ID — SL's API requires it)
       //
-      // manufacturer is intentionally absent — BSC has no manufacturer
-      // facet (LEVEL_TO_BSC_FACET) and SL derives manufacturer from the
-      // setName radio implicitly.
+      // SL is intentionally not preconditioned: per
+      // `sportlots.ts:160-164`, SL deliberately returns no options at the
+      // setName/variantType levels (SL's data model combines set+variant
+      // at the "insert" level), and `fetchSportLotsChecklist` does its
+      // own DB lookup via `resolveSportLotsPlatformValue` when the SL
+      // slug isn't passed in. variantType and manufacturer are exempt
+      // for BSC too — variantType is derived from display value and
+      // manufacturer has no BSC facet.
       const BSC_REQUIRED_LEVELS = new Set(["sport", "year", "setName", "insert"]);
-      const SL_REQUIRED_LEVELS = new Set(["setName"]);
       const missingBsc: string[] = [];
-      const missingSl: string[] = [];
       for (const ancestor of chain) {
         if (BSC_REQUIRED_LEVELS.has(ancestor.level) && !ancestor.platformData?.bsc) {
           missingBsc.push(`${ancestor.level}=${ancestor.value}`);
         }
-        if (SL_REQUIRED_LEVELS.has(ancestor.level) && !ancestor.platformData?.sportlots) {
-          missingSl.push(`${ancestor.level}=${ancestor.value}`);
-        }
       }
-      if (missingBsc.length > 0 || missingSl.length > 0) {
-        const parts: string[] = [];
-        if (missingBsc.length > 0) {
-          parts.push(`platformData.bsc missing on: ${missingBsc.join(", ")}`);
-        }
-        if (missingSl.length > 0) {
-          parts.push(`platformData.sportlots missing on: ${missingSl.join(", ")}`);
-        }
+      if (missingBsc.length > 0) {
         const msg =
-          `Cannot fetch checklist — ancestor rows are missing platform slugs. ` +
-          parts.join("; ") +
-          `. This indicates a bug in the upstream sync (selectorOptions hydration).`;
+          `Cannot fetch checklist — ancestor rows are missing BSC platform slugs ` +
+          `on: ${missingBsc.join(", ")}. Upstream selectorOptions hydration did ` +
+          `not write the BSC slugs we need (this is a bug in our sync pipeline, ` +
+          `not a marketplace issue).`;
         console.error(`[fetchCardChecklist] precondition failed: ${msg}`);
         return {
           success: false,
