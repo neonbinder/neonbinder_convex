@@ -2015,18 +2015,23 @@ export const fetchCardChecklist = action({
       // request and treating the empty response as "the marketplace had
       // nothing".
       //
-      // Required platform data:
-      //   BSC: sport, year, setName, insert (if present in the chain)
+      // Required BSC platform data: sport, year, setName. These are the
+      // levels where BSC has a canonical slug (per LEVEL_TO_BSC_FACET in
+      // adapters/buysportscards.ts) AND where the slug is required for a
+      // properly filtered query.
       //
-      // SL is intentionally not preconditioned: per
-      // `sportlots.ts:160-164`, SL deliberately returns no options at the
-      // setName/variantType levels (SL's data model combines set+variant
-      // at the "insert" level), and `fetchSportLotsChecklist` does its
-      // own DB lookup via `resolveSportLotsPlatformValue` when the SL
-      // slug isn't passed in. variantType and manufacturer are exempt
-      // for BSC too — variantType is derived from display value and
-      // manufacturer has no BSC facet.
-      const BSC_REQUIRED_LEVELS = new Set(["sport", "year", "setName", "insert"]);
+      // Insert is NOT required: users can create custom insert variants
+      // (e.g. "Prizm Gold") that BSC has no slug for. In that case we
+      // fall back to filtering only by variantType — BSC returns the
+      // wider set and reconciliation matches cards by cardNumber against
+      // SL's narrower custom-variant result.
+      //
+      // SL is not preconditioned: per `sportlots.ts:160-164`, SL
+      // deliberately returns no options at setName/variantType (SL's
+      // data model combines set+variant at the "insert" level), and
+      // `fetchSportLotsChecklist` resolves the radio-button ID itself
+      // when no SL slug is passed in.
+      const BSC_REQUIRED_LEVELS = new Set(["sport", "year", "setName"]);
       const missingBsc: string[] = [];
       for (const ancestor of chain) {
         if (BSC_REQUIRED_LEVELS.has(ancestor.level) && !ancestor.platformData?.bsc) {
