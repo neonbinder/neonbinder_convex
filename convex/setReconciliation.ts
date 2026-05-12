@@ -223,6 +223,11 @@ export const fetchRawOptions = action({
     })),
     unmatchedBsc: v.array(v.object({ value: v.string(), platformValue: v.string() })),
     unmatchedSl: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    // Per-platform adapter failures surfaced as structured data so the UI
+    // can show a "Sync failed" error and a Retry button when both option
+    // lists come back empty due to an underlying failure (e.g. missing
+    // Secret Manager creds → 404). Empty array means no adapter errors.
+    errors: v.array(v.object({ platform: v.string(), message: v.string() })),
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
@@ -350,6 +355,11 @@ export const fetchRawOptions = action({
               .join("; ")})`
           : "";
 
+      const errors = Object.entries(platformErrors).map(([platform, message]) => ({
+        platform,
+        message,
+      }));
+
       return {
         success: true,
         bscOptions,
@@ -357,6 +367,7 @@ export const fetchRawOptions = action({
         autoMatched,
         unmatchedBsc,
         unmatchedSl,
+        errors,
         message: `BSC: ${bscOptions.length}, SL: ${slOptions.length}, Auto-matched: ${autoMatched.length}${warningSuffix}`,
       };
     } catch (error) {
@@ -368,6 +379,12 @@ export const fetchRawOptions = action({
         autoMatched: [],
         unmatchedBsc: [],
         unmatchedSl: [],
+        errors: [
+          {
+            platform: "internal",
+            message: error instanceof Error ? error.message : "Unknown error",
+          },
+        ],
         message: `Failed to fetch options: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }

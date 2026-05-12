@@ -87,6 +87,21 @@ BSC_PASSWORD="${BSC_PASSWORD:-}"
 # as a PR check (JUnit) and uploads the directory as an Actions artifact.
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
 mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts" "$REPORT_DIR/logs" "$REPORT_DIR/debug"
+# Per-flow hard timeout (seconds). Maestro 2.2.0 has a Jackson/Kotlin reflection
+# bug (FasterXML/jackson-module-kotlin#296) that can hang the JVM indefinitely
+# while writing debug output after a failed flow — the exception kills `main`
+# but a non-daemon heartbeat thread keeps the JVM alive. Without this wrapper,
+# one hung flow blocks every other worker. Use `gtimeout` (GNU coreutils) on
+# macOS, plain `timeout` on Linux/CI. Override with MAESTRO_FLOW_TIMEOUT_SEC.
+FLOW_TIMEOUT_SEC="${MAESTRO_FLOW_TIMEOUT_SEC:-600}"
+if command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="gtimeout"
+elif command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD="timeout"
+else
+  echo "WARNING: no gtimeout/timeout command available — a hung maestro JVM will block the suite." >&2
+  TIMEOUT_CMD=""
+fi
 # Per-worker JVM "user.home" override. Maestro's DebugLogStore writes to
 # {user.home}/Library/Logs/maestro/{timestamp}/ and tries to zip+remove it on
 # exit — concurrent workers race in that shared dir and one process hangs in
@@ -97,6 +112,15 @@ mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts" "$REPORT_DIR/logs" "$REPORT
 # finds ~/.maestro/lib/ correctly.
 rm -rf "$REPORT_DIR/maestro-home"
 mkdir -p "$REPORT_DIR/maestro-home"
+
+# Truncate per-worker log/results files up-front so Phase 0 output is
+# preserved through Phases 1 and 2 (the lane runners now append rather than
+# truncate). Truncate up to a generous worker count — extra files just stay
+# empty and the final dump skips them by existence check.
+for ((w = 0; w < 16; w++)); do
+  : > "$REPORT_DIR/logs/worker-${w}.log"
+  : > "$REPORT_DIR/logs/worker-${w}.results"
+done
 
 # Parallelism. Default 3; clamp to >=1.
 PARALLELISM="${MAESTRO_PARALLELISM:-3}"
@@ -337,16 +361,16 @@ run_flow_on_worker() {
   export MAESTRO_OPTS="-Duser.home=$worker_home"
 
   local worker_args=("${ARGS_BASE[@]}" -e "WORKER_INDEX=$worker_index")
-  local flow_i
-  flow_i=$(flow_idx_of "$flow")
-  if [ "${FLOW_CATEGORY_LIST[$flow_i]}" = "marketplace" ] || [ "$worker_index" -eq 0 ]; then
-    worker_args+=(
-      -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME"
-      -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD"
-      -e "BSC_USERNAME=$BSC_USERNAME"
-      -e "BSC_PASSWORD=$BSC_PASSWORD"
-    )
-  fi
+  # Every worker receives shared marketplace credentials so the per-worker
+  # Phase 0 bootstrap can save them under its own Clerk user. The previous
+  # restriction (only worker 0 / marketplace flows) made any per-worker
+  # credential preflight on a non-zero worker silently no-op the inputs.
+  worker_args+=(
+    -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME"
+    -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD"
+    -e "BSC_USERNAME=$BSC_USERNAME"
+    -e "BSC_PASSWORD=$BSC_PASSWORD"
+  )
 
   local slug
   slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
@@ -358,13 +382,53 @@ run_flow_on_worker() {
     --debug-output "$REPORT_DIR/debug/$slug"
     --flatten-debug-output
   )
+  # Build a sanitized command line for logging — redact marketplace
+  # credential values so they never land in maestro-report artifacts /
+  # CI logs. The real worker_args (with real values) is used to invoke
+  # maestro below.
+  local logged_args=()
+  local i=0
+  while [ $i -lt ${#worker_args[@]} ]; do
+    local arg="${worker_args[$i]}"
+    if [ "$arg" = "-e" ] && [ $((i + 1)) -lt ${#worker_args[@]} ]; then
+      local kv="${worker_args[$((i + 1))]}"
+      case "$kv" in
+        BSC_USERNAME=*|BSC_PASSWORD=*|SPORTLOTS_USERNAME=*|SPORTLOTS_PASSWORD=*)
+          logged_args+=("-e" "${kv%%=*}=<redacted>")
+          ;;
+        *)
+          logged_args+=("-e" "$kv")
+          ;;
+      esac
+      i=$((i + 2))
+    else
+      logged_args+=("$arg")
+      i=$((i + 1))
+    fi
+  done
   {
     echo "▶ [w$worker_index] $flow"
-    echo "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
+    if [ -n "$TIMEOUT_CMD" ]; then
+      echo "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+    else
+      echo "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+    fi
   } >> "$log_file"
-  if "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1; then
+  local exit_code=0
+  if [ -n "$TIMEOUT_CMD" ]; then
+    # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
+    # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
+    "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+  else
+    "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+  fi
+  if [ "$exit_code" -eq 0 ]; then
     echo "✅ [w$worker_index] Passed: $flow" >> "$log_file"
     echo "PASS $flow" >> "$results_file"
+  elif [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
+    # 124 = SIGTERM by timeout; 137 = SIGKILL after grace period.
+    echo "⏱  [w$worker_index] TIMEOUT after ${FLOW_TIMEOUT_SEC}s: $flow" >> "$log_file"
+    echo "FAIL $flow (timeout)" >> "$results_file"
   else
     echo "❌ [w$worker_index] Failed: $flow" >> "$log_file"
     echo "FAIL $flow" >> "$results_file"
@@ -373,14 +437,12 @@ run_flow_on_worker() {
 }
 
 # run_serial_lane <worker_index> <flow...>
-# Runs a list of flows sequentially on one worker.
+# Runs a list of flows sequentially on one worker. Appends to the worker's
+# log/results files (which are truncated once at script init), so Phase 0
+# bootstrap output remains visible alongside Phase 1 / 2 output.
 run_serial_lane() {
   local worker_index=$1
   shift
-  local log_file="$REPORT_DIR/logs/worker-${worker_index}.log"
-  local results_file="$REPORT_DIR/logs/worker-${worker_index}.results"
-  : > "$log_file"
-  : > "$results_file"
   for flow in "$@"; do
     run_flow_on_worker "$worker_index" "$flow"
   done
@@ -400,9 +462,6 @@ run_parallel_batch() {
   local worker_index_offset="${WORKER_INDEX_OFFSET:-0}"
   for i in "${!flows[@]}"; do
     local w=$(( (i + worker_index_offset) % PARALLELISM ))
-    # Append-mode: ensure the per-worker log file exists for first use
-    : >> "$REPORT_DIR/logs/worker-${w}.log"
-    : >> "$REPORT_DIR/logs/worker-${w}.results"
     run_flow_on_worker "$w" "${flows[$i]}" &
     pids+=($!)
     # Cap concurrent maestro processes at PARALLELISM
@@ -415,6 +474,60 @@ run_parallel_batch() {
     wait "$pid" || true
   done
 }
+
+# ─── Phase 0: per-worker bootstrap ──────────────────────────────────────────
+# Each worker signs in as TEST_EMAIL_${WORKER_INDEX} and saves the shared
+# BSC + SL credentials under that Clerk user in Secret Manager. Idempotent —
+# the underlying setup-bsc-credentials.yaml / setup-sportlots-credentials.yaml
+# helpers short-circuit when "Clear Credentials" is visible, so reruns are
+# cheap and never trigger a fresh marketplace login (rate-limit risk).
+#
+# Why this is required: each Maestro worker drives a distinct Clerk test
+# user (TEST_EMAIL_${WORKER_INDEX}). Marketplace adapter calls (BSC / SL)
+# fetch session tokens from Secret Manager keyed by the Clerk user ID.
+# Without per-worker bootstrap, only the worker that ran setup.yaml had
+# its credentials saved; other workers' adapter calls hit NOT_FOUND, both
+# options arrays return empty, the ReconciliationModal silently never
+# opens, and tests time out.
+BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
+if [ -f "$BOOTSTRAP_FLOW" ]; then
+  echo "Phase 0: per-worker bootstrap (sign-in + save BSC + SL creds for every worker)"
+  # SERIAL by default. Concurrent JVM startup of multiple maestro CLI processes
+  # has triggered JIT-compiler SIGSEGVs in kotlin.reflect on JDK 23 / macOS
+  # aarch64 (deterministic across runs; different code paths each time).
+  # Phase 1/2 parallelism is unaffected — JVMs stagger naturally after the
+  # initial Phase 0 ramp. Set MAESTRO_PHASE0_PARALLEL=true to opt back into
+  # parallel bootstrap (useful where JVM is stable, e.g. Linux CI runners).
+  if [ "${MAESTRO_PHASE0_PARALLEL:-false}" = "true" ]; then
+    bootstrap_pids=()
+    for w in $(seq 0 $((PARALLELISM - 1))); do
+      run_flow_on_worker "$w" "$BOOTSTRAP_FLOW" &
+      bootstrap_pids+=($!)
+    done
+    for pid in "${bootstrap_pids[@]}"; do
+      wait "$pid" || true
+    done
+  else
+    for w in $(seq 0 $((PARALLELISM - 1))); do
+      run_flow_on_worker "$w" "$BOOTSTRAP_FLOW"
+    done
+  fi
+  # Fail fast if any worker failed to bootstrap — every subsequent flow on
+  # that worker would hit Secret Manager NOT_FOUND and time out silently.
+  bootstrap_failed=false
+  for w in $(seq 0 $((PARALLELISM - 1))); do
+    if grep -q "^FAIL $BOOTSTRAP_FLOW" "$REPORT_DIR/logs/worker-${w}.results" 2>/dev/null; then
+      echo "ERROR: Phase 0 bootstrap failed on worker $w. See $REPORT_DIR/logs/worker-${w}.log" >&2
+      bootstrap_failed=true
+    fi
+  done
+  if $bootstrap_failed; then
+    echo "Aborting: bootstrap must succeed on every worker before Phase 1 can run safely." >&2
+    exit 1
+  fi
+  echo "Phase 0 complete."
+  echo ""
+fi
 
 # ─── Phase 1: static lanes (concurrent) ─────────────────────────────────────
 # Lanes claim workers dynamically based on which lanes have any flows. The
@@ -482,13 +595,10 @@ else
       INDEPENDENT_PID=$!
       phase1_pids+=("$INDEPENDENT_PID")
     else
-      # Stripe round-robin across ind_workers
+      # Stripe round-robin across ind_workers. Log files were truncated once
+      # at script init; we append here so prior phases' output is preserved.
       (
         ind_count=${#ind_workers[@]}
-        for w in "${ind_workers[@]}"; do
-          : > "$REPORT_DIR/logs/worker-${w}.log"
-          : > "$REPORT_DIR/logs/worker-${w}.results"
-        done
         sub_pids=()
         for i in "${!INDEPENDENT_FLOWS[@]}"; do
           w="${ind_workers[$((i % ind_count))]}"

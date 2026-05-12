@@ -12,8 +12,14 @@ type RawOptionsResult = {
   autoMatched: MatchedPair[];
   unmatchedBsc: PlatformItem[];
   unmatchedSl: PlatformItem[];
+  errors: Array<{ platform: string; message: string }>;
   message?: string;
 };
+
+// Mirrors VariantForm's SYNC_FAILED_PREFIX. Phrased for the parallel
+// column so Maestro can distinguish variant vs parallel failure surfacing
+// when it eventually asserts on this text.
+const SYNC_FAILED_PREFIX = "Sync failed: could not load parallels";
 
 export default function ParallelForm({
   insertId,
@@ -76,6 +82,21 @@ export default function ParallelForm({
 
       if (!result.success) {
         setMessage(result.message || "Failed to fetch options");
+        return;
+      }
+
+      // Defensive empty-with-errors guard — see VariantForm.doSync for the
+      // full rationale. Surfacing a visible error here keeps the parallel
+      // column out of the "auto-synced but empty" trap.
+      if (
+        result.bscOptions.length === 0 &&
+        result.slOptions.length === 0 &&
+        result.errors.length > 0
+      ) {
+        const detail = result.errors
+          .map((e) => `${e.platform}: ${e.message}`)
+          .join("; ");
+        setMessage(`${SYNC_FAILED_PREFIX}. ${detail}`);
         return;
       }
 
@@ -149,22 +170,38 @@ export default function ParallelForm({
           </p>
         )}
 
-        {message && !showReconciliation && (
-          <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
-            {message}
-          </div>
-        )}
+        {(() => {
+          const isError =
+            !!message &&
+            (message.startsWith("Error") ||
+              message.startsWith("Failed") ||
+              message.startsWith(SYNC_FAILED_PREFIX));
+          return (
+            <>
+              {message && !showReconciliation && (
+                <div
+                  role={isError ? "alert" : undefined}
+                  className={
+                    isError
+                      ? "p-3 mb-4 bg-[#FF2EB3]/10 border border-[#FF2EB3] rounded-md text-[#FF2EB3] text-sm"
+                      : "p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm"
+                  }
+                >
+                  {message}
+                </div>
+              )}
 
-        {!loading && !showReconciliation && (
-          <div className="flex gap-2">
-            {message?.startsWith("Error") && (
-              <NeonButton onClick={doSync}>Retry</NeonButton>
-            )}
-            <NeonButton cancel onClick={onDone}>
-              {message?.startsWith("Error") ? "Cancel" : "Close"}
-            </NeonButton>
-          </div>
-        )}
+              {!loading && !showReconciliation && (
+                <div className="flex gap-2">
+                  {isError && <NeonButton onClick={doSync}>Retry</NeonButton>}
+                  <NeonButton cancel onClick={onDone}>
+                    {isError ? "Cancel" : "Close"}
+                  </NeonButton>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {showReconciliation && reconciliationData && existingParallelRows !== undefined && (
