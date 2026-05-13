@@ -425,6 +425,11 @@ export const fetchBscChecklist = action({
         sort: "default",
         filters,
       };
+      // NEO-14 diagnostic: log outbound filter so a 0-card response can be
+      // distinguished between wrong-slug-we-sent vs. BSC-returned-0-to-valid-slug.
+      console.log(
+        `[fetchBscChecklist] POST /search/bulk-upload/results filters=${JSON.stringify(filters)}`,
+      );
       let response: Response;
       try {
         response = await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
@@ -442,6 +447,10 @@ export const fetchBscChecklist = action({
       }
 
       if (!response.ok) {
+        const errBody = await response.text().catch(() => "");
+        console.error(
+          `[fetchBscChecklist] BSC API ${response.status}: ${errBody.slice(0, 300)}`,
+        );
         return {
           success: false,
           cards: [],
@@ -449,7 +458,24 @@ export const fetchBscChecklist = action({
         };
       }
 
-      const data = await response.json();
+      // Read body as text first so we can log a preview when the response
+      // is unexpectedly empty/non-array. JSON.parse on text gives us the
+      // same `data` as response.json() would.
+      const rawBody = await response.text();
+      let data: unknown;
+      try {
+        data = JSON.parse(rawBody);
+      } catch (err) {
+        const parseMsg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[fetchBscChecklist] BSC returned non-JSON (status=${response.status}, len=${rawBody.length}, parseErr=${parseMsg}): ${rawBody.slice(0, 300)}`,
+        );
+        return {
+          success: false,
+          cards: [],
+          message: `BSC API returned non-JSON response`,
+        };
+      }
       const results = Array.isArray(data) ? data : [];
       const rawCards: Record<string, unknown>[] = [];
       for (const r of results) {
@@ -458,8 +484,16 @@ export const fetchBscChecklist = action({
       }
 
       console.log(
-        `[fetchBscChecklist] returned=${results.length} kept=${rawCards.length} (bulk-upload catalog)`,
+        `[fetchBscChecklist] returned=${results.length} kept=${rawCards.length} status=${response.status} (bulk-upload catalog)`,
       );
+      if (results.length === 0) {
+        // NEO-14: surface what BSC actually said when we get zero rows so we
+        // can tell "valid slug, set genuinely empty" from "wrong slug, BSC
+        // returned []" from "auth was soft-rejected, response was an object".
+        console.warn(
+          `[fetchBscChecklist] zero rows — bodyType=${Array.isArray(data) ? "array" : typeof data} bodyPreview=${rawBody.slice(0, 300)}`,
+        );
+      }
       if (results.length >= MAX_CARDS) {
         console.warn(
           `[fetchBscChecklist] hit MAX_CARDS=${MAX_CARDS} ceiling — set may be larger than expected.`,
