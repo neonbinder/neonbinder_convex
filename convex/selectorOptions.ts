@@ -2077,6 +2077,36 @@ export const fetchCardChecklist = action({
         }),
       ]);
 
+      // NEO-14: when BSC contributes zero cards we lose the live logs to
+      // retention by the time we investigate, so persist a PostHog event
+      // with the filter context. This fires on both hard error (success:false)
+      // AND soft empty (success:true, cards:[]) — the latter is what we
+      // suspect is hitting CI's preview deploys at parallel-worker peak load.
+      const bscZero = !bscResult.success || (bscResult.cards?.length ?? 0) === 0;
+      if (bscZero) {
+        let userId = "anonymous";
+        try {
+          userId = (await getCurrentUserId(ctx)) || "anonymous";
+        } catch {
+          // auth context may not be available in the action
+        }
+        await ctx.runAction(internal.posthog.captureEvent, {
+          distinctId: userId,
+          event: "card_checklist_bsc_zero",
+          properties: {
+            success: bscResult.success,
+            cardsLength: bscResult.cards?.length ?? 0,
+            message: bscResult.message ?? null,
+            parentFilters: filters,
+            bscPlatformFilters,
+            slCardsLength: slResult.cards?.length ?? 0,
+            slSuccess: slResult.success,
+          },
+        }).catch((err: unknown) => {
+          console.error("[fetchCardChecklist] Failed to send PostHog event:", err);
+        });
+      }
+
       const slCards = (slResult.success ? slResult.cards : []) as Array<{
         cardNumber: string;
         cardName: string;
