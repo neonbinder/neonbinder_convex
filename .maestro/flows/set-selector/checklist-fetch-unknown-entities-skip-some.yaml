@@ -90,9 +90,14 @@ tags:
     timeout: 5000
 - tapOn:
     text: "Add"
-- extendedWaitUntil:
-    visible: "Skip Some Test ${TEST_USERNAME}"
-    timeout: 10000
+# After submit the form closes and the new card row renders in the
+# virtualized checklist (react-virtuoso). Where the row lands depends on
+# the checklist's existing length, so scroll to anchor on the new card's
+# title rather than assuming it lands inside the current viewport.
+- scrollUntilVisible:
+    element:
+      text: "Skip Some Test ${TEST_USERNAME}"
+    timeout: 15000
 
 # ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG

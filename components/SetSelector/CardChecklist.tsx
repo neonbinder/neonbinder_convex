@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
@@ -58,6 +58,16 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
   // (which lets the user confirm Wikidata enrichment). Optional.
   const [newPlayers, setNewPlayers] = useState("");
   const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
+
+  // Virtuoso scroll handle + a one-shot flag so that when the user adds a
+  // card via the form, the just-added row is scrolled into view. New cards
+  // sort to the end of the list (sortOrder = max + 1), and Virtuoso only
+  // renders rows in/near the viewport — without this the user (and the
+  // E2E test) would see no visible feedback after submit. Cleared after
+  // the next render where `cards` length has grown.
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollToNewCardRef = useRef(false);
+  const prevCardCountRef = useRef(0);
 
   /**
    * Two-phase pipeline:
@@ -157,10 +167,31 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
       setNewTeam("");
       setNewPlayers("");
       setShowAddForm(false);
+      scrollToNewCardRef.current = true;
     } catch (error) {
       console.error("Failed to add card:", error);
     }
   };
+
+  // After the addCustomCard mutation resolves, Convex's reactive query
+  // refreshes `cards` with the new row appended. Detect the length growth
+  // and scroll Virtuoso to the new (last) entry exactly once.
+  useEffect(() => {
+    const count = cards?.length ?? 0;
+    if (
+      scrollToNewCardRef.current &&
+      count > prevCardCountRef.current &&
+      count > 0
+    ) {
+      virtuosoRef.current?.scrollToIndex({
+        index: count - 1,
+        align: "end",
+        behavior: "smooth",
+      });
+      scrollToNewCardRef.current = false;
+    }
+    prevCardCountRef.current = count;
+  }, [cards?.length]);
 
   if (!cards) {
     return (
@@ -243,6 +274,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
           </div>
         ) : (
           <Virtuoso
+            ref={virtuosoRef}
             data={sortedCards}
             computeItemKey={(_, card) => card._id}
             itemContent={(_, card) => (
