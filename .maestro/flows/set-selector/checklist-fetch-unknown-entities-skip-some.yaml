@@ -77,7 +77,19 @@ tags:
 - tapOn:
     text: "Player(s) — comma separated, optional"
 - inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
-- tapOn: "Add"
+# Two comma-separated chips wrap the Player(s) input, growing the form's
+# height. Combined with prior custom cards stacked above in the checklist,
+# the form's "Add" submit button can land below the 629px viewport. Maestro
+# `tapOn` does not auto-scroll, so anchor on the submit button first.
+# Regex anchors prevent matching the entry "Add Card" button (substring Add).
+- scrollUntilVisible:
+    element:
+      text: "^Add$"
+    centerElement: true
+    visibilityPercentage: 100
+    timeout: 5000
+- tapOn:
+    text: "^Add$"
 - extendedWaitUntil:
     visible: "Skip Some Test ${TEST_USERNAME}"
     timeout: 10000

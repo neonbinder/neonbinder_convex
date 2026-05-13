@@ -86,7 +86,18 @@ tags:
 - tapOn:
     text: "Player(s) — comma separated, optional"
 - inputText: "KOPlayer-${TEST_USERNAME}"
-- tapOn: "Add"
+# Anchor the form-submit tap on the viewport. Add Card is the entry button
+# (substring Add); use ^Add$ to bind to the submit button specifically. The
+# form can slide below the 629px viewport once the checklist accumulates
+# prior cards — see NEO-15 for the failure pattern.
+- scrollUntilVisible:
+    element:
+      text: "^Add$"
+    centerElement: true
+    visibilityPercentage: 100
+    timeout: 5000
+- tapOn:
+    text: "^Add$"
 - extendedWaitUntil:
     visible: "Keyboard Dialog Test ${TEST_USERNAME}"
     timeout: 10000
