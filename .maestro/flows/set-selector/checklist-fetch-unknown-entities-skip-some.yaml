@@ -81,15 +81,15 @@ tags:
 # height. Combined with prior custom cards stacked above in the checklist,
 # the form's "Add" submit button can land below the 629px viewport. Maestro
 # `tapOn` does not auto-scroll, so anchor on the submit button first.
-# Regex anchors prevent matching the entry "Add Card" button (substring Add).
+# Plain "Add" is unambiguous: Maestro text matchers are full-match, so it
+# binds to the submit button (text exactly "Add") and ignores the form
+# header "Add Card".
 - scrollUntilVisible:
     element:
-      text: "^Add$"
-    centerElement: true
-    visibilityPercentage: 100
+      text: "Add"
     timeout: 5000
 - tapOn:
-    text: "^Add$"
+    text: "Add"
 - extendedWaitUntil:
     visible: "Skip Some Test ${TEST_USERNAME}"
     timeout: 10000
