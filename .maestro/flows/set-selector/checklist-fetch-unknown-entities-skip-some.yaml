@@ -64,19 +64,35 @@ tags:
       text: "Add Card"
     timeout: 10000
 - tapOn: "Add Card"
+# Wait for the form to open. "Player name" is the card-name input's
+# placeholder (still rendered visually).
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
 - inputText: "9003-${TEST_USERNAME}"
-- tapOn: "Player name"
+# Address inputs by aria-label (via Maestro's `id:` selector, which matches
+# the accessibility-tree identifier). Placeholders overlap ("Player name",
+# "Player(s) — comma separated, optional") and Maestro's text matcher cannot
+# disambiguate them reliably — see NEO-13 root cause.
+- tapOn:
+    id: "Card name"
 - inputText: "Skip Some Test ${TEST_USERNAME}"
+# Scroll anchor uses the visible placeholder text; tap target uses the
+# aria-label via `id:`.
 - scrollUntilVisible:
     element:
       text: "Player(s) — comma separated, optional"
     timeout: 5000
 - tapOn:
-    text: "Player(s) — comma separated, optional"
+    id: "Players"
 - inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
+# Defensive: confirm at least one of the typed player names landed on the
+# form before submitting. Fails fast if input targeting regresses. Regex
+# wildcards needed because Maestro's plain-text assertVisible is full
+# match — the input value renders as the comma-joined string, not the
+# single name.
+- assertVisible:
+    text: ".*USPlayerA-${TEST_USERNAME}.*"
 # Two comma-separated chips wrap the Player(s) input, growing the form's
 # height. Combined with prior custom cards stacked above in the checklist,
 # the form's "Add" submit button can land below the 629px viewport. Maestro
@@ -103,8 +119,25 @@ tags:
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
 # ============================================================
 
+# After scrollUntilVisible above (which scrolled DOWN to find the new
+# custom card row at the bottom), the Sync button sits at y~17-49 —
+# technically in the viewport but OBSCURED by the sticky page header
+# (z-20). scrollUntilVisible's visibility is DOM-rect intersection, not
+# z-index-aware, so it won't scroll past the obscured button. Force a
+# real scroll UP to "Re-map Base" — a button in the variant-types row,
+# well ABOVE the cards section. Centering it puts the cards section
+# (and Sync button) clearly below the header.
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+# Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
+# `text: ".*Refresh"` regex matched a different Refresh element on the
+# page (NEO-13 root cause).
 - tapOn:
-    text: ".*Fetch from Marketplaces.*|Refresh"
+    id: "Sync card checklist"
 - extendedWaitUntil:
     visible: "Confirm New Players & Teams"
     timeout: 60000

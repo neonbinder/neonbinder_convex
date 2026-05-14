@@ -234,7 +234,12 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
                 Add Card
               </NeonButton>
               {sortedCards.length > 0 && (
-                <NeonButton secondary onClick={handleSync} disabled={busy}>
+                <NeonButton
+                  secondary
+                  onClick={handleSync}
+                  disabled={busy}
+                  aria-label="Sync card checklist"
+                >
                   {fetchLabel}
                 </NeonButton>
               )}
@@ -268,7 +273,11 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No cards in this checklist yet.
             </p>
-            <NeonButton onClick={handleSync} disabled={busy}>
+            <NeonButton
+              onClick={handleSync}
+              disabled={busy}
+              aria-label="Sync card checklist"
+            >
               {fetchLabel}
             </NeonButton>
           </div>
@@ -299,6 +308,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               onChange={(e) => setNewCardNumber(e.target.value)}
               className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="#"
+              aria-label="Card number"
               autoFocus
             />
             <input
@@ -307,21 +317,24 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               onChange={(e) => setNewCardName(e.target.value)}
               className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="Player name"
+              aria-label="Card name"
             />
           </div>
-          <input
-            type="text"
-            value={newTeam}
-            onChange={(e) => setNewTeam(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Team (optional)"
-          />
           <input
             type="text"
             value={newPlayers}
             onChange={(e) => setNewPlayers(e.target.value)}
             className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
             placeholder="Player(s) — comma separated, optional"
+            aria-label="Players"
+          />
+          <input
+            type="text"
+            value={newTeam}
+            onChange={(e) => setNewTeam(e.target.value)}
+            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+            placeholder="Team (optional)"
+            aria-label="Team"
           />
           <div className="flex gap-2">
             <NeonButton onClick={handleAddCard}>Add</NeonButton>

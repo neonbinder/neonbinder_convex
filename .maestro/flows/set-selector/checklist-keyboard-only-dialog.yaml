@@ -73,19 +73,40 @@ tags:
       text: "Add Card"
     timeout: 10000
 - tapOn: "Add Card"
+# Wait for the form to open. "Player name" is the card-name input's
+# placeholder (still rendered visually) and appears after the auto-focused
+# Card number input is on screen.
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
 - inputText: "9002-${TEST_USERNAME}"
-- tapOn: "Player name"
+# Address inputs by aria-label (via Maestro's `id:` selector, which matches
+# the accessibility-tree identifier). Placeholders overlap ("Player name",
+# "Player(s) — comma separated, optional") and Maestro's text matcher cannot
+# disambiguate them reliably — see NEO-13 root cause.
+- tapOn:
+    id: "Card name"
 - inputText: "Keyboard Dialog Test ${TEST_USERNAME}"
+# The Players input is the 4th row of the form — below the fold on the
+# default 1024x629 headless viewport. Scroll anchor uses the visible
+# placeholder text; tap target uses the aria-label via `id:`.
 - scrollUntilVisible:
     element:
       text: "Player(s) — comma separated, optional"
     timeout: 5000
 - tapOn:
-    text: "Player(s) — comma separated, optional"
+    id: "Players"
+# Give any post-tap re-render time to settle before typing. Without this,
+# observed locally: inputText routes to the Team input above (focus
+# appears to bounce between identify and tap). See NEO-13 maestro.log.
+- waitForAnimationToEnd:
+    timeout: 1000
 - inputText: "KOPlayer-${TEST_USERNAME}"
+# Defensive: confirm the typed player name landed on the form before
+# submitting. If a future regression breaks input targeting again, this
+# fails immediately at the form step instead of 60s later at the dialog
+# assertion.
+- assertVisible: "KOPlayer-${TEST_USERNAME}"
 # Anchor the form-submit tap on the viewport so the test does not depend on
 # how much vertical space the checklist above the form consumes. Maestro
 # text matchers are full-match, so plain "Add" binds to the submit button
@@ -114,8 +135,26 @@ tags:
 # If a prior flow on this worker has already populated the checklist, the
 # button label is "Refresh" instead of "Fetch from Marketplaces" — both
 # drive fetchCardChecklist, so match either.
+# Tap the CardChecklist's Fetch/Refresh button by its aria-label. After
+# scrollUntilVisible above (which scrolls down to find the new custom
+# card at the bottom of the list), the Sync button is at y~17-49 —
+# technically in the viewport but OBSCURED by the sticky page header
+# (z-20, ~64px tall — see binder-header.tsx).
+#
+# scrollUntilVisible's visibility check is DOM-rect intersection; it
+# doesn't account for z-index occlusion, so the button is "visible" and
+# no scroll happens. Force a real scroll up to "Re-map Base" — a button
+# in the variant-types row that lives well ABOVE the cards section.
+# Centering it puts the cards section (and Sync button) clearly below
+# the header.
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    direction: UP
+    centerElement: true
+    timeout: 10000
 - tapOn:
-    text: ".*Fetch from Marketplaces.*|Refresh"
+    id: "Sync card checklist"
 # The custom-card preamble guarantees an unknown player, so the dialog
 # always opens. 60s covers the backend marketplace fetch (BSC ~30s ceiling
 # + SL in parallel).
