@@ -86,6 +86,23 @@ tags:
 - tapOn:
     id: "Players"
 - inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
+# TEMP DIAGNOSTIC: capture Players input value via Maestro's copyTextFrom,
+# which uses the CDP accessibility tree (same path assertVisible uses).
+# The script logs the actual value to maestro.log via output, then a
+# guaranteed-failing assertTrue surfaces it in the error message so the
+# CI artifact captures it. Then the original assertVisible runs unchanged.
+# Remove once CI-vs-local mismatch is resolved.
+- copyTextFrom:
+    id: "Players"
+- evalScript: |
+    ${
+      output.playersCopied = maestro.copiedText;
+      output.playersHasUS = output.playersCopied && output.playersCopied.indexOf('USPlayerA') >= 0;
+      output.diagMsg = '[DIAG-A1] players_input_value=' + JSON.stringify(output.playersCopied) + ' len=' + (output.playersCopied ? output.playersCopied.length : 0) + ' has_USPlayerA=' + String(output.playersHasUS);
+    }
+- assertTrue:
+    condition: ${output.playersHasUS}
+    label: ${output.diagMsg}
 # Defensive: confirm at least one of the typed player names landed on the
 # form before submitting. Fails fast if input targeting regresses. Regex
 # wildcards needed because Maestro's plain-text assertVisible is full
