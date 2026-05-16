@@ -230,6 +230,35 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_username", ["username"]),
 
+  // Per-fetch diagnostic log for the BSC bulk-upload adapter. Captures
+  // every call's filters/status/result so we can investigate post-hoc
+  // when a fetch returns 0 cards (common in CI's preview deployments
+  // and elusive in live `convex logs` because Wikidata enrichment events
+  // flood the buffer). Not load-bearing for any application behavior;
+  // safe to truncate / delete periodically.
+  bscFetchLog: defineTable({
+    // JSON-stringified filters sent to BSC's /search/bulk-upload/results.
+    // String to keep the schema flexible while filter shape evolves.
+    filters: v.string(),
+    // HTTP status code from BSC (0 if the request threw before getting one).
+    responseStatus: v.number(),
+    // Length of the response array after kept-filter, or 0 on error / empty.
+    cardsReturned: v.number(),
+    // First 300 chars of the response body. Populated when cardsReturned=0
+    // or responseStatus is non-200; otherwise undefined to keep table small.
+    bodyPreview: v.optional(v.string()),
+    // Total time spent in fetchBscChecklist (token fetch + network + parse).
+    durationMs: v.number(),
+    // Clerk user id of the caller, if available. Useful for cross-worker
+    // attribution in CI.
+    userId: v.optional(v.string()),
+    // Source — "first-attempt" or "retry-after-401" so we can spot if the
+    // 401 retry path is what's producing zeros.
+    attempt: v.string(),
+  }),
+  // No custom indexes needed — _creationTime is implicit and that's all
+  // we need for "most recent N fetches" inspection.
+
   // Prize Pool - stores prizes for the wheel of fortune spin
   prizePool: defineTable({
     userId: v.string(), // Clerk user ID as string
