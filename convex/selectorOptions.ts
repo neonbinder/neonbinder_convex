@@ -536,6 +536,64 @@ const richChecklistCardValidator = v.object({
   }),
 });
 
+/**
+ * Natural-numeric comparator for card numbers.
+ *
+ * Card numbers are short strings like "1", "1a", "1b", "2", "10", "DK-1",
+ * "9001". Lexicographic sort gives "10" before "2"; pure numeric sort can't
+ * handle the letter suffixes. This splits each number into a leading-digit
+ * portion and a tail, comparing numerically first then lexicographically on
+ * the tail.
+ *
+ * Pure-letter card numbers (e.g. "DK-1") with no leading digits fall back
+ * to lexicographic comparison against each other and sort AFTER any numeric
+ * card. Custom cards like "9001" naturally end up at the bottom relative
+ * to typical marketplace card numbers (1-500), which matches user
+ * expectations for an appended custom slot.
+ */
+function compareCardNumbers(a: string, b: string): number {
+  const aMatch = a.match(/^(\d+)(.*)/);
+  const bMatch = b.match(/^(\d+)(.*)/);
+  if (aMatch && bMatch) {
+    const aNum = parseInt(aMatch[1], 10);
+    const bNum = parseInt(bMatch[1], 10);
+    if (aNum !== bNum) return aNum - bNum;
+    return aMatch[2].localeCompare(bMatch[2]);
+  }
+  if (aMatch && !bMatch) return -1;
+  if (!aMatch && bMatch) return 1;
+  return a.localeCompare(b);
+}
+
+/**
+ * Re-stamp `sortOrder` on every row in this selectorOption's checklist so
+ * the values reflect natural cardNumber order. Called at the end of any
+ * mutation that adds/updates rows so the client can sort by sortOrder and
+ * trust the result without re-doing the natural-sort itself.
+ *
+ * Note: this writes to every row whose new sortOrder differs from current,
+ * which can be many writes after a fresh marketplace commit. Convex bundles
+ * these into the same transaction, so query subscribers see exactly one
+ * invalidation regardless of how many rows changed.
+ */
+async function restampCardChecklistSortOrders(
+  ctx: { db: { query: any; patch: any } },
+  selectorOptionId: Id<"selectorOptions">,
+): Promise<void> {
+  const all = await ctx.db
+    .query("cardChecklist")
+    .withIndex("by_selector_option", (q: any) =>
+      q.eq("selectorOptionId", selectorOptionId),
+    )
+    .collect();
+  const sorted = [...all].sort((a, b) => compareCardNumbers(a.cardNumber, b.cardNumber));
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].sortOrder !== i) {
+      await ctx.db.patch(sorted[i]._id, { sortOrder: i });
+    }
+  }
+}
+
 export const storeCardChecklist = mutation({
   args: {
     selectorOptionId: v.id("selectorOptions"),
@@ -618,6 +676,14 @@ export const storeCardChecklist = mutation({
       }
     }
 
+    // Re-stamp sortOrder by natural cardNumber so custom cards (which were
+    // inserted with a snapshot-of-empty-checklist sortOrder of 0) interleave
+    // correctly with the just-committed marketplace rows. Without this, a
+    // custom card added when the checklist was empty stays at sortOrder=0
+    // and ties with marketplace card index 0, making the visual ordering
+    // unpredictable.
+    await restampCardChecklistSortOrders(ctx, selectorOptionId);
+
     return { success: true, count: cards.length };
   },
 });
@@ -641,19 +707,6 @@ export const addCustomCard = mutation({
   returns: v.id("cardChecklist"),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    // Get current max sort order
-    const existing = await ctx.db
-      .query("cardChecklist")
-      .withIndex("by_selector_option", (q) =>
-        q.eq("selectorOptionId", args.selectorOptionId),
-      )
-      .collect();
-
-    const maxSortOrder = existing.reduce(
-      (max, card) => Math.max(max, card.sortOrder),
-      -1,
-    );
-
     const pendingPlayerNames = args.players
       ?.map((n) => n.trim())
       .filter((n) => n.length > 0);
@@ -661,7 +714,11 @@ export const addCustomCard = mutation({
       ?.map((n) => n.trim())
       .filter((n) => n.length > 0);
 
-    return await ctx.db.insert("cardChecklist", {
+    // Insert with a placeholder sortOrder; restampCardChecklistSortOrders
+    // below assigns the correct natural-cardNumber position. This way a
+    // user can add #42 to a set already containing #1..#100 and the new
+    // row slots between #41 and #43 instead of appended at the end.
+    const id = await ctx.db.insert("cardChecklist", {
       selectorOptionId: args.selectorOptionId,
       cardNumber: args.cardNumber,
       cardName: args.cardName,
@@ -675,9 +732,13 @@ export const addCustomCard = mutation({
       ...(pendingTeamNames && pendingTeamNames.length > 0
         ? { pendingTeamNames }
         : {}),
-      sortOrder: maxSortOrder + 1,
+      sortOrder: 0,
       lastUpdated: Date.now(),
     });
+
+    await restampCardChecklistSortOrders(ctx, args.selectorOptionId);
+
+    return id;
   },
 });
 
@@ -2363,11 +2424,14 @@ export const commitCardChecklist = mutation({
     const createdPlayerIds: Array<Id<"players">> = [];
     for (const name of allPlayerNames) {
       const normalized = norm(name);
-      const matches = await ctx.db
+      // Compound index returns 0 or 1 row per lookup — independent of how
+      // many cross-sport duplicates of this normalized name exist.
+      const existing = await ctx.db
         .query("players")
-        .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", normalized))
-        .collect();
-      const existing = matches.find((p) => p.primarySport === args.sport);
+        .withIndex("by_name_normalized_and_sport", (q) =>
+          q.eq("nameNormalized", normalized).eq("primarySport", args.sport),
+        )
+        .first();
       if (existing) {
         playerIdByName.set(name, existing._id);
       } else if (confirmedPlayersNorm.has(normalized)) {
@@ -2388,11 +2452,12 @@ export const commitCardChecklist = mutation({
     const createdTeamIds: Array<Id<"teams">> = [];
     for (const name of allTeamNames) {
       const normalized = norm(name);
-      const matches = await ctx.db
+      const existing = await ctx.db
         .query("teams")
-        .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", normalized))
-        .collect();
-      const existing = matches.find((t) => t.sport === args.sport);
+        .withIndex("by_name_normalized_and_sport", (q) =>
+          q.eq("nameNormalized", normalized).eq("sport", args.sport),
+        )
+        .first();
       if (existing) {
         teamIdByName.set(name, existing._id);
       } else if (confirmedTeamsNorm.has(normalized)) {
@@ -2451,9 +2516,29 @@ export const commitCardChecklist = mutation({
     for (const card of existingCards) existingByNumber.set(card.cardNumber, card);
     const processedNumbers = new Set<string>();
 
+    // Pre-compute the target sortOrder for every card that will be in this
+    // selectorOption after the upsert: incoming richCards (marketplace) PLUS
+    // preserved custom cards (existing rows with isCustom=true that are not
+    // being overwritten by a new marketplace card with the same cardNumber).
+    // Sort by natural cardNumber so custom cards like "9001" land after
+    // marketplace cards "1".."335". Done in-memory from data we already
+    // hold — re-querying would push past Convex's 4096-read mutation limit
+    // on sets with thousands of cross-set custom cards in the table.
+    const incomingNumbers = new Set(richCards.map((c) => c.cardNumber));
+    const allFinalNumbers: string[] = [
+      ...richCards.map((c) => c.cardNumber),
+      ...existingCards
+        .filter((c) => c.isCustom && !incomingNumbers.has(c.cardNumber))
+        .map((c) => c.cardNumber),
+    ];
+    allFinalNumbers.sort(compareCardNumbers);
+    const targetSortOrder = new Map<string, number>();
+    allFinalNumbers.forEach((cn, idx) => targetSortOrder.set(cn, idx));
+
     for (let i = 0; i < richCards.length; i++) {
       const card = richCards[i];
       processedNumbers.add(card.cardNumber);
+      const newSortOrder = targetSortOrder.get(card.cardNumber) ?? i;
       const existing = existingByNumber.get(card.cardNumber);
       if (existing) {
         const mergedPlatformData = {
@@ -2472,7 +2557,7 @@ export const commitCardChecklist = mutation({
           autographType: card.autographType,
           cardVariation: card.cardVariation,
           platformData: mergedPlatformData,
-          sortOrder: i,
+          sortOrder: newSortOrder,
           lastUpdated: Date.now(),
         });
       } else {
@@ -2490,7 +2575,7 @@ export const commitCardChecklist = mutation({
           autographType: card.autographType,
           cardVariation: card.cardVariation,
           platformData: card.platformData,
-          sortOrder: i,
+          sortOrder: newSortOrder,
           lastUpdated: Date.now(),
         });
       }
@@ -2499,6 +2584,18 @@ export const commitCardChecklist = mutation({
     for (const existing of existingCards) {
       if (!processedNumbers.has(existing.cardNumber) && !existing.isCustom) {
         await ctx.db.delete(existing._id);
+      }
+    }
+
+    // Patch preserved custom cards whose sortOrder shifted because of the
+    // marketplace upsert above. No reads here — works from data already
+    // loaded into `existingCards`.
+    for (const existing of existingCards) {
+      if (!existing.isCustom) continue;
+      if (incomingNumbers.has(existing.cardNumber)) continue; // not preserved; replaced
+      const target = targetSortOrder.get(existing.cardNumber);
+      if (target !== undefined && existing.sortOrder !== target) {
+        await ctx.db.patch(existing._id, { sortOrder: target });
       }
     }
 

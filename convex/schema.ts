@@ -149,6 +149,14 @@ export default defineSchema({
     lastUpdated: v.number(),
   })
     .index("by_name_normalized", ["nameNormalized"])
+    // Compound index for the hot path in commitCardChecklist's per-player
+    // resolution: lookup by normalized name AND sport in one indexed read.
+    // Without this, the by_name_normalized index returned every row sharing
+    // a normalized name across all sports (e.g. "smith" baseball + basketball
+    // + football + …), so a 300-player BSC fetch scanned 300 × N cross-sport
+    // duplicates and could blow past Convex's 4096 document-scan budget on
+    // a single mutation.
+    .index("by_name_normalized_and_sport", ["nameNormalized", "primarySport"])
     .index("by_sport", ["primarySport"]),
 
   // Teams — first-class entity. Modeled with city + yearsActive to support
@@ -170,6 +178,8 @@ export default defineSchema({
     lastUpdated: v.number(),
   })
     .index("by_name_normalized", ["nameNormalized"])
+    // Same compound-index optimization as players above. See its comment.
+    .index("by_name_normalized_and_sport", ["nameNormalized", "sport"])
     .index("by_sport", ["sport"]),
 
   // Set Selections - stores user's selected set parameters
