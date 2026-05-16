@@ -1,7 +1,7 @@
 "use client";
 
 import type { GenericId } from "convex/values";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -76,15 +76,43 @@ export default function SetSelector() {
     api.selectorOptions.getSelectorOptionById,
     selectedVariantTypeId ? { id: selectedVariantTypeId } : "skip",
   );
-  const isBaseVariantTypeSelected =
-    selectedVariantType?.value.toLowerCase().trim() === "base";
-  // Auto-prompt is gated on the SportLots mapping specifically. The BSC
-  // slug on the row is auto-populated by "Sync Variant Types" (BSC's
-  // variant facet returns "Base" with a slug), so testing it would
-  // suppress the auto-prompt on every freshly-synced Base. Only the
-  // SportLots value is exclusively written by BaseSetPicker, so its
-  // presence is the reliable "user has mapped this Base" signal.
-  const baseHasMapping = !!selectedVariantType?.platformData?.sportlots;
+  // Stabilize the derived booleans across transient `useQuery` undefined
+  // returns. Convex reactive queries can briefly return undefined during
+  // refetches triggered by mutations on the watched row — including
+  // cross-worker mutations in parallel test runs, or any background
+  // re-write by a different tab in real-user traffic. Without this cache,
+  // isBaseVariantTypeSelected and baseHasMapping flip to false during the
+  // refetch window, which collapses cardChecklistId below to null and
+  // unmounts <CardChecklist> — taking the in-progress Add Card form with
+  // it (resets showAddForm + typed input). The cache invalidates only on
+  // selectedVariantTypeId change, so real user navigation still
+  // re-evaluates correctly.
+  const stableVariantTypeFlagsRef = useRef<{
+    forId: GenericId<"selectorOptions"> | null;
+    isBase: boolean;
+    hasMapping: boolean;
+  }>({ forId: null, isBase: false, hasMapping: false });
+  if (stableVariantTypeFlagsRef.current.forId !== selectedVariantTypeId) {
+    stableVariantTypeFlagsRef.current = {
+      forId: selectedVariantTypeId,
+      isBase: false,
+      hasMapping: false,
+    };
+  }
+  if (selectedVariantType !== undefined) {
+    stableVariantTypeFlagsRef.current.isBase =
+      selectedVariantType?.value.toLowerCase().trim() === "base";
+    // Auto-prompt is gated on the SportLots mapping specifically. The BSC
+    // slug on the row is auto-populated by "Sync Variant Types" (BSC's
+    // variant facet returns "Base" with a slug), so testing it would
+    // suppress the auto-prompt on every freshly-synced Base. Only the
+    // SportLots value is exclusively written by BaseSetPicker, so its
+    // presence is the reliable "user has mapped this Base" signal.
+    stableVariantTypeFlagsRef.current.hasMapping =
+      !!selectedVariantType?.platformData?.sportlots;
+  }
+  const isBaseVariantTypeSelected = stableVariantTypeFlagsRef.current.isBase;
+  const baseHasMapping = stableVariantTypeFlagsRef.current.hasMapping;
   // Manual re-map trigger; the form also auto-opens on first selection
   // when no platformData exists yet.
   const [baseMappingOpen, setBaseMappingOpen] = useState(false);
@@ -321,22 +349,11 @@ export default function SetSelector() {
         </>
       )}
 
-      {/* Cards — full width below the selector row.
-          For Base variantTypes, gate on `baseHasMapping` so the cards UI doesn't
-          render until the SL↔BSC mapping has been written to the variantType row.
-          Without this gate, a user (or test) lands on a freshly-selected Base
-          before the auto-mapping completes, sees an interactive Cards section,
-          starts adding a card, and then BaseMappingForm's autoOpen mutation
-          patches the variantType row mid-interaction — invalidating
-          getSelectorOptionById, briefly returning isBaseVariantTypeSelected=false,
-          and unmounting CardChecklist along with the in-progress form. Gating
-          here means CardChecklist only mounts AFTER the mapping is stable, so
-          the row patch never races with user input. Non-Base variants render as
-          before (their mapping is on the row itself, not derived async). */}
-      {cardChecklistId &&
-        (!isBaseVariantTypeSelected || baseHasMapping) && (
-          <CardChecklist variantId={cardChecklistId} />
-        )}
+      {/* Cards — full width below the selector row. `cardChecklistId`
+          stays stable across transient query refetches because the
+          `isBaseVariantTypeSelected` it depends on is cached via
+          `stableVariantTypeFlagsRef` above. */}
+      {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
 
       {/* Parallel-grouping modal — mounted at the page root so it overlays
           on top of the selector row regardless of horizontal scroll. */}
