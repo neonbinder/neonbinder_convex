@@ -321,8 +321,22 @@ export default function SetSelector() {
         </>
       )}
 
-      {/* Cards — full width below the selector row */}
-      {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
+      {/* Cards — full width below the selector row.
+          For Base variantTypes, gate on `baseHasMapping` so the cards UI doesn't
+          render until the SL↔BSC mapping has been written to the variantType row.
+          Without this gate, a user (or test) lands on a freshly-selected Base
+          before the auto-mapping completes, sees an interactive Cards section,
+          starts adding a card, and then BaseMappingForm's autoOpen mutation
+          patches the variantType row mid-interaction — invalidating
+          getSelectorOptionById, briefly returning isBaseVariantTypeSelected=false,
+          and unmounting CardChecklist along with the in-progress form. Gating
+          here means CardChecklist only mounts AFTER the mapping is stable, so
+          the row patch never races with user input. Non-Base variants render as
+          before (their mapping is on the row itself, not derived async). */}
+      {cardChecklistId &&
+        (!isBaseVariantTypeSelected || baseHasMapping) && (
+          <CardChecklist variantId={cardChecklistId} />
+        )}
 
       {/* Parallel-grouping modal — mounted at the page root so it overlays
           on top of the selector row regardless of horizontal scroll. */}
