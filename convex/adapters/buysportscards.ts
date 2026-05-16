@@ -430,20 +430,71 @@ export const fetchBscChecklist = action({
       console.log(
         `[fetchBscChecklist] POST /search/bulk-upload/results filters=${JSON.stringify(filters)}`,
       );
-      let response: Response;
-      try {
-        response = await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
+
+      // Wrapped so we can retry once with a fresh token on 401. BSC's API
+      // can intermittently 401 with a token our cache still thinks is fresh
+      // (BSC's token TTL doesn't always match what they advertise, especially
+      // under load). Rather than failing the whole fetch, refresh and retry.
+      const doFetch = async (token: string): Promise<Response> => {
+        return await fetch(`${BSC_API_BASE}/search/bulk-upload/results`, {
           method: "POST",
-          headers: bscHeaders(tokenResult.token),
+          headers: bscHeaders(token),
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
         });
+      };
+
+      let response: Response;
+      let activeToken = tokenResult.token;
+      try {
+        response = await doFetch(activeToken);
       } catch (err) {
         const isTimeout = err instanceof Error && err.name === "TimeoutError";
         const msg = isTimeout
           ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
           : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
         return { success: false, cards: [], message: msg };
+      }
+
+      if (response.status === 401) {
+        console.warn(
+          `[fetchBscChecklist] BSC API 401 with cached token — forcing re-auth and retrying once`,
+        );
+        // Drain the failed response body to free the socket before retrying.
+        await response.text().catch(() => "");
+        const reAuth = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
+          success: boolean;
+          message?: string;
+        };
+        if (!reAuth.success) {
+          console.error(
+            `[fetchBscChecklist] re-auth failed after 401: ${reAuth.message ?? "(no message)"}`,
+          );
+          return {
+            success: false,
+            cards: [],
+            message: `BSC API 401 and re-auth failed`,
+          };
+        }
+        const refreshedToken: { success: boolean; token?: string; error?: string } =
+          await ctx.runAction(api.adapters.buysportscards.getBscToken, {});
+        if (!refreshedToken.success || !refreshedToken.token) {
+          return {
+            success: false,
+            cards: [],
+            message: refreshedToken.error || "No BSC token available after re-auth",
+          };
+        }
+        activeToken = refreshedToken.token;
+        try {
+          response = await doFetch(activeToken);
+        } catch (err) {
+          const isTimeout = err instanceof Error && err.name === "TimeoutError";
+          const msg = isTimeout
+            ? `BSC API retry timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+            : `BSC API retry failed: ${err instanceof Error ? err.message : String(err)}`;
+          return { success: false, cards: [], message: msg };
+        }
       }
 
       if (!response.ok) {
