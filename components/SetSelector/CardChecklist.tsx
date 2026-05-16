@@ -68,6 +68,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollToNewCardRef = useRef(false);
   const prevCardCountRef = useRef(0);
+  const lastCardsRef = useRef<typeof cards>(undefined);
 
   /**
    * Two-phase pipeline:
@@ -193,7 +194,18 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     prevCardCountRef.current = count;
   }, [cards?.length]);
 
-  if (!cards) {
+  // Cache the last non-undefined cards value so transient `useQuery` undefined
+  // returns (which can happen during Convex reactive refreshes — e.g. when a
+  // background Wikidata enrichment completes on a `pendingPlayerNames` card)
+  // don't trigger the `!cards` early return below. That early return unmounts
+  // the whole subtree (including the Add Card form), losing in-progress form
+  // state. Reproduces as PR #26 A1 failure in CI but not locally — the leftover
+  // cancel-dialog flow's pendingPlayerNames triggers a Wikidata enrichment
+  // on CI's preview Convex during A1's form filling.
+  if (cards !== undefined) lastCardsRef.current = cards;
+  const safeCards = cards ?? lastCardsRef.current;
+
+  if (!safeCards) {
     return (
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Cards</h2>
@@ -202,9 +214,9 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     );
   }
 
-  const sortedCards = [...cards].sort((a, b) => a.sortOrder - b.sortOrder);
-  const lastSynced = cards.length > 0
-    ? Math.max(...cards.map((c: { lastUpdated: number }) => c.lastUpdated))
+  const sortedCards = [...safeCards].sort((a, b) => a.sortOrder - b.sortOrder);
+  const lastSynced = safeCards.length > 0
+    ? Math.max(...safeCards.map((c: { lastUpdated: number }) => c.lastUpdated))
     : null;
 
   const busy = syncing || committing;
@@ -222,9 +234,9 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h2 className="text-xl font-semibold">
             Cards{" "}
-            {cards.length > 0 && (
+            {safeCards.length > 0 && (
               <span className="text-sm font-normal text-gray-500">
-                ({cards.length})
+                ({safeCards.length})
               </span>
             )}
           </h2>
