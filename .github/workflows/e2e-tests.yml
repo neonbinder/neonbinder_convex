@@ -216,8 +216,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload Maestro debug output on failure
-        if: failure()
+      - name: Upload Maestro debug output
+        # Always upload Maestro's raw debug folder. `if: failure()` does not
+        # fire here because the test step uses `fail_on_failure: false` so the
+        # JUnit step can publish the summary before the job exit code is set.
+        # Without this, failing flows have no screenshots / commands JSON in
+        # the artifact (verified on run 25881347730 — neither checklist-renders-
+        # rich-fields nor checklist-fetch-unknown-entities-skip-some had debug
+        # output uploaded). `if-no-files-found: ignore` keeps this no-op on
+        # success runs that don't write to ~/.maestro/tests/.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: maestro-debug-output
