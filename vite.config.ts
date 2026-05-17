@@ -168,6 +168,19 @@ export default defineConfig(({ mode }) => {
   },
   server: {
     port: 3000,
+    // Maestro writes thousands of session/log files into maestro-report/ and
+    // tmp/ during local e2e runs (run-e2e-smoke.sh concatenates $PWD with
+    // $REPORT_DIR, so absolute REPORT_DIR values still land inside the
+    // project root). Without this ignore list, Vite's HMR fires a page
+    // reload on every Maestro write and can OOM the laptop mid-suite.
+    watch: {
+      ignored: [
+        "**/maestro-report/**",
+        "**/maestro-report-*/**",
+        "**/tmp/**",
+        "**/.maestro/tests/**",
+      ],
+    },
     proxy: {
       "/ingest/static": {
         target: "https://us-assets.i.posthog.com",
