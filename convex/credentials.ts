@@ -12,6 +12,27 @@ function browserUrl() {
   return process.env.NEONBINDER_BROWSER_URL || "http://localhost:8080";
 }
 
+const BROWSER_FETCH_TIMEOUT_MS = 15_000;
+
+async function browserFetch(
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(`${browserUrl()}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(BROWSER_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(
+        `Browser service request timed out after ${BROWSER_FETCH_TIMEOUT_MS / 1000}s: ${path}`,
+      );
+    }
+    throw err;
+  }
+}
+
 function credKey(site: string, userId: string) {
   return `${site}-credentials-${userId}`;
 }
@@ -58,7 +79,7 @@ export const storeSiteCredentials = action({
 
       // Store credentials without marketplace validation.
       // Use "Test Credentials" to validate against the marketplace separately.
-      const response = await fetch(`${browserUrl()}/credentials/${key}`, {
+      const response = await browserFetch(`/credentials/${key}`, {
         method: "PUT",
         headers: internalHeaders(),
         body: JSON.stringify({
@@ -119,7 +140,7 @@ export const getSiteCredentials = action({
 
     try {
       const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}/metadata`, {
+      const response = await browserFetch(`/credentials/${key}/metadata`, {
         method: "GET",
         headers: internalHeaders(),
       });
@@ -147,7 +168,50 @@ export const getSiteCredentials = action({
 });
 
 /**
- * Get site token from browser service (internal use only — for Convex adapters).
+ * How close to expiry we treat a token as stale and force a refresh
+ * before handing it back. 5 minutes accounts for clock skew + the
+ * couple of seconds a downstream fetch might take to reach the
+ * marketplace. Without this buffer, getSiteToken happily returns a
+ * token that expires mid-request and produces a confusing 401.
+ */
+const TOKEN_REFRESH_LEEWAY_MS = 5 * 60 * 1000;
+
+/**
+ * Read the raw token + expiresAt from the browser service's secret
+ * store. Returns null on 404 (no creds saved) or any non-OK response.
+ * Internal helper for getSiteToken — does NOT trigger refresh.
+ */
+async function readCachedToken(
+  site: string,
+  userId: string,
+): Promise<{ token: string; expiresAt?: number } | null> {
+  const key = credKey(site, userId);
+  const response = await browserFetch(`/credentials/${key}/token`, {
+    method: "GET",
+    headers: internalHeaders(),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) return null;
+  return (await response.json()) as { token: string; expiresAt?: number };
+}
+
+/**
+ * Get site token, transparently refreshing if the cached token has
+ * expired (or is within `TOKEN_REFRESH_LEEWAY_MS` of expiry).
+ *
+ * This is the single entry point Convex adapters should use to obtain
+ * a marketplace token. The architecture intent: a user signs into
+ * BSC/SportLots once via Profile → Site Credentials, and from then on
+ * fetches "just work" without having to re-click "Test Credentials"
+ * every hour. When the token goes stale, this helper invokes the
+ * site's authenticate action (which calls the browser service's
+ * cached-or-fresh login flow), then re-reads the token. The browser
+ * service's existing logic — validate cached token via the
+ * marketplace's profile endpoint, fall through to Puppeteer on 401 —
+ * means refresh is fast (~300ms) when the token is genuinely fresh
+ * but stored with a wrong expiresAt, and only slow (~10s) on a real
+ * re-auth.
+ *
  * Returns only the token, never username/password.
  */
 export const getSiteToken = action({
@@ -161,29 +225,74 @@ export const getSiteToken = action({
     }),
     v.null(),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ token: string; expiresAt?: number } | null> => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
     }
 
     try {
-      const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}/token`, {
-        method: "GET",
-        headers: internalHeaders(),
-      });
+      const cached = await readCachedToken(args.site, userId);
+      if (!cached) return null;
 
-      if (response.status === 404) return null;
-      if (!response.ok) return null;
+      const isFresh =
+        typeof cached.expiresAt === "number" &&
+        cached.expiresAt > Date.now() + TOKEN_REFRESH_LEEWAY_MS;
+      if (isFresh) return cached;
 
-      return await response.json() as { token: string; expiresAt?: number };
+      // Stale (or unknown expiry) — kick off a re-auth via the site's
+      // own authenticate action. Each site has its own action because
+      // the login flow + post-login bookkeeping (e.g. BSC sellerId
+      // capture) differs per marketplace.
+      const refreshed = await refreshSiteToken(ctx, args.site);
+      if (!refreshed) {
+        // Refresh failed; fall back to the (likely stale) cached
+        // token rather than null — let the caller's 401 path surface
+        // a clear "please re-login" error if the cache really is dead.
+        return cached;
+      }
+
+      const fresh = await readCachedToken(args.site, userId);
+      return fresh ?? cached;
     } catch (error) {
       console.error(`Failed to retrieve token for ${args.site}`);
       return null;
     }
   },
 });
+
+/**
+ * Internal helper — invoke the site's authenticate action to refresh
+ * its token. Returns true on success, false on any failure. Does not
+ * throw. Site list is intentionally explicit (no dynamic dispatch) so
+ * adding a new marketplace requires explicit wiring here — which is
+ * the right place to confirm the new site's auth flow handles cached
+ * tokens properly.
+ */
+async function refreshSiteToken(
+  ctx: { runAction: (ref: any, args: any) => Promise<unknown> },
+  site: string,
+): Promise<boolean> {
+  try {
+    if (site === "buysportscards") {
+      const result = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
+        success: boolean;
+      };
+      return result.success;
+    }
+    if (site === "sportlots") {
+      const result = (await ctx.runAction(api.credentials.authenticateSportlots, {})) as {
+        success: boolean;
+      };
+      return result.success;
+    }
+    console.warn(`[refreshSiteToken] no refresh handler for site: ${site}`);
+    return false;
+  } catch (error) {
+    console.error(`[refreshSiteToken] ${site} refresh threw:`, error);
+    return false;
+  }
+}
 
 /**
  * Delete credentials for a site via browser service.
@@ -204,7 +313,7 @@ export const deleteSiteCredentials = action({
 
     try {
       const key = credKey(args.site, userId);
-      const response = await fetch(`${browserUrl()}/credentials/${key}`, {
+      const response = await browserFetch(`/credentials/${key}`, {
         method: "DELETE",
         headers: internalHeaders(),
       });
@@ -247,7 +356,7 @@ export const listUserSites = action({
 
     try {
       const keys = SUPPORTED_SITES.map((site) => credKey(site, userId));
-      const response = await fetch(`${browserUrl()}/credentials/check`, {
+      const response = await browserFetch(`/credentials/check`, {
         method: "POST",
         headers: internalHeaders(),
         body: JSON.stringify({ keys }),
@@ -353,14 +462,44 @@ export const authenticateBsc = action({
       const url = browserUrl();
       console.log(`[authenticateBsc] Using browser URL: ${url}, key: ${key}`);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally
+      // Call browser service to log in — it reads credentials from Secret Manager internally.
+      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
+      //
+      // Retry on 503: the browser service serializes BSC logins (only one
+      // active Puppeteer browser at a time) and returns 503 when another
+      // login is in flight. This happens in CI when multiple workers — each
+      // a different Clerk user with their own saved BSC credentials — race
+      // to /login/bsc at the start of their flows. We back off and retry a
+      // few times so the second/third worker waits its turn instead of
+      // surfacing a misleading "BSC login failed" to the caller.
       console.log("[authenticateBsc] Calling browser service POST /login/bsc");
-      const response = await fetch(`${url}/login/bsc`, {
-        method: "POST",
-        headers: internalHeaders(),
-        body: JSON.stringify({ key }),
-      });
-      console.log(`[authenticateBsc] Login response status: ${response.status}`);
+      let response: Response | null = null;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch(`${url}/login/bsc`, {
+          method: "POST",
+          headers: internalHeaders(),
+          body: JSON.stringify({ key }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        console.log(
+          `[authenticateBsc] Login response status: ${response.status} (attempt ${attempt}/${maxAttempts})`,
+        );
+        if (response.status !== 503) break;
+        if (attempt < maxAttempts) {
+          // Linear backoff: 5s, 10s, 15s. A full BSC login takes ~10-30s
+          // server-side, so these gaps usually catch the prior call wrapping
+          // up.
+          const delayMs = 5_000 * attempt;
+          console.log(
+            `[authenticateBsc] 503 from browser service — backing off ${delayMs}ms before retry`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+      }
+      if (!response) {
+        throw new Error("No response from browser service after retries");
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -376,7 +515,7 @@ export const authenticateBsc = action({
         };
       }
 
-      const loginResult = await response.json() as { success: boolean; message?: string; storeName?: string };
+      const loginResult = await response.json() as { success: boolean; message?: string; storeName?: string; sellerId?: string };
 
       if (!loginResult.success) {
         const detail = loginResult.message || "Login failed";
@@ -389,6 +528,19 @@ export const authenticateBsc = action({
           success: false,
           message: "BSC login failed. Please check your credentials and try again.",
         };
+      }
+
+      // Persist BSC sellerId on the user's profile so subsequent
+      // fetchBscChecklist calls don't have to re-derive it. The browser
+      // service may legitimately return success without sellerId if BSC's
+      // /marketplace/user/profile shape changes — in that case we skip the
+      // upsert and fall back to env-var seller in fetchBscChecklist.
+      if (loginResult.sellerId) {
+        await ctx.runMutation(internal.userProfile.setMarketplaceAccountIdInternal, {
+          userId,
+          site: "buysportscards",
+          accountId: loginResult.sellerId,
+        });
       }
 
       return {
@@ -433,12 +585,33 @@ export const authenticateSportlots = action({
     try {
       const key = credKey("sportlots", userId);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally
-      const response = await fetch(`${browserUrl()}/login/sportlots`, {
-        method: "POST",
-        headers: internalHeaders(),
-        body: JSON.stringify({ key }),
-      });
+      // Call browser service to log in — it reads credentials from Secret Manager internally.
+      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
+      //
+      // Retry on 503: same rationale as authenticateBsc — the browser
+      // service serializes Puppeteer logins, so concurrent workers race
+      // and the loser sees 503. Linear backoff lets the queue drain.
+      let response: Response | null = null;
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        response = await fetch(`${browserUrl()}/login/sportlots`, {
+          method: "POST",
+          headers: internalHeaders(),
+          body: JSON.stringify({ key }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (response.status !== 503) break;
+        if (attempt < maxAttempts) {
+          const delayMs = 5_000 * attempt;
+          console.log(
+            `[authenticateSportlots] 503 from browser service — backing off ${delayMs}ms before retry`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+      }
+      if (!response) {
+        throw new Error("No response from browser service after retries");
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));

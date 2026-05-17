@@ -1,0 +1,55 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+name: "Worker bootstrap — sign in as TEST_EMAIL_${WORKER_INDEX} and save BSC + SL creds"
+tags:
+  - util
+---
+# Per-worker scheduler bootstrap. Runs in Phase 0 of run-e2e-smoke.sh, once
+# per worker BEFORE any cascade or independent flow. Signs the worker's
+# Clerk user in (TEST_EMAIL_${WORKER_INDEX}) and saves the shared
+# marketplace credentials under that user in Secret Manager.
+#
+# Without this, cascade flows running on workers whose Clerk user never had
+# credentials saved hit Secret Manager NOT_FOUND when adapters look up BSC /
+# SportLots session tokens. Both adapters return success:false + options:[],
+# the ReconciliationModal silently never opens, and the test times out.
+#
+# DESTRUCTIVE (clear-then-save): uses clear-then-setup-* variants instead of the
+# idempotent setup-* helpers. The idempotent helpers short-circuit when the
+# "Clear Credentials" button is visible, which is driven by the Convex
+# userProfiles.siteCredentials[].hasCredentials flag — NOT by Secret Manager
+# state. If Secret Manager is wiped externally (e.g. audit-log DeleteSecret)
+# while the userProfile flag remains stale, the idempotent helpers falsely
+# report success without ever writing a new secret, leaving workers with no
+# actual credentials in Secret Manager. The clear-then-save variants always
+# clear first, then perform a full save+auth cycle, guaranteeing a live secret
+# regardless of what the Convex flag says.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+
+# Save BSC credentials for this worker's Clerk user (always clears first).
+- runFlow:
+    file: clear-then-setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+# Navigate back to /profile before setting up SL credentials.
+# clear-then-setup-bsc-credentials.yaml ends with the BSC success message
+# at the bottom of the page, leaving the platform tablist (and the
+# "BuySportsCards Credentials" scroll anchor) off-screen above. The SL
+# subflow's initial scrollUntilVisible direction is DOWN so it cannot
+# scroll back up to reach that anchor — tapping "Sportlots" then fails.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+
+# Save SportLots credentials for this worker's Clerk user (always clears first).
+- runFlow:
+    file: clear-then-setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}

@@ -1,6 +1,10 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
+
+const marketplaceAccountIdsValidator = v.optional(v.object({
+  bscSellerId: v.optional(v.string()),
+}));
 
 /**
  * Get the current user's profile
@@ -15,6 +19,7 @@ export const getUserProfile = query({
         hasCredentials: v.boolean(),
         lastUpdated: v.optional(v.string()),
       }))),
+      marketplaceAccountIds: marketplaceAccountIdsValidator,
       preferences: v.optional(v.object({
         defaultSport: v.optional(v.string()),
         defaultYear: v.optional(v.number()),
@@ -41,8 +46,65 @@ export const getUserProfile = query({
     return {
       userId: profile.userId,
       siteCredentials: profile.siteCredentials || [],
+      marketplaceAccountIds: profile.marketplaceAccountIds,
       preferences: profile.preferences,
     };
+  },
+});
+
+/**
+ * Internal mutation to upsert a marketplace-specific account identifier
+ * (e.g. BSC sellerId) onto the user's profile. Called from the BSC login
+ * action after the browser service returns the sellerId; never invoked
+ * directly from the client.
+ *
+ * Note: only known sites are accepted to keep the validator surface tight.
+ * Adding a new marketplace means extending this switch alongside the schema.
+ */
+export const setMarketplaceAccountIdInternal = internalMutation({
+  args: {
+    userId: v.string(),
+    site: v.union(v.literal("buysportscards")),
+    accountId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Defensive validation: accountId comes from the marketplace's profile
+    // response (e.g., BSC's sellerProfile.sellerId). If their response
+    // shape ever drifts and we accidentally read a different field,
+    // we'd persist an arbitrary string that then lands in our HTTP
+    // request bodies + log lines. Cap length and whitelist characters
+    // so a malformed upstream payload can't pollute downstream calls.
+    if (args.accountId.length === 0 || args.accountId.length > 64) {
+      throw new Error(
+        `[setMarketplaceAccountIdInternal] accountId length out of range (1-64), got ${args.accountId.length}`,
+      );
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(args.accountId)) {
+      throw new Error(
+        `[setMarketplaceAccountIdInternal] accountId contains invalid characters (allow A-Z a-z 0-9 _ -)`,
+      );
+    }
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    const nextAccounts = {
+      ...(profile?.marketplaceAccountIds ?? {}),
+      ...(args.site === "buysportscards" ? { bscSellerId: args.accountId } : {}),
+    };
+
+    if (profile) {
+      await ctx.db.patch(profile._id, { marketplaceAccountIds: nextAccounts });
+    } else {
+      await ctx.db.insert("userProfiles", {
+        userId: args.userId,
+        marketplaceAccountIds: nextAccounts,
+      });
+    }
+    return null;
   },
 });
 

@@ -1,0 +1,124 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Checklist — card rows render card number, sub-line, attribute badges, and platform badges"
+tags:
+  - set-selector
+  - requires:setup-done
+---
+# Feature test: after a successful fetch, each card row renders its full
+# set of structured fields — not just a name.
+#
+# WHAT THIS TESTS:
+#   - Card numbers appear as "#NNN" in the left column of each row
+#   - BSC and SL platform badges appear on marketplace-sourced cards
+#   - RC badge appears for rookie cards (common in 2024 Topps Chrome Base)
+#   - Numbered cards show a "/N" print-run string in their sub-line
+#   - The checklist shows multiple cards (not just one)
+#
+# BADGE AVAILABILITY:
+#   "RC" and "/N" (print-run) are both common in 2024 Topps Chrome Base
+#   but are not guaranteed on every individual card row. We scroll the
+#   list to find them; if they are present the assertion passes. If
+#   2024 Topps Chrome Base data changes between runs, the RC/print-run
+#   assertions may need adjustment.
+#
+#   Always-present (safe to assert without scrolling):
+#     - At least one "#NNN" card number
+#     - "BSC" platform badge (BSC is always configured in this flow)
+#
+#   NOTE: "SL" badge requires the set to have a SportLots platform mapping
+#   written by the ReconciliationModal. On a fresh DB after reset this
+#   mapping is absent, so SL badge is not asserted in this flow.
+#
+# FLOW:
+#   Fetch once, confirm dialog if it appears, then verify the card list.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# FETCH AND CONFIRM (same pattern as the confirm flow)
+# ============================================================
+
+# The CardChecklist may already have rows from a prior flow on the same
+# worker — in that state the button label is "Refresh", not "Fetch from
+# Marketplaces". Match either label so the test premise survives a populated
+# starting state. Either label drives the same fetchCardChecklist code path.
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 60000
+
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+
+# ============================================================
+# VERIFY CARD ROW STRUCTURE — ALWAYS-PRESENT FIELDS
+# ============================================================
+
+# At least one card number in "#NNN" format is visible.
+- assertVisible:
+    text: ".*#[0-9].*"
+
+# BSC platform badge ("BSC") appears on at least one card row.
+- assertVisible: "BSC"
+
+# NOTE: "SL" badge is NOT asserted here. SL card data requires two conditions:
+# 1. An active SportLots session cookie (refreshed via "Test Credentials")
+# 2. The "Topps Chrome" set row having a SportLots platform mapping (written
+#    by the ReconciliationModal, which only runs after manual reconciliation).
+# On a fresh DB after reset, the set-level SL mapping is absent, so
+# fetchSportLotsChecklist returns "No set identifier available for SportLots"
+# and all cards are BSC-only. SL badge assertion is deferred to a dedicated
+# reconciliation integration test that builds the full mapping chain.
+
+# ============================================================
+# VERIFY RC BADGE — scroll through the list to find a rookie card
+# RC badges are common in Base sets but not every row has one.
+# We scroll to find one; the flow fails only if none exist in the
+# entire list (which would be unexpected for 2024 Topps Chrome Base).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "RC"
+    timeout: 30000
+- assertVisible: "RC"
+
+# NOTE: Print-run sub-line ("/<N>") is NOT asserted here.
+# Numbered refractor parallels (e.g., "/99", "/50") belong to PARALLEL
+# variant types, not the Base set. The 2024 Topps Chrome Base set does
+# not contain numbered cards. Print-run rendering is tested via the
+# parallel variant flows which drill to a numbered parallel set.

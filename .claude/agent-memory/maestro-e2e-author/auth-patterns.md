@@ -1,6 +1,6 @@
 ---
 name: Auth and navigation patterns for Maestro flows
-description: How testing sign-in works, URL patterns, and reusable credential setup flows
+description: How testing sign-in works, URL patterns, reusable credential setup flows, and profile page scroll anchors
 type: reference
 ---
 
@@ -49,13 +49,22 @@ endpoints on every call. With 10 set-selector flows × 2 platforms = 20 fresh lo
 this triggers rate-limiting. Always use the idempotent variant for set-selector flows.
 
 ## Pattern for flows that need credentials before navigating to a feature page
+
+CRITICAL SCROLL ANCHOR: The profile page credential section scroll anchor is
+`"BuySportsCards Credentials"` (the `<h2>` heading). Do NOT use `".*Select Platform.*"`
+(the `<label>` text) — Maestro's web accessibility hierarchy sometimes misses label text
+on tall pages, causing 30-second scrollUntilVisible timeouts and subsequent assertion failures.
+
+The page-level load anchor is `"Profile Settings"` (the `<h1>` at the top of the page).
+
+Pattern for credential setup before a feature flow:
 ```yaml
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
-...
-- launchApp
+# Navigate to profile. setup-* flows start by scrolling to "BuySportsCards Credentials"
+# so no pre-scroll is needed — just confirm the page is loaded.
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
 - extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 45000
+    visible: "Profile Settings"
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
@@ -64,14 +73,13 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
       BSC_PASSWORD: ${BSC_PASSWORD}
 
 # CRITICAL: reload /profile between BSC and Sportlots setup.
-# After BSC setup completes, the page is scrolled down to the BSC credentials
-# section — "Select Platform" is now ABOVE the viewport.
-# setup-sportlots-credentials.yaml starts with scrollUntilVisible "Select Platform",
-# which only scrolls DOWN and will never find it. Reloading resets scroll to top.
+# After BSC setup completes, the page may be scrolled into the credential section.
+# setup-sportlots-credentials.yaml scrolls DOWN to "BuySportsCards Credentials";
+# without reloading to reset scroll position it can miss the heading above the fold.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
 - extendedWaitUntil:
-    visible: ".*Select Platform.*"
-    timeout: 15000
+    visible: "Profile Settings"
+    timeout: 20000
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml

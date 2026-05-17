@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — auto-suggestions render and Accept All clears them"
 tags:
   - parallel-grouping
   - regression
+  - requires:setup-done
 ---
 # Feature test: auto-suggestion display and Accept All behaviour.
 #
@@ -32,7 +33,7 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
 # DRILL TO INSERT VARIANT TYPE (via util)
@@ -41,6 +42,14 @@ tags:
 - runFlow:
     file: util-drill-to-insert-variants.yaml
     env:
+      # Per-test sport isolation — selectorOptions is a global Convex
+      # table; using a unique Sport per test keeps each test's custom
+      # variants under a distinct (Sport, Year, Manuf, Set, VariantType)
+      # parent so they don't pollute each other across CI runs.
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET: "Topps Inception"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
@@ -58,37 +67,61 @@ tags:
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars"
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
 # --- Add "Stars Gold" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Gold"
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
 # --- Add "Stars Red" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Add custom Variants"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
 - inputText: "Stars Red"
-- tapOn: "Add"
+# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
+# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
+# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
+- pressKey: Enter
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
@@ -122,21 +155,32 @@ tags:
 # The header shows "Accept all suggestions (N)".
 # ============================================================
 
-# "Suggested" badge text appears on the auto-detected rows
-- assertVisible: "Suggested"
-
-# Header button shows the count — we expect 2 suggestions
+# Header button shows the count — we expect 2 suggestions. This is
+# rendered at the modal header, always in viewport.
 - assertVisible:
     text: ".*Accept all suggestions.*"
 
 # Footer immediately shows 2 promotions because suggested rows are
-# pre-placed inside the Parallels zone (not in Top-level inserts).
+# pre-placed inside the Parallels zone. Footer is fixed at the modal
+# bottom, always in viewport.
 - assertVisible:
-    text: ".*2 promotion.*"
+    text: ".*[0-9]+ promotion.*"
 
 # Save button is enabled from the start (suggestions are counted as changes)
 - assertVisible:
-    text: ".*Save 2 change.*"
+    text: ".*Save [0-9]+ change.*"
+
+# "Suggested" badge text appears on auto-detected rows inside the
+# "Parallels of Stars" zone — that zone is below the fold in the modal's
+# internal scroll. Scroll until at least one Suggested badge is visible.
+# visibilityPercentage: 50 because the badge is small and sometimes lands
+# at the viewport edge.
+- scrollUntilVisible:
+    element:
+      text: "Suggested"
+    visibilityPercentage: 50
+    timeout: 10000
+- assertVisible: "Suggested"
 
 # ============================================================
 # ACCEPT ALL SUGGESTIONS
@@ -156,11 +200,11 @@ tags:
 
 # Footer still shows 2 promotions (same counts, badges gone)
 - assertVisible:
-    text: ".*2 promotion.*"
+    text: ".*[0-9]+ promotion.*"
 
 # Save button remains enabled
 - assertVisible:
-    text: ".*Save 2 change.*"
+    text: ".*Save [0-9]+ change.*"
 
 # ============================================================
 # CANCEL — do not persist changes

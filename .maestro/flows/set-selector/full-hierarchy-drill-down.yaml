@@ -1,8 +1,9 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Full Hierarchy Drill-Down — Sport to Cards Column
 tags:
   - set-selector
   - wip
+  - serial-global
 # FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # This test walks a user all the way through every level of the set hierarchy:

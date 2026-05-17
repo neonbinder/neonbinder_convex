@@ -1,312 +1,147 @@
 appId: com.neonbinder.web
-name: "Util — Drill to 2024 Topps Chrome (leaves Variant Types column visible)"
+name: "Util — drill to a (Sport, Year, Manufacturer, Set) — accepts env overrides"
 tags:
   - util
 ---
-# Shared prerequisite flow used by the three canonical variant flows and the
-# variant-metadata flow. Designed to be called via `runFlow:` from a parent
-# flow that has already called `launchApp`.
+# FAST drill when called with defaults — assumes the cascade `setup.yaml`
+# flow has already populated:
+#   - BSC + SL credentials saved
+#   - Baseball → 2024 → Topps → Topps Chrome in selectorOptions
+#   - Variant Types (Base, Insert, Parallel) for that set
+# Most callers (cards-base, sets-base, all checklist-* flows etc.) use the
+# defaults and pay zero extra cost.
 #
-# When this util returns, the browser is on /set-selector with:
-#   - BSC + SL credentials saved (idempotent — skips if already present)
-#   - Baseball → 2024 → Topps → Topps Chrome selected
-#   - Variant Types column visible with variant types synced
+# OVERRIDE PATH — when the caller passes a different SPORT (or YEAR /
+# MANUFACTURER / SET) via its `runFlow.env` block, the data may NOT be
+# pre-synced. The drill still works because each level's auto-sync fires
+# on column open; the `extendedWaitUntil` waits for the search input
+# (which signals sync completion) accommodate the longer marketplace
+# round-trip. This is the "lazy per-test sync" pattern documented in the
+# plan at ~/.claude/plans/we-ve-been-trying-to-delegated-ullman.md.
 #
-# Why 2024 Topps Chrome?
-#   It is a flagship baseball set with reliable, stable BSC + SL coverage.
-#   Its variant types include Base, Insert, and Parallel — covering all three
-#   code paths under test. SL data for past years rarely changes, making it a
-#   dependable anchor for automated testing.
+# CALLER CONTRACT:
+#   - Caller has called launchApp and waited for sign-in redirect.
+#   - Caller flow tags include `requires:setup-done`.
+#   - The browser is on /set-selector when this util is invoked, OR
+#     the openLink below brings it there.
 #
-# NOTE: This util does NOT call launchApp. The parent flow is responsible for
-# launching the app and waiting for the sign-in redirect to complete.
-#
-# SYNC COMPLETION PATTERN:
-#   EntityColumn auto-triggers sync (mode="sync") when a column renders with
-#   an empty items list. This means the "Sync X" button may never be tappable
-#   on a fresh DB — the form takes over before any tap can land. Each level
-#   guards on a known DATA indicator being absent (not on the button being
-#   present), then waits for that data indicator to appear (signaling sync
-#   complete and mode=idle). This is robust to both auto-sync and manual-sync
-#   paths.
+# Returns with the Variant Types column visible and Base/Insert/Parallel listed.
 
-# ============================================================
-# RESET STATE — delete all selectorOptions + cardChecklist rows.
-# Without this, the runFlow when: guards in our variant flows can skip
-# all the modal-verification assertions when data is already present,
-# producing phantom passes on re-runs.
-#
-# Server-side safety: the resetSetBuilderData mutation requires the
-# ALLOW_RESET_SET_BUILDER_DATA env var on the Convex deployment, set
-# only on dev/preview/integration-test deployments. Prod will throw.
-# ============================================================
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 20000
 
-- scrollUntilVisible:
-    element:
-      text: "Reset Set Builder Data"
-    timeout: 10000
-- tapOn: "Reset Set Builder Data"
-
-# Confirming panel appears with "Delete Everything" and "Cancel" buttons.
-# Input is autofocused — inputText writes directly without an explicit tap.
-# The panel's warning paragraph also contains "Type RESET to confirm." but
-# Maestro more reliably finds the "Delete Everything" button as the wait anchor.
+# Level 1 — Sport (defaults to Baseball). Use the Sports search input to
+# filter the column's internal-scroll list down to the target sport —
+# most sports past the first ~7 (alphabetical) sit below the column's
+# `max-h-[400px] overflow-y-auto` fold and Maestro's page-level scroll
+# can't reach them. The search input is targeted by its aria-label
+# `Search sports` (added on EntitySelector.tsx).
+#
+# IMPORTANT: after typing in the search input, the input itself has
+# `text=${SPORT}` (its current value) and the same `resource-id=Search sports`
+# we just tapped. A bare `tapOn: ${SPORT}` would re-match the input
+# (DOM order: input first), not the filtered button below. Use
+# `index: 1` to skip the input and tap the actual button — same pattern
+# the Year/Manufacturer/Set drills below use for the same reason.
 - extendedWaitUntil:
-    visible: "Delete Everything"
-    timeout: 5000
-- inputText: "RESET"
-
-- tapOn: "Delete Everything"
-
-# Wait for the success message — regex matches "Deleted N selector options and M card checklist rows."
+    visible: "Sports"
+    timeout: 30000
+- tapOn:
+    id: "Search sports"
+- inputText: ${SPORT || "Baseball"}
 - extendedWaitUntil:
     visible:
-      text: ".*Deleted [0-9]+ selector options.*"
-    timeout: 30000
-
-# ============================================================
-# CREDENTIALS (idempotent — skips platform if creds already present)
-# ============================================================
-
-# Navigate to /profile before credential setup. runFlow does NOT re-navigate,
-# so the sub-flows (which expect to be on /profile) would fail if the browser
-# is still on another page after the sign-in redirect.
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 20000
-
-- runFlow:
-    file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-
-# Reset to /profile then scroll DOWN to "Select Platform". After BSC
-# credential setup the page may be scrolled to the BSC section. openLink
-# reloads /profile so the page starts at top; scrollUntilVisible then scrolls
-# DOWN past the Public Profile section to reach the marketplace credentials.
-# Use scrollUntilVisible (NOT extendedWaitUntil) — extendedWaitUntil only
-# polls for the element to enter the current viewport, it doesn't scroll, so
-# it would time out when "Select Platform" is below the fold after the page
-# loads at top.
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 20000
-
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
-
-# ============================================================
-# NAVIGATE TO SET SELECTOR
-# ============================================================
-
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-
-# ============================================================
-# LEVEL 1 — Baseball
-# Sync if needed; tap the user-visible "Baseball" entry.
-#
-# AUTO-SYNC NOTE: Sports column auto-triggers sync when items are empty.
-# Guard on "Baseball" not being visible yet, and wait for it to appear
-# after auto-sync completes. No manual tap needed.
-# ============================================================
-
-# If "Baseball" is not yet in the list, wait for auto-sync to populate it.
-- runFlow:
-    when:
-      notVisible: "Baseball"
-    commands:
-      - extendedWaitUntil:
-          visible: "Baseball"
-          timeout: 60000
-
-- scrollUntilVisible:
-    element:
-      text: "Baseball"
+      text: ${SPORT || "Baseball"}
+      index: 1
     timeout: 10000
-- tapOn: "Baseball"
+- tapOn:
+    text: ${SPORT || "Baseball"}
+    index: 1
 
-# ============================================================
-# LEVEL 2 — Year 2024
-# Sync if needed; tap the user-visible "2024" entry.
-#
-# AUTO-SYNC NOTE: The Years column auto-triggers sync when it renders with
-# an empty items list. The "Sync Years" button may never be tappable in
-# that case — the form takes over before a tap is possible. We guard on
-# "2024" not being visible (data absent) and wait for it to appear after
-# auto-sync completes, rather than trying to tap the button.
-# ============================================================
-
+# Level 2 — Year. Wait for the Years column search input as the auto-sync
+# completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
 - extendedWaitUntil:
     visible: "Years"
-    timeout: 10000
-
-# If "2024" is not yet in the list, wait for auto-sync to complete and
-# populate it. 60 seconds covers both BSC + SL network round trips.
-- runFlow:
-    when:
-      notVisible: "2024"
-    commands:
-      - extendedWaitUntil:
-          visible: "2024"
-          timeout: 60000
-
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 180000
 - scrollUntilVisible:
     element:
-      text: "2024"
+      text: ".*Search years.*"
     timeout: 10000
-- tapOn: "2024"
+- tapOn:
+    text: ".*Search years.*"
+- inputText: ${YEAR || "2024"}
+- extendedWaitUntil:
+    visible:
+      text: ${YEAR || "2024"}
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: ${YEAR || "2024"}
+    index: 1
 
-# ============================================================
-# LEVEL 3 — Topps
-# Sync if needed; search for "Topps" to avoid scrolling a long list.
-#
-# AUTO-SYNC NOTE: Same race condition as Years — "Sync Manufacturers" may
-# disappear before a tap lands. We guard on the search input NOT being
-# visible yet (data absent = form is active) and wait for it to appear,
-# which signals that auto-sync completed and mode returned to idle.
-# ============================================================
-
+# Level 3 — Manufacturer. 90 s covers cold sync.
 - extendedWaitUntil:
     visible: "Manufacturers"
-    timeout: 10000
-
-# Wait for the search input to appear — it is rendered only when mode=idle
-# (i.e., sync has completed and items are populated). If it's already
-# visible, the runFlow block is skipped.
-- runFlow:
-    when:
-      notVisible: ".*Search manufacturers.*"
-    commands:
-      - extendedWaitUntil:
-          visible: ".*Search manufacturers.*"
-          timeout: 60000
-
-# Use the search input to filter the list to "Topps".
-# After typing, the input value shows "Topps" (index 0) and the result button
-# shows "Topps" (index 1) — tap index 1 for the result button.
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 90000
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
     timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
-- inputText: "Topps"
-
+- inputText: ${MANUFACTURER || "Topps"}
 - extendedWaitUntil:
     visible:
-      text: "Topps"
+      text: ${MANUFACTURER || "Topps"}
       index: 1
     timeout: 10000
 - tapOn:
-    text: "Topps"
+    text: ${MANUFACTURER || "Topps"}
     index: 1
 
-# ============================================================
-# LEVEL 4 — Topps Chrome
-# Sync if needed; search for "Topps Chrome" to avoid ambiguity.
-#
-# AUTO-SYNC NOTE: Same race condition — "Sync Sets" may disappear before
-# a tap lands. We guard on the search input NOT being visible (form active)
-# and wait for it to appear (mode=idle, sync complete). BSC set sync is
-# slow, so the timeout is generous.
-# ============================================================
-
+# Level 4 — Set. 120 s covers cold sync.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 20000
-
-# Wait for the search input — only rendered when mode=idle (sync complete).
-- runFlow:
-    when:
-      notVisible: ".*Search sets.*"
-    commands:
-      - extendedWaitUntil:
-          visible: ".*Search sets.*"
-          timeout: 90000
-
-# Use the search input to find "Topps Chrome" in the sets list.
-# After typing, the input value shows "Topps Chrome" (index 0) and the result
-# button shows "Topps Chrome" (index 1) — tap index 1 for the result button.
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 120000
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
     timeout: 10000
 - tapOn:
     text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-
+- inputText: ${SET || "Topps Chrome"}
 - extendedWaitUntil:
     visible:
-      text: "Topps Chrome"
+      text: ${SET || "Topps Chrome"}
       index: 1
     timeout: 10000
 - tapOn:
-    text: "Topps Chrome"
+    text: ${SET || "Topps Chrome"}
     index: 1
 
-# ============================================================
-# LEVEL 5 — Sync Variant Types
-# Sync if needed; leave the Variant Types column visible with the list populated.
-# The parent flow will pick the specific variant type (Base / Insert / Parallel).
-#
-# COMPLETION PATTERN NOTE:
-#   Unlike Sports/Years/Manufacturers, the SetVariantForm does NOT auto-close
-#   on a second sync attempt when data already exists — it shows "Syncing Variant
-#   Types" with a "Close" button (success: false from the server).
-#   Guard on "notVisible: Base" so we only sync when the list is actually empty.
-#   If we do sync, wait for "Syncing Variant Types" to disappear (either the form
-#   auto-closed via onDone, or it settled at the Close button), then dismiss
-#   any remaining Close button.
-# ============================================================
-
+# Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
+# column first opens for a new set. Default path (Topps Chrome, pre-
+# synced by cascade) finishes in <5s. Cold-sync for new sets goes
+# through fetchAggregatedOptions → BSC + SL adapters; those calls
+# should complete in <10s but occasionally hang on slower runners
+# under worker contention. If that timer fires, the underlying bug is
+# in the variantType action serializing BSC/SL or hanging on a
+# session warm — chase that, not the timeout. Tracked in NEO-8.
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 20000
-
-# Only sync if "Base" is not already visible in the Variant Types list.
-# If Base is already there, Insert and Parallel are there too — no sync needed.
-- runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "Sync Variant Types"
-          timeout: 10000
-      - tapOn: "Sync Variant Types"
-      # Wait for the "Syncing Variant Types" heading to disappear — this signals
-      # the form has either auto-closed (success) or settled at the Close button.
-      - extendedWaitUntil:
-          notVisible: "Syncing Variant Types"
-          timeout: 60000
-      # If the form ended with a "Close" button (no new results returned), dismiss it.
-      - runFlow:
-          when:
-            visible: "Close"
-          commands:
-            - tapOn: "Close"
-            - extendedWaitUntil:
-                visible: "Sync Variant Types"
-                timeout: 10000
-
-# Confirm the three expected variant types are present before returning to caller.
-- scrollUntilVisible:
-    element:
-      text: "Base"
     timeout: 10000
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 60000
 - assertVisible: "Base"

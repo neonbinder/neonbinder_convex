@@ -1,8 +1,9 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Refresh SportLots credentials
 tags:
   - set-selector
   - wip
+  - serial-global
 ---
 # Refreshes the SportLots session for the test user. Bypasses the native
 # <select> dropdown by setting its value via JS, then dispatching a change
@@ -20,14 +21,11 @@ tags:
       text: ".*Select Platform.*"
     timeout: 20000
 
-# Switch dropdown to Sportlots. Native <select> options can't be tapped in
-# maestro web. Workaround: focus the select then type "S" — browsers navigate
-# to the first option starting with the typed character. Since "Sportlots"
-# is the only S-prefix option, typing "S" selects it, and inputText commits
-# the change via the keyboard input pipeline (which React picks up).
-- tapOn:
-    id: "site-select"
-- inputText: "S"
+# Switch to Sportlots tab in the platform tablist. Was previously a
+# native <select> with a keyboard-pick workaround; now role="tab"
+# buttons render the platform options as visible labels that Maestro
+# can tap directly.
+- tapOn: "Sportlots"
 
 - extendedWaitUntil:
     visible: ".*Sportlots Credentials.*"

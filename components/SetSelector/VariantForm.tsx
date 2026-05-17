@@ -12,8 +12,14 @@ type RawOptionsResult = {
   autoMatched: MatchedPair[];
   unmatchedBsc: PlatformItem[];
   unmatchedSl: PlatformItem[];
+  errors: Array<{ platform: string; message: string }>;
   message?: string;
 };
+
+// Stable, unique-to-this-error-mode string. Maestro flows assert on this
+// substring to verify the column surfaced (not silently swallowed) a
+// platform fetch failure.
+const SYNC_FAILED_PREFIX = "Sync failed: could not load variants";
 
 export default function VariantForm({
   variantTypeId,
@@ -95,6 +101,25 @@ export default function VariantForm({
         return;
       }
 
+      // Defensive: if both adapters returned no options AND at least one
+      // reported an error, surface a visible error AND return EntityColumn
+      // to idle so the panel-header actions ("Group Parallels", etc.) are
+      // reachable. The auto-synced-key set prevents this from immediately
+      // re-firing; the user (or test) can re-trigger sync explicitly via
+      // the sync button.
+      if (
+        result.bscOptions.length === 0 &&
+        result.slOptions.length === 0 &&
+        result.errors.length > 0
+      ) {
+        const detail = result.errors
+          .map((e) => `${e.platform}: ${e.message}`)
+          .join("; ");
+        setMessage(`${SYNC_FAILED_PREFIX}. ${detail}`);
+        onDone?.();
+        return;
+      }
+
       if (result.bscOptions.length > 0 && result.slOptions.length > 0) {
         // Both platforms have data — show reconciliation modal
         setReconciliationData(result);
@@ -167,22 +192,38 @@ export default function VariantForm({
           </p>
         )}
 
-        {message && !showReconciliation && (
-          <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
-            {message}
-          </div>
-        )}
+        {(() => {
+          const isError =
+            !!message &&
+            (message.startsWith("Error") ||
+              message.startsWith("Failed") ||
+              message.startsWith(SYNC_FAILED_PREFIX));
+          return (
+            <>
+              {message && !showReconciliation && (
+                <div
+                  role={isError ? "alert" : undefined}
+                  className={
+                    isError
+                      ? "p-3 mb-4 bg-[#FF2EB3]/10 border border-[#FF2EB3] rounded-md text-[#FF2EB3] text-sm"
+                      : "p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm"
+                  }
+                >
+                  {message}
+                </div>
+              )}
 
-        {!loading && !showReconciliation && (
-          <div className="flex gap-2">
-            {(message?.startsWith("Error") || message?.startsWith("Failed")) && (
-              <NeonButton onClick={doSync}>Retry</NeonButton>
-            )}
-            <NeonButton cancel onClick={onDone}>
-              {message?.startsWith("Error") || message?.startsWith("Failed") ? "Cancel" : "Close"}
-            </NeonButton>
-          </div>
-        )}
+              {!loading && !showReconciliation && (
+                <div className="flex gap-2">
+                  {isError && <NeonButton onClick={doSync}>Retry</NeonButton>}
+                  <NeonButton cancel onClick={onDone}>
+                    {isError ? "Cancel" : "Close"}
+                  </NeonButton>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {showReconciliation && reconciliationData && existingVariantRows !== undefined && (

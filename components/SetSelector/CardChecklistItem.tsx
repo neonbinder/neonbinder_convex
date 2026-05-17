@@ -9,7 +9,14 @@ type CardChecklistItemProps = {
     cardNumber: string;
     cardName: string;
     team?: string;
+    playerIds?: Array<Id<"players">>;
+    teamOnCardIds?: Array<Id<"teams">>;
     attributes?: string[];
+    isRookie?: boolean;
+    isRelic?: boolean;
+    printRun?: number;
+    autographType?: string;
+    cardVariation?: string;
     platformData: {
       bsc?: string;
       sportlots?: string;
@@ -17,6 +24,32 @@ type CardChecklistItemProps = {
     isCustom?: boolean;
   };
 };
+
+/**
+ * Map raw attribute tokens to display-friendly badge content.
+ * "unmatched-bsc" / "unmatched-sl" indicate cards that only appeared on
+ * one side during reconciliation — surfaced to the user as a review tag.
+ */
+function badgeLabel(token: string): { label: string; cls: string } {
+  switch (token) {
+    case "RC":
+      return { label: "RC", cls: "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700" };
+    case "AU":
+      return { label: "AU", cls: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700" };
+    case "RELIC":
+      return { label: "RELIC", cls: "bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 border-pink-300 dark:border-pink-700" };
+    case "SP":
+    case "SSP":
+      return { label: token, cls: "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700" };
+    case "NUM":
+      return { label: "#'d", cls: "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700" };
+    case "unmatched-bsc":
+    case "unmatched-sl":
+      return { label: token === "unmatched-bsc" ? "SL only" : "BSC only", cls: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700" };
+    default:
+      return { label: token, cls: "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600" };
+  }
+}
 
 export default function CardChecklistItem({ card }: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
@@ -82,30 +115,40 @@ export default function CardChecklistItem({ card }: CardChecklistItemProps) {
     );
   }
 
+  // Build the secondary line: "<team> · /99 · Refractor · On-Card auto"
+  const subParts: string[] = [];
+  if (card.team) subParts.push(card.team);
+  if (card.printRun) subParts.push(`/${card.printRun}`);
+  if (card.cardVariation) subParts.push(card.cardVariation);
+  if (card.autographType) subParts.push(`${card.autographType} auto`);
+
   return (
     <div className="flex items-center gap-3 p-2.5 border rounded-md dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
-      <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-10 text-right shrink-0">
+      <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-12 text-right shrink-0">
         #{card.cardNumber}
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate">{card.cardName}</div>
-        {card.team && (
+        {subParts.length > 0 && (
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {card.team}
+            {subParts.join(" · ")}
           </div>
         )}
       </div>
       {/* Attribute badges */}
       {card.attributes && card.attributes.length > 0 && (
-        <div className="flex gap-1 shrink-0">
-          {card.attributes.map((attr) => (
-            <span
-              key={attr}
-              className="text-xs px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
-            >
-              {attr}
-            </span>
-          ))}
+        <div className="flex gap-1 shrink-0 flex-wrap max-w-[40%] justify-end">
+          {card.attributes.map((attr) => {
+            const { label, cls } = badgeLabel(attr);
+            return (
+              <span
+                key={attr}
+                className={`text-xs px-1 py-0.5 rounded border ${cls}`}
+              >
+                {label}
+              </span>
+            );
+          })}
         </div>
       )}
       {/* Platform badges */}

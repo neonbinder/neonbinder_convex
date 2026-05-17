@@ -1,0 +1,182 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Cascade — select Parallel variant type, sync Parallel variants, verify ReconciliationModal"
+tags:
+  - set-selector
+  - cascade
+  - regression
+  - requires:setup-done
+  - provides:sets-loaded
+---
+# Cascade node: depends on setup-done, contributes to sets-loaded.
+#
+# Exercises the "Parallel" code path from Level 5 onward.
+# The hierarchy through Topps Chrome is already in DB — fast drill only.
+#
+# WHAT THIS VERIFIES:
+#   - "Parallel" is selectable in the Variant Types column
+#   - Variants column appears after selecting Parallel
+#   - ReconciliationModal opens when both BSC and SL have Parallel variant data
+#   - Modal shows matched and unmatched counts
+#   - User can cancel the modal and return to the set selector
+#   - On re-runs, the already-populated Variants column is asserted directly
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+# ============================================================
+# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Parallel"
+    timeout: 10000
+
+# ============================================================
+# SELECT PARALLEL — Level 5
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Parallel"
+    timeout: 10000
+- tapOn: "Parallel"
+
+# ============================================================
+# LEVEL 6 — Sync Variants (first run) or verify populated (re-run)
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 10000
+
+- runFlow:
+    when:
+      visible: "No variants available. Sync from marketplaces to populate."
+    commands:
+      # Auto-sync fires the VariantForm. 240s budget — Parallel fetch timing
+      # is similar to Insert fetch.
+      - extendedWaitUntil:
+          visible: "Reconcile Variants"
+          timeout: 240000
+
+      - assertVisible: "Reconcile Variants"
+      - assertVisible:
+          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+      - scrollUntilVisible:
+          element:
+            text: ".*Unmatched.*"
+          timeout: 10000
+      - assertVisible:
+          text: ".*Unmatched.*"
+      - assertVisible:
+          text: ".*BSC.*"
+      - assertVisible:
+          text: ".*SportLots.*"
+      - scrollUntilVisible:
+          element:
+            text: ".*Save [0-9]+ matched.*"
+          timeout: 10000
+      - assertVisible:
+          text: ".*Save [0-9]+ matched.*"
+
+      - scrollUntilVisible:
+          element:
+            text: "Cancel"
+          timeout: 5000
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Reconcile Variants"
+          timeout: 10000
+
+- assertVisible: "Set Selector"
+- assertVisible: "Variants"

@@ -1,8 +1,9 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Card Checklist Sync — Fetch Cards from Marketplaces
 tags:
   - set-selector
   - wip
+  - serial-global
 # FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 ---
 # This test verifies that a user can drill down to a variant and then
@@ -222,8 +223,14 @@ tags:
 - assertVisible: ".*#[0-9].*"
 
 # Verify the "Refresh" button is now available (replaces the fetch button
-# once the checklist is populated)
-- assertVisible: "Refresh"
+# once the checklist is populated). With 300+ card rows in the list the
+# button sits far below the fold — use high speed + low threshold.
+- scrollUntilVisible:
+    element:
+      text: "Refresh"
+    timeout: 60000
+    visibilityPercentage: 1
+    speed: 90
 
 # Verify platform badges are shown on at least one card
 - assertVisible: "BSC"

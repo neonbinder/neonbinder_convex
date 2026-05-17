@@ -18,15 +18,18 @@ import type * as adapters_myslabs from "../adapters/myslabs.js";
 import type * as adapters_sportlots from "../adapters/sportlots.js";
 import type * as adapters_testBscSetParameters from "../adapters/testBscSetParameters.js";
 import type * as adapters_types from "../adapters/types.js";
+import type * as adapters_wikidata from "../adapters/wikidata.js";
 import type * as auth from "../auth.js";
 import type * as credentials from "../credentials.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as players from "../players.js";
 import type * as posthog from "../posthog.js";
 import type * as publicProfile from "../publicProfile.js";
 import type * as resolveRedirect from "../resolveRedirect.js";
 import type * as selectorOptions from "../selectorOptions.js";
 import type * as setReconciliation from "../setReconciliation.js";
+import type * as teams from "../teams.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -54,15 +57,18 @@ declare const fullApi: ApiFromModules<{
   "adapters/sportlots": typeof adapters_sportlots;
   "adapters/testBscSetParameters": typeof adapters_testBscSetParameters;
   "adapters/types": typeof adapters_types;
+  "adapters/wikidata": typeof adapters_wikidata;
   auth: typeof auth;
   credentials: typeof credentials;
   http: typeof http;
   myFunctions: typeof myFunctions;
+  players: typeof players;
   posthog: typeof posthog;
   publicProfile: typeof publicProfile;
   resolveRedirect: typeof resolveRedirect;
   selectorOptions: typeof selectorOptions;
   setReconciliation: typeof setReconciliation;
+  teams: typeof teams;
   userProfile: typeof userProfile;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

@@ -1,0 +1,194 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Checklist — fetch dialog; user unchecks one player; remaining entities still save"
+tags:
+  - set-selector
+  - requires:setup-done
+---
+# Feature test: a user can uncheck individual unknown players or teams
+# before confirming. Skipped names are NOT created as entities but cards
+# are still saved with the name as free text.
+#
+# WHAT THIS TESTS:
+#   - Tapping a player name in the dialog toggles its checkbox off
+#   - The footer "N of M will be created" count decreases after unchecking
+#   - Confirming with a partial selection still saves all cards
+#   - The "Saved N cards." message appears after confirm
+#
+# WHY POINT TAP:
+#   Player names come from live BSC/SL data and vary per set/variant.
+#   We cannot hardcode a name. The UnknownEntitiesDialog renders the
+#   players section on the left half of the modal body. The first player
+#   row sits roughly 35–38% down the screen in the default viewport.
+#   A point tap at (25%, 38%) reliably lands in the first player label row.
+#   We verify the uncheck happened by confirming the footer updated —
+#   not by asserting the specific player name.
+#
+# FRESH-DB REQUIREMENT:
+#   This test requires empty `players` and `teams` tables for the dialog to open.
+#   After any prior fetch run entities persist, making this test fail locally.
+#   Reliable on CI with a clean Convex deployment.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD A CUSTOM CARD WITH TWO UNIQUE PLAYER NAMES
+# Guarantees the dialog opens with multiple unknown players so the
+# "uncheck one player, others still save" semantic can be exercised
+# regardless of what other tests have already committed to the global
+# `players` table. The custom card's players go through
+# fetchCardChecklist reconciliation via cardChecklist.pendingPlayerNames.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
+- tapOn: "Add Card"
+# Wait for the form to open. "Player name" is the card-name input's
+# placeholder (still rendered visually).
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+- inputText: "9003"
+# Address inputs by aria-label (via Maestro's `id:` selector, which matches
+# the accessibility-tree identifier). Placeholders overlap ("Player name",
+# "Player(s) — comma separated, optional") and Maestro's text matcher cannot
+# disambiguate them reliably — see NEO-13 root cause.
+- tapOn:
+    id: "Card name"
+- inputText: "Skip Some Test ${TEST_USERNAME}"
+# Scroll anchor uses the visible placeholder text; tap target uses the
+# aria-label via `id:`.
+- scrollUntilVisible:
+    element:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
+- tapOn:
+    id: "Players"
+- inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
+# Defensive: confirm at least one of the typed player names landed on the
+# form before submitting. Fails fast if input targeting regresses. Regex
+# wildcards needed because Maestro's plain-text assertVisible is full
+# match — the input value renders as the comma-joined string, not the
+# single name.
+- assertVisible:
+    text: ".*USPlayerA-${TEST_USERNAME}.*"
+# Two comma-separated chips wrap the Player(s) input, growing the form's
+# height. Combined with prior custom cards stacked above in the checklist,
+# the form's "Add" submit button can land below the 629px viewport. Maestro
+# `tapOn` does not auto-scroll, so anchor on the submit button first.
+# Plain "Add" is unambiguous: Maestro text matchers are full-match, so it
+# binds to the submit button (text exactly "Add") and ignores the form
+# header "Add Card".
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    timeout: 5000
+- tapOn:
+    text: "Add"
+# After submit the form closes and the new card row renders in the
+# virtualized checklist (react-virtuoso). Where the row lands depends on
+# the checklist's existing length, so scroll to anchor on the new card's
+# title rather than assuming it lands inside the current viewport.
+- scrollUntilVisible:
+    element:
+      text: "Skip Some Test ${TEST_USERNAME}"
+    timeout: 15000
+
+# ============================================================
+# TRIGGER THE FETCH AND WAIT FOR THE DIALOG
+# ============================================================
+
+# After scrollUntilVisible above (which scrolled DOWN to find the new
+# custom card row at the bottom), the Sync button sits at y~17-49 —
+# technically in the viewport but OBSCURED by the sticky page header
+# (z-20). scrollUntilVisible's visibility is DOM-rect intersection, not
+# z-index-aware, so it won't scroll past the obscured button. Force a
+# real scroll UP to "Re-map Base" — a button in the variant-types row,
+# well ABOVE the cards section. Centering it puts the cards section
+# (and Sync button) clearly below the header.
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+# Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
+# `text: ".*Refresh"` regex matched a different Refresh element on the
+# page (NEO-13 root cause).
+- tapOn:
+    id: "Sync card checklist"
+- extendedWaitUntil:
+    visible: "Confirm New Players & Teams"
+    timeout: 60000
+
+# Verify the dialog has at least one unknown player to uncheck.
+- assertVisible:
+    text: ".*New Players [(][1-9][0-9]*[)].*"
+
+# Footer shows the initial total — all included by default.
+- assertVisible:
+    text: ".*will be created.*"
+
+# ============================================================
+# UNCHECK THE FIRST PLAYER ROW
+# The players section occupies the left column of the modal body.
+# The modal is centered (max-w-3xl) with a ~120px header.
+# First player row is roughly 35–38% from the top of the screen.
+# Tapping the label text at (25%, 38%) toggles the checkbox off.
+# Verification: the footer count decreases (the row's name turns
+# struck-through but remains visible).
+# ============================================================
+
+- tapOn:
+    point: "25%, 38%"
+
+# The footer text is still visible — count should now be one less.
+- assertVisible:
+    text: ".*will be created.*"
+
+# ============================================================
+# CONFIRM — save with the remaining (non-skipped) entities
+# ============================================================
+
+# After unchecking at least one, the button may read "Confirm N & Save"
+# or "Skip All & Save" if all were unchecked. Either is acceptable.
+- tapOn:
+    text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+
+- extendedWaitUntil:
+    notVisible: "Confirm New Players & Teams"
+    timeout: 30000
+
+# ============================================================
+# VERIFY CARDS SAVED SUCCESSFULLY
+# Cards always save — only entity creation is selective.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+
+- assertVisible:
+    text: ".*#[0-9].*"

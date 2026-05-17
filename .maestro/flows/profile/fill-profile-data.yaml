@@ -1,11 +1,12 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&account=new-profile
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&account=new-profile&worker=${WORKER_INDEX || "0"}
 name: Fill Profile Data
 tags:
   - profile
-# TEST_USERNAME: unique per run to avoid "already taken". Pass via -e TEST_USERNAME=neontester_$(date +%s)
-# when running directly; run-e2e-smoke.sh and test:e2e:profile set it automatically.
-env:
-  TEST_USERNAME: "neontester"
+# TEST_USERNAME must be unique per run. The runner (run-e2e-smoke.sh) sets it
+# to neontester-$(date +%s); when running this flow directly pass
+# -e TEST_USERNAME=neontester-$(date +%s). No env-block default — a hardcoded
+# fallback caused "Username already taken" when a prior run's account still
+# owned the shared name.
 ---
 - launchApp
 - extendedWaitUntil:
@@ -27,56 +28,105 @@ env:
 - inputText: "Buying and Selling all kinds of Sports Cards"
 
 # Marketplace Links
+# Use id-based selectors — the section's text labels can be off-screen after
+# the bio inputText scrolls the page, and the credential section below this
+# editor also contains a "Username/Email" label that text-based taps could match.
 - scrollUntilVisible:
     element:
       text: "Marketplace Links"
-- tapOn: "eBay Store URL"
+- scrollUntilVisible:
+    element:
+      id: "pub-ebay"
+    timeout: 10000
+- tapOn:
+    id: "pub-ebay"
 - eraseText: 200
 - inputText: "https://www.ebay.com/str/${TEST_USERNAME}"
-- tapOn: "BuySportsCards URL"
+- scrollUntilVisible:
+    element:
+      id: "pub-bsc"
+    timeout: 10000
+- tapOn:
+    id: "pub-bsc"
 - eraseText: 200
 - inputText: "https://www.buysportscards.com/Seller/1d8570d204/${TEST_USERNAME}"
-- tapOn: "Sportlots URL"
+- scrollUntilVisible:
+    element:
+      id: "pub-sportlots"
+    timeout: 10000
+- tapOn:
+    id: "pub-sportlots"
 - eraseText: 200
 - inputText: "https://sportlots.com/dealers/?dealer=${TEST_USERNAME}"
-- tapOn: "MySlabs URL"
+- scrollUntilVisible:
+    element:
+      id: "pub-myslabs"
+    timeout: 10000
+- tapOn:
+    id: "pub-myslabs"
 - eraseText: 200
 - inputText: "http://myslabs.to/e8c447c0-5917-4326-be26-be2201e36d4a"
 
-# Payment Handles
+# Payment Handles — use id-based selectors; the labels can be off-screen after
+# the marketplace links section, and "PayPal.*" matches both the username and
+# email rows ambiguously.
 - scrollUntilVisible:
     element:
       text: "Payment Handles"
-- tapOn: "PayPal.*"
+- scrollUntilVisible:
+    element:
+      id: "pub-paypal"
+    timeout: 10000
+- tapOn:
+    id: "pub-paypal"
 - eraseText: 200
 - inputText: "${TEST_USERNAME}-pp"
 - assertVisible: "→ paypal.me/${TEST_USERNAME}-pp"
-- tapOn: "Venmo.*"
+- scrollUntilVisible:
+    element:
+      id: "pub-venmo"
+    timeout: 10000
+- tapOn:
+    id: "pub-venmo"
 - eraseText: 200
 - inputText: "${TEST_USERNAME}-venmo"
 - assertVisible: "→ venmo.com/${TEST_USERNAME}-venmo"
-- tapOn: "Cash App.*"
+- scrollUntilVisible:
+    element:
+      id: "pub-cashapp"
+    timeout: 10000
+- tapOn:
+    id: "pub-cashapp"
 - eraseText: 200
 - inputText: "${TEST_USERNAME}-cashapp"
 - assertVisible: "→ cash.app/$${TEST_USERNAME}-cashapp"
 
-# Social Media
+# Social Media — id-based selectors (pub-twitter, pub-instagram, pub-tiktok)
 - scrollUntilVisible:
     element:
       text: "Social Media"
-- tapOn: "Twitter / X URL"
+- scrollUntilVisible:
+    element:
+      id: "pub-twitter"
+    timeout: 10000
+- tapOn:
+    id: "pub-twitter"
 - eraseText: 200
 - inputText: "https://x.com/${TEST_USERNAME}-twit"
 - scrollUntilVisible:
     element:
-      text: "Instagram URL"
-- tapOn: "Instagram URL"
+      id: "pub-instagram"
+    timeout: 10000
+- tapOn:
+    id: "pub-instagram"
 - eraseText: 200
 - inputText: "https://instagram.com/${TEST_USERNAME}-ig"
 - scrollUntilVisible:
     element:
-      text: "TikTok URL"
-- tapOn: "TikTok URL"
+      id: "pub-tiktok"
+    timeout: 10000
+- tapOn:
+    id: "pub-tiktok"
 - eraseText: 200
 - inputText: "https://tiktok.com/@${TEST_USERNAME}-tt"
 
@@ -87,7 +137,7 @@ env:
 - tapOn: "Save Public Profile"
 - extendedWaitUntil:
     visible: "Profile saved.*"
-    timeout: 150000
+    timeout: 10000
 # Verify the profile link shows the correct URL path
 - assertVisible: "View your profile at /u/${TEST_USERNAME}"
 
@@ -111,8 +161,19 @@ env:
 - assertVisible: ".*sportlots.com/dealers.*${TEST_USERNAME}.*"
 - assertVisible: ".*myslabs.to/.*"
 
-# Payment links
+# Payment links — Marketplace Stores render at the top of the public profile,
+# Payment Handles below the fold. Scroll each into view before asserting; we
+# already do this for Cash App + the social links below, just bring PayPal
+# and Venmo in line.
+- scrollUntilVisible:
+    element:
+      text: ".*paypal.me/${TEST_USERNAME}-pp.*"
+    timeout: 5000
 - assertVisible: ".*paypal.me/${TEST_USERNAME}-pp.*"
+- scrollUntilVisible:
+    element:
+      text: ".*venmo.com/${TEST_USERNAME}-venmo.*"
+    timeout: 5000
 - assertVisible: ".*venmo.com/${TEST_USERNAME}-venmo.*"
 - scrollUntilVisible:
     element:

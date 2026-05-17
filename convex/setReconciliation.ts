@@ -223,6 +223,11 @@ export const fetchRawOptions = action({
     })),
     unmatchedBsc: v.array(v.object({ value: v.string(), platformValue: v.string() })),
     unmatchedSl: v.array(v.object({ value: v.string(), platformValue: v.string() })),
+    // Per-platform adapter failures surfaced as structured data so the UI
+    // can show a "Sync failed" error and a Retry button when both option
+    // lists come back empty due to an underlying failure (e.g. missing
+    // Secret Manager creds → 404). Empty array means no adapter errors.
+    errors: v.array(v.object({ platform: v.string(), message: v.string() })),
     message: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
@@ -238,6 +243,7 @@ export const fetchRawOptions = action({
       // Build platform-specific filters from the ancestor chain
       let slPlatformFilters: Record<string, string> | undefined;
       let bscPlatformFilters: Record<string, string[]> | undefined;
+      const precondMissingBsc: string[] = [];
 
       if (parentId) {
         const chain = await ctx.runQuery(
@@ -248,6 +254,15 @@ export const fetchRawOptions = action({
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
+        // Data-integrity precondition for BSC only. Missing BSC slugs at
+        // sport/year/setName lead to under-filtered queries returning 0
+        // results, which the form's empty-with-errors guard then surfaces
+        // as a generic "could not load variants". Catch the missing slugs
+        // here so the error names the actual broken level. SL is
+        // intentionally not preconditioned — see fetchCardChecklist for
+        // the rationale (SL has no setName-level concept).
+        const BSC_REQUIRED = new Set(["sport", "year", "setName"]);
+
         for (const ancestor of chain) {
           const lvl = ancestor.level;
           if (ancestor.platformData?.sportlots) {
@@ -256,8 +271,14 @@ export const fetchRawOptions = action({
           if (ancestor.platformData?.bsc) {
             const bscVal = ancestor.platformData.bsc;
             bscPlatformFilters[lvl] = Array.isArray(bscVal) ? bscVal : [bscVal];
+          } else if (BSC_REQUIRED.has(lvl)) {
+            precondMissingBsc.push(`${lvl}=${ancestor.value}`);
           } else if (ancestor.value) {
-            // Fall back to display value when no BSC slug stored
+            // Display-value fallback is only acceptable for levels that
+            // are NOT in BSC_REQUIRED. The intent is to forward
+            // manufacturer/variantType-style display values when no slug
+            // mapping exists; for sport/year/setName we want a clean
+            // precondition error instead of a silently-wrong filter.
             bscPlatformFilters[lvl] = [ancestor.value.toLowerCase()];
           }
         }
@@ -268,6 +289,27 @@ export const fetchRawOptions = action({
           `BSC:`,
           bscPlatformFilters,
         );
+      }
+
+      if (precondMissingBsc.length > 0) {
+        const errs = [{
+          platform: "bsc",
+          message: `Missing platformData.bsc on: ${precondMissingBsc.join(", ")}`,
+        }];
+        console.error(
+          `[fetchRawOptions] precondition failed:`,
+          JSON.stringify(errs),
+        );
+        return {
+          success: true,
+          bscOptions: [],
+          slOptions: [],
+          autoMatched: [],
+          unmatchedBsc: [],
+          unmatchedSl: [],
+          errors: errs,
+          message: errs.map((e) => `${e.platform}: ${e.message}`).join("; "),
+        };
       }
 
       let bscOptions: PlatformItem[] = [];
@@ -350,6 +392,11 @@ export const fetchRawOptions = action({
               .join("; ")})`
           : "";
 
+      const errors = Object.entries(platformErrors).map(([platform, message]) => ({
+        platform,
+        message,
+      }));
+
       return {
         success: true,
         bscOptions,
@@ -357,6 +404,7 @@ export const fetchRawOptions = action({
         autoMatched,
         unmatchedBsc,
         unmatchedSl,
+        errors,
         message: `BSC: ${bscOptions.length}, SL: ${slOptions.length}, Auto-matched: ${autoMatched.length}${warningSuffix}`,
       };
     } catch (error) {
@@ -368,6 +416,12 @@ export const fetchRawOptions = action({
         autoMatched: [],
         unmatchedBsc: [],
         unmatchedSl: [],
+        errors: [
+          {
+            platform: "internal",
+            message: error instanceof Error ? error.message : "Unknown error",
+          },
+        ],
         message: `Failed to fetch options: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }

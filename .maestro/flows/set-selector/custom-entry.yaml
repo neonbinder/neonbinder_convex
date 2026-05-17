@@ -1,8 +1,9 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Set Selector Custom Entry — Full Hierarchy via Manual Input
 tags:
   - set-selector
   - wip
+  - serial-global
 # FIXME: Card functionality deferred to a follow-up release; un-park when card-level UI ships.
 # (The comment in this flow "Cards column appears after selecting a variant" confirms it touches the Cards level.)
 ---

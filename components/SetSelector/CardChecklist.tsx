@@ -1,12 +1,41 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
 import NeonButton from "../modules/NeonButton";
+import UnknownEntitiesDialog from "./UnknownEntitiesDialog";
 
 type CardChecklistProps = {
   variantId: GenericId<"selectorOptions">;
+};
+
+/**
+ * Preview shape returned by fetchCardChecklist. We hold this in component
+ * state between fetch (action) and commit (mutation) so the user can
+ * confirm new players/teams in UnknownEntitiesDialog before the entities
+ * are persisted.
+ */
+type FetchPreview = {
+  sport: string;
+  cards: Array<{
+    cardNumber: string;
+    cardName: string;
+    team?: string;
+    teams?: string[];
+    players?: string[];
+    attributes?: string[];
+    isRookie?: boolean;
+    isRelic?: boolean;
+    printRun?: number;
+    autographType?: string;
+    cardVariation?: string;
+    platformData: { bsc?: string; sportlots?: string };
+    unmatched?: "bsc" | "sl";
+  }>;
+  unknownPlayers: string[];
+  unknownTeams: string[];
 };
 
 export default function CardChecklist({ variantId }: CardChecklistProps) {
@@ -14,23 +43,63 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     selectorOptionId: variantId,
   });
   const fetchChecklist = useAction(api.selectorOptions.fetchCardChecklist);
+  const commitChecklist = useMutation(api.selectorOptions.commitCardChecklist);
   const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
 
   const [syncing, setSyncing] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newCardName, setNewCardName] = useState("");
   const [newTeam, setNewTeam] = useState("");
+  // Comma-separated player names — forwarded to addCustomCard.players so
+  // the next fetchCardChecklist surfaces them in the UnknownEntitiesDialog
+  // (which lets the user confirm Wikidata enrichment). Optional.
+  const [newPlayers, setNewPlayers] = useState("");
+  const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
 
+  // Virtuoso scroll handle + a one-shot flag so that when the user adds a
+  // card via the form, the just-added row is scrolled into view. New cards
+  // sort to the end of the list (sortOrder = max + 1), and Virtuoso only
+  // renders rows in/near the viewport — without this the user (and the
+  // E2E test) would see no visible feedback after submit. Cleared after
+  // the next render where `cards` length has grown.
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollToNewCardRef = useRef(false);
+  const prevCardCountRef = useRef(0);
+
+  /**
+   * Two-phase pipeline:
+   *   1. fetchChecklist → preview (no DB writes; player/team strings, not IDs)
+   *   2. If unknowns: open dialog → user confirms subset → commit
+   *      Otherwise: commit immediately with empty confirmedNew*.
+   * Either way, commitCardChecklist is the only path that writes
+   * cardChecklist rows + new player/team entities.
+   */
   const handleSync = async () => {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const result = await fetchChecklist({
-        selectorOptionId: variantId,
-      });
-      setSyncMessage(result.message);
+      const result = await fetchChecklist({ selectorOptionId: variantId });
+      if (!result.success || !result.sport) {
+        setSyncMessage(result.message);
+        return;
+      }
+      const preview: FetchPreview = {
+        sport: result.sport,
+        cards: result.cards,
+        unknownPlayers: result.unknownPlayers,
+        unknownTeams: result.unknownTeams,
+      };
+      if (preview.unknownPlayers.length === 0 && preview.unknownTeams.length === 0) {
+        await runCommit(preview, [], []);
+        setSyncMessage(`Saved ${result.cards.length} cards.`);
+      } else {
+        // Stash preview; dialog handles the rest.
+        setPendingPreview(preview);
+        setSyncMessage(result.message);
+      }
     } catch (error) {
       setSyncMessage(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -40,23 +109,89 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     }
   };
 
+  const runCommit = async (
+    preview: FetchPreview,
+    confirmedPlayers: string[],
+    confirmedTeams: string[],
+  ) => {
+    setCommitting(true);
+    try {
+      const result = await commitChecklist({
+        selectorOptionId: variantId,
+        sport: preview.sport,
+        cards: preview.cards,
+        confirmedNewPlayers: confirmedPlayers,
+        confirmedNewTeams: confirmedTeams,
+      });
+      const enrichmentNote =
+        result.createdPlayerIds.length || result.createdTeamIds.length
+          ? ` (${result.createdPlayerIds.length} players + ${result.createdTeamIds.length} teams enriching from Wikidata in background)`
+          : "";
+      setSyncMessage(`Saved ${result.count} cards.${enrichmentNote}`);
+    } catch (error) {
+      setSyncMessage(
+        `Commit failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  const handleConfirmUnknowns = async (
+    confirmedPlayers: string[],
+    confirmedTeams: string[],
+  ) => {
+    if (!pendingPreview) return;
+    await runCommit(pendingPreview, confirmedPlayers, confirmedTeams);
+    setPendingPreview(null);
+  };
+
   const handleAddCard = async () => {
     if (!newCardNumber.trim()) return;
+    const players = newPlayers
+      .split(",")
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    const teamTrimmed = newTeam.trim();
     try {
       await addCustomCard({
         selectorOptionId: variantId,
         cardNumber: newCardNumber.trim(),
         cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
-        team: newTeam.trim() || undefined,
+        team: teamTrimmed || undefined,
+        ...(players.length > 0 ? { players } : {}),
+        ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
       });
       setNewCardNumber("");
       setNewCardName("");
       setNewTeam("");
+      setNewPlayers("");
       setShowAddForm(false);
+      scrollToNewCardRef.current = true;
     } catch (error) {
       console.error("Failed to add card:", error);
     }
   };
+
+  // After the addCustomCard mutation resolves, Convex's reactive query
+  // refreshes `cards` with the new row appended. Detect the length growth
+  // and scroll Virtuoso to the new (last) entry exactly once.
+  useEffect(() => {
+    const count = cards?.length ?? 0;
+    if (
+      scrollToNewCardRef.current &&
+      count > prevCardCountRef.current &&
+      count > 0
+    ) {
+      virtuosoRef.current?.scrollToIndex({
+        index: count - 1,
+        align: "end",
+        behavior: "smooth",
+      });
+      scrollToNewCardRef.current = false;
+    }
+    prevCardCountRef.current = count;
+  }, [cards?.length]);
 
   if (!cards) {
     return (
@@ -67,18 +202,24 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     );
   }
 
-  // Sort cards by sortOrder
   const sortedCards = [...cards].sort((a, b) => a.sortOrder - b.sortOrder);
-
-  // Find the most recent lastUpdated timestamp
   const lastSynced = cards.length > 0
     ? Math.max(...cards.map((c: { lastUpdated: number }) => c.lastUpdated))
     : null;
 
+  const busy = syncing || committing;
+  const fetchLabel = syncing
+    ? "Fetching..."
+    : committing
+      ? "Saving..."
+      : sortedCards.length === 0
+        ? "Fetch from Marketplaces"
+        : "Refresh";
+
   return (
     <div className="w-full flex flex-col gap-4">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h2 className="text-xl font-semibold">
             Cards{" "}
             {cards.length > 0 && (
@@ -87,6 +228,23 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               </span>
             )}
           </h2>
+          {!showAddForm && (
+            <div className="flex gap-2">
+              <NeonButton onClick={() => setShowAddForm(true)}>
+                Add Card
+              </NeonButton>
+              {sortedCards.length > 0 && (
+                <NeonButton
+                  secondary
+                  onClick={handleSync}
+                  disabled={busy}
+                  aria-label="Sync card checklist"
+                >
+                  {fetchLabel}
+                </NeonButton>
+              )}
+            </div>
+          )}
         </div>
 
         {lastSynced && (
@@ -115,21 +273,32 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No cards in this checklist yet.
             </p>
-            <NeonButton onClick={handleSync} disabled={syncing}>
-              {syncing ? "Fetching..." : "Fetch from Marketplaces"}
+            <NeonButton
+              onClick={handleSync}
+              disabled={busy}
+              aria-label="Sync card checklist"
+            >
+              {fetchLabel}
             </NeonButton>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {sortedCards.map((card) => (
-              <CardChecklistItem key={card._id} card={card} />
-            ))}
-          </div>
+          <Virtuoso
+            ref={virtuosoRef}
+            data={sortedCards}
+            computeItemKey={(_, card) => card._id}
+            itemContent={(_, card) => (
+              <div className="pb-1.5">
+                <CardChecklistItem card={card} />
+              </div>
+            )}
+            style={{ height: "min(70vh, 800px)" }}
+            increaseViewportBy={{ top: 200, bottom: 400 }}
+          />
         )}
       </div>
 
-      {/* Add Card Form */}
-      {showAddForm ? (
+      {/* Add Card Form (only rendered when user opens it from the header action) */}
+      {showAddForm && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
           <h3 className="font-semibold text-sm">Add Card</h3>
           <div className="flex gap-2">
@@ -139,6 +308,7 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               onChange={(e) => setNewCardNumber(e.target.value)}
               className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="#"
+              aria-label="Card number"
               autoFocus
             />
             <input
@@ -147,17 +317,24 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
               onChange={(e) => setNewCardName(e.target.value)}
               className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="Player name"
+              aria-label="Card name"
             />
           </div>
           <input
             type="text"
+            value={newPlayers}
+            onChange={(e) => setNewPlayers(e.target.value)}
+            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+            placeholder="Player(s) — comma separated, optional"
+            aria-label="Players"
+          />
+          <input
+            type="text"
             value={newTeam}
             onChange={(e) => setNewTeam(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddCard();
-            }}
             className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
             placeholder="Team (optional)"
+            aria-label="Team"
           />
           <div className="flex gap-2">
             <NeonButton onClick={handleAddCard}>Add</NeonButton>
@@ -166,18 +343,20 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             </NeonButton>
           </div>
         </div>
-      ) : (
-        <div className="flex gap-2">
-          <NeonButton onClick={() => setShowAddForm(true)}>
-            Add Card
-          </NeonButton>
-          {sortedCards.length > 0 && (
-            <NeonButton secondary onClick={handleSync} disabled={syncing}>
-              {syncing ? "Syncing..." : "Refresh"}
-            </NeonButton>
-          )}
-        </div>
       )}
+
+      <UnknownEntitiesDialog
+        isOpen={pendingPreview !== null}
+        unknownPlayers={pendingPreview?.unknownPlayers ?? []}
+        unknownTeams={pendingPreview?.unknownTeams ?? []}
+        sport={pendingPreview?.sport ?? ""}
+        saving={committing}
+        onConfirm={handleConfirmUnknowns}
+        onCancel={() => {
+          setPendingPreview(null);
+          setSyncMessage("Fetch cancelled — no cards saved.");
+        }}
+      />
     </div>
   );
 }

@@ -1,0 +1,163 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
+tags:
+  - set-selector
+  - requires:setup-done
+---
+# Feature test: pressing Cancel on the UnknownEntitiesDialog aborts the
+# commit. No cards are written to the checklist and no entities are created.
+#
+# WHAT THIS TESTS:
+#   - Tapping "Cancel (Esc)" on the dialog closes it without saving
+#   - The status message reads "Fetch cancelled — no cards saved."
+#   - The checklist remains empty (empty state text still visible)
+#   - The "Fetch from Marketplaces" button is still available for a retry
+#
+# NOTE ON ESCAPE KEY:
+#   Maestro's web driver cannot trigger document-level keydown listeners,
+#   so the physical Escape key path is not tested here. The "Cancel (Esc)"
+#   button calls the same onCancel callback as the key — testing the button
+#   is sufficient to confirm the cancel logic runs correctly.
+#
+# FRESH-DB REQUIREMENT:
+#   This test requires that the `players` and `teams` tables are EMPTY so that
+#   the UnknownEntitiesDialog opens on first fetch. The DB reset only clears
+#   `selectorOptions` and `cardChecklist` rows — not players/teams. After a
+#   first successful fetch run, entities are persisted and the dialog no longer
+#   opens, causing this test to fail locally. This test is reliable on CI where
+#   each preview deployment starts with an empty Convex database.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+# ============================================================
+# DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-base-variant.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD A CUSTOM CARD WITH A UNIQUE PLAYER NAME
+# This guarantees the next fetch returns at least one unknown player,
+# so the UnknownEntitiesDialog reliably opens regardless of what other
+# tests have already committed to the global `players` table on this
+# worker. The custom card's player goes through fetchCardChecklist's
+# reconciliation via the cardChecklist.pendingPlayerNames field.
+# Per-test cardNumber prefix ("CD-") keeps multiple checklist tests on
+# the same worker from colliding on the same cardChecklist row.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    timeout: 10000
+- tapOn: "Add Card"
+# Wait for the form to open. "Player name" is the card-name input's
+# placeholder (still rendered visually) and reliably becomes visible after
+# the autoFocused "#" input renders.
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+# The card number input is auto-focused on form open.
+- inputText: "9001"
+# Address inputs by aria-label (via Maestro's `id:` selector, which matches
+# the accessibility-tree identifier). Placeholders overlap ("Player name",
+# "Player(s) — comma separated, optional") and Maestro's text matcher cannot
+# disambiguate them reliably — see NEO-13 root cause.
+- tapOn:
+    id: "Card name"
+- inputText: "Cancel Dialog Test ${TEST_USERNAME}"
+# The Players input is the 4th row of the form — below the fold on the
+# default 1024x629 headless viewport. Scroll anchor uses the visible
+# placeholder; tap target uses the aria-label via `id:`.
+- scrollUntilVisible:
+    element:
+      text: "Player(s) — comma separated, optional"
+    timeout: 5000
+- tapOn:
+    id: "Players"
+- inputText: "CDPlayer-${TEST_USERNAME}"
+# Defensive: confirm the typed player name landed on the form before
+# submitting. Fails fast if input targeting regresses.
+- assertVisible: "CDPlayer-${TEST_USERNAME}"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Cancel Dialog Test ${TEST_USERNAME}"
+    timeout: 10000
+
+# ============================================================
+# TRIGGER THE FETCH AND WAIT FOR THE DIALOG
+# The custom-card preamble guarantees the dialog opens with our unique
+# player. The end-state composite handles "dialog opened" OR "saved"
+# (in case some flake shortcuts the dialog).
+# ============================================================
+
+# After the add-custom-card preamble scrolled DOWN to verify the new row,
+# the Sync button sits at y~17-49 — technically in the viewport but
+# OBSCURED by the sticky page header (z-20). scrollUntilVisible's
+# visibility is DOM-rect intersection, not z-index-aware, so it won't
+# scroll past the obscured button. Force a real scroll UP to "Re-map
+# Base" — a button in the variant-types row well ABOVE the cards
+# section. Centering it puts the cards section (and Sync button)
+# clearly below the header.
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+# Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
+# `text: ".*Refresh"` regex matched a different Refresh element on the
+# page (NEO-13 root cause).
+- tapOn:
+    id: "Sync card checklist"
+- extendedWaitUntil:
+    visible:
+      text: "Confirm New Players & Teams|.*Saved [0-9]+ cards.*"
+    # 60s — fetchCardChecklist scrapes BSC (~30s ceiling) + SL in parallel.
+    # This wait is for a backend marketplace fetch, not a user-perceived
+    # response, so it sits outside the 10s UI-interaction budget.
+    timeout: 60000
+
+# If the dialog did appear (fast path), cancel it. The post-cancel
+# message asserts below cover the "did not open" branch implicitly
+# (in that branch the message is "Saved N cards." not "Fetch cancelled").
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - tapOn: "Cancel (Esc)"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 10000
+
+# ============================================================
+# VERIFY THE BSC/SL CARDS WERE NOT SAVED
+# ============================================================
+
+# Cancel message — set by the onCancel callback in CardChecklist.
+- assertVisible: "Fetch cancelled — no cards saved."
+
+# Our custom card is still there (cancel only discards BSC/SL preview).
+# Scroll to find it — the Re-map Base scroll above pushed it off-screen.
+- scrollUntilVisible:
+    element:
+      text: "Cancel Dialog Test ${TEST_USERNAME}"
+    timeout: 15000
+
+# Fetch/Refresh button still available.
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"

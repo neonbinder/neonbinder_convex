@@ -13,6 +13,24 @@ const NEWINVEN_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/newinven.tpl`;
 const DEALSETS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/dealsets.tpl`;
 const LISTCARDS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/listcards.tpl`;
 
+const SL_FETCH_TIMEOUT_MS = 30_000;
+
+async function slFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(SL_FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(
+        `SportLots request timed out after ${SL_FETCH_TIMEOUT_MS / 1000}s: ${url}`,
+      );
+    }
+    throw err;
+  }
+}
+
 // Map selector levels to SportLots form field names
 const LEVEL_TO_TARGET_SELECT: Record<string, string> = {
   sport: "sprt",
@@ -171,7 +189,7 @@ export const fetchSportLotsSelectorOptions = action({
         formData.set("brd", platformBrand);
       }
 
-      const response = await fetch(NEWINVEN_URL, {
+      const response = await slFetch(NEWINVEN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -274,7 +292,7 @@ async function fetchSetNames(
 
   // POST to dealsets.tpl to get set radio buttons
   const formData = new URLSearchParams(commonFields);
-  const response = await fetch(DEALSETS_URL, {
+  const response = await slFetch(DEALSETS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -331,7 +349,70 @@ async function fetchSetNames(
 }
 
 /**
- * Fetch card checklist from SportLots for a specific set
+ * Tokenize a SportLots card description for known attribute markers.
+ * Returns the tokens to lift onto attributes[], the printRun if present,
+ * and the residual text (description with markers stripped) for use as
+ * cardName.
+ *
+ * SL descriptions are free-form ("Mike Trout LAA RC", "Aaron Judge AU /99");
+ * we conservatively detect only well-known tokens to avoid corrupting
+ * cardName with false positives. Team extraction is intentionally NOT
+ * attempted here — SL's 2-3 letter team abbreviations vary by sport and
+ * BSC supplies the canonical team in the merged record anyway.
+ */
+function tokenizeSlDescription(desc: string): {
+  attributes: string[];
+  printRun?: number;
+  residual: string;
+} {
+  const attributes: string[] = [];
+  let printRun: number | undefined;
+  let residual = desc;
+
+  // /N print run pattern (e.g. "/99", "/150"). Strip from residual.
+  const numMatch = residual.match(/\/(\d{1,5})\b/);
+  if (numMatch) {
+    const n = Number(numMatch[1]);
+    if (Number.isFinite(n)) {
+      printRun = n;
+      attributes.push("NUM");
+    }
+    residual = residual.replace(numMatch[0], "");
+  }
+
+  // Token pattern: case-insensitive whole-word match on known markers.
+  // Order matters — match longer tokens first to avoid AU shadowing AUTO.
+  const tokenMap: Array<[RegExp, string]> = [
+    [/\bAUTO\b/i, "AU"],
+    [/\bAU\b/i, "AU"],
+    [/\bROOKIE\b/i, "RC"],
+    [/\bRC\b/i, "RC"],
+    [/\bRELIC\b/i, "RELIC"],
+    [/\bPATCH\b/i, "RELIC"],
+    [/\bJSY\b/i, "RELIC"],
+    [/\bJERSEY\b/i, "RELIC"],
+    [/\bSP\b/i, "SP"],
+    [/\bSSP\b/i, "SSP"],
+  ];
+  for (const [pattern, token] of tokenMap) {
+    if (pattern.test(residual)) {
+      if (!attributes.includes(token)) attributes.push(token);
+      residual = residual.replace(pattern, "");
+    }
+  }
+
+  residual = residual.replace(/\s+/g, " ").trim();
+  return { attributes, printRun, residual };
+}
+
+/**
+ * Fetch card checklist from SportLots for a specific set.
+ *
+ * Returns rows in the same shape as fetchBscChecklist (most rich fields
+ * left empty since SL's HTML doesn't expose structured per-card metadata).
+ * The reconciler in fetchCardChecklist merges a SL row's attributes into
+ * the BSC row when card numbers match — so even sparse SL data still
+ * cross-validates the BSC scrape.
  */
 export const fetchSportLotsChecklist = action({
   args: {
@@ -346,7 +427,14 @@ export const fetchSportLotsChecklist = action({
         cardNumber: v.string(),
         cardName: v.string(),
         team: v.optional(v.string()),
+        teams: v.optional(v.array(v.string())),
+        players: v.optional(v.array(v.string())),
+        attributes: v.optional(v.array(v.string())),
+        printRun: v.optional(v.number()),
+        autographType: v.optional(v.string()),
+        cardVariation: v.optional(v.string()),
         platformRef: v.optional(v.string()),
+        sportlotsRef: v.optional(v.string()),
       }),
     ),
     message: v.optional(v.string()),
@@ -395,7 +483,7 @@ export const fetchSportLotsChecklist = action({
         start: "1",
       });
 
-      const response = await fetch(LISTCARDS_URL, {
+      const response = await slFetch(LISTCARDS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -429,7 +517,14 @@ export const fetchSportLotsChecklist = action({
         cardNumber: string;
         cardName: string;
         team?: string;
+        teams?: string[];
+        players?: string[];
+        attributes?: string[];
+        printRun?: number;
+        autographType?: string;
+        cardVariation?: string;
         platformRef?: string;
+        sportlotsRef?: string;
       }> = [];
       let match;
 
@@ -439,21 +534,25 @@ export const fetchSportLotsChecklist = action({
 
         if (!cardNumber || !fullDescription) continue;
 
-        // Extract player name from description
-        // Description format often includes the card number prefix, take text after it
-        let cardName = fullDescription;
-        const numberInDesc = fullDescription.indexOf(`#${cardNumber}`);
-        if (numberInDesc !== -1) {
-          cardName = fullDescription.substring(numberInDesc + cardNumber.length + 1).trim();
+        // Strip a leading "#NNN" if the description echoes the card number,
+        // then run the token tokenizer to lift attributes / print run.
+        let working = fullDescription;
+        const echo = working.indexOf(`#${cardNumber}`);
+        if (echo !== -1) {
+          working = working.substring(echo + cardNumber.length + 1).trim();
         }
 
-        // Fallback: if cardName is still the full description, just use it
-        if (!cardName) cardName = fullDescription;
+        const { attributes, printRun, residual } = tokenizeSlDescription(working);
+        const cardName = residual || fullDescription;
 
         cards.push({
           cardNumber,
           cardName,
+          attributes: attributes.length ? attributes : undefined,
+          printRun,
+          autographType: attributes.includes("AU") ? "Unknown" : undefined,
           platformRef: cardNumber,
+          sportlotsRef: cardNumber,
         });
       }
 
@@ -508,7 +607,7 @@ export const testCredentials = action({
 
     try {
       // Validate by fetching a protected page
-      const response = await fetch(NEWINVEN_URL, {
+      const response = await slFetch(NEWINVEN_URL, {
         method: "GET",
         headers: { Cookie: sessionCookie },
       });

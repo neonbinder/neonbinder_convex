@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Set Selector Smoke Test
 # Demoted to regression tier (see PR description on the e2e-ci branch).
 # Writes real marketplace credentials via setup-bsc-credentials /
@@ -9,6 +9,7 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
+  - serial-global
 ---
 - launchApp
 - extendedWaitUntil:
@@ -37,12 +38,18 @@ tags:
 # Verify the Sport selector column is present
 - assertVisible: "Sports"
 
-# Scroll the Sync Sports button into view — Sports list may grow past the fold
-# on accounts with existing data, and Maestro's web driver doesn't auto-scroll
-# to find elements for assertVisible/tapOn.
+# Scroll the Sync Sports button into view — Sports list may grow past the
+# fold on accounts with existing data, and Maestro's web driver doesn't
+# auto-scroll to find elements for assertVisible/tapOn.
+#
+# visibilityPercentage: 50 — Maestro's default 100 fails when an element
+# lands at the viewport bottom edge with even a 1-2 px cutoff (the
+# 1024×629 headless driver hits this routinely on this short page); 50%
+# is plenty for a tappable button that a real user can see.
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
+    visibilityPercentage: 50
     timeout: 10000
 - assertVisible: "Sync Sports"
 - assertVisible: "\\+ Custom"
@@ -58,9 +65,14 @@ tags:
     visible:
       text: ".*Syncing Sport Options|Sync Sports.*"
     timeout: 15000
+# Re-finding "Sync Sports" is the completion signal — the button is hidden
+# while the sync is in flight and reappears below the populated list once
+# all platforms respond. visibilityPercentage: 50 matches the rest of this
+# flow (1-2 px viewport-edge clipping fails the strict default 100).
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
+    visibilityPercentage: 50
     timeout: 60000
 
 # Verify sports were synced from both platforms.
