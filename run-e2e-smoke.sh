@@ -414,23 +414,53 @@ run_flow_on_worker() {
       echo "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
     fi
   } >> "$log_file"
+  # Run with 1 retry on non-timeout failures. The Maestro CDP web driver
+  # has documented intermittent failures ("null cannot be cast to non-null
+  # type kotlin.Int", "Failed to execute JS") that happen between successful
+  # scrollUntilVisible and the immediately-following tap on the same element.
+  # The JVM has also been observed to SIGSEGV/SIGBUS mid-flow. These
+  # infrastructure flakes do not reflect product bugs and almost always
+  # succeed on a second attempt. Retry is bounded to 1 (worst case: 2x
+  # runtime per flow) and is skipped for timeout codes since those usually
+  # mean a slow/hung product path that retry won't help.
   local exit_code=0
-  if [ -n "$TIMEOUT_CMD" ]; then
-    # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
-    # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
-    "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
-  else
-    "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
-  fi
+  local attempt=1
+  local max_attempts="${MAESTRO_FLOW_RETRIES:-2}"
+  while [ "$attempt" -le "$max_attempts" ]; do
+    exit_code=0
+    if [ "$attempt" -gt 1 ]; then
+      echo "↻ [w$worker_index] Retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
+    fi
+    if [ -n "$TIMEOUT_CMD" ]; then
+      # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
+      # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
+      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+    else
+      "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+    fi
+    if [ "$exit_code" -eq 0 ]; then
+      break
+    fi
+    # Don't retry on timeout — usually indicates a slow/hung path that
+    # won't recover, and the runtime cost of a second attempt is high.
+    if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
+      break
+    fi
+    attempt=$((attempt + 1))
+  done
   if [ "$exit_code" -eq 0 ]; then
-    echo "✅ [w$worker_index] Passed: $flow" >> "$log_file"
+    if [ "$attempt" -gt 1 ]; then
+      echo "✅ [w$worker_index] Passed on retry: $flow" >> "$log_file"
+    else
+      echo "✅ [w$worker_index] Passed: $flow" >> "$log_file"
+    fi
     echo "PASS $flow" >> "$results_file"
   elif [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
     # 124 = SIGTERM by timeout; 137 = SIGKILL after grace period.
     echo "⏱  [w$worker_index] TIMEOUT after ${FLOW_TIMEOUT_SEC}s: $flow" >> "$log_file"
     echo "FAIL $flow (timeout)" >> "$results_file"
   else
-    echo "❌ [w$worker_index] Failed: $flow" >> "$log_file"
+    echo "❌ [w$worker_index] Failed after $max_attempts attempts: $flow" >> "$log_file"
     echo "FAIL $flow" >> "$results_file"
   fi
   echo "" >> "$log_file"
