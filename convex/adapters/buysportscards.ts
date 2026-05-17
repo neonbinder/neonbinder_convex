@@ -2,8 +2,8 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { api, internal } from "../_generated/api";
-import { requireAdmin, getCurrentUserId } from "../auth";
+import { api } from "../_generated/api";
+import { requireAdmin } from "../auth";
 
 // Real BSC filter endpoint (ported from cardlister-server/script-frontend/src/listing-sites/bsc.ts).
 // The earlier www.buysportscards.com URL was a webpage path, not an API — CloudFront returned 403.
@@ -425,44 +425,6 @@ export const fetchBscChecklist = action({
         sort: "default",
         filters,
       };
-      // NEO-14 diagnostic: log outbound filter so a 0-card response can be
-      // distinguished between wrong-slug-we-sent vs. BSC-returned-0-to-valid-slug.
-      console.log(
-        `[fetchBscChecklist] POST /search/bulk-upload/results filters=${JSON.stringify(filters)}`,
-      );
-
-      // Capture caller userId once (best-effort; ok if null in some contexts).
-      const callerUserId: string | undefined =
-        (await getCurrentUserId(ctx)) ?? undefined;
-      const startTs = Date.now();
-      // Best-effort persistent log of each BSC fetch attempt. Fire-and-forget;
-      // wrapping in try/catch so a logging failure never breaks the parent
-      // fetch path. Persists to bscFetchLog table so we can inspect post-hoc
-      // (live `convex logs` retention is too short and gets flooded by
-      // Wikidata enrichment events).
-      const persistFetchLog = async (
-        attempt: string,
-        responseStatus: number,
-        cardsReturned: number,
-        bodyPreview: string | undefined,
-      ): Promise<void> => {
-        try {
-          await ctx.runMutation(internal.diagnostics.logBscFetch, {
-            filters: JSON.stringify(filters),
-            responseStatus,
-            cardsReturned,
-            bodyPreview,
-            durationMs: Date.now() - startTs,
-            userId: callerUserId,
-            attempt,
-          });
-        } catch (e) {
-          console.warn(
-            `[fetchBscChecklist] persistFetchLog failed: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-      };
-
       // Wrapped so we can retry once with a fresh token on 401. BSC's API
       // can intermittently 401 with a token our cache still thinks is fresh
       // (BSC's token TTL doesn't always match what they advertise, especially
@@ -478,7 +440,6 @@ export const fetchBscChecklist = action({
 
       let response: Response;
       let activeToken = tokenResult.token;
-      let currentAttempt = "first-attempt";
       try {
         response = await doFetch(activeToken);
       } catch (err) {
@@ -486,7 +447,6 @@ export const fetchBscChecklist = action({
         const msg = isTimeout
           ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
           : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
-        await persistFetchLog(currentAttempt, 0, 0, msg.slice(0, 300));
         return { success: false, cards: [], message: msg };
       }
 
@@ -495,13 +455,7 @@ export const fetchBscChecklist = action({
           `[fetchBscChecklist] BSC API 401 with cached token — forcing re-auth and retrying once`,
         );
         // Drain the failed response body to free the socket before retrying.
-        const firstBody = await response.text().catch(() => "");
-        await persistFetchLog(
-          currentAttempt,
-          response.status,
-          0,
-          firstBody.slice(0, 300),
-        );
+        await response.text().catch(() => "");
         const reAuth = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
           success: boolean;
           message?: string;
@@ -526,7 +480,6 @@ export const fetchBscChecklist = action({
           };
         }
         activeToken = refreshedToken.token;
-        currentAttempt = "retry-after-401";
         try {
           response = await doFetch(activeToken);
         } catch (err) {
@@ -534,22 +487,11 @@ export const fetchBscChecklist = action({
           const msg = isTimeout
             ? `BSC API retry timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
             : `BSC API retry failed: ${err instanceof Error ? err.message : String(err)}`;
-          await persistFetchLog(currentAttempt, 0, 0, msg.slice(0, 300));
           return { success: false, cards: [], message: msg };
         }
       }
 
       if (!response.ok) {
-        const errBody = await response.text().catch(() => "");
-        console.error(
-          `[fetchBscChecklist] BSC API ${response.status}: ${errBody.slice(0, 300)}`,
-        );
-        await persistFetchLog(
-          currentAttempt,
-          response.status,
-          0,
-          errBody.slice(0, 300),
-        );
         return {
           success: false,
           cards: [],
@@ -557,30 +499,7 @@ export const fetchBscChecklist = action({
         };
       }
 
-      // Read body as text first so we can log a preview when the response
-      // is unexpectedly empty/non-array. JSON.parse on text gives us the
-      // same `data` as response.json() would.
-      const rawBody = await response.text();
-      let data: unknown;
-      try {
-        data = JSON.parse(rawBody);
-      } catch (err) {
-        const parseMsg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[fetchBscChecklist] BSC returned non-JSON (status=${response.status}, len=${rawBody.length}, parseErr=${parseMsg}): ${rawBody.slice(0, 300)}`,
-        );
-        await persistFetchLog(
-          currentAttempt,
-          response.status,
-          0,
-          rawBody.slice(0, 300),
-        );
-        return {
-          success: false,
-          cards: [],
-          message: `BSC API returned non-JSON response`,
-        };
-      }
+      const data = await response.json();
       const results = Array.isArray(data) ? data : [];
       const rawCards: Record<string, unknown>[] = [];
       for (const r of results) {
@@ -589,25 +508,7 @@ export const fetchBscChecklist = action({
       }
 
       console.log(
-        `[fetchBscChecklist] returned=${results.length} kept=${rawCards.length} status=${response.status} (bulk-upload catalog)`,
-      );
-      if (results.length === 0) {
-        // NEO-14: surface what BSC actually said when we get zero rows so we
-        // can tell "valid slug, set genuinely empty" from "wrong slug, BSC
-        // returned []" from "auth was soft-rejected, response was an object".
-        console.warn(
-          `[fetchBscChecklist] zero rows — bodyType=${Array.isArray(data) ? "array" : typeof data} bodyPreview=${rawBody.slice(0, 300)}`,
-        );
-      }
-      // Always persist a row: success-with-cards goes in too (so we can
-      // distinguish "BSC was working fine on this run" from "every call
-      // returned 0"). Body preview is only stored on zero/error to avoid
-      // blowing up table size with normal-case payloads.
-      await persistFetchLog(
-        currentAttempt,
-        response.status,
-        rawCards.length,
-        rawCards.length === 0 ? rawBody.slice(0, 300) : undefined,
+        `[fetchBscChecklist] returned=${results.length} kept=${rawCards.length} (bulk-upload catalog)`,
       );
       if (results.length >= MAX_CARDS) {
         console.warn(

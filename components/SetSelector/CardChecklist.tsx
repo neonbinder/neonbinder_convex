@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import posthog from "posthog-js";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
@@ -79,32 +78,11 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
    * cardChecklist rows + new player/team entities.
    */
   const handleSync = async () => {
-    // PR #26 A2 diagnostic: BSC adapter logs 335 cards returned (per
-    // bscFetchLog table), but the UI ends up showing "Saved 0 cards" and
-    // cardChecklist has none of them. Capture what the client actually
-    // received and which branch it took, so we can pinpoint where the
-    // 335 disappear. Remove this telemetry once A2 root-caused.
-    const syncStartedAt = Date.now();
-    posthog.capture("card_checklist_sync_started", { variantId });
     setSyncing(true);
     setSyncMessage(null);
     try {
       const result = await fetchChecklist({ selectorOptionId: variantId });
-      posthog.capture("card_checklist_sync_fetch_returned", {
-        variantId,
-        success: result.success,
-        sport: result.sport ?? null,
-        cardsLength: result.cards?.length ?? 0,
-        unknownPlayersLength: result.unknownPlayers?.length ?? 0,
-        unknownTeamsLength: result.unknownTeams?.length ?? 0,
-        message: result.message ?? null,
-        fetchMs: Date.now() - syncStartedAt,
-      });
       if (!result.success || !result.sport) {
-        posthog.capture("card_checklist_sync_aborted_no_sport", {
-          variantId,
-          message: result.message ?? null,
-        });
         setSyncMessage(result.message);
         return;
       }
@@ -115,28 +93,14 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
         unknownTeams: result.unknownTeams,
       };
       if (preview.unknownPlayers.length === 0 && preview.unknownTeams.length === 0) {
-        posthog.capture("card_checklist_sync_branch_autocommit", {
-          variantId,
-          cardsLength: preview.cards.length,
-        });
         await runCommit(preview, [], []);
         setSyncMessage(`Saved ${result.cards.length} cards.`);
       } else {
-        posthog.capture("card_checklist_sync_branch_dialog", {
-          variantId,
-          cardsLength: preview.cards.length,
-          unknownPlayersLength: preview.unknownPlayers.length,
-          unknownTeamsLength: preview.unknownTeams.length,
-        });
         // Stash preview; dialog handles the rest.
         setPendingPreview(preview);
         setSyncMessage(result.message);
       }
     } catch (error) {
-      posthog.capture("card_checklist_sync_threw", {
-        variantId,
-        error: error instanceof Error ? error.message : String(error),
-      });
       setSyncMessage(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -150,13 +114,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     confirmedPlayers: string[],
     confirmedTeams: string[],
   ) => {
-    posthog.capture("card_checklist_commit_started", {
-      variantId,
-      cardsLength: preview.cards.length,
-      confirmedPlayersLength: confirmedPlayers.length,
-      confirmedTeamsLength: confirmedTeams.length,
-    });
-    const commitStartedAt = Date.now();
     setCommitting(true);
     try {
       const result = await commitChecklist({
@@ -166,25 +123,12 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
         confirmedNewPlayers: confirmedPlayers,
         confirmedNewTeams: confirmedTeams,
       });
-      posthog.capture("card_checklist_commit_returned", {
-        variantId,
-        sentCardsLength: preview.cards.length,
-        returnedCount: result.count,
-        createdPlayersLength: result.createdPlayerIds.length,
-        createdTeamsLength: result.createdTeamIds.length,
-        commitMs: Date.now() - commitStartedAt,
-      });
       const enrichmentNote =
         result.createdPlayerIds.length || result.createdTeamIds.length
           ? ` (${result.createdPlayerIds.length} players + ${result.createdTeamIds.length} teams enriching from Wikidata in background)`
           : "";
       setSyncMessage(`Saved ${result.count} cards.${enrichmentNote}`);
     } catch (error) {
-      posthog.capture("card_checklist_commit_threw", {
-        variantId,
-        sentCardsLength: preview.cards.length,
-        error: error instanceof Error ? error.message : String(error),
-      });
       setSyncMessage(
         `Commit failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       );

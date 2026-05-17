@@ -64,43 +64,6 @@ tags:
 # starting state. Either label drives the same fetchCardChecklist code path.
 - tapOn:
     text: ".*Fetch from Marketplaces.*|Refresh"
-# DIAG-A2: previous CI runs showed `.*Confirm New Players.*|.*Saved [0-9]+.*`
-# matching in ~683ms — too fast for a real BSC fetch. Need to identify WHICH
-# branch matched and WHAT TEXT was on screen at that moment. Three timed
-# snapshots (immediate, ~700ms, ~3s) + non-fatal per-alternative assertions.
-# Each label lands in maestro.log; the screenshots land in debug output.
-# Remove this block once A2 root cause is identified.
-- takeScreenshot: a2-diag-immediate
-- assertVisible:
-    text: "Confirm New Players"
-    optional: true
-    label: "[DIAG-A2] @immediate Confirm dialog visible?"
-- assertVisible:
-    text: ".*Saved [0-9]+ cards.*"
-    optional: true
-    label: "[DIAG-A2] @immediate Saved N cards visible?"
-- waitForAnimationToEnd:
-    timeout: 700
-- takeScreenshot: a2-diag-700ms
-- assertVisible:
-    text: "Confirm New Players"
-    optional: true
-    label: "[DIAG-A2] @700ms Confirm dialog visible?"
-- assertVisible:
-    text: ".*Saved [0-9]+ cards.*"
-    optional: true
-    label: "[DIAG-A2] @700ms Saved N cards visible?"
-- waitForAnimationToEnd:
-    timeout: 2300
-- takeScreenshot: a2-diag-3s
-- assertVisible:
-    text: "Confirm New Players"
-    optional: true
-    label: "[DIAG-A2] @3s Confirm dialog visible?"
-- assertVisible:
-    text: ".*Saved [0-9]+ cards.*"
-    optional: true
-    label: "[DIAG-A2] @3s Saved N cards visible?"
 - extendedWaitUntil:
     visible:
       text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
