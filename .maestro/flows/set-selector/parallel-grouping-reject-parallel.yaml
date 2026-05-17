@@ -5,14 +5,6 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
-  # WIP: The test asserts "No changes yet" appears in the modal footer
-  # after Accept-all-suggestions then Reject one parallel via ✕. Net diff
-  # vs original-state is zero, so footer SHOULD show "No changes yet".
-  # In practice the footer still shows "1 promotion" — either a product
-  # bug in the diff calculation or a test-expectation mismatch.
-  # Failing across all 9+ waves regardless of which SET is used.
-  # Re-enable after debugging the diff logic in ParallelGroupingModal.
-  - wip
 ---
 # Feature test: the ✕ (reject) button on parallel rows inside a "Parallels of X" card.
 #
