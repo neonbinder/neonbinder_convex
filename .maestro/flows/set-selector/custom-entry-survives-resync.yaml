@@ -99,6 +99,23 @@ tags:
     notVisible: "Add Custom Entry"
     timeout: 10000
 
+# Reload /set-selector to reset the page scroll before tapping the
+# Sports column's search input. The earlier `scrollUntilVisible "+ Custom"`
+# left the page scrolled down so the column's header + search input sit
+# behind the sticky `binder-header` (`top-0 z-20`, ~66 px tall). At that
+# scroll position, Maestro resolves the input by aria-label in the DOM
+# (bounds ~y=35-73) but `hierarchyBasedTap` clicks at viewport coords
+# that fall inside the navbar's vertical range — the higher-z navbar
+# eats the click, the input never gains focus, and the subsequent
+# `inputText` keystrokes never reach it. The custom entry was persisted
+# by `pressKey Enter`; reloading rehydrates the column with the new
+# entry already in `items` and the input rendered cleanly below the
+# navbar where Maestro can hit it.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
+
 # Find TestCustomSport-${TEST_USERNAME} via the Sports column's search
 # input. The Sports column has an internal `max-h-[400px] overflow-y-auto`
 # scroll container; with ~20 standard sports + custom entries the new
@@ -146,6 +163,15 @@ tags:
 # ============================================================
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
+
+# Reload /set-selector to reset page scroll before tapping the Sports
+# search input again — the post-sync `scrollUntilVisible "Sync Sports"`
+# left the page scrolled to the bottom of the column, putting the
+# search input behind the sticky navbar (see comment in STEP 1).
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 15000
 
 # Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Same
 # search-input approach as STEP 1.
