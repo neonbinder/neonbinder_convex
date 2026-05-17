@@ -72,7 +72,7 @@ tags:
     visible: "Player name"
     timeout: 5000
 # The card number input is auto-focused on form open.
-- inputText: "9001-${TEST_USERNAME}"
+- inputText: "9001"
 # Address inputs by aria-label (via Maestro's `id:` selector, which matches
 # the accessibility-tree identifier). Placeholders overlap ("Player name",
 # "Player(s) — comma separated, optional") and Maestro's text matcher cannot

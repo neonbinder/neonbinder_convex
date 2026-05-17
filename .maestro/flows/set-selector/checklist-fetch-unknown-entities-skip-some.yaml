@@ -69,7 +69,7 @@ tags:
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
-- inputText: "9003-${TEST_USERNAME}"
+- inputText: "9003"
 # Address inputs by aria-label (via Maestro's `id:` selector, which matches
 # the accessibility-tree identifier). Placeholders overlap ("Player name",
 # "Player(s) — comma separated, optional") and Maestro's text matcher cannot
