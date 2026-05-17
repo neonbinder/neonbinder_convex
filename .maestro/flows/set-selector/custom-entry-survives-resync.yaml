@@ -15,7 +15,6 @@ tags:
   # off-screen); (b) virtualize the column's internal scroll so its
   # contents always fit; (c) replace the controlled input with an
   # uncontrolled or DOM-based filter.
-  - wip
 ---
 # A user adds a custom sport entry, then syncs sports from marketplaces.
 # After the sync completes, the custom entry must still be visible in the list.
