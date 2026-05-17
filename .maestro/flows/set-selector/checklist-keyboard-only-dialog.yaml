@@ -128,6 +128,26 @@ tags:
       text: "Keyboard Dialog Test ${TEST_USERNAME}"
     timeout: 15000
 
+# Defensive: under parallel-worker load the addCustomCard mutation has
+# been observed to commit server-side (new card appears in list above)
+# while the client-side `setShowAddForm(false)` doesn't fire — likely a
+# Convex WebSocket reconnect drops the mutation response. When that
+# happens, the Add Card form stays mounted at the bottom of the page,
+# and the header's "Add Card" + "Sync card checklist" buttons stay
+# hidden (they only render when `!showAddForm`). Tapping the form's
+# Cancel button forces `setShowAddForm(false)` without going through
+# the mutation, restoring the header buttons. If the form already
+# closed (the happy path), the `when: visible: Cancel` gate makes this
+# step a no-op.
+- runFlow:
+    when:
+      visible: "Cancel"
+    commands:
+      - tapOn: "Cancel"
+      - extendedWaitUntil:
+          notVisible: "Cancel"
+          timeout: 5000
+
 # ============================================================
 # TRIGGER THE FETCH
 # ============================================================

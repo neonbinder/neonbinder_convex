@@ -123,9 +123,15 @@ tags:
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
     timeout: 10000
-- extendedWaitUntil:
-    visible: "Stars Red"
-    timeout: 5000
+# After the Variants column accumulates Stars + Stars Gold + Stars Red,
+# the newly added entry can render below the visible fold. Use scroll
+# instead of plain assertVisible so the test doesn't fail when the new
+# row is rendered but off-viewport — the user can still scroll to it.
+- scrollUntilVisible:
+    element:
+      text: "Stars Red"
+    visibilityPercentage: 50
+    timeout: 10000
 
 # ============================================================
 # OPEN MODAL — ACCEPT ALL SUGGESTIONS to move "Stars Gold" under "Stars"
