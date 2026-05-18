@@ -60,6 +60,14 @@ export default function VariantForm({
   const variantTypeValue = ancestorChain?.find(
     (a: { level: string }) => a.level === "variantType",
   )?.value;
+  // Pluralized variantType label ("Insert" → "Inserts") for headings and
+  // the reconciliation modal title. Falls back to "Variants" until the
+  // ancestor chain resolves.
+  const variantsLabel = variantTypeValue
+    ? variantTypeValue.endsWith("s")
+      ? variantTypeValue
+      : `${variantTypeValue}s`
+    : "Variants";
 
   // For Insert/Parallel variantTypes, look up the sibling Base variantType
   // (terminal, no children) so its SL platform mapping can be passed as an
@@ -94,6 +102,9 @@ export default function VariantForm({
           setName: setNameValue,
           variantType: variantTypeValue,
         },
+        ...(baseVariant?.platformData?.sportlotsDisplay
+          ? { baseSlPrefix: baseVariant.platformData.sportlotsDisplay }
+          : {}),
       });
 
       if (!result.success) {
@@ -175,20 +186,29 @@ export default function VariantForm({
   };
 
   useEffect(() => {
-    if (sportValue && yearValue && !triggered.current) {
+    // Gate on baseVariant being loaded (object or null) so the SL Base
+    // prefix can flow into fetchRawOptions on the first call. Without
+    // this, doSync fires before getBaseVariantBySet resolves and
+    // baseSlPrefix arrives empty.
+    if (
+      sportValue &&
+      yearValue &&
+      baseVariant !== undefined &&
+      !triggered.current
+    ) {
       triggered.current = true;
       doSync();
     }
-  }, [sportValue, yearValue]);
+  }, [sportValue, yearValue, baseVariant]);
 
   return (
     <>
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Syncing Variants</h2>
+        <h2 className="text-xl font-semibold mb-4">Syncing {variantsLabel}</h2>
 
         {loading && (
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Fetching variants for {setNameValue || "..."} {variantTypeValue || ""} from all connected platforms...
+            Fetching {variantsLabel.toLowerCase()} for {setNameValue || "..."} from all connected platforms...
           </p>
         )}
 
@@ -235,6 +255,7 @@ export default function VariantForm({
           }}
           onConfirm={handleReconciliationConfirm}
           level="insert"
+          levelLabel={variantsLabel}
           initialData={{
             autoMatched: reconciliationData.autoMatched,
             unmatchedBsc: reconciliationData.unmatchedBsc,
@@ -244,8 +265,8 @@ export default function VariantForm({
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
           extraSlPrefixes={
-            baseVariant?.platformData?.sportlots
-              ? [baseVariant.platformData.sportlots]
+            baseVariant?.platformData?.sportlotsDisplay
+              ? [baseVariant.platformData.sportlotsDisplay]
               : []
           }
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}

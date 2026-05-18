@@ -46,6 +46,7 @@ export const getSelectorOptions = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -151,6 +152,7 @@ export const getBaseVariantBySet = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
+        sportlotsDisplay: v.optional(v.string()),
       }),
     }),
   ),
@@ -185,6 +187,7 @@ export const getSelectorOptionById = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -216,6 +219,7 @@ export const findByLevelAndValue = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -249,6 +253,7 @@ export const getAncestorChain = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.string()),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       metadata: metadataValidator,
     }),
@@ -336,6 +341,7 @@ export const storeSelectorOptions = mutation({
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
           sportlots: v.optional(v.string()),
+          sportlotsDisplay: v.optional(v.string()),
         }),
       }),
     ),
@@ -792,6 +798,7 @@ export const getInsertTreeByVariantType = query({
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
           sportlots: v.optional(v.string()),
+          sportlotsDisplay: v.optional(v.string()),
         }),
         parentId: v.optional(v.id("selectorOptions")),
         children: v.optional(v.array(v.id("selectorOptions"))),
@@ -809,6 +816,7 @@ export const getInsertTreeByVariantType = query({
           platformData: v.object({
             bsc: v.optional(v.union(v.string(), v.array(v.string()))),
             sportlots: v.optional(v.string()),
+            sportlotsDisplay: v.optional(v.string()),
           }),
           parentId: v.optional(v.id("selectorOptions")),
           children: v.optional(v.array(v.id("selectorOptions"))),
@@ -1084,6 +1092,7 @@ export const setVariantTypePlatformData = mutation({
     platformData: v.object({
       bsc: v.optional(v.union(v.string(), v.array(v.string()))),
       sportlots: v.optional(v.string()),
+      sportlotsDisplay: v.optional(v.string()),
     }),
     metadata: v.optional(v.object({
       cardNumberPrefix: v.optional(v.string()),
