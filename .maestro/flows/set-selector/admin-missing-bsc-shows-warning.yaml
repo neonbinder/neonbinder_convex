@@ -1,0 +1,100 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+name: "Set Builder Gate — admin without BSC credentials sees the warning banner"
+tags:
+  - set-selector
+  - regression
+  - isolated:true
+---
+# Verifies the credentials gate on /set-selector:
+#   - Admin user, BSC creds cleared, SL creds saved.
+#   - Navigating to /set-selector renders the MissingCredentialsBanner
+#     instead of the Set Selector UI.
+#   - The "Configure credentials in Profile" link points to /profile.
+#
+# Why isolated:true:
+#   Clearing BSC credentials mutates per-user Secret Manager state. If this
+#   flow ran in parallel with a cascade flow on the same worker, the cascade
+#   would see no BSC creds and break. isolated:true serializes this flow on
+#   the dedicated isolated lane (lane I), which finishes before Phase 2
+#   (cascade) starts — so any cascade flow that lands on this worker sees
+#   credentials restored at the end of this flow.
+#
+# Safety:
+#   The bootstrap (Phase 0) saved both creds. We re-run the idempotent
+#   setup-bsc-credentials helper at the start anyway, so the flow is correct
+#   even if a prior isolated flow on this worker left BSC missing. At the
+#   end we re-save BSC via clear-then-setup (destructive) so the next flow
+#   has guaranteed-fresh creds.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+
+# ============================================================
+# 1. Guarantee both creds exist (idempotent — no-op if already saved)
+# ============================================================
+- runFlow:
+    file: ../profile/setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+
+# ============================================================
+# 2. Clear BSC creds only
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "BuySportsCards Credentials"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 10000
+- tapOn: "Clear Credentials"
+- scrollUntilVisible:
+    element:
+      text: "Yes, Clear"
+    timeout: 15000
+- tapOn: "Yes, Clear"
+- extendedWaitUntil:
+    visible: ".*Credentials cleared.*"
+    timeout: 30000
+
+# ============================================================
+# 3. Visit Set Builder — the gate must fire
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Builder requires marketplace credentials"
+    timeout: 20000
+# The banner body names the missing platform inside a <strong>; Maestro's
+# text matching doesn't span element boundaries reliably, so assert the
+# platform name on its own — the title above already confirms we're on the
+# banner, not the credentialed Set Selector.
+- assertVisible: "BuySportsCards"
+- assertNotVisible: "Set Selector"
+- assertNotVisible: "Sync Sports"
+
+# ============================================================
+# 4. Link target — tapping the CTA lands on /profile
+# ============================================================
+- tapOn:
+    id: "Configure credentials in Profile"
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+
+# ============================================================
+# 5. Cleanup — restore BSC creds so the rest of the suite is unaffected
+# ============================================================
+- runFlow:
+    file: ../profile/clear-then-setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
