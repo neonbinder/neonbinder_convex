@@ -21,12 +21,12 @@ tags:
 #   is sufficient to confirm the cancel logic runs correctly.
 #
 # FRESH-DB REQUIREMENT:
-#   This test requires that the `players` and `teams` tables are EMPTY so that
-#   the UnknownEntitiesDialog opens on first fetch. The DB reset only clears
-#   `selectorOptions` and `cardChecklist` rows — not players/teams. After a
-#   first successful fetch run, entities are persisted and the dialog no longer
-#   opens, causing this test to fail locally. This test is reliable on CI where
-#   each preview deployment starts with an empty Convex database.
+#   This test requires that the `players` and `teams` tables are EMPTY so
+#   that the UnknownEntitiesDialog opens on first fetch. Guaranteed on CI by
+#   the per-PR Convex preview reset (vercel.json buildCommand uses
+#   --preview-create "pr-${PR_NUMBER}"). For local runs against the
+#   persistent dev Convex, manually click "Reset Set Builder Data" in
+#   AdminTools before running this flow.
 
 # ============================================================
 # LAUNCH + SIGN IN
