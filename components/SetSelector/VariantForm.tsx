@@ -244,8 +244,8 @@ export default function VariantForm({
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
           extraSlPrefixes={
-            baseVariant?.platformData?.sportlots
-              ? [baseVariant.platformData.sportlots]
+            baseVariant?.platformData?.sportlotsDisplay
+              ? [baseVariant.platformData.sportlotsDisplay]
               : []
           }
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}

@@ -568,12 +568,15 @@ export default function ReconciliationModal({
   }, [setName, manufacturer, extraSlPrefixes]);
 
   const [slFilter, setSlFilter] = useState<string>("");
+  const [showAllSl, setShowAllSl] = useState<boolean>(false);
 
   const activeSlPrefixes = useMemo(() => {
+    // Typed query wins over the toggle: explicit input is always honored.
     const q = slFilter.trim().toLowerCase();
     if (q) return [q];
+    if (showAllSl) return [];
     return defaultSlPrefixes;
-  }, [slFilter, defaultSlPrefixes]);
+  }, [slFilter, showAllSl, defaultSlPrefixes]);
 
   // Filter unmatched columns by platformValue only. The same display value
   // can legitimately appear across variantTypes ("Inception" exists as both
@@ -860,12 +863,25 @@ export default function ReconciliationModal({
                       value={slFilter}
                       onChange={(e) => setSlFilter(e.target.value)}
                       placeholder={
-                        defaultSlPrefixes.length > 0
+                        showAllSl
+                          ? "Showing all SportLots items"
+                          : defaultSlPrefixes.length > 0
                           ? `Starts with "${defaultSlPrefixes.join('" or "')}"`
                           : "Filter by prefix..."
                       }
-                      className="w-full mb-2 px-2.5 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500"
+                      disabled={showAllSl && slFilter.length === 0}
+                      className="w-full mb-2 px-2.5 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500 disabled:opacity-50"
                     />
+                    <label className="flex items-center gap-2 mb-2 text-xs text-gray-400 select-none cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showAllSl}
+                        onChange={(e) => setShowAllSl(e.target.checked)}
+                        aria-label="Show all SportLots items"
+                        className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-1 focus:ring-purple-400"
+                      />
+                      Show all SportLots items
+                    </label>
                     <div className="space-y-1.5 min-h-[60px]">
                       {filteredUnmatchedSl.map((item) => (
                         <DraggableItem
@@ -886,7 +902,8 @@ export default function ReconciliationModal({
                         </p>
                       )}
                       {state.unmatchedSl.length > 0 &&
-                        filteredUnmatchedSl.length === 0 && (
+                        filteredUnmatchedSl.length === 0 &&
+                        activeSlPrefixes.length > 0 && (
                           <p className="text-xs text-gray-500 italic py-2">
                             No SL items start with{" "}
                             {activeSlPrefixes.map((p, i) => (
