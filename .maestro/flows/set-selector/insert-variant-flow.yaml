@@ -17,10 +17,9 @@ tags:
 # ReconciliationModal appears when BOTH BSC and SL have data for the selected
 # variant type. 2024 Topps Chrome Insert has strong coverage on both platforms.
 #
-# IDEMPOTENCY: On re-runs, Insert variants may already be synced. In that case
-# the test skips the sync step and the ReconciliationModal check, and instead just
-# verifies the Variants column has populated data. This matches real user behavior:
-# a user who has already synced does not need to sync again.
+# Fresh Convex preview per PR (vercel.json buildCommand) guarantees the
+# Variants column starts empty, so the sync + ReconciliationModal path
+# always runs. No re-run/idempotency branch needed.
 #
 # ReconciliationModal heading: "Reconcile Variants" (level="insert" in code)
 # The same modal as Parallel, but scoped to the Insert variant type.
@@ -67,84 +66,72 @@ tags:
     visible: "Variants"
     timeout: 10000
 
-# Only enter the sync verification block if the Variants column is empty.
-# When the column renders empty, EntityColumn auto-fires the sync form
-# (mode flips to "sync" via useEffect) — so "Sync Variants" is never
-# tappable in that state. We just wait for the ReconciliationModal that
-# auto-sync produces instead.
-# If variants are already synced from a previous run, the block is skipped.
-- runFlow:
-    when:
-      visible: "No variants available. Sync from marketplaces to populate."
-    commands:
-      # Auto-sync fires the VariantForm immediately when the column is empty.
-      # The VariantForm fetches both BSC and SL data then opens the
-      # ReconciliationModal. Wait up to 240 seconds — the browser service
-      # makes network calls to both platforms and can be slow on cold sessions.
-      # Local runs have recorded 213s total flow time; 240s provides margin.
-      - extendedWaitUntil:
-          visible: "Reconcile Variants"
-          timeout: 240000
-
-      # ============================================================
-      # VERIFY ReconciliationModal contents
-      # ============================================================
-
-      # The modal heading for Insert type is "Reconcile Variants" (level="insert")
-      - assertVisible: "Reconcile Variants"
-
-      # The subtitle shows matched/unmatched counts — e.g. "25 matched, 22 BSC-only, 2504 SL-only"
-      # Numbers drift as marketplace data changes; assert the structural pattern only.
-      - assertVisible:
-          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
-
-      # The unmatched section header with drag-to-link instruction.
-      # The full rendered text is "Unmatched — drag to link, or drag down to
-      # 'keep as platform-only'" — use regex to match it regardless of the
-      # trailing instruction text (which could change as copy is updated).
-      - scrollUntilVisible:
-          element:
-            text: ".*Unmatched.*"
-          timeout: 10000
-      - assertVisible:
-          text: ".*Unmatched.*"
-
-      # BSC column header in the unmatched section — rendered as "BSC (N)" with a count suffix
-      - assertVisible:
-          text: ".*BSC.*"
-
-      # SportLots column header in the unmatched section — rendered as "SportLots (N of M)" with count suffix
-      - assertVisible:
-          text: ".*SportLots.*"
-
-      # The save button shows the matched count — "Save N matched"
-      - scrollUntilVisible:
-          element:
-            text: ".*Save [0-9]+ matched.*"
-          timeout: 10000
-      - assertVisible:
-          text: ".*Save [0-9]+ matched.*"
-
-      # ============================================================
-      # CANCEL — do not write thousands of variant rows on every CI run
-      # ============================================================
-
-      - scrollUntilVisible:
-          element:
-            text: "Cancel"
-          timeout: 5000
-      - tapOn: "Cancel"
-
-      # Modal closes; we're back at the set selector
-      - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
-          timeout: 10000
+# Auto-sync fires the VariantForm immediately when the column is empty.
+# The VariantForm fetches both BSC and SL data then opens the
+# ReconciliationModal. Wait up to 240 seconds — the browser service
+# makes network calls to both platforms and can be slow on cold sessions.
+# Local runs have recorded 213s total flow time; 240s provides margin.
+- extendedWaitUntil:
+    visible: "Reconcile Variants"
+    timeout: 240000
 
 # ============================================================
-# VERIFY the Variants column is populated (both first-run and re-run)
+# VERIFY ReconciliationModal contents
 # ============================================================
 
-# After either confirming (first run) or skipping (re-run), the Variants
-# column should have at least one entry visible.
+# The modal heading for Insert type is "Reconcile Variants" (level="insert")
+- assertVisible: "Reconcile Variants"
+
+# The subtitle shows matched/unmatched counts — e.g. "25 matched, 22 BSC-only, 2504 SL-only"
+# Numbers drift as marketplace data changes; assert the structural pattern only.
+- assertVisible:
+    text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+
+# The unmatched section header with drag-to-link instruction.
+# The full rendered text is "Unmatched — drag to link, or drag down to
+# 'keep as platform-only'" — use regex to match it regardless of the
+# trailing instruction text (which could change as copy is updated).
+- scrollUntilVisible:
+    element:
+      text: ".*Unmatched.*"
+    timeout: 10000
+- assertVisible:
+    text: ".*Unmatched.*"
+
+# BSC column header in the unmatched section — rendered as "BSC (N)" with a count suffix
+- assertVisible:
+    text: ".*BSC.*"
+
+# SportLots column header in the unmatched section — rendered as "SportLots (N of M)" with count suffix
+- assertVisible:
+    text: ".*SportLots.*"
+
+# The save button shows the matched count — "Save N matched"
+- scrollUntilVisible:
+    element:
+      text: ".*Save [0-9]+ matched.*"
+    timeout: 10000
+- assertVisible:
+    text: ".*Save [0-9]+ matched.*"
+
+# ============================================================
+# CANCEL — do not write thousands of variant rows on every CI run
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Cancel"
+    timeout: 5000
+- tapOn: "Cancel"
+
+# Modal closes; we're back at the set selector
+- extendedWaitUntil:
+    notVisible: "Reconcile Variants"
+    timeout: 10000
+
+# ============================================================
+# VERIFY the Variants column is populated
+# ============================================================
+
 - assertVisible: "Set Selector"
 - assertVisible: "Variants"

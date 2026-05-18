@@ -203,11 +203,11 @@ tags:
 # ============================================================
 # EDIT THE PREFIX FIELD — "Save" button should appear
 # Tap the "Prefix:" label to focus the associated input.
-# Use eraseText to clear any prior value (from a previous test run).
+# Fresh Convex preview per PR (vercel.json buildCommand) guarantees the
+# field starts empty, so no eraseText is needed.
 # ============================================================
 
 - tapOn: "Prefix:"
-- eraseText: 20
 - inputText: "TEST-"
 
 # The Save button only appears when the field has unsaved changes (dirty=true)
