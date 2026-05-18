@@ -1,0 +1,111 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+name: "Set Builder Gate — admin with neither BSC nor SportLots credentials sees the warning banner"
+tags:
+  - set-selector
+  - regression
+  - isolated:true
+---
+# Verifies the credentials gate when both marketplace credentials are missing.
+# The banner must name BOTH platforms in its missing-creds list.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Neon Binder"
+    timeout: 45000
+
+# ============================================================
+# 1. Clear BSC creds
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "BuySportsCards Credentials"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 10000
+- tapOn: "Clear Credentials"
+- scrollUntilVisible:
+    element:
+      text: "Yes, Clear"
+    timeout: 15000
+- tapOn: "Yes, Clear"
+- extendedWaitUntil:
+    visible: ".*Credentials cleared.*"
+    timeout: 30000
+
+# ============================================================
+# 2. Clear SL creds
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "BuySportsCards Credentials"
+    timeout: 20000
+- tapOn: "Sportlots"
+- scrollUntilVisible:
+    element:
+      text: ".*Sportlots Credentials.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Clear Credentials"
+    timeout: 10000
+- tapOn: "Clear Credentials"
+- scrollUntilVisible:
+    element:
+      text: "Yes, Clear"
+    timeout: 15000
+- tapOn: "Yes, Clear"
+- extendedWaitUntil:
+    visible: ".*Credentials cleared.*"
+    timeout: 30000
+
+# ============================================================
+# 3. Visit Set Builder — gate fires with both platforms named
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Builder requires marketplace credentials"
+    timeout: 20000
+# Both platforms named inside a single <strong>; this regex stays in one
+# element so Maestro's text matcher sees the whole run.
+- assertVisible: ".*BuySportsCards and SportLots.*"
+- assertNotVisible: "Set Selector"
+- assertNotVisible: "Sync Sports"
+
+# ============================================================
+# 4. Link works
+# ============================================================
+- tapOn:
+    id: "Configure credentials in Profile"
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+
+# ============================================================
+# 5. Cleanup — restore BOTH creds (destructive variants used so we re-auth
+#    even if a residual flag is somehow still set)
+# ============================================================
+- runFlow:
+    file: ../profile/clear-then-setup-bsc-credentials.yaml
+    env:
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 20000
+- runFlow:
+    file: ../profile/clear-then-setup-sportlots-credentials.yaml
+    env:
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
