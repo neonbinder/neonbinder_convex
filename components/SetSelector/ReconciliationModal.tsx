@@ -176,6 +176,10 @@ type ReconciliationModalProps = {
   onClose: () => void;
   onConfirm: (result: ReconciledResult) => Promise<void>;
   level: string;
+  // Optional override for the heading label. When provided, replaces the
+  // default level-derived noun (e.g. caller passes "Inserts" to display
+  // "Reconcile Inserts" instead of the generic "Reconcile Variants").
+  levelLabel?: string;
   initialData: {
     autoMatched: MatchedPair[];
     unmatchedBsc: PlatformItem[];
@@ -201,6 +205,50 @@ type ReconciliationModalProps = {
 };
 
 // ===== DRAGGABLE ITEM =====
+
+// Text input with an inline "×" clear button that appears once the user
+// has typed. Clicking it (or pressing Enter on it via keyboard) clears the
+// value and returns focus to the input. Used for both BSC and SL filters.
+function FilterInput({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const clear = () => {
+    onChange("");
+    inputRef.current?.focus();
+  };
+  return (
+    <div className="relative mb-2">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        className="w-full pl-2.5 pr-7 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500"
+      />
+      {value.length > 0 && (
+        <button
+          type="button"
+          onClick={clear}
+          aria-label={`Clear ${ariaLabel.toLowerCase()}`}
+          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:text-gray-100 hover:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-[#00B7FF]"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 function DraggableItem({
   id,
@@ -447,6 +495,7 @@ export default function ReconciliationModal({
   onClose,
   onConfirm,
   level,
+  levelLabel: levelLabelProp,
   initialData,
   showMetadata = false,
   setName = "",
@@ -569,14 +618,18 @@ export default function ReconciliationModal({
 
   const [slFilter, setSlFilter] = useState<string>("");
   const [showAllSl, setShowAllSl] = useState<boolean>(false);
+  const [bscFilter, setBscFilter] = useState<string>("");
 
+  // The "Show all" toggle controls the SL prefix filter only. The typed
+  // query is applied as a secondary contains-search on top of whatever
+  // the prefix filter selects (mirroring how the BSC filter works).
   const activeSlPrefixes = useMemo(() => {
-    // Typed query wins over the toggle: explicit input is always honored.
-    const q = slFilter.trim().toLowerCase();
-    if (q) return [q];
     if (showAllSl) return [];
     return defaultSlPrefixes;
-  }, [slFilter, showAllSl, defaultSlPrefixes]);
+  }, [showAllSl, defaultSlPrefixes]);
+
+  const slQuery = useMemo(() => slFilter.trim().toLowerCase(), [slFilter]);
+  const bscQuery = useMemo(() => bscFilter.trim().toLowerCase(), [bscFilter]);
 
   // Filter unmatched columns by platformValue only. The same display value
   // can legitimately appear across variantTypes ("Inception" exists as both
@@ -586,18 +639,27 @@ export default function ReconciliationModal({
   const filteredUnmatchedSl = useMemo(() => {
     return state.unmatchedSl.filter((item) => {
       if (usedSlSet.has(item.platformValue)) return false;
-      if (activeSlPrefixes.length === 0) return true;
       const v = item.value.toLowerCase();
-      return activeSlPrefixes.some((p) => v.startsWith(p));
+      // Prefix filter (skipped when "Show all" is checked).
+      if (
+        activeSlPrefixes.length > 0 &&
+        !activeSlPrefixes.some((p) => v.startsWith(p))
+      ) {
+        return false;
+      }
+      // Substring search within the prefix-filtered list.
+      if (slQuery && !v.includes(slQuery)) return false;
+      return true;
     });
-  }, [state.unmatchedSl, activeSlPrefixes, usedSlSet]);
+  }, [state.unmatchedSl, activeSlPrefixes, slQuery, usedSlSet]);
 
   const filteredUnmatchedBsc = useMemo(() => {
     return state.unmatchedBsc.filter((item) => {
       if (usedBscSet.has(item.platformValue)) return false;
-      return true;
+      if (!bscQuery) return true;
+      return item.value.toLowerCase().includes(bscQuery);
     });
-  }, [state.unmatchedBsc, usedBscSet]);
+  }, [state.unmatchedBsc, usedBscSet, bscQuery]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -738,11 +800,12 @@ export default function ReconciliationModal({
   if (!isOpen) return null;
 
   const levelLabel =
-    level === "insert"
+    levelLabelProp ??
+    (level === "insert"
       ? "Variants"
       : level === "parallel"
         ? "Variants of Variants"
-        : level;
+        : level);
 
   const keptCount = state.keptBsc.length + state.keptSl.length;
   const saveCount = state.matched.length + keptCount;
@@ -821,13 +884,24 @@ export default function ReconciliationModal({
                 <div className="grid grid-cols-2 gap-4">
                   {/* BSC column */}
                   <div>
-                    <div className="text-xs text-blue-400 font-medium mb-2 uppercase tracking-wide">
-                      BSC ({filteredUnmatchedBsc.length}
-                      {filteredUnmatchedBsc.length !== state.unmatchedBsc.length
-                        ? ` of ${state.unmatchedBsc.length}`
-                        : ""}
-                      )
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs text-blue-400 font-medium uppercase tracking-wide">
+                        BSC ({filteredUnmatchedBsc.length}
+                        {filteredUnmatchedBsc.length !== state.unmatchedBsc.length
+                          ? ` of ${state.unmatchedBsc.length}`
+                          : ""}
+                        )
+                      </div>
                     </div>
+                    <FilterInput
+                      value={bscFilter}
+                      onChange={setBscFilter}
+                      placeholder="Filter BSC items..."
+                      ariaLabel="Filter BSC items"
+                    />
+                    {/* Spacer matches the SL column's "Show all" checkbox row
+                        so both list tops line up. */}
+                    <div className="mb-2 h-[18px]" aria-hidden="true" />
                     <div className="space-y-1.5 min-h-[60px]">
                       {filteredUnmatchedBsc.map((item) => (
                         <DraggableItem
@@ -844,6 +918,13 @@ export default function ReconciliationModal({
                           All BSC items matched
                         </p>
                       )}
+                      {state.unmatchedBsc.length > 0 &&
+                        filteredUnmatchedBsc.length === 0 &&
+                        bscQuery && (
+                          <p className="text-xs text-gray-500 italic py-2">
+                            No BSC items contain "{bscQuery}"
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -858,19 +939,11 @@ export default function ReconciliationModal({
                         )
                       </div>
                     </div>
-                    <input
-                      type="text"
+                    <FilterInput
                       value={slFilter}
-                      onChange={(e) => setSlFilter(e.target.value)}
-                      placeholder={
-                        showAllSl
-                          ? "Showing all SportLots items"
-                          : defaultSlPrefixes.length > 0
-                          ? `Starts with "${defaultSlPrefixes.join('" or "')}"`
-                          : "Filter by prefix..."
-                      }
-                      disabled={showAllSl && slFilter.length === 0}
-                      className="w-full mb-2 px-2.5 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500 disabled:opacity-50"
+                      onChange={setSlFilter}
+                      placeholder="Search SportLots items..."
+                      ariaLabel="Search SportLots items"
                     />
                     <label className="flex items-center gap-2 mb-2 text-xs text-gray-400 select-none cursor-pointer">
                       <input
@@ -903,17 +976,26 @@ export default function ReconciliationModal({
                       )}
                       {state.unmatchedSl.length > 0 &&
                         filteredUnmatchedSl.length === 0 &&
-                        activeSlPrefixes.length > 0 && (
+                        (slQuery ? (
                           <p className="text-xs text-gray-500 italic py-2">
-                            No SL items start with{" "}
-                            {activeSlPrefixes.map((p, i) => (
-                              <span key={p}>
-                                {i > 0 ? " or " : ""}
-                                "{p}"
-                              </span>
-                            ))}
+                            No SL items contain "{slQuery}"
+                            {activeSlPrefixes.length > 0
+                              ? " in the filtered list"
+                              : ""}
                           </p>
-                        )}
+                        ) : (
+                          activeSlPrefixes.length > 0 && (
+                            <p className="text-xs text-gray-500 italic py-2">
+                              No SL items start with{" "}
+                              {activeSlPrefixes.map((p, i) => (
+                                <span key={p}>
+                                  {i > 0 ? " or " : ""}
+                                  "{p}"
+                                </span>
+                              ))}
+                            </p>
+                          )
+                        ))}
                     </div>
                   </div>
                 </div>
