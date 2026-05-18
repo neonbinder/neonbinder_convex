@@ -54,6 +54,7 @@
     "react-virtuoso": "^4.18.7"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/vite": "^4",
     "@types/node": "^20",
@@ -62,6 +63,7 @@
     "@vercel/node": "^5.7.10",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.0.0",
+    "convex-test": "^0.0.53",
     "dotenv": "^16.6.1",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
@@ -72,6 +74,7 @@
     "tailwindcss": "^4.1.11",
     "typescript": "^5",
     "vite": "^6.0.0",
-    "vite-plugin-mkcert": "^2.0.0"
+    "vite-plugin-mkcert": "^2.0.0",
+    "vitest": "^4.1.6"
   }
 }

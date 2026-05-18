@@ -26,6 +26,7 @@ import CardChecklist from "../SetSelector/CardChecklist";
 import BaseMappingForm from "../SetSelector/BaseMappingForm";
 import VariantMetadataEditor from "../SetSelector/VariantMetadataEditor";
 import ParallelGroupingModal from "../SetSelector/ParallelGroupingModal";
+import MultiSourcePanel from "../SetSelector/MultiSourcePanel";
 import NeonButton from "./NeonButton";
 
 export default function SetSelector() {
@@ -348,6 +349,11 @@ export default function SetSelector() {
           )}
         </>
       )}
+
+      {/* NEO-6: multi-source attach panel for the active variant row.
+          Renders for variantType (when Base/terminal), insert, and
+          parallel rows once they have a reconciliation primary mapped. */}
+      {cardChecklistId && <MultiSourcePanel selectorOptionId={cardChecklistId} />}
 
       {/* Cards — full width below the selector row. `cardChecklistId`
           stays stable across transient query refetches because the

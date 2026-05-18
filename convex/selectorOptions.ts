@@ -45,7 +45,7 @@ export const getSelectorOptions = query({
       value: v.string(),
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-        sportlots: v.optional(v.string()),
+        sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -150,7 +150,7 @@ export const getBaseVariantBySet = query({
       value: v.string(),
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-        sportlots: v.optional(v.string()),
+        sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
       }),
     }),
   ),
@@ -184,7 +184,7 @@ export const getSelectorOptionById = query({
       value: v.string(),
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-        sportlots: v.optional(v.string()),
+        sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -215,7 +215,7 @@ export const findByLevelAndValue = query({
       value: v.string(),
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-        sportlots: v.optional(v.string()),
+        sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -248,7 +248,7 @@ export const getAncestorChain = query({
       value: v.string(),
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-        sportlots: v.optional(v.string()),
+        sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
       }),
       metadata: metadataValidator,
     }),
@@ -307,6 +307,10 @@ export const getCardChecklist = query({
         bsc: v.optional(v.string()),
         sportlots: v.optional(v.string()),
       }),
+      sourcePlatformIds: v.optional(v.object({
+        bsc: v.optional(v.string()),
+        sportlots: v.optional(v.string()),
+      })),
       isCustom: v.optional(v.boolean()),
       pendingPlayerNames: v.optional(v.array(v.string())),
       pendingTeamNames: v.optional(v.array(v.string())),
@@ -335,7 +339,7 @@ export const storeSelectorOptions = mutation({
         value: v.string(),
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-          sportlots: v.optional(v.string()),
+          sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         }),
       }),
     ),
@@ -381,7 +385,7 @@ export const storeSelectorOptions = mutation({
     const warnIfIncomplete = (
       rowId: Id<"selectorOptions"> | "new",
       value: string,
-      pd: { bsc?: string | string[]; sportlots?: string },
+      pd: { bsc?: string | string[]; sportlots?: string | string[] },
     ) => {
       if (!BSC_REQUIRED_LEVELS.has(level)) return;
       if (pd.bsc) return;
@@ -508,6 +512,247 @@ export const addCustomSelectorOption = mutation({
     }
 
     return id;
+  },
+});
+
+// ===== NEO-6 phase 1: multi-source attachment =====
+//
+// A canonical NeonBinder variant (variantType / insert / parallel row) can
+// map to multiple BSC and/or SL set IDs. The reconciliation primary is
+// recorded in `primaryPlatformId`; operator-attached extras live alongside
+// it in `platformData.<side>` (as an array) with human-readable labels in
+// `platformLabels.<side>`. The mutations below are the only path operators
+// use to attach / detach / rename extras — they patch a single row, and
+// they refuse to touch the primary (which is owned by reconciliation).
+
+const platformSideValidator = v.union(
+  v.literal("bsc"),
+  v.literal("sportlots"),
+);
+
+// Normalize platformData side to an array. Mirrors the helper in
+// setReconciliation.ts but kept local to avoid a cross-file import.
+function pdSideToArray(v: string | string[] | undefined): string[] {
+  if (v === undefined) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+function packPdSide(ids: string[]): string | string[] | undefined {
+  if (ids.length === 0) return undefined;
+  if (ids.length === 1) return ids[0];
+  return ids;
+}
+
+/**
+ * Attach one or more BSC/SL set IDs to an existing canonical row, with
+ * editable human labels. Skips IDs already attached (including the
+ * primary). Only valid on variant levels (variantType / insert / parallel).
+ */
+export const attachPlatformIds = mutation({
+  args: {
+    selectorOptionId: v.id("selectorOptions"),
+    additions: v.object({
+      bsc: v.optional(
+        v.array(v.object({ id: v.string(), label: v.string() })),
+      ),
+      sportlots: v.optional(
+        v.array(v.object({ id: v.string(), label: v.string() })),
+      ),
+    }),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    attachedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.get(args.selectorOptionId);
+    if (!row) {
+      throw new Error(
+        `selectorOptions row not found: ${args.selectorOptionId}`,
+      );
+    }
+    if (
+      row.level !== "variantType" &&
+      row.level !== "insert" &&
+      row.level !== "parallel"
+    ) {
+      throw new Error(
+        `attachPlatformIds only valid on variantType/insert/parallel rows (got level=${row.level})`,
+      );
+    }
+
+    const mergedPD: { bsc?: string | string[]; sportlots?: string | string[] } = {
+      bsc: row.platformData.bsc,
+      sportlots: row.platformData.sportlots,
+    };
+    const mergedLabels: {
+      bsc?: Record<string, string>;
+      sportlots?: Record<string, string>;
+    } = {
+      bsc: { ...(row.platformLabels?.bsc ?? {}) },
+      sportlots: { ...(row.platformLabels?.sportlots ?? {}) },
+    };
+
+    let attached = 0;
+    for (const side of ["bsc", "sportlots"] as const) {
+      const additions = args.additions[side] ?? [];
+      if (additions.length === 0) continue;
+      const current = pdSideToArray(mergedPD[side]);
+      const currentSet = new Set(current);
+      for (const { id, label } of additions) {
+        if (!id) continue;
+        if (!currentSet.has(id)) {
+          current.push(id);
+          currentSet.add(id);
+          attached += 1;
+        }
+        // Label overwrites are intentional — operator may re-attach with a
+        // cleaner label and expect it to stick.
+        mergedLabels[side]![id] = label;
+      }
+      mergedPD[side] = packPdSide(current);
+    }
+
+    // Strip empty label objects so we don't write `{ bsc: {} }`.
+    const labelsPatch: {
+      bsc?: Record<string, string>;
+      sportlots?: Record<string, string>;
+    } = {};
+    if (Object.keys(mergedLabels.bsc ?? {}).length > 0) {
+      labelsPatch.bsc = mergedLabels.bsc;
+    }
+    if (Object.keys(mergedLabels.sportlots ?? {}).length > 0) {
+      labelsPatch.sportlots = mergedLabels.sportlots;
+    }
+
+    await ctx.db.patch(row._id, {
+      platformData: mergedPD,
+      platformLabels:
+        Object.keys(labelsPatch).length > 0 ? labelsPatch : undefined,
+      lastUpdated: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: `Attached ${attached} new platform ID(s)`,
+      attachedCount: attached,
+    };
+  },
+});
+
+/**
+ * Detach a single non-primary platform ID. Refuses to detach the
+ * reconciliation primary (operator must re-run set reconciliation to
+ * change that). Removes the associated label entry as well.
+ */
+export const detachPlatformId = mutation({
+  args: {
+    selectorOptionId: v.id("selectorOptions"),
+    side: platformSideValidator,
+    id: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.get(args.selectorOptionId);
+    if (!row) {
+      throw new Error(
+        `selectorOptions row not found: ${args.selectorOptionId}`,
+      );
+    }
+    const current = pdSideToArray(row.platformData[args.side]);
+    const primary =
+      row.primaryPlatformId?.[args.side] ?? current[0];
+    if (args.id === primary) {
+      throw new Error(
+        `Refusing to detach the reconciliation primary (${args.side}=${args.id}). ` +
+          `Re-run set reconciliation to change the primary.`,
+      );
+    }
+    if (!current.includes(args.id)) {
+      return { success: true, message: "Nothing to detach (id not attached)" };
+    }
+    const remaining = current.filter((x) => x !== args.id);
+    const newLabels = { ...(row.platformLabels?.[args.side] ?? {}) };
+    delete newLabels[args.id];
+
+    const labelsPatch: {
+      bsc?: Record<string, string>;
+      sportlots?: Record<string, string>;
+    } = { ...(row.platformLabels ?? {}) };
+    if (Object.keys(newLabels).length > 0) {
+      labelsPatch[args.side] = newLabels;
+    } else {
+      delete labelsPatch[args.side];
+    }
+
+    await ctx.db.patch(row._id, {
+      platformData: {
+        ...row.platformData,
+        [args.side]: packPdSide(remaining),
+      },
+      platformLabels:
+        Object.keys(labelsPatch).length > 0 ? labelsPatch : undefined,
+      lastUpdated: Date.now(),
+    });
+    return { success: true, message: "Detached" };
+  },
+});
+
+/**
+ * Rename a platformLabels entry. Works for primary OR extras — the label
+ * is presentation-only, so renaming the primary's label is harmless.
+ */
+export const renamePlatformLabel = mutation({
+  args: {
+    selectorOptionId: v.id("selectorOptions"),
+    side: platformSideValidator,
+    id: v.string(),
+    label: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.get(args.selectorOptionId);
+    if (!row) {
+      throw new Error(
+        `selectorOptions row not found: ${args.selectorOptionId}`,
+      );
+    }
+    const attached = pdSideToArray(row.platformData[args.side]);
+    if (!attached.includes(args.id)) {
+      throw new Error(
+        `Cannot rename label for unattached id (${args.side}=${args.id})`,
+      );
+    }
+    const trimmed = args.label.trim();
+    if (!trimmed) {
+      throw new Error("Label cannot be empty");
+    }
+
+    const sideLabels = {
+      ...(row.platformLabels?.[args.side] ?? {}),
+      [args.id]: trimmed,
+    };
+    const labelsPatch: {
+      bsc?: Record<string, string>;
+      sportlots?: Record<string, string>;
+    } = { ...(row.platformLabels ?? {}) };
+    labelsPatch[args.side] = sideLabels;
+
+    await ctx.db.patch(row._id, {
+      platformLabels: labelsPatch,
+      lastUpdated: Date.now(),
+    });
+    return { success: true, message: "Renamed" };
   },
 });
 
@@ -791,7 +1036,7 @@ export const getInsertTreeByVariantType = query({
         value: v.string(),
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-          sportlots: v.optional(v.string()),
+          sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         }),
         parentId: v.optional(v.id("selectorOptions")),
         children: v.optional(v.array(v.id("selectorOptions"))),
@@ -808,7 +1053,7 @@ export const getInsertTreeByVariantType = query({
           value: v.string(),
           platformData: v.object({
             bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-            sportlots: v.optional(v.string()),
+            sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
           }),
           parentId: v.optional(v.id("selectorOptions")),
           children: v.optional(v.array(v.id("selectorOptions"))),
@@ -1083,7 +1328,7 @@ export const setVariantTypePlatformData = mutation({
     variantTypeId: v.id("selectorOptions"),
     platformData: v.object({
       bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-      sportlots: v.optional(v.string()),
+      sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
     }),
     metadata: v.optional(v.object({
       cardNumberPrefix: v.optional(v.string()),
@@ -1963,6 +2208,9 @@ interface ReconciledCard {
   autographType?: string;
   cardVariation?: string;
   platformData: { bsc?: string; sportlots?: string };
+  // NEO-6: per-card source set IDs when the variant has multiple attached.
+  // Drives the "Series 1 / Series 2" filter and the per-card source badge.
+  sourcePlatformIds?: { bsc?: string; sportlots?: string };
   /**
    * Reconciliation marker for cards that landed on only one side. UI
    * surfaces these as needing human review; reconciled cards (from both
@@ -1987,6 +2235,14 @@ const previewCardValidator = v.object({
     bsc: v.optional(v.string()),
     sportlots: v.optional(v.string()),
   }),
+  // NEO-6: source set IDs per side (only populated when variant has
+  // multiple attached IDs on that side).
+  sourcePlatformIds: v.optional(
+    v.object({
+      bsc: v.optional(v.string()),
+      sportlots: v.optional(v.string()),
+    }),
+  ),
   unmatched: v.optional(v.union(v.literal("bsc"), v.literal("sl"))),
 });
 
@@ -2036,6 +2292,7 @@ export const fetchCardChecklist = action({
       autographType?: string;
       cardVariation?: string;
       platformData: { bsc?: string; sportlots?: string };
+      sourcePlatformIds?: { bsc?: string; sportlots?: string };
       unmatched?: "bsc" | "sl";
     }>;
     unknownPlayers: string[];
@@ -2049,7 +2306,9 @@ export const fetchCardChecklist = action({
       );
 
       const filters: Record<string, string> = {};
-      const slPlatformFilters: Record<string, string> = {};
+      // NEO-6: both sides may now be arrays at any level. We keep the
+      // arrays here and fan out / pass through downstream.
+      const slPlatformFilters: Record<string, string[]> = {};
       const bscPlatformFilters: Record<string, string[]> = {};
       let sport: string | undefined;
       let cardNumberPrefix: string | undefined;
@@ -2061,7 +2320,8 @@ export const fetchCardChecklist = action({
           cardNumberPrefix = ancestor.metadata.cardNumberPrefix;
         }
         if (ancestor.platformData?.sportlots) {
-          slPlatformFilters[ancestor.level] = ancestor.platformData.sportlots;
+          const slVal = ancestor.platformData.sportlots;
+          slPlatformFilters[ancestor.level] = Array.isArray(slVal) ? slVal : [slVal];
         }
         if (ancestor.platformData?.bsc) {
           const bscVal = ancestor.platformData.bsc;
@@ -2121,24 +2381,12 @@ export const fetchCardChecklist = action({
         `filters:`, filters,
       );
 
-      const [slResult, bscResult] = await Promise.all([
-        ctx.runAction(api.adapters.sportlots.fetchSportLotsChecklist, {
-          parentFilters: filters,
-          platformFilters: slPlatformFilters,
-        }).catch((err) => {
-          console.error(`[fetchCardChecklist] SportLots error:`, err);
-          return { success: false, cards: [] as any[], message: String(err) };
-        }),
-        ctx.runAction(api.adapters.buysportscards.fetchBscChecklist, {
-          parentFilters: filters,
-          platformFilters: bscPlatformFilters,
-        }).catch((err) => {
-          console.error(`[fetchCardChecklist] BSC error:`, err);
-          return { success: false, cards: [] as any[], message: String(err) };
-        }),
-      ]);
-
-      const slCards = (slResult.success ? slResult.cards : []) as Array<{
+      // NEO-6: SL adapter takes one set ID at a time. When the active
+      // SL level has multiple attached IDs (operator-attached extras),
+      // fan out one call per ID and tag each returned card with its
+      // source set ID. Dedup by cardNumber across the merged result —
+      // first source wins, conflicts are logged.
+      type SlCard = {
         cardNumber: string;
         cardName: string;
         team?: string;
@@ -2150,8 +2398,118 @@ export const fetchCardChecklist = action({
         cardVariation?: string;
         platformRef?: string;
         sportlotsRef?: string;
+        sourceSlSetId?: string;
+      };
+
+      // Find which level (if any) has multiple attached SL IDs. Phase 1
+      // expects this only at variantType/insert/parallel rows; warn if it
+      // appears elsewhere so we notice unexpected data shape.
+      const slFanOut: { level: string; ids: string[] } | null = (() => {
+        for (const [lvl, ids] of Object.entries(slPlatformFilters)) {
+          if (ids.length > 1) {
+            if (!["variantType", "insert", "parallel"].includes(lvl)) {
+              console.warn(
+                `[fetchCardChecklist] unexpected multi-SL at level=${lvl} (phase-1 expects variant levels only)`,
+              );
+            }
+            return { level: lvl, ids };
+          }
+        }
+        return null;
+      })();
+
+      const callSl = async (
+        perCallFilters: Record<string, string>,
+        sourceId: string | undefined,
+      ): Promise<SlCard[]> => {
+        const result = await ctx.runAction(
+          api.adapters.sportlots.fetchSportLotsChecklist,
+          {
+            parentFilters: filters,
+            platformFilters: perCallFilters,
+          },
+        ).catch((err) => {
+          console.error(`[fetchCardChecklist] SportLots error:`, err);
+          return { success: false, cards: [] as SlCard[], message: String(err) };
+        });
+        if (!result.success) return [];
+        return (result.cards as SlCard[]).map((c) => ({
+          ...c,
+          sourceSlSetId: sourceId,
+        }));
+      };
+
+      const slCardsRaw: SlCard[] = await (async () => {
+        // Adapter signature is record<string,string>; flatten single-ID
+        // entries down to scalars. Multi-ID entries are handled by fanning
+        // out one call per ID at the fan-out level.
+        const singletonFilters: Record<string, string> = {};
+        for (const [lvl, ids] of Object.entries(slPlatformFilters)) {
+          if (ids.length === 1) singletonFilters[lvl] = ids[0];
+        }
+        if (!slFanOut) {
+          // No fan-out needed; single call (still tag source id when
+          // exactly one SL set is attached at a variant level).
+          const variantSlIds = ["variantType", "insert", "parallel"]
+            .map((lvl) => slPlatformFilters[lvl]?.[0])
+            .filter(Boolean) as string[];
+          const sourceId =
+            variantSlIds.length > 0 ? variantSlIds[variantSlIds.length - 1] : undefined;
+          return await callSl(singletonFilters, sourceId);
+        }
+        // Multi-ID fan-out: one call per ID at the fan-out level.
+        const perIdResults = await Promise.all(
+          slFanOut.ids.map((slId) => {
+            const perCall = { ...singletonFilters, [slFanOut.level]: slId };
+            return callSl(perCall, slId);
+          }),
+        );
+        // Dedup by cardNumber — first occurrence wins.
+        const dedup = new Map<string, SlCard>();
+        for (const cards of perIdResults) {
+          for (const c of cards) {
+            const existing = dedup.get(c.cardNumber);
+            if (!existing) {
+              dedup.set(c.cardNumber, c);
+            } else if (existing.sourceSlSetId !== c.sourceSlSetId) {
+              console.warn(
+                `[fetchCardChecklist] SL cardNumber collision: ${c.cardNumber} ` +
+                  `keptSource=${existing.sourceSlSetId} skippedSource=${c.sourceSlSetId}`,
+              );
+            }
+          }
+        }
+        return Array.from(dedup.values());
+      })();
+
+      // BSC's bulk-upload API accepts multi-value facets in one call and
+      // tags each card with its source set slug — no fan-out needed.
+      const bscResult = await ctx.runAction(
+        api.adapters.buysportscards.fetchBscChecklist,
+        {
+          parentFilters: filters,
+          platformFilters: bscPlatformFilters,
+        },
+      ).catch((err) => {
+        console.error(`[fetchCardChecklist] BSC error:`, err);
+        return { success: false, cards: [] as any[], message: String(err) };
+      });
+
+      const slCards = slCardsRaw;
+      const bscCards = (bscResult.success ? bscResult.cards : []) as Array<{
+        cardNumber: string;
+        cardName: string;
+        team?: string;
+        teams?: string[];
+        players?: string[];
+        attributes?: string[];
+        printRun?: number;
+        autographType?: string;
+        cardVariation?: string;
+        platformRef?: string;
+        sportlotsRef?: string;
+        sourceBscSetSlug?: string;
       }>;
-      const bscCards = (bscResult.success ? bscResult.cards : []) as typeof slCards;
 
       // Index SL by both cardNumber and (after prefix-strip) for prefix-aware
       // BSC matching, AND by sportlotsRef so BSC's built-in cross-reference
@@ -2204,6 +2562,14 @@ export const fetchCardChecklist = action({
         const players = bsc.players ?? (sl?.players ?? undefined);
         const teamsArr = bsc.teams ?? (sl?.teams ?? undefined);
 
+        const sourcePlatformIds =
+          bsc.sourceBscSetSlug || sl?.sourceSlSetId
+            ? {
+                bsc: bsc.sourceBscSetSlug,
+                sportlots: sl?.sourceSlSetId,
+              }
+            : undefined;
+
         out.push({
           cardNumber: bsc.cardNumber,
           cardName: bsc.cardName || sl?.cardName || `Card #${bsc.cardNumber}`,
@@ -2220,6 +2586,7 @@ export const fetchCardChecklist = action({
             bsc: bsc.platformRef,
             sportlots: sl?.platformRef,
           },
+          sourcePlatformIds,
         });
       }
 
@@ -2240,6 +2607,9 @@ export const fetchCardChecklist = action({
           printRun: sl.printRun,
           autographType: sl.autographType,
           platformData: { sportlots: sl.platformRef },
+          sourcePlatformIds: sl.sourceSlSetId
+            ? { sportlots: sl.sourceSlSetId }
+            : undefined,
           unmatched: "bsc",
         });
       }
@@ -2471,6 +2841,7 @@ export const commitCardChecklist = mutation({
         autographType: c.autographType,
         cardVariation: c.cardVariation,
         platformData: c.platformData,
+        sourcePlatformIds: c.sourcePlatformIds,
       };
     });
 
@@ -2527,6 +2898,7 @@ export const commitCardChecklist = mutation({
           autographType: card.autographType,
           cardVariation: card.cardVariation,
           platformData: mergedPlatformData,
+          sourcePlatformIds: card.sourcePlatformIds,
           sortOrder: newSortOrder,
           lastUpdated: Date.now(),
         });
@@ -2545,6 +2917,7 @@ export const commitCardChecklist = mutation({
           autographType: card.autographType,
           cardVariation: card.cardVariation,
           platformData: card.platformData,
+          sourcePlatformIds: card.sourcePlatformIds,
           sortOrder: newSortOrder,
           lastUpdated: Date.now(),
         });

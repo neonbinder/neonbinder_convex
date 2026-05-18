@@ -243,11 +243,12 @@ export default function VariantForm({
           showMetadata
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
-          extraSlPrefixes={
-            baseVariant?.platformData?.sportlots
-              ? [baseVariant.platformData.sportlots]
-              : []
-          }
+          extraSlPrefixes={(() => {
+            // SL is now string|string[]; flatten to a string[] for the modal.
+            const sl = baseVariant?.platformData?.sportlots;
+            if (!sl) return [];
+            return Array.isArray(sl) ? sl : [sl];
+          })()}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
           existingRows={existingVariantRows?.map((r) => ({

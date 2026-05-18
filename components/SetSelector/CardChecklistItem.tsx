@@ -21,7 +21,18 @@ type CardChecklistItemProps = {
       bsc?: string;
       sportlots?: string;
     };
+    sourcePlatformIds?: {
+      bsc?: string;
+      sportlots?: string;
+    };
     isCustom?: boolean;
+  };
+  // NEO-6: id→label map for the parent variant's attached platform IDs.
+  // When sourcePlatformIds.<side> is set AND a label exists for that ID,
+  // we render a small "Source (SL): Series 2" badge.
+  sourceLabelMaps?: {
+    bsc: Record<string, string>;
+    sportlots: Record<string, string>;
   };
 };
 
@@ -51,7 +62,10 @@ function badgeLabel(token: string): { label: string; cls: string } {
   }
 }
 
-export default function CardChecklistItem({ card }: CardChecklistItemProps) {
+export default function CardChecklistItem({
+  card,
+  sourceLabelMaps,
+}: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
   const [cardName, setCardName] = useState(card.cardName);
   const [team, setTeam] = useState(card.team || "");
@@ -152,16 +166,38 @@ export default function CardChecklistItem({ card }: CardChecklistItemProps) {
         </div>
       )}
       {/* Platform badges */}
-      <div className="flex gap-1 shrink-0">
-        {card.platformData.sportlots && (
-          <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
-            SL
+      <div className="flex gap-1 shrink-0 items-center flex-wrap justify-end">
+        {/* NEO-6 source-set badges: rendered only when the parent variant
+            exposes a label map for that side AND this card carries a
+            sourcePlatformIds entry. Replaces the bare "SL" / "BSC" tag
+            with the operator-given label (e.g. "Series 2"). */}
+        {sourceLabelMaps?.sportlots[card.sourcePlatformIds?.sportlots ?? ""] ? (
+          <span
+            className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 border border-blue-300 dark:border-blue-700"
+            title={`SL source: ${card.sourcePlatformIds?.sportlots}`}
+          >
+            SL: {sourceLabelMaps.sportlots[card.sourcePlatformIds!.sportlots!]}
           </span>
+        ) : (
+          card.platformData.sportlots && (
+            <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+              SL
+            </span>
+          )
         )}
-        {card.platformData.bsc && (
-          <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
-            BSC
+        {sourceLabelMaps?.bsc[card.sourcePlatformIds?.bsc ?? ""] ? (
+          <span
+            className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 border border-blue-300 dark:border-blue-700"
+            title={`BSC source: ${card.sourcePlatformIds?.bsc}`}
+          >
+            BSC: {sourceLabelMaps.bsc[card.sourcePlatformIds!.bsc!]}
           </span>
+        ) : (
+          card.platformData.bsc && (
+            <span className="text-xs px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+              BSC
+            </span>
+          )
         )}
         {card.isCustom && (
           <span className="text-xs px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700">

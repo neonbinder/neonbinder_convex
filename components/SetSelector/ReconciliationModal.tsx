@@ -195,7 +195,7 @@ type ReconciliationModalProps = {
   // preserves prior reconciliation work instead of starting fresh.
   existingRows?: Array<{
     value: string;
-    platformData: { bsc?: string | string[]; sportlots?: string };
+    platformData: { bsc?: string | string[]; sportlots?: string | string[] };
     metadata?: ItemMetadata;
   }>;
 };
@@ -493,7 +493,8 @@ export default function ReconciliationModal({
 
     for (const row of existingRows) {
       const bscPv = firstBsc(row.platformData.bsc);
-      const slPv = row.platformData.sportlots;
+      // SL now widened to string|string[] — use the same first-value heuristic.
+      const slPv = firstBsc(row.platformData.sportlots);
       if (bscPv && slPv) {
         const bscItem = bscByPv.get(bscPv) ?? { value: row.value, platformValue: bscPv };
         const slItem = slByPv.get(slPv) ?? { value: row.value, platformValue: slPv };

@@ -50,9 +50,30 @@ export default defineSchema({
     ),
     value: v.string(), // Display value (e.g., "Football")
     platformData: v.object({
+      // Either side may be an array at the variant levels (variantType /
+      // insert / parallel) when a single canonical row maps to multiple
+      // marketplace sets (e.g. 2022 Topps split into Series 1 / Series 2 on
+      // SportLots). Sport/year/manufacturer/setName rows stay single-string.
+      // See NEO-6 phase 1 for the multi-version mapping design.
       bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-      sportlots: v.optional(v.string()),
+      sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
     }),
+    // Human-readable label per attached marketplace ID. Keyed by the
+    // marketplace ID string. Absent on legacy / single-ID rows — fall back
+    // to the ID itself when rendering. Only populated when an operator
+    // attaches extras beyond the reconciliation-derived primary.
+    platformLabels: v.optional(v.object({
+      bsc: v.optional(v.record(v.string(), v.string())),
+      sportlots: v.optional(v.record(v.string(), v.string())),
+    })),
+    // The marketplace ID that storeReconciledOptions matched against. Used
+    // during re-reconciliation to refresh that one entry without clobbering
+    // operator-attached extras. Absent on legacy rows — treat the first
+    // entry in platformData.<side> as primary in that case.
+    primaryPlatformId: v.optional(v.object({
+      bsc: v.optional(v.string()),
+      sportlots: v.optional(v.string()),
+    })),
     parentId: v.optional(v.id("selectorOptions")), // For hierarchical relationships
     children: v.optional(v.array(v.id("selectorOptions"))), // Child options
     isCustom: v.optional(v.boolean()), // Distinguishes user-added entries from marketplace data
@@ -112,6 +133,15 @@ export default defineSchema({
       bsc: v.optional(v.string()),
       sportlots: v.optional(v.string()),
     }),
+    // NEO-6 phase 1: when the parent variant has multiple attached BSC/SL
+    // set IDs, each card records which source set it came from. Used for
+    // the "show only Series 2" filter on the checklist and to target the
+    // correct marketplace listing for later updates. Absent on cards
+    // whose variant has a single source per marketplace.
+    sourcePlatformIds: v.optional(v.object({
+      bsc: v.optional(v.string()),
+      sportlots: v.optional(v.string()),
+    })),
     isCustom: v.optional(v.boolean()),
     // Player names declared on a custom card before the players exist as
     // entities. fetchCardChecklist's reconciliation surfaces these as
