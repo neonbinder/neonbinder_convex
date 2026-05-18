@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -397,6 +398,31 @@ export default function ParallelGroupingModal({
     }
   }, [isOpen, state.hasInitialized]);
 
+  // Scroll the body so the last parallel row (where the ✕ reject button lives)
+  // is fully inside the visible scroll viewport, not in the overflow region
+  // behind the footer. On a 1024×629 headless viewport the modal's body has
+  // ~50–80px of overflow with realistic content, and the ✕ button's natural
+  // y position falls under the footer's Save button — a CDP-driven tap at
+  // the ✕'s reported bounds-center would then hit Save instead. Scrolling
+  // the last reject row into view guarantees the ✕'s click target is the
+  // topmost element at that point, in any viewport size.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!isOpen || !state.hasInitialized) return;
+    // Wait one frame for the body to render its current row list before
+    // measuring offsets.
+    const id = window.requestAnimationFrame(() => {
+      const body = bodyRef.current;
+      if (!body) return;
+      const rejects = body.querySelectorAll<HTMLElement>(
+        'button[aria-label^="Remove "]',
+      );
+      if (rejects.length === 0) return;
+      rejects[rejects.length - 1].scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [isOpen, state.hasInitialized, state.placement]);
+
   // Top-level inserts: rows whose current placement is "ungrouped" AND original kind was insert.
   // Demoted parallels show up here too (originalKind=parallel, currently ungrouped) — they'll
   // become inserts on Confirm.
@@ -577,7 +603,7 @@ export default function ParallelGroupingModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-4">
           {isLoading ? (
             <ModalSkeleton />
           ) : (
