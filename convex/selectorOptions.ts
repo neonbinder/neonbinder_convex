@@ -517,6 +517,12 @@ export const addCustomSelectorOption = mutation({
 
 // ===== NEO-6 phase 1: multi-source attachment =====
 //
+// Caps. Both are admin-gated so they're not a security boundary — they're
+// guard rails against operator-induced footguns (fan-out DoS against the
+// SportLots adapter, label-quality drift, etc).
+const MAX_ATTACHED_PER_SIDE = 10;
+const MAX_LABEL_LENGTH = 200;
+//
 // A canonical NeonBinder variant (variantType / insert / parallel row) can
 // map to multiple BSC and/or SL set IDs. The reconciliation primary is
 // recorded in `primaryPlatformId`; operator-attached extras live alongside
@@ -583,6 +589,28 @@ export const attachPlatformIds = mutation({
       );
     }
 
+    // Validate every label and id up-front so a malformed batch fails
+    // atomically instead of half-applying. Labels must be non-empty after
+    // trim and within MAX_LABEL_LENGTH — same shape `renamePlatformLabel`
+    // enforces. Empty IDs are silently skipped (treated as no-op).
+    for (const side of ["bsc", "sportlots"] as const) {
+      const additions = args.additions[side] ?? [];
+      for (const { id, label } of additions) {
+        if (!id) continue;
+        const trimmed = label.trim();
+        if (!trimmed) {
+          throw new Error(
+            `attachPlatformIds: label is required (side=${side}, id=${id})`,
+          );
+        }
+        if (trimmed.length > MAX_LABEL_LENGTH) {
+          throw new Error(
+            `attachPlatformIds: label exceeds ${MAX_LABEL_LENGTH} chars (side=${side}, id=${id})`,
+          );
+        }
+      }
+    }
+
     const mergedPD: { bsc?: string | string[]; sportlots?: string | string[] } = {
       bsc: row.platformData.bsc,
       sportlots: row.platformData.sportlots,
@@ -604,13 +632,19 @@ export const attachPlatformIds = mutation({
       for (const { id, label } of additions) {
         if (!id) continue;
         if (!currentSet.has(id)) {
+          if (current.length >= MAX_ATTACHED_PER_SIDE) {
+            throw new Error(
+              `attachPlatformIds: cap of ${MAX_ATTACHED_PER_SIDE} attached IDs per side reached (side=${side})`,
+            );
+          }
           current.push(id);
           currentSet.add(id);
           attached += 1;
         }
         // Label overwrites are intentional — operator may re-attach with a
-        // cleaner label and expect it to stick.
-        mergedLabels[side]![id] = label;
+        // cleaner label and expect it to stick. We've already validated
+        // non-empty + length in the pass above.
+        mergedLabels[side]![id] = label.trim();
       }
       mergedPD[side] = packPdSide(current);
     }
@@ -2404,6 +2438,11 @@ export const fetchCardChecklist = action({
       // Find which level (if any) has multiple attached SL IDs. Phase 1
       // expects this only at variantType/insert/parallel rows; warn if it
       // appears elsewhere so we notice unexpected data shape.
+      //
+      // Cap to MAX_SL_FAN_OUT to bound the number of parallel SL HTTP
+      // calls per fetch (matches `MAX_ATTACHED_PER_SIDE` on the attach
+      // path; defense-in-depth in case extras were attached pre-cap).
+      const MAX_SL_FAN_OUT = 10;
       const slFanOut: { level: string; ids: string[] } | null = (() => {
         for (const [lvl, ids] of Object.entries(slPlatformFilters)) {
           if (ids.length > 1) {
@@ -2412,7 +2451,13 @@ export const fetchCardChecklist = action({
                 `[fetchCardChecklist] unexpected multi-SL at level=${lvl} (phase-1 expects variant levels only)`,
               );
             }
-            return { level: lvl, ids };
+            const cappedIds = ids.slice(0, MAX_SL_FAN_OUT);
+            if (cappedIds.length < ids.length) {
+              console.warn(
+                `[fetchCardChecklist] SL fan-out capped at ${MAX_SL_FAN_OUT} (had ${ids.length} attached at level=${lvl})`,
+              );
+            }
+            return { level: lvl, ids: cappedIds };
           }
         }
         return null;
