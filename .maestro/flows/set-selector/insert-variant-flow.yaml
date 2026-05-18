@@ -64,15 +64,15 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
-# Only enter the sync verification block if the Variants column is empty.
+# Only enter the sync verification block if the Inserts column is empty.
 # When the column renders empty, EntityColumn auto-fires the sync form
-# (mode flips to "sync" via useEffect) — so "Sync Variants" is never
+# (mode flips to "sync" via useEffect) — so "Sync Inserts" is never
 # tappable in that state. We just wait for the ReconciliationModal that
 # auto-sync produces instead.
-# If variants are already synced from a previous run, the block is skipped.
+# If inserts are already synced from a previous run, the block is skipped.
 - runFlow:
     when:
       visible: "No variants available. Sync from marketplaces to populate."
@@ -83,15 +83,15 @@ tags:
       # makes network calls to both platforms and can be slow on cold sessions.
       # Local runs have recorded 213s total flow time; 240s provides margin.
       - extendedWaitUntil:
-          visible: "Reconcile Variants"
+          visible: "Reconcile Inserts"
           timeout: 240000
 
       # ============================================================
       # VERIFY ReconciliationModal contents
       # ============================================================
 
-      # The modal heading for Insert type is "Reconcile Variants" (level="insert")
-      - assertVisible: "Reconcile Variants"
+      # The modal heading for Insert type is "Reconcile Inserts" (level="insert")
+      - assertVisible: "Reconcile Inserts"
 
       # The subtitle shows matched/unmatched counts — e.g. "25 matched, 22 BSC-only, 2504 SL-only"
       # Numbers drift as marketplace data changes; assert the structural pattern only.
@@ -137,14 +137,14 @@ tags:
 
       # Modal closes; we're back at the set selector
       - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
+          notVisible: "Reconcile Inserts"
           timeout: 10000
 
 # ============================================================
-# VERIFY the Variants column is populated (both first-run and re-run)
+# VERIFY the Inserts column is populated (both first-run and re-run)
 # ============================================================
 
-# After either confirming (first run) or skipping (re-run), the Variants
+# After either confirming (first run) or skipping (re-run), the Inserts
 # column should have at least one entry visible.
 - assertVisible: "Set Selector"
-- assertVisible: "Variants"
+- assertVisible: "Inserts"

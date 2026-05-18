@@ -219,32 +219,39 @@ tags:
     index: 0
 
 # ============================================================
-# LEVEL 6 — VARIANTS
+# LEVEL 6 — VARIANTS/INSERTS/PARALLELS
+# (column header is the pluralized variantType value)
 # ============================================================
 
-# The Variants column appears after selecting a variant type
+# The column appears after selecting a variant type.
+# The heading is the pluralized variantType name — "Inserts", "Parallels", etc.
+# Since index: 0 picks an unknown variantType, we wait for the generic anchor
+# "Sync Variant Types" to settle and then rely on the form guard below.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible:
+      text: ".*Inserts.*|.*Parallels.*|.*Variants.*"
     timeout: 10000
 
 # Only sync if the button is present. For "Base" variant type this shows
 # "Select Base Set" heading while loading, then auto-closes on success.
-# For other types "Syncing Variants" appears.
+# For Insert the button reads "Sync Inserts"; for Parallel "Sync Parallels".
 - runFlow:
     when:
-      visible: "Sync Variants"
+      visible:
+        text: ".*Sync Inserts.*|.*Sync Parallels.*|.*Sync Variants.*"
     commands:
-      - tapOn: "Sync Variants"
+      - tapOn:
+          text: ".*Sync Inserts.*|.*Sync Parallels.*|.*Sync Variants.*"
       - extendedWaitUntil:
           visible:
-            text: ".*Syncing Variants|Select Base Set.*"
+            text: ".*Syncing Inserts.*|.*Syncing Parallels.*|.*Syncing Variants.*|Select Base Set.*"
           timeout: 15000
-      # "Sync Variants" reappears once all platforms have responded, OR the
+      # Button reappears once all platforms have responded, OR the
       # BaseSetPicker modal appears (for Base variant type). Either is the
       # correct cross-platform completion signal.
       - scrollUntilVisible:
           element:
-            text: ".*Sync Variants|Select Base Set.*"
+            text: ".*Sync Inserts.*|.*Sync Parallels.*|.*Sync Variants.*|Select Base Set.*"
           timeout: 60000
 
 # If the BaseSetPicker modal appeared (Base variant type), confirm it to

@@ -63,17 +63,17 @@ tags:
 # ============================================================
 
 # --- Add "Stars" ---
-# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# The Inserts column "+ Custom" button has aria-label="Add custom Inserts".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
-# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# Plain text "Add custom Inserts" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -89,11 +89,11 @@ tags:
 # --- Add "Stars Gold" ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -109,11 +109,11 @@ tags:
 # --- Add "Stars Red" ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -221,6 +221,6 @@ tags:
       text: ".*Drag inserts under a parent.*"
     timeout: 10000
 
-# Variants column still present and "Group Parallels" button is back in action row
-- assertVisible: "Variants"
+# Inserts column still present and "Group Parallels" button is back in action row
+- assertVisible: "Inserts"
 - assertVisible: "Group Parallels"

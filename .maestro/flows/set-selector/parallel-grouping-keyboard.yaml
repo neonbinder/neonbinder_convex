@@ -80,7 +80,7 @@ tags:
     timeout: 10000
 
 # Back on the set selector
-- assertVisible: "Variants"
+- assertVisible: "Inserts"
 
 # ============================================================
 # CLOSE VIA BACKDROP TAP
@@ -106,4 +106,4 @@ tags:
       text: ".*Drag inserts under a parent.*"
     timeout: 10000
 
-- assertVisible: "Variants"
+- assertVisible: "Inserts"

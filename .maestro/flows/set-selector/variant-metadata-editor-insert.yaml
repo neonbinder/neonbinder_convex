@@ -91,22 +91,22 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
-# The Reconcile Variants modal only opens when auto-sync fires on an empty
-# Variants column. When variants already exist (cascade left them), no modal
+# The Reconcile Inserts modal only opens when auto-sync fires on an empty
+# Inserts column. When inserts already exist (cascade left them), no modal
 # opens and Group Parallels is in the DOM but may be below the fold on the
 # headless 1024×629 viewport. Don't branch on `notVisible: Group Parallels`
 # (false-positive: viewport-only check) — handle the modal if it really
 # shows up, then unconditionally scroll Group Parallels into view.
 - runFlow:
     when:
-      visible: "Reconcile Variants"
+      visible: "Reconcile Inserts"
     commands:
       - tapOn: "Cancel"
       - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
+          notVisible: "Reconcile Inserts"
           timeout: 10000
 
 - scrollUntilVisible:
@@ -117,29 +117,29 @@ tags:
 
 # ============================================================
 # ADD A CUSTOM INSERT VARIANT
-# The Variants column is empty after a fresh DB reset + cancel.
+# The Inserts column is empty after a fresh DB reset + cancel.
 # We add a custom variant named "META-TEST" to have a stable tap target.
-# On a re-run the column may already have variants, but we still add a
+# On a re-run the column may already have inserts, but we still add a
 # fresh custom entry to ensure the metadata test gets a clean prefix field.
 # The "+ Custom" button opens the Add Custom Entry form inline in the column.
 #
 # INDEX NOTE: At this point the visible columns are Sets (Topps Chrome),
-# Variant Types (Insert), and Variants — each with their own "+ Custom" button.
-# The Variants column's "+ Custom" is the THIRD one in DOM order (index 2).
-# We must use index: 2 to target the correct column; tapping the first one
-# would add a custom Set or Variant Type instead of a Variant.
+# Variant Types (Insert), and Inserts — each with their own "+ Custom" button.
+# The Inserts column's "+ Custom" is the THIRD one in DOM order (index 2).
+# We must use the aria-label id to target the correct column; tapping by
+# index would add a custom Set or Variant Type instead of an Insert.
 # ============================================================
 
-# Use the Variants column's aria-label-derived accessible name instead of
+# Use the Inserts column's aria-label-derived accessible name instead of
 # index — index counts every "+ Custom" in DOM order (6 columns rendered),
-# which is fragile across viewports. The aria-label "Add custom Variants"
-# is unique to the Variants column.
+# which is fragile across viewports. The aria-label "Add custom Inserts"
+# is unique to the Inserts column.
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 
 - extendedWaitUntil:
     visible: "Add Custom Entry"
