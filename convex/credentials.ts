@@ -23,9 +23,31 @@ const BROWSER_FETCH_TIMEOUT_MS = 15_000;
 // keep one client per audience for the life of this module.
 let cachedIdTokenClient: { audience: string; client: IdTokenClient } | null = null;
 
+// Loopback hosts allowed to bypass OIDC (local-dev browser service). Anything
+// else over plain http:// is treated as misconfiguration and throws — we do
+// NOT want to silently fall back to unauthenticated requests against a
+// real-but-misconfigured endpoint.
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
 async function getIdTokenClient(audience: string): Promise<IdTokenClient | null> {
-  // Local dev (http://localhost:8080) — no Cloud Run, no IAM. Skip OIDC.
-  if (!audience.startsWith("https://")) return null;
+  if (!audience.startsWith("https://")) {
+    let host = "";
+    try {
+      host = new URL(audience).hostname;
+    } catch {
+      throw new Error(
+        `NEONBINDER_BROWSER_URL is not a valid URL: ${audience}`,
+      );
+    }
+    if (LOOPBACK_HOSTS.has(host)) {
+      // Local dev — browser service runs on the developer machine without
+      // Cloud Run IAM. Skip OIDC entirely.
+      return null;
+    }
+    throw new Error(
+      `NEONBINDER_BROWSER_URL must use https:// for non-loopback hosts; got ${audience}. Refusing to send unauthenticated requests to a remote browser service.`,
+    );
+  }
 
   if (cachedIdTokenClient && cachedIdTokenClient.audience === audience) {
     return cachedIdTokenClient.client;
