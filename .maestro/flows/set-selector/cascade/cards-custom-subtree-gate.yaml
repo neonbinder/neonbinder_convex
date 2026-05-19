@@ -1,0 +1,179 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Cascade — custom subtree gates BSC/SL fetch; commits in <10s (NEO-22)"
+tags:
+  - set-selector
+  - cascade
+  - regression
+  - requires:sets-loaded
+  - provides:cards-loaded
+---
+# NEO-22 dedicated regression test.
+#
+# Asserts two things the existing cards-parallel-of-insert.yaml does NOT:
+#
+#   1. The gate fires at a DIFFERENT custom level than parallel-of-insert.
+#      This flow creates a custom Set (setName level) under Topps, drills in,
+#      adds a custom Variant Type, and drills in. A regression that removes
+#      the short-circuit from fetchAggregatedOptions (which feeds the Variant
+#      Types column) OR from fetchCardChecklist (which feeds the cards panel)
+#      gets caught here, where cards-parallel-of-insert only exercises the
+#      parallel-of-insert path.
+#
+#   2. The fetch + save round-trip completes within 10 seconds, locking in
+#      the NEO-22 acceptance criterion. The original bug had this taking
+#      >30s because BSC's fallback returned ~5000 cards from a custom
+#      subtree. A silent reversion of the gate would re-introduce the stall
+#      and time out this flow instead of slipping through unnoticed under a
+#      90-second ceiling.
+#
+# CLEANUP: None. setup.yaml runs at the start of every CI cascade and resets
+# selectorOptions + cardChecklist, so the rows seeded here disappear before
+# the next run. WORKER_INDEX makes seeded values unique across parallel
+# workers within a single run; addCustomSelectorOption is idempotent on
+# normalized value so re-running the same flow in the same run is safe.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# ============================================================
+# DRILL: Baseball → 2024 → Topps
+# Stops one level above Topps Chrome so we can add a sibling custom Set
+# under Topps (rather than a custom Variant Type under Topps Chrome, which
+# would not exercise the aggregator-side gate).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "2024"
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Topps"
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 0
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 30000
+
+# ============================================================
+# ADD CUSTOM SET (setName level)
+# Aria-label per column is unique: "Add custom Sets". Tapping by aria-label
+# is robust to column reordering and to the global "+ Custom" label collision.
+# ============================================================
+
+- tapOn:
+    id: "Add custom Sets"
+- extendedWaitUntil:
+    visible: "Enter custom value..."
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomSet-${WORKER_INDEX || 0}"
+- tapOn: "Add"
+
+# Custom entries render as "<value>Custom" in the DOM (the value followed
+# by the "Custom" badge). Regex match avoids brittleness around the badge.
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomSet-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomSet-${WORKER_INDEX || 0}.*"
+
+# ============================================================
+# ASSERTION 1 — fetchAggregatedOptions gate
+# After tapping into the custom set, the Variant Types column auto-syncs.
+# The gate must short-circuit so the column never populates with Base,
+# Insert, or Parallel from BSC/SL. The sync must complete fast — slow
+# completion implies the adapters were actually called.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 5000
+
+# The auto-sync settles fast for a custom subtree (no adapter calls).
+# Wait for the "Add custom Variant Types" button to appear in idle state.
+- extendedWaitUntil:
+    visible:
+      id: "Add custom Variant Types"
+    timeout: 10000
+
+# No marketplace-sourced variant types should appear under a custom set.
+# If any of these are visible the gate has regressed and the adapters are
+# being called.
+- assertNotVisible: "Base"
+- assertNotVisible: "Insert"
+- assertNotVisible: "Parallel"
+
+# ============================================================
+# ADD CUSTOM VARIANT TYPE under the custom set
+# ============================================================
+
+- tapOn:
+    id: "Add custom Variant Types"
+- extendedWaitUntil:
+    visible: "Enter custom value..."
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomVT-${WORKER_INDEX || 0}"
+- tapOn: "Add"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}.*"
+
+# ============================================================
+# ASSERTION 2 — fetchCardChecklist gate + 10s budget
+# Clicking "Fetch from Marketplaces" on a custom variant type must return
+# "Saved 0 cards." within 10 seconds AND must never open the "Confirm
+# New Players & Teams" dialog. The 10s ceiling IS the NEO-22 acceptance
+# criterion — broaden it only if the gate is intentionally being removed.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*"
+    timeout: 10000
+
+- tapOn:
+    text: ".*Fetch from Marketplaces.*"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved 0 cards.*"
+    timeout: 10000
+
+- assertNotVisible: "Confirm New Players & Teams"
+
+- assertVisible:
+    text: ".*Saved 0 cards.*"
