@@ -70,6 +70,18 @@ async function browserAuthHeaders(): Promise<Record<string, string>> {
   const url = browserUrl();
   const client = await getIdTokenClient(url);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  // NEO-20 transitional dual-auth: send both the legacy x-internal-key header
+  // and the new OIDC bearer token during the multi-PR rollout. The old browser
+  // service (before NEO-20 browser PR ships) accepts requests via the header
+  // check; the new browser service (after NEO-20 ships + Cloud Run flips to
+  // IAM-only) ignores the header and authorizes via the Bearer token. This
+  // keeps dev/prod working through the deploy window. Once NEO-20 has fully
+  // landed and the INTERNAL_API_KEY env wiring is removed (terraform 2/2),
+  // drop this fallback in a follow-up PR.
+  const legacyKey = process.env.INTERNAL_API_KEY;
+  if (legacyKey) headers["x-internal-key"] = legacyKey;
+
   if (!client) return headers;
   const authHeaders = await client.getRequestHeaders();
   // google-auth-library returns Authorization (and sometimes x-goog-user-project)
