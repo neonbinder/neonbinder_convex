@@ -1,9 +1,10 @@
 "use node";
 
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
+import { GoogleAuth, IdTokenClient } from "google-auth-library";
 
 const MAX_INPUT_LENGTH = 256;
 const SUPPORTED_SITES = ["buysportscards", "sportlots"];
@@ -13,6 +14,82 @@ function browserUrl() {
 }
 
 const BROWSER_FETCH_TIMEOUT_MS = 15_000;
+
+// NEO-20: the browser service Cloud Run instance requires IAM-authenticated
+// requests. Convex calls it as the neonbinder-convex service account
+// (credentials decoded from GOOGLE_APPLICATION_CREDENTIALS_B64) and mints a
+// Google OIDC ID token whose audience is the Cloud Run service URL. The
+// google-auth-library client caches and auto-refreshes the token, so we just
+// keep one client per audience for the life of this module.
+let cachedIdTokenClient: { audience: string; client: IdTokenClient } | null = null;
+
+// Loopback hosts allowed to bypass OIDC (local-dev browser service). Anything
+// else over plain http:// is treated as misconfiguration and throws — we do
+// NOT want to silently fall back to unauthenticated requests against a
+// real-but-misconfigured endpoint.
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+async function getIdTokenClient(audience: string): Promise<IdTokenClient | null> {
+  if (!audience.startsWith("https://")) {
+    let host = "";
+    try {
+      host = new URL(audience).hostname;
+    } catch {
+      throw new Error(
+        `NEONBINDER_BROWSER_URL is not a valid URL: ${audience}`,
+      );
+    }
+    if (LOOPBACK_HOSTS.has(host)) {
+      // Local dev — browser service runs on the developer machine without
+      // Cloud Run IAM. Skip OIDC entirely.
+      return null;
+    }
+    throw new Error(
+      `NEONBINDER_BROWSER_URL must use https:// for non-loopback hosts; got ${audience}. Refusing to send unauthenticated requests to a remote browser service.`,
+    );
+  }
+
+  if (cachedIdTokenClient && cachedIdTokenClient.audience === audience) {
+    return cachedIdTokenClient.client;
+  }
+
+  const b64 = process.env.GOOGLE_APPLICATION_CREDENTIALS_B64;
+  if (!b64) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS_B64 not set — required to authenticate to the browser service",
+    );
+  }
+  const credentials = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+  const auth = new GoogleAuth({ credentials });
+  const client = await auth.getIdTokenClient(audience);
+  cachedIdTokenClient = { audience, client };
+  return client;
+}
+
+async function browserAuthHeaders(): Promise<Record<string, string>> {
+  const url = browserUrl();
+  const client = await getIdTokenClient(url);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  // NEO-20 transitional dual-auth: send both the legacy x-internal-key header
+  // and the new OIDC bearer token during the multi-PR rollout. The old browser
+  // service (before NEO-20 browser PR ships) accepts requests via the header
+  // check; the new browser service (after NEO-20 ships + Cloud Run flips to
+  // IAM-only) ignores the header and authorizes via the Bearer token. This
+  // keeps dev/prod working through the deploy window. Once NEO-20 has fully
+  // landed and the INTERNAL_API_KEY env wiring is removed (terraform 2/2),
+  // drop this fallback in a follow-up PR.
+  const legacyKey = process.env.INTERNAL_API_KEY;
+  if (legacyKey) headers["x-internal-key"] = legacyKey;
+
+  if (!client) return headers;
+  const authHeaders = await client.getRequestHeaders();
+  // google-auth-library returns Authorization (and sometimes x-goog-user-project)
+  for (const [k, v] of Object.entries(authHeaders)) {
+    if (typeof v === "string") headers[k] = v;
+  }
+  return headers;
+}
 
 async function browserFetch(
   path: string,
@@ -35,13 +112,6 @@ async function browserFetch(
 
 function credKey(site: string, userId: string) {
   return `${site}-credentials-${userId}`;
-}
-
-function internalHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "x-internal-key": process.env.INTERNAL_API_KEY || "",
-  };
 }
 
 function validateInputLength(value: string, fieldName: string) {
@@ -81,7 +151,7 @@ export const storeSiteCredentials = action({
       // Use "Test Credentials" to validate against the marketplace separately.
       const response = await browserFetch(`/credentials/${key}`, {
         method: "PUT",
-        headers: internalHeaders(),
+        headers: await browserAuthHeaders(),
         body: JSON.stringify({
           username: args.username,
           password: args.password,
@@ -142,7 +212,7 @@ export const getSiteCredentials = action({
       const key = credKey(args.site, userId);
       const response = await browserFetch(`/credentials/${key}/metadata`, {
         method: "GET",
-        headers: internalHeaders(),
+        headers: await browserAuthHeaders(),
       });
 
       if (response.status === 404) return null;
@@ -188,7 +258,7 @@ async function readCachedToken(
   const key = credKey(site, userId);
   const response = await browserFetch(`/credentials/${key}/token`, {
     method: "GET",
-    headers: internalHeaders(),
+    headers: await browserAuthHeaders(),
   });
   if (response.status === 404) return null;
   if (!response.ok) return null;
@@ -213,8 +283,12 @@ async function readCachedToken(
  * re-auth.
  *
  * Returns only the token, never username/password.
+ *
+ * NEO-20: internalAction (not action). Tokens must never be reachable
+ * via Convex RPC from a frontend client — only other Convex backend
+ * code (adapters) may call this.
  */
-export const getSiteToken = action({
+export const getSiteToken = internalAction({
   args: {
     site: v.string(),
   },
@@ -275,13 +349,13 @@ async function refreshSiteToken(
 ): Promise<boolean> {
   try {
     if (site === "buysportscards") {
-      const result = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
+      const result = (await ctx.runAction(internal.credentials.authenticateBsc, {})) as {
         success: boolean;
       };
       return result.success;
     }
     if (site === "sportlots") {
-      const result = (await ctx.runAction(api.credentials.authenticateSportlots, {})) as {
+      const result = (await ctx.runAction(internal.credentials.authenticateSportlots, {})) as {
         success: boolean;
       };
       return result.success;
@@ -315,7 +389,7 @@ export const deleteSiteCredentials = action({
       const key = credKey(args.site, userId);
       const response = await browserFetch(`/credentials/${key}`, {
         method: "DELETE",
-        headers: internalHeaders(),
+        headers: await browserAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -358,7 +432,7 @@ export const listUserSites = action({
       const keys = SUPPORTED_SITES.map((site) => credKey(site, userId));
       const response = await browserFetch(`/credentials/check`, {
         method: "POST",
-        headers: internalHeaders(),
+        headers: await browserAuthHeaders(),
         body: JSON.stringify({ keys }),
       });
 
@@ -396,7 +470,7 @@ export const testSiteCredentials = action({
         case "buysportscards": {
           console.log("[testSiteCredentials] Dispatching to authenticateBsc");
           const result = await ctx.runAction(
-            api.credentials.authenticateBsc,
+            internal.credentials.authenticateBsc,
             {},
           );
           console.log(`[testSiteCredentials] authenticateBsc returned: success=${result.success}`);
@@ -413,7 +487,7 @@ export const testSiteCredentials = action({
         case "sportlots": {
           console.log("[testSiteCredentials] Dispatching to authenticateSportlots");
           const result = await ctx.runAction(
-            api.credentials.authenticateSportlots,
+            internal.credentials.authenticateSportlots,
             {},
           );
           console.log(`[testSiteCredentials] authenticateSportlots returned: success=${result.success}`);
@@ -441,8 +515,12 @@ export const testSiteCredentials = action({
  * Authenticate BSC credentials via the browser service.
  * Reads credentials from GCP, sends to browser service for Puppeteer login,
  * which extracts the bearer token and stores it back in GCP.
+ *
+ * NEO-20: internalAction. Frontend triggers a re-auth via the public
+ * testSiteCredentials wrapper, never directly. Direct invocation would
+ * expose the success/sellerId metadata to unauthorized callers.
  */
-export const authenticateBsc = action({
+export const authenticateBsc = internalAction({
   args: {},
   returns: v.object({
     success: v.boolean(),
@@ -478,7 +556,7 @@ export const authenticateBsc = action({
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         response = await fetch(`${url}/login/bsc`, {
           method: "POST",
-          headers: internalHeaders(),
+          headers: await browserAuthHeaders(),
           body: JSON.stringify({ key }),
           signal: AbortSignal.timeout(60_000),
         });
@@ -568,8 +646,11 @@ export const authenticateBsc = action({
  * Authenticate SportLots credentials via the browser service.
  * Reads credentials from GCP, sends to browser service for HTTP login,
  * which extracts JS-set cookies and stores them back in GCP as a token.
+ *
+ * NEO-20: internalAction. Triggered indirectly by the frontend through
+ * testSiteCredentials; never invoked over Convex RPC.
  */
-export const authenticateSportlots = action({
+export const authenticateSportlots = internalAction({
   args: {},
   returns: v.object({
     success: v.boolean(),
@@ -596,7 +677,7 @@ export const authenticateSportlots = action({
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         response = await fetch(`${browserUrl()}/login/sportlots`, {
           method: "POST",
-          headers: internalHeaders(),
+          headers: await browserAuthHeaders(),
           body: JSON.stringify({ key }),
           signal: AbortSignal.timeout(60_000),
         });
