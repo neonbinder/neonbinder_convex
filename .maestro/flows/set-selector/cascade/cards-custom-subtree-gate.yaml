@@ -103,9 +103,19 @@ tags:
     text: "Topps"
     index: 1
 
+# Wait for the Sets column to finish auto-syncing before interacting with it.
+# Auto-sync fires on column open (Topps has no pre-seeded sets when this flow
+# runs standalone, and may also re-sync). The "+ Custom" / "Add custom Sets"
+# button is only rendered in the column's idle state — the Sets search input
+# is the canonical idle-state signal (same pattern as setup.yaml +
+# util-drill-to-2024-topps-chrome.yaml). 120s ceiling covers cold marketplace
+# fetches.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 30000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 120000
 
 # ============================================================
 # ADD CUSTOM SET (setName level)
