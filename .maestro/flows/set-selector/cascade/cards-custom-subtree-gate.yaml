@@ -103,18 +103,25 @@ tags:
     text: "Topps"
     index: 1
 
-# Wait for the Sets column to finish auto-syncing before interacting with it.
-# Auto-sync fires on column open (Topps has no pre-seeded sets when this flow
-# runs standalone, and may also re-sync). The "+ Custom" / "Add custom Sets"
-# button is only rendered in the column's idle state — the Sets search input
-# is the canonical idle-state signal (same pattern as setup.yaml +
-# util-drill-to-2024-topps-chrome.yaml). 120s ceiling covers cold marketplace
-# fetches.
+# Wait for the Sets column to reach idle state before tapping "+ Custom".
+#
+# The Sets `<EntityColumn>` swaps between three modes (idle | sync | custom).
+# The "+ Custom" button (aria-label "Add custom Sets") is only rendered in
+# idle mode. The Sets-column search input is NOT a reliable idle signal —
+# `EntitySelector` shows the search box whenever `items.length > 8`,
+# independent of column mode, so the column can show "Search sets..." while
+# still in sync mode and the "+ Custom" button is absent (verified in
+# components/SetSelector/EntitySelector.tsx:106).
+#
+# Waiting directly for the aria-labeled "+ Custom" button is the correct
+# idle-state signal here. 120s covers cold BSC/SL fetches when the column
+# auto-syncs on open.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 30000
 - extendedWaitUntil:
-    visible: ".*Search sets.*"
+    visible:
+      id: "Add custom Sets"
     timeout: 120000
 
 # ============================================================
