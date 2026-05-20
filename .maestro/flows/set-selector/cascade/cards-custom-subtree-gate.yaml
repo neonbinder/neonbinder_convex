@@ -103,24 +103,35 @@ tags:
     text: "Topps"
     index: 1
 
-# Wait for the Sets column to reach idle state before tapping "+ Custom".
+# Wait for the Sets column to reach idle state, then scroll the "+ Custom"
+# button into view before tapping.
 #
 # The Sets `<EntityColumn>` swaps between three modes (idle | sync | custom).
 # The "+ Custom" button (aria-label "Add custom Sets") is only rendered in
-# idle mode. The Sets-column search input is NOT a reliable idle signal —
-# `EntitySelector` shows the search box whenever `items.length > 8`,
-# independent of column mode, so the column can show "Search sets..." while
-# still in sync mode and the "+ Custom" button is absent (verified in
-# components/SetSelector/EntitySelector.tsx:106).
+# idle mode. Two failure modes had to be ruled out:
 #
-# Waiting directly for the aria-labeled "+ Custom" button is the correct
-# idle-state signal here. 120s covers cold BSC/SL fetches when the column
-# auto-syncs on open.
+#   1. Wrong idle-state signal — the column's search input is NOT a reliable
+#      idle indicator. `EntitySelector` shows the search box whenever
+#      `items.length > 8` regardless of column mode (see
+#      components/SetSelector/EntitySelector.tsx:106). So the column can
+#      show "Search sets..." while still in sync mode and "+ Custom" is
+#      absent.
+#
+#   2. Off-fold rendering — even when idle and the button is in the DOM,
+#      it sits below the column's max-h-[400px] selector list. On the
+#      1024×629 headless viewport the button can be below the page fold,
+#      so `extendedWaitUntil` (which doesn't scroll) reports the button
+#      as not visible even when it exists.
+#
+# `scrollUntilVisible` on the aria-labeled button handles both cases at once:
+# it waits for the button to render (idle mode reached) and scrolls the
+# page to bring it into view. Matches the pattern used by
+# variant-metadata-editor-insert.yaml.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 30000
-- extendedWaitUntil:
-    visible:
+- scrollUntilVisible:
+    element:
       id: "Add custom Sets"
     timeout: 120000
 
@@ -161,9 +172,11 @@ tags:
     timeout: 5000
 
 # The auto-sync settles fast for a custom subtree (no adapter calls).
-# Wait for the "Add custom Variant Types" button to appear in idle state.
-- extendedWaitUntil:
-    visible:
+# Use scrollUntilVisible for the same reason as the Sets-column "+ Custom"
+# above: the button can sit below the page fold on 1024×629 headless once
+# multiple columns are open, and `extendedWaitUntil` does not scroll.
+- scrollUntilVisible:
+    element:
       id: "Add custom Variant Types"
     timeout: 10000
 
