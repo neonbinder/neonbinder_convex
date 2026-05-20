@@ -48,6 +48,13 @@ tags:
 # Stops one level above Topps Chrome so we can add a sibling custom Set
 # under Topps (rather than a custom Variant Type under Topps Chrome, which
 # would not exercise the aggregator-side gate).
+#
+# Each column past Sports is its own `max-h-[400px] overflow-y-auto` scroll
+# container. Maestro's `scrollUntilVisible` scrolls the page, not the
+# column's internal scroll, so the per-column search-input pattern is the
+# only way to reliably target rows that sit below the column fold on the
+# 1024×629 headless viewport. Same pattern used by setup.yaml and
+# util-drill-to-2024-topps-chrome.yaml.
 # ============================================================
 
 - scrollUntilVisible:
@@ -56,27 +63,45 @@ tags:
     timeout: 10000
 - tapOn: "Baseball"
 
+# Years column — list is newest-first (2026, 2025, 2024…), so 2024 falls
+# below the column's internal fold. Filter via the Years search input.
 - extendedWaitUntil:
     visible: "Years"
     timeout: 20000
-- scrollUntilVisible:
-    element:
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
       text: "2024"
+      index: 1
     timeout: 10000
 - tapOn:
     text: "2024"
-    index: 0
+    index: 1
 
+# Manufacturers column — alphabetical, Topps sits past the fold once enough
+# manufacturers are seeded. Filter via the Manufacturers search input.
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 20000
-- scrollUntilVisible:
-    element:
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
       text: "Topps"
+      index: 1
     timeout: 10000
 - tapOn:
     text: "Topps"
-    index: 0
+    index: 1
 
 - extendedWaitUntil:
     visible: "Sets"
