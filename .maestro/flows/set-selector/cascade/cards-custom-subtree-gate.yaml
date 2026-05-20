@@ -148,7 +148,12 @@ tags:
     timeout: 5000
 - tapOn: "Enter custom value..."
 - inputText: "NEO22-CustomSet-${WORKER_INDEX || 0}"
-- tapOn: "Add"
+# Press Enter rather than tapping the "Add" button — `text: "Add"` is
+# ambiguous (also matches "Add Custom Entry" heading and "Add Card" button)
+# and resolves to a non-tappable element on some renders. The input's
+# onKeyDown handler (components/SetSelector/EntityColumn.tsx:129) calls
+# handleCustomSubmit on Enter. Same pattern as variant-metadata-editor-insert.
+- pressKey: Enter
 
 # Custom entries render as "<value>Custom" in the DOM (the value followed
 # by the "Custom" badge). Regex match avoids brittleness around the badge.
@@ -198,7 +203,9 @@ tags:
     timeout: 5000
 - tapOn: "Enter custom value..."
 - inputText: "NEO22-CustomVT-${WORKER_INDEX || 0}"
-- tapOn: "Add"
+# Press Enter — see note on the Sets-column "+ Custom" above re: tapOn "Add"
+# being ambiguous.
+- pressKey: Enter
 
 - extendedWaitUntil:
     visible:
