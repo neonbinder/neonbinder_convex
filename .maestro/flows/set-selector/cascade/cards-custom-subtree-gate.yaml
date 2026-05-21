@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Cascade — custom subtree gates BSC/SL fetch; commits in <10s (NEO-22)"
+name: "Cascade — custom subtree gates BSC/SL fetch; commits in under 10s (NEO-22)"
 tags:
   - set-selector
   - cascade
