@@ -211,10 +211,12 @@ tags:
 
 - tapOn: "Fetch from Marketplaces"
 
-# Wait for fetch to start or complete. The cascade reset wipes the global
-# players/teams tables, so the first fetch always finds unknown entities and
-# opens the "Confirm New Players & Teams" dialog before saving cards.
-# Bump to 90s — BSC can be slow on a fresh DB.
+# Wait for fetch to complete. "Stars Gold" is a custom entry — the
+# short-circuit guard in fetchCardChecklist returns 0 cards and 0 unknown
+# players without calling BSC or SL, so the "Confirm New Players & Teams"
+# dialog never opens. The flow goes straight to "Saved 0 cards."
+# The runFlow block below is a safety net in case state from a prior
+# non-cascade run left players/teams tables populated unexpectedly.
 - extendedWaitUntil:
     visible:
       text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
