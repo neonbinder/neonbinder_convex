@@ -1,0 +1,117 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Card checklist — custom Parallel variant fetches from marketplaces and saves 0 cards"
+tags:
+  - set-selector
+  - regression
+---
+# Verifies the card checklist fetch pipeline for a custom Parallel variant
+# with no marketplace set mapping.
+#
+# This test covers the same code path as cascade/cards-parallel.yaml but
+# runs in a fully custom playground (Football → 2026) so it cannot
+# contaminate the cascade's Baseball → 2024 → Topps Chrome Parallels column.
+#
+# EXPECTED RESULT:
+#   A custom parallel with no BSC/SL set mapping returns 0 cards.
+#   "Saved 0 cards." is the success signal. The fetch completes without error.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+# ============================================================
+# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → cards-parallel-custom-<worker>
+# Returns with Parallels column visible and idle.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-custom-set.yaml
+    env:
+      SET_NAME: "cards-par-cust-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Parallel"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD CUSTOM PARALLEL VARIANT "Prizm Gold"
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Add custom Parallels"
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "Add custom Parallels"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Prizm Gold"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible: "Prizm Gold"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Prizm Gold"
+    timeout: 10000
+- tapOn: "Prizm Gold"
+
+# ============================================================
+# CARD CHECKLIST PANEL APPEARS
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    timeout: 10000
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+- assertVisible: "No cards in this checklist yet."
+
+# ============================================================
+# FETCH FROM MARKETPLACES
+# Custom subtree — short-circuit gate returns 0 cards immediately.
+# No "Confirm New Players & Teams" dialog expected.
+# ============================================================
+
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 30000
+
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+          timeout: 10000
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved 0 cards.*"
+    timeout: 10000
+
+- assertVisible:
+    text: ".*Saved 0 cards.*"

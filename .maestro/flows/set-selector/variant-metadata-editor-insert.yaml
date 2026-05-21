@@ -4,7 +4,6 @@ name: "Variant metadata editor — edit Prefix on a custom Insert variant and ve
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # Tests the VariantMetadataEditor component on an Insert variantType variant row.
 #
@@ -19,17 +18,18 @@ tags:
 #         making the Insert path the primary test case for the Insert + Parallel
 #         checkbox display.
 #
-# End-user story: user drills to 2024 Topps Chrome → Insert → adds a custom
-# Insert variant → taps it to select it → sees the Metadata panel below the
-# list (with Insert/Parallel flags and a Prefix field) → types a prefix →
-# saves it → confirms the Save button disappears.
+# End-user story: user drills to a custom Football → 2026 set → Insert →
+# adds a custom Insert variant → taps it to select it → sees the Metadata
+# panel below the list (with Insert/Parallel flags and a Prefix field) →
+# types a prefix → saves it → confirms the Save button disappears.
 #
-# Why a custom variant (not a synced one)?
-#   After the DB reset embedded in util-drill-to-2024-topps-chrome, the Variants
-#   column for Insert is empty. The auto-sync fires the ReconciliationModal, which
-#   we cancel immediately (we do not want to write thousands of rows). This leaves
-#   the column empty. A custom variant named "META-TEST" gives us a stable, known
-#   tap target that exists regardless of marketplace data availability.
+# Why a custom set / variant?
+#   The custom Football → 2026 playground is isolated from the cascade's
+#   Baseball → 2024 → Topps Chrome path. No auto-sync fires for custom
+#   subtrees (the fetchAggregatedOptions gate short-circuits), so the Inserts
+#   column starts empty and ready for a custom variant without touching shared
+#   marketplace data. A custom variant named "META-TEST" gives us a stable,
+#   known tap target regardless of marketplace data availability.
 #
 # VariantMetadataEditor is rendered inline in the Level 6 EntityColumn's selector
 # slot, directly below the VariantSelector. It appears as soon as a variant row
@@ -50,93 +50,38 @@ tags:
     timeout: 10000
 
 # ============================================================
-# PREREQUISITE: DB reset + credentials + drill to 2024 Topps Chrome
-# Returns with Variant Types column visible and Base/Insert/Parallel listed.
+# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → variant-metadata-editor-insert-<worker>
+# Custom subtrees are isolated from the cascade's Baseball → 2024 → Topps Chrome
+# path, eliminating cross-flow contamination from custom variants added here.
+# Returns with Inserts column visible and idle (+ Custom button present).
 # ============================================================
 
 - runFlow:
-    file: util-drill-to-2024-topps-chrome.yaml
+    file: util-drill-to-custom-set.yaml
     env:
-      # Per-test sport isolation — selectorOptions is a global Convex
-      # table; using a unique Sport per test keeps each test's custom
-      # variants under a distinct parent so they don't pollute each
-      # other across CI runs.
-      SPORT: "Baseball"
-      YEAR: "2024"
-      MANUFACTURER: "Topps"
-      SET: "Topps Wonderland"
+      SET_NAME: "vme-insert-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
       SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
-# LEVEL 5 — Select "Insert" variant type
-# This reveals the Level 6 Variants column. No BaseMappingForm appears.
-# ============================================================
-
-- scrollUntilVisible:
-    element:
-      text: "Insert"
-    timeout: 10000
-- tapOn: "Insert"
-
-# ============================================================
-# WAIT FOR VARIANTS COLUMN + HANDLE AUTO-SYNC
-# EntityColumn auto-fires the VariantForm when the Variants column renders
-# with an empty list. This opens the ReconciliationModal automatically —
-# no tap on "Sync Variants" is needed or possible.
-# Cancel the modal immediately; we only need the column visible.
-# On re-runs where variants are already populated, the modal is skipped.
-# ============================================================
-
-- extendedWaitUntil:
-    visible: "Inserts"
-    timeout: 10000
-
-# The Reconcile Inserts modal only opens when auto-sync fires on an empty
-# Inserts column. When inserts already exist (cascade left them), no modal
-# opens and Group Parallels is in the DOM but may be below the fold on the
-# headless 1024×629 viewport. Don't branch on `notVisible: Group Parallels`
-# (false-positive: viewport-only check) — handle the modal if it really
-# shows up, then unconditionally scroll Group Parallels into view.
-- runFlow:
-    when:
-      visible: "Reconcile Inserts"
-    commands:
-      - tapOn: "Cancel"
-      - extendedWaitUntil:
-          notVisible: "Reconcile Inserts"
-          timeout: 10000
-
-- scrollUntilVisible:
-    element:
-      text: "Group Parallels"
-    timeout: 10000
-- assertVisible: "Group Parallels"
-
-# ============================================================
 # ADD A CUSTOM INSERT VARIANT
-# The Inserts column is empty after a fresh DB reset + cancel.
+# util-drill-to-custom-set.yaml leaves the Inserts column visible and idle
+# (the "+ Custom" button for the Inserts column is scrolled into view).
 # We add a custom variant named "META-TEST" to have a stable tap target.
 # On a re-run the column may already have inserts, but we still add a
 # fresh custom entry to ensure the metadata test gets a clean prefix field.
 # The "+ Custom" button opens the Add Custom Entry form inline in the column.
-#
-# INDEX NOTE: At this point the visible columns are Sets (Topps Chrome),
-# Variant Types (Insert), and Inserts — each with their own "+ Custom" button.
-# The Inserts column's "+ Custom" is the THIRD one in DOM order (index 2).
-# We must use the aria-label id to target the correct column; tapping by
-# index would add a custom Set or Variant Type instead of an Insert.
 # ============================================================
 
-# Use the Inserts column's aria-label-derived accessible name instead of
-# index — index counts every "+ Custom" in DOM order (6 columns rendered),
-# which is fragile across viewports. The aria-label "Add custom Inserts"
-# is unique to the Inserts column.
+# Use the Inserts column's aria-label-derived accessible name.
+# The aria-label "Add custom Inserts" is unique to the Inserts column.
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
+    centerElement: true
     timeout: 10000
 - tapOn:
     id: "Add custom Inserts"

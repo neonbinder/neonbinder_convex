@@ -4,7 +4,6 @@ name: "Parallel Grouping — cancel discards changes; re-open modal shows origin
 tags:
   - parallel-grouping
   - regression
-  - requires:setup-done
 ---
 # Feature test: Cancel discards pending changes and does not persist to the DB.
 #
@@ -36,20 +35,16 @@ tags:
     timeout: 45000
 
 # ============================================================
-# DRILL TO INSERT VARIANT TYPE
+# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-cancel-<worker>
+# Isolated from Baseball → 2024 → Topps Chrome cascade path.
+# Returns with Inserts column visible and idle.
 # ============================================================
 
 - runFlow:
-    file: util-drill-to-insert-variants.yaml
+    file: util-drill-to-custom-set.yaml
     env:
-      # Per-test sport isolation — selectorOptions is a global Convex
-      # table; using a unique Sport per test keeps each test's custom
-      # variants under a distinct (Sport, Year, Manuf, Set, VariantType)
-      # parent so they don't pollute each other across CI runs.
-      SPORT: "Baseball"
-      YEAR: "2024"
-      MANUFACTURER: "Topps"
-      SET: "Topps Update"
+      SET_NAME: "pg-cancel-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
       BSC_USERNAME: ${BSC_USERNAME}
       BSC_PASSWORD: ${BSC_PASSWORD}
       SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
