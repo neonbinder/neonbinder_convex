@@ -12,13 +12,20 @@ tags:
 #
 # Asserts two things the existing cards-parallel-of-insert.yaml does NOT:
 #
-#   1. The gate fires at a DIFFERENT custom level than parallel-of-insert.
+#   1. The fetchAggregatedOptions gate fires at a DIFFERENT custom level.
 #      This flow creates a custom Set (setName level) under Topps, drills in,
-#      adds a custom Variant Type, and drills in. A regression that removes
-#      the short-circuit from fetchAggregatedOptions (which feeds the Variant
-#      Types column) OR from fetchCardChecklist (which feeds the cards panel)
-#      gets caught here, where cards-parallel-of-insert only exercises the
+#      adds a custom Variant Type, and drills in to a custom Variant. A
+#      regression that removes the short-circuit from fetchAggregatedOptions
+#      (which feeds the Variant Types and Variants columns) OR from
+#      fetchCardChecklist (which feeds the CardChecklist panel) gets caught
+#      here, where cards-parallel-of-insert only exercises the
 #      parallel-of-insert path.
+#
+#      Navigation path drilled by this flow:
+#        Baseball → 2024 → Topps → NEO22-CustomSet (custom Set)
+#          → NEO22-CustomVT (custom Variant Type)
+#            → NEO22-CustomVar (custom Variant)
+#              → CardChecklist ("Fetch from Marketplaces")
 #
 #   2. The fetch + save round-trip completes within 10 seconds, locking in
 #      the NEO-22 acceptance criterion. The original bug had this taking
@@ -57,6 +64,15 @@ tags:
 # util-drill-to-2024-topps-chrome.yaml.
 # ============================================================
 
+# Guard with extendedWaitUntil before scrollUntilVisible: without it, Maestro's
+# CDP JS injection for scroll fires before the page DOM is fully hydrated and
+# throws "null cannot be cast to non-null type kotlin.Int" — a known headless
+# Chrome timing issue on this flow. The extendedWaitUntil gives the
+# selectorOptions reactive query time to resolve. Same pattern as cascade
+# cards-base.yaml, cards-insert.yaml, and cards-parallel.yaml.
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -70,7 +86,11 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search years.*"
-    timeout: 30000
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
@@ -90,7 +110,11 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
-    timeout: 30000
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
@@ -130,9 +154,17 @@ tags:
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 30000
+# scrollUntilVisible with visibilityPercentage: 50 (not centerElement: true)
+# serves as the idle-mode wait: the "+ Custom" button only exists when the
+# Sets column is in idle mode (after the SetForm auto-sync completes).
+# 120s ceiling covers cold BSC/SL adapter sync. visibilityPercentage: 50 is
+# the minimum scroll needed — the column's scrollIntoView on mount already
+# brings it into the right edge of the 1024×629 viewport, so this step mainly
+# waits for idle mode, not scrolls.
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
+    visibilityPercentage: 50
     timeout: 120000
 
 # ============================================================
@@ -143,8 +175,13 @@ tags:
 
 - tapOn:
     id: "Add custom Sets"
+# Wait for the form's "Add Custom Entry" heading rather than the input
+# placeholder — the heading is the first element of the form (top of the
+# rendered card) so it enters the viewport before the input, while the
+# input/placeholder can be below the fold on 1024×629 once multiple columns
+# are open. Same pattern as variant-metadata-editor-insert.yaml.
 - extendedWaitUntil:
-    visible: "Enter custom value..."
+    visible: "Add Custom Entry"
     timeout: 5000
 - tapOn: "Enter custom value..."
 - inputText: "NEO22-CustomSet-${WORKER_INDEX || 0}"
@@ -174,20 +211,31 @@ tags:
 
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 5000
+    timeout: 10000
 
-# The auto-sync settles fast for a custom subtree (no adapter calls).
-# Use scrollUntilVisible for the same reason as the Sets-column "+ Custom"
-# above: the button can sit below the page fold on 1024×629 headless once
-# multiple columns are open, and `extendedWaitUntil` does not scroll.
+# Wait for the auto-sync to complete. For a custom subtree the gate
+# short-circuits immediately (no BSC/SL adapter calls), so the
+# SetVariantForm calls onDone() on success and unmounts — returning
+# the column to idle mode and making "+ Custom" visible.
+#
+# WHY centerElement: true here (unlike the Sets column which uses 50%):
+#   The Variant Types column under a custom Set has ZERO items, making it a
+#   short column. Without centering, the button lands near the bottom of the
+#   629px headless viewport where the page's horizontal scrollbar (from
+#   the 5-column overflow) overlaps the tap area. centerElement: true
+#   scrolls the window down to shift the button higher in the viewport.
+#   Confirmed via maestro.log and screenshots across multiple runs.
 - scrollUntilVisible:
     element:
       id: "Add custom Variant Types"
-    timeout: 10000
+    centerElement: true
+    timeout: 30000
 
 # No marketplace-sourced variant types should appear under a custom set.
 # If any of these are visible the gate has regressed and the adapters are
-# being called.
+# being called. These assertions run AFTER idle mode is confirmed (the
+# "+ Custom" button is the idle signal), so they are not trivially passing
+# because the SetVariantForm was still mounted.
 - assertNotVisible: "Base"
 - assertNotVisible: "Insert"
 - assertNotVisible: "Parallel"
@@ -196,10 +244,20 @@ tags:
 # ADD CUSTOM VARIANT TYPE under the custom set
 # ============================================================
 
+# The Variant Types "+ Custom" button sits near the bottom of the viewport when
+# 5 columns are open and the page overflows horizontally. A native browser
+# horizontal scrollbar renders at the bottom of the overflow-x-auto container
+# and can overlap with the tap target. `waitToSettleTimeoutMs` is mobile-only;
+# instead we use `scrollUntilVisible` on the form heading immediately after the
+# tap. If the tap registered, the form is in the DOM and scrollUntilVisible
+# brings "Add Custom Entry" into view within its 5-second window. If the tap
+# missed (scrollbar intercept), the form never mounts and scrollUntilVisible
+# times out — producing a clearer failure message than `extendedWaitUntil`.
 - tapOn:
     id: "Add custom Variant Types"
-- extendedWaitUntil:
-    visible: "Enter custom value..."
+- scrollUntilVisible:
+    element:
+      text: "Add Custom Entry"
     timeout: 5000
 - tapOn: "Enter custom value..."
 - inputText: "NEO22-CustomVT-${WORKER_INDEX || 0}"
@@ -214,9 +272,58 @@ tags:
 - tapOn:
     text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}.*"
 
+# After selecting the custom Variant Type, the app opens a Variants column
+# (level 6) — the same Variants column used for insert parallels. The
+# CardChecklist ("Fetch from Marketplaces") only appears when a specific
+# variant is selected from that column. So we add a custom Variant and
+# select it to reach the CardChecklist panel.
+#
+# Wait for the Variants column to render. The Variants auto-sync gate also
+# short-circuits for custom subtrees — no BSC/SL calls are made, so the
+# column reaches idle mode immediately.
+- extendedWaitUntil:
+    visible: "Variants"
+    timeout: 15000
+
+# Wait for idle mode (the "+ Custom" button for the Variants column only
+# appears when the VariantForm auto-sync has completed and returned idle).
+# Use the aria-label "Add custom Variants" to target this specific column's
+# button; other columns also have "+ Custom" buttons.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variants"
+    centerElement: true
+    timeout: 30000
+
+# ============================================================
+# ADD CUSTOM VARIANT under the custom Variant Type
+# ============================================================
+
+# Same scrollbar-avoidance pattern as the Variant Types "+ Custom" tap above:
+# tap the button by aria-label, then use scrollUntilVisible for the form
+# heading to confirm the form opened. If the tap was intercepted by the
+# horizontal scrollbar, the form never mounts and scrollUntilVisible times out.
+- tapOn:
+    id: "Add custom Variants"
+- scrollUntilVisible:
+    element:
+      text: "Add Custom Entry"
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomVar-${WORKER_INDEX || 0}"
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomVar-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomVar-${WORKER_INDEX || 0}.*"
+
 # ============================================================
 # ASSERTION 2 — fetchCardChecklist gate + 10s budget
-# Clicking "Fetch from Marketplaces" on a custom variant type must return
+# Selecting a custom Variant opens the CardChecklist panel.
+# Clicking "Fetch from Marketplaces" on a fully-custom subtree must return
 # "Saved 0 cards." within 10 seconds AND must never open the "Confirm
 # New Players & Teams" dialog. The 10s ceiling IS the NEO-22 acceptance
 # criterion — broaden it only if the gate is intentionally being removed.
@@ -225,7 +332,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*Fetch from Marketplaces.*"
-    timeout: 10000
+    timeout: 15000
 
 - tapOn:
     text: ".*Fetch from Marketplaces.*"
