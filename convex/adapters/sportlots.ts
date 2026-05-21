@@ -2,7 +2,7 @@
 
 import { action, ActionCtx } from "../_generated/server";
 import { v } from "convex/values";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { getCurrentUserId, requireAdmin } from "../auth";
 import { Id } from "../_generated/dataModel";
 
@@ -44,7 +44,7 @@ const LEVEL_TO_TARGET_SELECT: Record<string, string> = {
  */
 async function getSportLotsCookie(ctx: ActionCtx): Promise<string | null> {
   const tokenResult = await ctx.runAction(
-    api.credentials.getSiteToken,
+    internal.credentials.getSiteToken,
     { site: "sportlots" },
   );
   return tokenResult?.token || null;
