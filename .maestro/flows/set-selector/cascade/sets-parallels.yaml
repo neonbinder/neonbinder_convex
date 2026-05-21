@@ -136,7 +136,7 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Parallels"
     timeout: 10000
 
 - runFlow:
@@ -146,10 +146,10 @@ tags:
       # Auto-sync fires the VariantForm. 240s budget — Parallel fetch timing
       # is similar to Insert fetch.
       - extendedWaitUntil:
-          visible: "Reconcile Variants"
+          visible: "Reconcile Parallels"
           timeout: 240000
 
-      - assertVisible: "Reconcile Variants"
+      - assertVisible: "Reconcile Parallels"
       - assertVisible:
           text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
       - scrollUntilVisible:
@@ -175,8 +175,8 @@ tags:
           timeout: 5000
       - tapOn: "Cancel"
       - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
+          notVisible: "Reconcile Parallels"
           timeout: 10000
 
 - assertVisible: "Set Selector"
-- assertVisible: "Variants"
+- assertVisible: "Parallels"

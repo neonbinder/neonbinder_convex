@@ -52,6 +52,12 @@ export default defineSchema({
     platformData: v.object({
       bsc: v.optional(v.union(v.string(), v.array(v.string()))),
       sportlots: v.optional(v.string()),
+      // SL display name captured at the time the user picked the SL Base
+      // anchor in BaseSetPicker. Used by ReconciliationModal to seed the
+      // SL prefix filter (sibling `sportlots` holds the radio ID, which is
+      // numeric and not human-comparable). Optional + additive for
+      // backwards compatibility; missing rows self-heal on next sync.
+      sportlotsDisplay: v.optional(v.string()),
     }),
     parentId: v.optional(v.id("selectorOptions")), // For hierarchical relationships
     children: v.optional(v.array(v.id("selectorOptions"))), // Child options

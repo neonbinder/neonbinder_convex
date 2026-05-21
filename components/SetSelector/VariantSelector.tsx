@@ -8,6 +8,7 @@ type VariantSelectorProps = {
   onVariantSelect: (id: GenericId<"selectorOptions">) => void;
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
+  title?: string;
 };
 
 export default function VariantSelector({
@@ -16,10 +17,11 @@ export default function VariantSelector({
   onVariantSelect,
   expanded,
   setExpanded,
+  title = "Variants",
 }: VariantSelectorProps) {
   return (
     <EntitySelector
-      title="Variants"
+      title={title}
       query={api.selectorOptions.getSelectorOptions}
       queryArgs={{ level: "insert", parentId: variantTypeId }}
       selectedId={selectedVariantId as string | null}

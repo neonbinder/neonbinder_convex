@@ -63,6 +63,7 @@ export default function BaseMappingForm({
   const writePlatformData = async (platformData: {
     bsc?: string;
     sportlots?: string;
+    sportlotsDisplay?: string;
   }) => {
     await setPlatformData({ variantTypeId, platformData });
   };
@@ -157,6 +158,7 @@ export default function BaseMappingForm({
 
     await writePlatformData({
       sportlots: selected.sl.platformValue,
+      sportlotsDisplay: selected.sl.value,
       ...(bscPlatformValue ? { bsc: bscPlatformValue } : {}),
     });
     setPickerOpen(false);

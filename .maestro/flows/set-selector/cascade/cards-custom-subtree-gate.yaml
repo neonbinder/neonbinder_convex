@@ -281,17 +281,24 @@ tags:
 # Wait for the Variants column to render. The Variants auto-sync gate also
 # short-circuits for custom subtrees — no BSC/SL calls are made, so the
 # column reaches idle mode immediately.
+#
+# NEO-16 made the column header dynamic — it's the pluralized variantType
+# `value` (e.g. "Inserts", "Parallels", or for the custom VT created above,
+# "NEO22-CustomVT-${WORKER_INDEX || 0}s"). The literal "Variants" only
+# appears as a fallback when no variantType is selected.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible:
+      text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}s.*"
     timeout: 15000
 
 # Wait for idle mode (the "+ Custom" button for the Variants column only
 # appears when the VariantForm auto-sync has completed and returned idle).
-# Use the aria-label "Add custom Variants" to target this specific column's
-# button; other columns also have "+ Custom" buttons.
+# Use the aria-label to target this specific column's button — other columns
+# also have "+ Custom" buttons. After NEO-16, the aria-label is derived from
+# the column header label: "Add custom <pluralized variantType value>".
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom NEO22-CustomVT-${WORKER_INDEX || 0}s"
     centerElement: true
     timeout: 30000
 
@@ -304,7 +311,7 @@ tags:
 # heading to confirm the form opened. If the tap was intercepted by the
 # horizontal scrollbar, the form never mounts and scrollUntilVisible times out.
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom NEO22-CustomVT-${WORKER_INDEX || 0}s"
 - scrollUntilVisible:
     element:
       text: "Add Custom Entry"

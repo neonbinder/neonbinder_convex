@@ -139,9 +139,9 @@ tags:
     timeout: 10000
 - tapOn: "Parallel"
 
-# Variants column appears. If auto-sync fires (empty column), cancel the modal.
+# Parallels column appears. If auto-sync fires (empty column), cancel the modal.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Parallels"
     timeout: 10000
 
 - runFlow:
@@ -151,25 +151,25 @@ tags:
       # Empty column auto-syncs. Wait for ReconciliationModal and cancel.
       - extendedWaitUntil:
           visible:
-            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+            text: ".*Reconcile Parallels.*|.*Group Parallels.*"
           timeout: 240000
       - runFlow:
           when:
-            visible: "Reconcile Variants"
+            visible: "Reconcile Parallels"
           commands:
             - tapOn: "Cancel"
             - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
+                notVisible: "Reconcile Parallels"
                 timeout: 10000
 
 # ============================================================
 # ADD A CUSTOM PARALLEL VARIANT
-# The Variants column is empty after cancelling. Add a known custom entry.
-# "Add custom Variants" aria-label maps to resource-id in Maestro web.
+# The Parallels column is empty after cancelling. Add a known custom entry.
+# "Add custom Parallels" aria-label maps to resource-id in Maestro web.
 # ============================================================
 
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Parallels"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
