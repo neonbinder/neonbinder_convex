@@ -211,6 +211,7 @@ tags:
     timeout: 10000
 - tapOn:
     text: ".*${SET_NAME}.*"
+    waitToSettleTimeoutMs: 2000
 
 # ============================================================
 # LEVEL 5 — Variant Types
@@ -218,11 +219,15 @@ tags:
 # Wait for idle mode (the "+ Custom" button appears when mode=idle).
 # Then select the requested VARIANT_TYPE (defaults to "Insert").
 # If VARIANT_TYPE does not exist yet, add it as a custom entry first.
+#
+# Bumped to 30000 from 10000 — under shared-Convex contention from
+# parallel workers, the Variant Types column can take longer to render
+# after the SET_NAME tap. Observed ~11s render time in CI (PR #31 first run).
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 10000
+    timeout: 30000
 
 # Short-circuit makes idle mode arrive quickly (<5s).
 # centerElement: true keeps the button clear of the footer click-stealer

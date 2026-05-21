@@ -140,26 +140,24 @@ tags:
     visible: "Parallels"
     timeout: 10000
 
-# Auto-sync fires on empty column. Wait for ReconciliationModal or for "Gold Wave"
-# to appear directly (unexpected re-run state where data is already populated).
+# Auto-sync fires on empty column. Wait for the ReconciliationModal heading
+# (or re-run state where data is already populated).
 - extendedWaitUntil:
     visible:
-      text: ".*Reconcile Parallels.*|Gold Wave"
+      text: ".*Reconcile Parallels.*|Gold Wave Refractors"
     timeout: 240000
 
 # ============================================================
-# RECONCILIATION MODAL — find and save "Gold Wave"
+# RECONCILIATION MODAL — save all matched rows
+# Matched section is COLLAPSED by default — can't scroll to a specific row
+# inside the modal. Just hit "Save N matched" and find the target row in
+# the populated Parallels column via the Search input afterward.
 # ============================================================
 
 - runFlow:
     when:
       visible: "Reconcile Parallels"
     commands:
-      - scrollUntilVisible:
-          element:
-            text: "Gold Wave"
-          timeout: 30000
-      - assertVisible: "Gold Wave"
       - scrollUntilVisible:
           element:
             text: ".*Save [0-9]+ matched.*"
@@ -171,18 +169,25 @@ tags:
           timeout: 30000
 
 # ============================================================
-# TAP "Gold Wave" IN THE PARALLELS COLUMN
+# FIND "Gold Wave Refractors" IN THE PARALLELS COLUMN VIA SEARCH
+# Real rendered name is "Gold Wave Refractors" (no "Chrome " prefix on
+# parallels, but the "Refractors" suffix is on every Topps Chrome parallel).
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Gold Wave"
-    timeout: 10000
+    visible: ".*Search parallels.*"
+    timeout: 15000
 - scrollUntilVisible:
     element:
-      text: "Gold Wave"
-    visibilityPercentage: 50
-    timeout: 15000
-- tapOn: "Gold Wave"
+      text: ".*Search parallels.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search parallels.*"
+- inputText: "Gold Wave Refractors"
+- extendedWaitUntil:
+    visible: "Gold Wave Refractors"
+    timeout: 10000
+- tapOn: "Gold Wave Refractors"
 
 # ============================================================
 # CARD CHECKLIST PANEL APPEARS

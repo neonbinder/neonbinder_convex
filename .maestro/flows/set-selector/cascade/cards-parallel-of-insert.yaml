@@ -5,7 +5,7 @@ tags:
   - set-selector
   - cascade
   - regression
-  - requires:sets-loaded
+  - requires:inserts-saved
   - provides:cards-loaded
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
@@ -281,12 +281,15 @@ tags:
 # simply does nothing — Maestro will not fail on a missing id element
 # when wrapped in a runFlow when:visible guard.
 
-- runFlow:
-    when:
-      visible: "Chrome Legend Autographs Aqua Refractor"
-    commands:
-      - tapOn:
-          id: "Remove Chrome Legend Autographs Aqua Refractor from parallels"
+# Real 8 suggested parallels (from user's screenshot 2026-05-21):
+#   Black Refractor  <-- keep
+#   Orange Refractor
+#   Printing Plates Black
+#   Printing Plates Cyan
+#   Printing Plates Magenta
+#   Printing Plates Yellow
+#   Red Refractor
+#   SuperFractor
 
 - runFlow:
     when:
@@ -297,10 +300,31 @@ tags:
 
 - runFlow:
     when:
-      visible: "Chrome Legend Autographs Prism Refractor"
+      visible: "Chrome Legend Autographs Printing Plates Black"
     commands:
       - tapOn:
-          id: "Remove Chrome Legend Autographs Prism Refractor from parallels"
+          id: "Remove Chrome Legend Autographs Printing Plates Black from parallels"
+
+- runFlow:
+    when:
+      visible: "Chrome Legend Autographs Printing Plates Cyan"
+    commands:
+      - tapOn:
+          id: "Remove Chrome Legend Autographs Printing Plates Cyan from parallels"
+
+- runFlow:
+    when:
+      visible: "Chrome Legend Autographs Printing Plates Magenta"
+    commands:
+      - tapOn:
+          id: "Remove Chrome Legend Autographs Printing Plates Magenta from parallels"
+
+- runFlow:
+    when:
+      visible: "Chrome Legend Autographs Printing Plates Yellow"
+    commands:
+      - tapOn:
+          id: "Remove Chrome Legend Autographs Printing Plates Yellow from parallels"
 
 - runFlow:
     when:
@@ -311,24 +335,10 @@ tags:
 
 - runFlow:
     when:
-      visible: "Chrome Legend Autographs Gold Refractor"
-    commands:
-      - tapOn:
-          id: "Remove Chrome Legend Autographs Gold Refractor from parallels"
-
-- runFlow:
-    when:
       visible: "Chrome Legend Autographs SuperFractor"
     commands:
       - tapOn:
           id: "Remove Chrome Legend Autographs SuperFractor from parallels"
-
-- runFlow:
-    when:
-      visible: "Chrome Legend Autographs Atomic Refractor"
-    commands:
-      - tapOn:
-          id: "Remove Chrome Legend Autographs Atomic Refractor from parallels"
 
 # Verify only Black Refractor remains in the parallels zone.
 - assertVisible: "Chrome Legend Autographs Black Refractor"

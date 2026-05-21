@@ -6,6 +6,7 @@ tags:
   - cascade
   - regression
   - requires:sets-loaded
+  - provides:inserts-saved
   - provides:cards-loaded
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
@@ -158,45 +159,48 @@ tags:
     timeout: 240000
 
 # ============================================================
-# RECONCILIATION MODAL — find and save "All-Etch"
+# RECONCILIATION MODAL — save all matched rows
+# The "Matched (N)" section is COLLAPSED by default (▶ click to review),
+# so scrolling for a specific row inside the modal can't find it. Skip
+# the in-modal find and just tap "Save N matched" — the matched rows
+# (including Chrome All-Etch) will all be written to the Inserts column.
 # ============================================================
 
 - runFlow:
     when:
       visible: "Reconcile Inserts"
     commands:
-      # Scroll to find "All-Etch" in the matched section.
-      - scrollUntilVisible:
-          element:
-            text: "All-Etch"
-          timeout: 30000
-      - assertVisible: "All-Etch"
-      # Save all matched rows. The save button reads "Save N matched".
       - scrollUntilVisible:
           element:
             text: ".*Save [0-9]+ matched.*"
           timeout: 10000
       - tapOn:
           text: ".*Save [0-9]+ matched.*"
-      # Wait for the modal to close.
       - extendedWaitUntil:
           notVisible: "Reconcile Inserts"
           timeout: 30000
 
 # ============================================================
-# TAP "All-Etch" IN THE INSERTS COLUMN
-# After saving, All-Etch appears in the Inserts column.
+# FIND "Chrome All-Etch" IN THE INSERTS COLUMN VIA SEARCH
+# Inserts column has a "Search inserts..." input; use it to filter
+# rather than scrolling the page. Real rendered name is "Chrome All-Etch"
+# (the "Chrome " prefix is on every Topps Chrome insert).
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "All-Etch"
-    timeout: 10000
+    visible: ".*Search inserts.*"
+    timeout: 15000
 - scrollUntilVisible:
     element:
-      text: "All-Etch"
-    visibilityPercentage: 50
-    timeout: 15000
-- tapOn: "All-Etch"
+      text: ".*Search inserts.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search inserts.*"
+- inputText: "Chrome All-Etch"
+- extendedWaitUntil:
+    visible: "Chrome All-Etch"
+    timeout: 10000
+- tapOn: "Chrome All-Etch"
 
 # ============================================================
 # CARD CHECKLIST PANEL APPEARS
