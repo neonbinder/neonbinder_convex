@@ -52,6 +52,20 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   signatures: "signature",
 };
 
+// Words that take a simple "+s" plural. When a token ends in 's' and the
+// trimmed singular is in this set, the singular form is used for matching.
+// Lightweight, extensible alternative to listing each plural pair in
+// TOKEN_SYNONYMS — add new singulars here as marketplaces surface them.
+const PLURALIZABLE_WORDS: Set<string> = new Set(["prizm"]);
+
+function singularize(tok: string): string {
+  if (tok.length > 1 && tok.endsWith("s")) {
+    const singular = tok.slice(0, -1);
+    if (PLURALIZABLE_WORDS.has(singular)) return singular;
+  }
+  return tok;
+}
+
 function normalizeForMatch(s: string): string {
   const base = s
     .toLowerCase()
@@ -61,7 +75,7 @@ function normalizeForMatch(s: string): string {
   if (!base) return base;
   return base
     .split(" ")
-    .map((tok) => TOKEN_SYNONYMS[tok] ?? tok)
+    .map((tok) => TOKEN_SYNONYMS[tok] ?? singularize(tok))
     .join(" ");
 }
 
@@ -116,9 +130,24 @@ type MatchedPair = {
   confidence: number;
 };
 
+// Strips a leading SL Base prefix from an SL value (case-insensitive,
+// optional trailing whitespace) so matching can compare the variant tail
+// against the BSC name. Returns the original string when the prefix
+// doesn't lead — never lossy.
+function stripSlBasePrefix(value: string, prefix: string): string {
+  if (!prefix) return value;
+  const v = value.trim();
+  const p = prefix.trim();
+  if (v.toLowerCase().startsWith(p.toLowerCase())) {
+    return v.slice(p.length).trim();
+  }
+  return v;
+}
+
 function computeMatches(
   bscItems: PlatformItem[],
   slItems: PlatformItem[],
+  slStripPrefix?: string,
 ): {
   autoMatched: MatchedPair[];
   unmatchedBsc: PlatformItem[];
@@ -128,11 +157,18 @@ function computeMatches(
   const remainingBsc = [...bscItems];
   const remainingSl = [...slItems];
 
+  // Stripped SL values used only for comparison; the original SL value is
+  // preserved in the emitted pair so the UI shows the marketplace name.
+  // Index-aligned with `remainingSl` and resliced together.
+  const slStripped = remainingSl.map((sl) =>
+    slStripPrefix ? stripSlBasePrefix(sl.value, slStripPrefix) : sl.value,
+  );
+
   // Pass 1: Exact match on normalized strings
   for (let i = remainingBsc.length - 1; i >= 0; i--) {
     const bscNorm = normalizeForMatch(remainingBsc[i].value);
     const slIndex = remainingSl.findIndex(
-      (sl) => normalizeForMatch(sl.value) === bscNorm,
+      (_, j) => normalizeForMatch(slStripped[j]) === bscNorm,
     );
     if (slIndex !== -1) {
       autoMatched.push({
@@ -143,10 +179,36 @@ function computeMatches(
       });
       remainingBsc.splice(i, 1);
       remainingSl.splice(slIndex, 1);
+      slStripped.splice(slIndex, 1);
     }
   }
 
-  // Pass 2: Fuzzy match remaining with Levenshtein ratio < 0.40, but only
+  // Pass 2: Bag-of-words match — same multiset of normalized tokens in any
+  // order. Catches "Prizms Red" ↔ "Red Prizm" without leaning on fuzzy edit
+  // distance (which fails when word swaps create many character-level
+  // changes). Sorted-token join preserves duplicate-token semantics.
+  const bagOf = (s: string): string =>
+    normalizeForMatch(s).split(" ").filter(Boolean).sort().join(" ");
+  for (let i = remainingBsc.length - 1; i >= 0; i--) {
+    const bscBag = bagOf(remainingBsc[i].value);
+    if (!bscBag) continue;
+    const slIndex = remainingSl.findIndex(
+      (_, j) => bagOf(slStripped[j]) === bscBag,
+    );
+    if (slIndex !== -1) {
+      autoMatched.push({
+        displayName: remainingBsc[i].value,
+        bsc: remainingBsc[i],
+        sl: remainingSl[slIndex],
+        confidence: 0.95,
+      });
+      remainingBsc.splice(i, 1);
+      remainingSl.splice(slIndex, 1);
+      slStripped.splice(slIndex, 1);
+    }
+  }
+
+  // Pass 3: Fuzzy match remaining with Levenshtein ratio < 0.40, but only
   // when the token sets stand in a subset/superset relationship. The
   // subset guard prevents single-meaningful-token mismatches ("red" vs
   // "chrome") from sneaking through; the looser char-ratio lets shorter
@@ -159,7 +221,7 @@ function computeMatches(
     let bestRatio = Infinity;
 
     for (let j = 0; j < remainingSl.length; j++) {
-      const slNorm = normalizeForMatch(remainingSl[j].value);
+      const slNorm = normalizeForMatch(slStripped[j]);
       const maxLen = Math.max(bscNorm.length, slNorm.length);
       if (maxLen === 0) continue;
       const ratio = levenshteinDistance(bscNorm, slNorm) / maxLen;
@@ -174,7 +236,7 @@ function computeMatches(
       bestRatio < MAX_RATIO &&
       isTokenSubsetOrSuperset(
         remainingBsc[i].value,
-        remainingSl[bestSlIndex].value,
+        slStripped[bestSlIndex],
       )
     ) {
       autoMatched.push({
@@ -185,6 +247,7 @@ function computeMatches(
       });
       remainingBsc.splice(i, 1);
       remainingSl.splice(bestSlIndex, 1);
+      slStripped.splice(bestSlIndex, 1);
     }
   }
 
@@ -210,6 +273,13 @@ export const fetchRawOptions = action({
         variantType: v.optional(v.string()),
       }),
     ),
+    // Display name of the SL Base set (e.g. "Prizm Stars & Stripes").
+    // When provided, the SL row whose value exactly matches is excluded
+    // from slOptions (it's the parent set, not a variant), and the
+    // prefix is stripped from remaining SL values before auto-matching
+    // so "Prizm Stars & Stripes Blue Prizm" lines up against BSC's
+    // "Prizms Blue".
+    baseSlPrefix: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -233,7 +303,7 @@ export const fetchRawOptions = action({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     try {
-      const { level, parentId, parentFilters } = args;
+      const { level, parentId, parentFilters, baseSlPrefix } = args;
 
       console.log(
         `[fetchRawOptions] Fetching ${level} options with filters:`,
@@ -327,7 +397,15 @@ export const fetchRawOptions = action({
           },
         );
         if (result.success && result.options) {
-          slOptions = result.options;
+          // Drop the SL Base anchor row itself (e.g. "Prizm Stars & Stripes")
+          // so it doesn't surface as a variant candidate downstream.
+          slOptions = baseSlPrefix
+            ? result.options.filter(
+                (o) =>
+                  o.value.trim().toLowerCase() !==
+                  baseSlPrefix.trim().toLowerCase(),
+              )
+            : result.options;
         } else if (!result.success) {
           platformErrors.sportlots = result.message || "Unknown error";
         }
@@ -379,10 +457,13 @@ export const fetchRawOptions = action({
         });
       }
 
-      // Run matching algorithm
+      // Run matching algorithm. The SL Base anchor is already filtered
+      // out of slOptions above; passing baseSlPrefix here lets the matcher
+      // compare BSC names against SL values with the prefix stripped.
       const { autoMatched, unmatchedBsc, unmatchedSl } = computeMatches(
         bscOptions,
         slOptions,
+        baseSlPrefix,
       );
 
       const warningSuffix =

@@ -18,11 +18,27 @@ Level 7: Sub-Variants   (optional, only shown after a Variant is selected)
 Cards panel: full-width below the selector row (not a column), visible after selecting a Variant
 
 ## Column titles (EntitySelector title prop)
-- Sports, Years, Manufacturers, Sets, Variant Types, Variants, Sub-Variants
+- Sports, Years, Manufacturers, Sets, Variant Types, [variantType pluralized], Sub-Variants
+- Level 6 column header is the PLURALIZED variantType value (PR #32):
+  - variantType="Insert" → column header "Inserts"
+  - variantType="Parallel" → column header "Parallels"
+  - variantType="Base" → column is SUPPRESSED (Base is terminal, no Level 6)
+  - Any other variantType ending in "s" → left as-is; otherwise append "s"
+  - Fallback (while variantType still loading) → "Variants"
+- NEVER assert literal "Variants" as a column heading — it only appears in the fallback state
 
 ## Sync button text per column (EntityColumn addButtonText prop)
 - "Sync Sports", "Sync Years", "Sync Manufacturers", "Sync Sets",
-  "Sync Variant Types", "Sync Variants", "Sync Sub-Variants"
+  "Sync Variant Types", "Sync [variantColumnLabel]", "Sync Sub-Variants"
+- variantColumnLabel = pluralized variantType (same rule as column heading above)
+  - Insert → "Sync Inserts"
+  - Parallel → "Sync Parallels"
+
+## Add custom button aria-label per column
+- aria-label = `Add custom ${addButtonText.replace(/^Sync /, "")}`
+- Level 6 Insert: aria-label = "Add custom Inserts" → use `id: "Add custom Inserts"` in Maestro
+- Level 6 Parallel: aria-label = "Add custom Parallels" → use `id: "Add custom Parallels"` in Maestro
+- NEVER use `id: "Add custom Variants"` — that no longer matches any element
 
 ## CRITICAL: Sync form auto-fire pattern (changed from old "Sync from Marketplaces" button)
 All sync forms auto-fire immediately when opened — there is NO "Sync from Marketplaces" button.
@@ -47,7 +63,10 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 - ManufacturerForm: "Syncing Manufacturer Options"
 - SetForm: "Syncing Sets"
 - SetVariantForm (level 5): "Syncing Variant Types"
-- VariantForm (level 6): "Syncing Variants" (or "Select Base Set" if variantType is "Base")
+- VariantForm (level 6): "Syncing [pluralizedType]" — e.g. "Syncing Inserts", "Syncing Parallels"
+  (fallback "Syncing Variants" while ancestor chain resolves; "Select Base Set" for Base variantType)
+- ReconciliationModal heading (level 6): "Reconcile [pluralizedType]" — e.g. "Reconcile Inserts", "Reconcile Parallels"
+  NEVER assert literal "Reconcile Variants" (PR #32 regression root cause)
 
 ## Sync form buttons after completion
 - Success: "Close" button (tapping closes the form)

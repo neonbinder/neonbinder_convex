@@ -182,12 +182,14 @@ tags:
 # LEVEL 6 — Add a custom variant
 # ============================================================
 
-# The Variants column appears after selecting a variant type
+# The column appears after selecting a variant type.
+# Column header is the pluralized variantType name: "Inserts", "Parallels", etc.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible:
+      text: ".*Inserts.*|.*Parallels.*|.*Variants.*"
     timeout: 10000
 
-# Tap "+ Custom" to open the custom entry form for Variants
+# Tap "+ Custom" to open the custom entry form for the variant column
 - tapOn: "+ Custom"
 - extendedWaitUntil:
     visible: "Add Custom Entry"

@@ -5,14 +5,6 @@ tags:
   - parallel-grouping
   - regression
   - requires:setup-done
-  # WIP: The test asserts "No changes yet" appears in the modal footer
-  # after Accept-all-suggestions then Reject one parallel via ✕. Net diff
-  # vs original-state is zero, so footer SHOULD show "No changes yet".
-  # In practice the footer still shows "1 promotion" — either a product
-  # bug in the diff calculation or a test-expectation mismatch.
-  # Failing across all 9+ waves regardless of which SET is used.
-  # Re-enable after debugging the diff logic in ParallelGroupingModal.
-  - wip
 ---
 # Feature test: the ✕ (reject) button on parallel rows inside a "Parallels of X" card.
 #
@@ -66,17 +58,17 @@ tags:
 # ============================================================
 
 # --- Add "Stars" ---
-# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# The Inserts column "+ Custom" button has aria-label="Add custom Inserts".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
-# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# Plain text "Add custom Inserts" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -92,11 +84,11 @@ tags:
 # --- Add "Stars Gold" ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -115,11 +107,11 @@ tags:
 # Group Parallels button is reliably tappable.) ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000

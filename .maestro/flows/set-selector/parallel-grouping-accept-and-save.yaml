@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Parallel Grouping — accept suggestions and save; verify Variants column rerenders"
+name: "Parallel Grouping — accept suggestions and save; verify Inserts column rerenders"
 tags:
   - parallel-grouping
   - regression
@@ -67,17 +67,17 @@ tags:
 # ============================================================
 
 # --- Add "Stars" ---
-# The Variants column "+ Custom" button has aria-label="Add custom Variants".
+# The Inserts column "+ Custom" button has aria-label="Add custom Inserts".
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
-# Plain text "Add custom Variants" does NOT work — Maestro text matchers only see
+# Plain text "Add custom Inserts" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -93,11 +93,11 @@ tags:
 # --- Add "Stars Gold" ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -113,11 +113,11 @@ tags:
 # --- Add "Stars Red" ---
 - scrollUntilVisible:
     element:
-      id: "Add custom Variants"
+      id: "Add custom Inserts"
     visibilityPercentage: 50
     timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -184,9 +184,9 @@ tags:
 # a top-level insert (visible in the column). The modal backdrop is gone.
 # ============================================================
 
-- assertVisible: "Variants"
+- assertVisible: "Inserts"
 
-# Confirm "Stars" is visible as a top-level insert in the Variants column.
+# Confirm "Stars" is visible as a top-level insert in the Inserts column.
 # After saving the groupings, "Stars Gold" and "Stars Red" become parallels
 # (nested under Stars), so only "Stars" remains in the top-level list.
 # With a single item the EntitySelector does not render a search box,

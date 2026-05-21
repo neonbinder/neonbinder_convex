@@ -152,7 +152,7 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
 # Detect first-run vs re-run by checking for the empty-state text.
@@ -163,19 +163,19 @@ tags:
       # Auto-sync fires the VariantForm. Wait for either:
       #  - ReconciliationModal (cross-platform path: BSC + SL both returned items), or
       #  - Single-platform success ("Stored N variants (single platform)") — VariantForm
-      #    auto-closes and Variants column re-populates.
+      #    auto-closes and Inserts column re-populates.
       # 240s — BSC + SL Insert fetch; local runs recorded ~213s.
       - extendedWaitUntil:
           visible:
-            text: ".*Reconcile Variants.*|.*Stored [0-9]+ variants.*|.*Saved [0-9]+ matched.*"
+            text: ".*Reconcile Inserts.*|.*Stored [0-9]+ variants.*|.*Saved [0-9]+ matched.*"
           timeout: 240000
 
       # If the cross-platform modal opened, verify it and cancel.
       - runFlow:
           when:
-            visible: "Reconcile Variants"
+            visible: "Reconcile Inserts"
           commands:
-            - assertVisible: "Reconcile Variants"
+            - assertVisible: "Reconcile Inserts"
             - assertVisible:
                 text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
             - scrollUntilVisible:
@@ -201,9 +201,9 @@ tags:
                 timeout: 5000
             - tapOn: "Cancel"
             - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
+                notVisible: "Reconcile Inserts"
                 timeout: 10000
 
-# Verify the Variants column is present (both first-run and re-run).
+# Verify the Inserts column is present (both first-run and re-run).
 - assertVisible: "Set Selector"
-- assertVisible: "Variants"
+- assertVisible: "Inserts"

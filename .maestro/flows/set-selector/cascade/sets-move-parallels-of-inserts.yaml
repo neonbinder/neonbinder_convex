@@ -134,9 +134,9 @@ tags:
     timeout: 10000
 - tapOn: "Insert"
 
-# Wait for Variants column to appear.
+# Wait for Inserts column to appear.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
 # If auto-sync fires (empty column), wait for either ReconciliationModal
@@ -148,15 +148,15 @@ tags:
     commands:
       - extendedWaitUntil:
           visible:
-            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+            text: ".*Reconcile Inserts.*|.*Group Parallels.*"
           timeout: 240000
       - runFlow:
           when:
-            visible: "Reconcile Variants"
+            visible: "Reconcile Inserts"
           commands:
             - tapOn: "Cancel"
             - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
+                notVisible: "Reconcile Inserts"
                 timeout: 10000
 
 # Confirm "Group Parallels" button is visible before adding custom entries.
@@ -173,7 +173,7 @@ tags:
 
 # --- Add "Stars" ---
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -189,7 +189,7 @@ tags:
 
 # --- Add "Stars Gold" ---
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -205,7 +205,7 @@ tags:
 
 # --- Add "Stars Red" (third entry ensures button layout is stable for tapping Group Parallels) ---
 - tapOn:
-    id: "Add custom Variants"
+    id: "Add custom Inserts"
 - extendedWaitUntil:
     visible: "Add Custom Entry"
     timeout: 5000
@@ -267,7 +267,7 @@ tags:
 # Modal is gone. Variants column heading still present.
 # ============================================================
 
-- assertVisible: "Variants"
+- assertVisible: "Inserts"
 - extendedWaitUntil:
     visible: "Stars"
     timeout: 10000

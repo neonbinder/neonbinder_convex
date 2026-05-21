@@ -63,7 +63,7 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
 # Auto-sync fires the VariantForm immediately when the column is empty.
@@ -71,16 +71,21 @@ tags:
 # ReconciliationModal. Wait up to 240 seconds — the browser service
 # makes network calls to both platforms and can be slow on cold sessions.
 # Local runs have recorded 213s total flow time; 240s provides margin.
+#
+# Fresh Convex preview per PR (vercel.json buildCommand) guarantees the
+# Inserts column starts empty, so the auto-sync + ReconciliationModal path
+# always runs. No defensive `when: visible` guard needed.
 - extendedWaitUntil:
-    visible: "Reconcile Variants"
+    visible: "Reconcile Inserts"
     timeout: 240000
 
 # ============================================================
 # VERIFY ReconciliationModal contents
 # ============================================================
 
-# The modal heading for Insert type is "Reconcile Variants" (level="insert")
-- assertVisible: "Reconcile Variants"
+# The modal heading for Insert type is "Reconcile Inserts" (level="insert",
+# pluralized from the selected variantType value per NEO-16)
+- assertVisible: "Reconcile Inserts"
 
 # The subtitle shows matched/unmatched counts — e.g. "25 matched, 22 BSC-only, 2504 SL-only"
 # Numbers drift as marketplace data changes; assert the structural pattern only.
@@ -126,12 +131,12 @@ tags:
 
 # Modal closes; we're back at the set selector
 - extendedWaitUntil:
-    notVisible: "Reconcile Variants"
+    notVisible: "Reconcile Inserts"
     timeout: 10000
 
 # ============================================================
-# VERIFY the Variants column is populated
+# VERIFY the Inserts column is populated
 # ============================================================
 
 - assertVisible: "Set Selector"
-- assertVisible: "Variants"
+- assertVisible: "Inserts"

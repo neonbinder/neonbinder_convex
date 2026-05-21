@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-name: "Util — Drill to Insert variant type with Variants synced (leaves Variants column visible)"
+name: "Util — Drill to Insert variant type with Inserts synced (leaves Inserts column visible)"
 tags:
   - util
 ---
@@ -64,17 +64,17 @@ tags:
 # ============================================================
 
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
-# Auto-sync fires immediately when the Variants column renders with an empty
+# Auto-sync fires immediately when the Inserts column renders with an empty
 # items list — EntityColumn's useEffect sets mode="sync" before the user
-# can tap anything, so "Sync Variants" is never in the DOM in that case.
+# can tap anything, so "Sync Inserts" is never in the DOM in that case.
 #
 # Two cases after tapping "Insert":
-#   (A) Variants column is EMPTY  → auto-sync fires → ReconciliationModal
+#   (A) Inserts column is EMPTY  → auto-sync fires → ReconciliationModal
 #       opens automatically. Just wait for it and cancel.
-#   (B) Variants column is POPULATED (re-run) → auto-sync does NOT fire →
+#   (B) Inserts column is POPULATED (re-run) → auto-sync does NOT fire →
 #       "Group Parallels" is already visible. Skip the modal entirely.
 #
 # We distinguish the cases via "Group Parallels" visibility:
@@ -103,33 +103,33 @@ tags:
       # slow when both platforms need fresh sessions (213s observed locally).
       - extendedWaitUntil:
           visible:
-            text: ".*Reconcile Variants.*|.*Group Parallels.*"
+            text: ".*Reconcile Inserts.*|.*Group Parallels.*"
           timeout: 240000
 
       # If the modal opened, cancel it. We only need the column to have triggered
       # sync — saving thousands of rows is out of scope.
       - runFlow:
           when:
-            visible: "Reconcile Variants"
+            visible: "Reconcile Inserts"
           commands:
             - tapOn: "Cancel"
             - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
+                notVisible: "Reconcile Inserts"
                 timeout: 10000
 
-# After cancelling the ReconciliationModal on a first run, the Variants
+# After cancelling the ReconciliationModal on a first run, the Inserts
 # column will show the empty state again — that is expected. The "Group
 # Parallels" button still appears because a non-Base variantType is selected.
-# Subsequent flows (which run after this util) do not need variants to be
+# Subsequent flows (which run after this util) do not need inserts to be
 # saved in order to test the modal open/close UI.
 
 # ============================================================
-# VERIFY "Group Parallels" button is visible in the Variants column
-# The button renders in the action row next to "Sync Variants" and
+# VERIFY "Group Parallels" button is visible in the Inserts column
+# The button renders in the action row next to "Sync Inserts" and
 # "+ Custom" when a non-Base variantType is selected.
 # ============================================================
 
-- assertVisible: "Variants"
+- assertVisible: "Inserts"
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
