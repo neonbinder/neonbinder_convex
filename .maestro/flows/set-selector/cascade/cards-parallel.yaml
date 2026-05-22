@@ -140,11 +140,11 @@ tags:
     visible: "Parallels"
     timeout: 10000
 
-# Auto-sync fires on empty column. Wait for the ReconciliationModal heading
-# (or re-run state where data is already populated).
+# Auto-sync fires on empty column. Wait for modal heading OR the column's
+# Search input (re-run state where data is already populated).
 - extendedWaitUntil:
     visible:
-      text: ".*Reconcile Parallels.*|Gold Wave Refractors"
+      text: ".*Reconcile Parallels.*|Search parallels.*"
     timeout: 240000
 
 # ============================================================
@@ -184,10 +184,15 @@ tags:
 - tapOn:
     text: ".*Search parallels.*"
 - inputText: "Gold Wave Refractors"
+# index: 1 — search input has the typed text at index 0, the row at index 1.
 - extendedWaitUntil:
-    visible: "Gold Wave Refractors"
+    visible:
+      text: "^Gold Wave Refractors$"
+      index: 1
     timeout: 10000
-- tapOn: "Gold Wave Refractors"
+- tapOn:
+    text: "^Gold Wave Refractors$"
+    index: 1
 
 # ============================================================
 # CARD CHECKLIST PANEL APPEARS
@@ -202,9 +207,12 @@ tags:
 
 # ============================================================
 # FETCH FROM MARKETPLACES
+# Button reads "Fetch from Marketplaces" on a fresh checklist, "Refresh"
+# once cards exist. Either button triggers the same fetch + save pipeline.
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|^Refresh$"
 
 # 90s — real BSC + SL network round-trip for Parallel data.
 # If cards-insert.yaml ran first in this cascade, the players/teams tables

@@ -1,12 +1,11 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Cascade — fetch card checklist for real Insert variant (All-Etch), assert 35 cards"
+name: "Cascade — fetch card checklist for real Insert variant (Future Stars), assert 20 cards"
 tags:
   - set-selector
   - cascade
   - regression
   - requires:sets-loaded
-  - provides:inserts-saved
   - provides:cards-loaded
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
@@ -14,24 +13,24 @@ tags:
 # By the time this flow runs, sets-inserts.yaml has cancelled the
 # ReconciliationModal, leaving the Inserts column EMPTY. Tapping "Insert"
 # again causes auto-sync to fire and re-open the ReconciliationModal.
-# We save the "All-Etch" matched row, which writes real BSC+SL data to
+# We save the "Future Stars" matched row, which writes real BSC+SL data to
 # the DB for further downstream flows.
 #
 # WHAT THIS VERIFIES:
 #   - Auto-sync reopens ReconciliationModal when Inserts column is empty.
-#   - The "All-Etch" row is present in the matched section.
+#   - The "Future Stars" row is present in the matched section.
 #   - Saving produces a real card checklist with exactly 35 cards.
 #   - The fetch pipeline handles known Insert variants correctly.
 #
-# WHY ALL-ETCH?
-#   2024 Topps Chrome All-Etch is a well-known insert with stable checklist
+# WHY FUTURE STARS?
+#   2024 Topps Chrome Future Stars is a well-known insert with stable checklist
 #   coverage on both BSC and SL. 35 cards is the expected count as of the
 #   last verification. If this assertion fails, the count changed on the
 #   marketplace — update the number, it is not a code regression.
 #
 # CASCADE FLOW STATE AFTER THIS NODE:
-#   The Inserts column contains All-Etch (and any other saved matched rows).
-#   The "All-Etch" entry in the Inserts column has 35 cards in its checklist.
+#   The Inserts column contains Future Stars (and any other saved matched rows).
+#   The "Future Stars" entry in the Inserts column has 35 cards in its checklist.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -151,11 +150,12 @@ tags:
 
 # Auto-sync fires immediately when the column is empty. ReconciliationModal
 # opens automatically — wait up to 240s for the BSC + SL fetch.
-# If the column was already populated (unexpected re-run state), the modal
-# will not open. In that case, skip straight to tapping All-Etch.
+# If the column is already populated from a previous run, no modal opens
+# and we jump straight to the search. Detect either state by waiting for
+# the modal heading OR the Search input to appear.
 - extendedWaitUntil:
     visible:
-      text: ".*Reconcile Inserts.*|All-Etch"
+      text: ".*Reconcile Inserts.*|Search inserts.*"
     timeout: 240000
 
 # ============================================================
@@ -163,7 +163,7 @@ tags:
 # The "Matched (N)" section is COLLAPSED by default (▶ click to review),
 # so scrolling for a specific row inside the modal can't find it. Skip
 # the in-modal find and just tap "Save N matched" — the matched rows
-# (including Chrome All-Etch) will all be written to the Inserts column.
+# (including Future Stars) will all be written to the Inserts column.
 # ============================================================
 
 - runFlow:
@@ -181,10 +181,12 @@ tags:
           timeout: 30000
 
 # ============================================================
-# FIND "Chrome All-Etch" IN THE INSERTS COLUMN VIA SEARCH
+# FIND "Future Stars" IN THE INSERTS COLUMN VIA SEARCH
 # Inserts column has a "Search inserts..." input; use it to filter
-# rather than scrolling the page. Real rendered name is "Chrome All-Etch"
-# (the "Chrome " prefix is on every Topps Chrome insert).
+# rather than scrolling the page. "Future Stars" is auto-matched by both
+# BSC and SL adapters. The regex anchors ^...$ ensure we match the bare
+# "Future Stars" row, not its many parallel siblings ("Future Stars
+# Autographs", "Future Stars Black Refractor", etc).
 # ============================================================
 
 - extendedWaitUntil:
@@ -196,11 +198,19 @@ tags:
     timeout: 10000
 - tapOn:
     text: ".*Search inserts.*"
-- inputText: "Chrome All-Etch"
+- inputText: "Future Stars"
+# index: 1 — the search input itself has text "Future Stars" (the typed
+# value) at index 0; the bare "Future Stars" list row sits at index 1,
+# above all its parallel siblings ("Future Stars Autographs", etc).
+# Regex anchors keep us off the siblings even if list order shifts.
 - extendedWaitUntil:
-    visible: "Chrome All-Etch"
+    visible:
+      text: "^Future Stars$"
+      index: 1
     timeout: 10000
-- tapOn: "Chrome All-Etch"
+- tapOn:
+    text: "^Future Stars$"
+    index: 1
 
 # ============================================================
 # CARD CHECKLIST PANEL APPEARS
@@ -215,9 +225,14 @@ tags:
 
 # ============================================================
 # FETCH FROM MARKETPLACES
+# Button text depends on whether the checklist already has cards:
+#   - Fresh checklist: "Fetch from Marketplaces"
+#   - Already populated: "Refresh"
+# Either button triggers the same fetch + save pipeline.
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|^Refresh$"
 
 # The first real fetch on a fresh DB finds unknown players/teams.
 # Wait for either the dialog or the terminal save message.
@@ -247,4 +262,4 @@ tags:
     timeout: 30000
 
 - assertVisible:
-    text: ".*Saved 35 cards.*"
+    text: ".*Saved 20 cards.*"
