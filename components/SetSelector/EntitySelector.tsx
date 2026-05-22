@@ -103,14 +103,7 @@ export default function EntitySelector({
     );
   }
 
-  // Show the search input as soon as there is any data. Threshold used to be
-  // > 8 but Maestro web flows hit a click-stealer bug when targeting rows
-  // inside the list's overflow-y-auto container — the row's DOM bounds put
-  // it outside the visible portion, so taps land in the gap between the
-  // clipped row and the action buttons. Always-on search lets tests filter
-  // the list down to one row at the top (no overflow needed). It's also a
-  // keyboard-friendly UX improvement.
-  const showSearch = sortedItems.length > 0;
+  const showSearch = sortedItems.length > 8;
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">

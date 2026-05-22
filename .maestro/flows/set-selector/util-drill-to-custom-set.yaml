@@ -205,33 +205,48 @@ tags:
     visible:
       text: ".*${SET_NAME}.*"
     timeout: 10000
-# Use the Sets column's search input to filter the list down to one row,
-# then tap. Direct `scrollUntilVisible: text ${SET_NAME}` is unreliable
-# because the EntitySelector wraps its list in `max-h-[400px] overflow-y-auto`
-# (EntitySelector.tsx). When parallel-worker flows accumulate >7 custom sets
-# on the same worker, SET_NAMEs that sort late end up scrolled past the
-# inner overflow's visible region — Maestro CDP reports their bounds at
-# e.g. y=485 but those pixels are visually clipped by the parent overflow,
-# so taps land in the gap between the clipped row and the action buttons
-# and React's onClick never fires. Filtering via the search input puts the
-# target row at the top of the now-1-entry list, fully inside the visible
-# portion. Index 1 is required because index 0 is the search input itself
-# whose value text echoes the typed SET_NAME.
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: ${SET_NAME}
-- extendedWaitUntil:
-    visible:
-      text: ".*${SET_NAME}.*"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: ".*${SET_NAME}.*"
-    index: 1
-    waitToSettleTimeoutMs: 2000
+# Tap the SET_NAME row. Two paths depending on column population:
+#
+#   A. List has >8 items → EntitySelector shows a "Search sets..." input.
+#      Filter via search so the target row is the only one rendered, then
+#      tap it at index: 1 (index 0 is the search input echoing the typed
+#      value). This is necessary because the list wraps in
+#      `max-h-[400px] overflow-y-auto` — when worker-state has accumulated
+#      9+ sets, the SET_NAME we just created sorts past the visible
+#      portion and Maestro's hit-test reports bounds outside the rendered
+#      area, so direct taps land in the gap between the clipped row and
+#      the action buttons (CI repro: PR #31).
+#
+#   B. List has ≤8 items → no search input. Direct tap is reliable
+#      because the row fits inside the inner overflow.
+- runFlow:
+    when:
+      visible: ".*Search sets.*"
+    commands:
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: ${SET_NAME}
+      - extendedWaitUntil:
+          visible:
+            text: ".*${SET_NAME}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*${SET_NAME}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+- runFlow:
+    when:
+      notVisible: ".*Search sets.*"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*${SET_NAME}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*${SET_NAME}.*"
+          waitToSettleTimeoutMs: 2000
 
 # ============================================================
 # LEVEL 5 — Variant Types
