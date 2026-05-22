@@ -19,18 +19,18 @@ tags:
 # WHAT THIS VERIFIES:
 #   - Auto-sync reopens ReconciliationModal when Inserts column is empty.
 #   - The "Future Stars" row is present in the matched section.
-#   - Saving produces a real card checklist with exactly 35 cards.
+#   - Saving produces a real card checklist with exactly 20 cards.
 #   - The fetch pipeline handles known Insert variants correctly.
 #
 # WHY FUTURE STARS?
 #   2024 Topps Chrome Future Stars is a well-known insert with stable checklist
-#   coverage on both BSC and SL. 35 cards is the expected count as of the
-#   last verification. If this assertion fails, the count changed on the
-#   marketplace — update the number, it is not a code regression.
+#   coverage on both BSC and SL. 20 cards is the expected count, user-verified.
+#   If this assertion fails, the count changed on the marketplace — update the
+#   number, it is not a code regression.
 #
 # CASCADE FLOW STATE AFTER THIS NODE:
 #   The Inserts column contains Future Stars (and any other saved matched rows).
-#   The "Future Stars" entry in the Inserts column has 35 cards in its checklist.
+#   The "Future Stars" entry in the Inserts column has 20 cards in its checklist.
 
 # ============================================================
 # LAUNCH + SIGN IN

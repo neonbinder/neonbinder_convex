@@ -205,9 +205,21 @@ tags:
     visible:
       text: ".*${SET_NAME}.*"
     timeout: 10000
+# centerElement: true is required. The Sets column is sorted alphabetically
+# and accumulates entries from every worker-2 flow that ran before this one.
+# A SET_NAME that sorts late ("pg-suggestions-2", "vme-insert-2") lands near
+# the bottom of the visible list, which in the 1024×629 headless viewport
+# overlaps the footer click-stealer (footer paints over y>≈460 and absorbs
+# the click instead of forwarding it to the row's React onClick — so the row
+# DOM is found at e.g. y=489 but the click goes nowhere). Diagnosed by
+# comparing tap-bounds across worker-2 flows: every PASSED tap landed at
+# y≤457, every FAILED tap landed at y≥489. Centering puts the row at
+# y≈315 (mid-viewport), well clear of the footer. See memory
+# reference_maestro_headless_viewport.md.
 - scrollUntilVisible:
     element:
       text: ".*${SET_NAME}.*"
+    centerElement: true
     timeout: 10000
 - tapOn:
     text: ".*${SET_NAME}.*"
