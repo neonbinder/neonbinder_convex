@@ -169,7 +169,11 @@ export default function SetSelector() {
 
   return (
     <div className="max-w-full mx-auto p-6 flex flex-col gap-6">
-      <div className="flex flex-row gap-4 overflow-x-auto">
+      {/* pb-4 prevents the horizontal scrollbar from overlapping each
+          EntityColumn's action-button row (Sync X / + Custom). Without it,
+          Maestro web taps at the action-button y-coordinate hit the
+          scrollbar instead of the button — see PR #31 diagnosis. */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
           selector={
