@@ -283,12 +283,17 @@ tags:
     timeout: 30000
 
 # Short-circuit makes idle mode arrive quickly (<5s).
-# centerElement: true keeps the button clear of the footer click-stealer
-# (see Sets level comment above).
+# NOTE (PR #31): previously used centerElement: true. CI fb5c2b6 showed
+# Maestro CDP didn't reliably center this button — it landed at y=179
+# and the subsequent tap missed (modal never opened). Use plain
+# visibilityPercentage scroll instead; the Variant Types column has at
+# most 4 items (Base/Insert/Parallel/Promo) so the "+ Custom" button
+# is naturally close to the column header, not pushed near the
+# footer/scrollbar zone the centerElement workaround was guarding.
 - scrollUntilVisible:
     element:
       id: "Add custom Variant Types"
-    centerElement: true
+    visibilityPercentage: 100
     timeout: 30000
 
 # Insert: add if absent, then tap. waitToSettleTimeoutMs on the tap
