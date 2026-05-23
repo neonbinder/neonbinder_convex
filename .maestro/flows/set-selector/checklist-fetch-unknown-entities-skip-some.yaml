@@ -25,9 +25,11 @@ tags:
 #   not by asserting the specific player name.
 #
 # FRESH-DB REQUIREMENT:
-#   This test requires empty `players` and `teams` tables for the dialog to open.
-#   After any prior fetch run entities persist, making this test fail locally.
-#   Reliable on CI with a clean Convex deployment.
+#   This test requires empty `players` and `teams` tables for the dialog to
+#   open. Guaranteed on CI by the per-PR Convex preview reset (vercel.json
+#   buildCommand uses --preview-create "pr-${PR_NUMBER}"). For local runs
+#   against the persistent dev Convex, manually click "Reset Set Builder
+#   Data" in AdminTools before running this flow.
 
 # ============================================================
 # LAUNCH + SIGN IN

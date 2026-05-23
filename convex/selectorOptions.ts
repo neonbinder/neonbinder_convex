@@ -46,6 +46,7 @@ export const getSelectorOptions = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -151,7 +152,12 @@ export const getBaseVariantBySet = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlotsDisplay: v.optional(v.string()),
       }),
+      platformLabels: v.optional(v.object({
+        bsc: v.optional(v.record(v.string(), v.string())),
+        sportlots: v.optional(v.record(v.string(), v.string())),
+      })),
     }),
   ),
   handler: async (ctx, args) => {
@@ -169,6 +175,9 @@ export const getBaseVariantBySet = query({
     return {
       value: baseVariantType.value,
       platformData: baseVariantType.platformData,
+      ...(baseVariantType.platformLabels !== undefined
+        ? { platformLabels: baseVariantType.platformLabels }
+        : {}),
     };
   },
 });
@@ -185,6 +194,7 @@ export const getSelectorOptionById = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -216,6 +226,7 @@ export const findByLevelAndValue = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
@@ -249,8 +260,10 @@ export const getAncestorChain = query({
       platformData: v.object({
         bsc: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+        sportlotsDisplay: v.optional(v.string()),
       }),
       metadata: metadataValidator,
+      isCustom: v.optional(v.boolean()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -261,6 +274,7 @@ export const getAncestorChain = query({
       value: string;
       platformData: { bsc?: string | string[]; sportlots?: string };
       metadata?: { cardNumberPrefix?: string; isInsert?: boolean; isParallel?: boolean };
+      isCustom?: boolean;
     }> = [];
     let currentId: Id<"selectorOptions"> | undefined = args.id;
 
@@ -273,6 +287,7 @@ export const getAncestorChain = query({
         value: option.value,
         platformData: option.platformData || {},
         metadata: option.metadata,
+        isCustom: option.isCustom,
       });
       currentId = option.parentId;
     }
@@ -280,6 +295,18 @@ export const getAncestorChain = query({
     return chain;
   },
 });
+
+// Walk a resolved ancestor chain (output of `getAncestorChain`) and decide
+// whether any node — including the leaf — is user-created. When this returns
+// true, marketplace adapters (BSC, SportLots) must NOT be called for this
+// subtree: they have no concept of a custom node and would either widen the
+// query to an unrelated superset (per the historical BSC fallback) or fail
+// outright. See NEO-22.
+function isCustomSubtree(
+  chain: Array<{ isCustom?: boolean }>,
+): boolean {
+  return chain.some((row) => row.isCustom === true);
+}
 
 export const getCardChecklist = query({
   args: { selectorOptionId: v.id("selectorOptions") },
@@ -340,6 +367,7 @@ export const storeSelectorOptions = mutation({
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
           sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+          sportlotsDisplay: v.optional(v.string()),
         }),
       }),
     ),
@@ -1071,6 +1099,7 @@ export const getInsertTreeByVariantType = query({
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
           sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+          sportlotsDisplay: v.optional(v.string()),
         }),
         parentId: v.optional(v.id("selectorOptions")),
         children: v.optional(v.array(v.id("selectorOptions"))),
@@ -1088,6 +1117,7 @@ export const getInsertTreeByVariantType = query({
           platformData: v.object({
             bsc: v.optional(v.union(v.string(), v.array(v.string()))),
             sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+            sportlotsDisplay: v.optional(v.string()),
           }),
           parentId: v.optional(v.id("selectorOptions")),
           children: v.optional(v.array(v.id("selectorOptions"))),
@@ -1363,6 +1393,7 @@ export const setVariantTypePlatformData = mutation({
     platformData: v.object({
       bsc: v.optional(v.union(v.string(), v.array(v.string()))),
       sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
+      sportlotsDisplay: v.optional(v.string()),
     }),
     metadata: v.optional(v.object({
       cardNumberPrefix: v.optional(v.string()),
@@ -1765,6 +1796,30 @@ export const fetchAggregatedOptions = action({
           { id: parentId },
         );
 
+        // Custom-subtree gate (NEO-22). Skip both adapters when any ancestor
+        // is user-created — only custom children can be added below this
+        // node, all the way down to custom cards.
+        //
+        // EXCEPTION: level=manufacturer is exempt. Manufacturer is a SL-only
+        // concept and SL returns the same static manufacturer list regardless
+        // of the (sport, year) you ask for. Syncing manufacturers under a
+        // custom Football/2026 subtree gives you the same Topps/Panini/etc.
+        // as syncing under Baseball/2024 — there's no per-parent data risk.
+        // Without this exemption, custom subtrees (used by e2e tests and
+        // user-created sets) have an empty Manufacturers column and can't
+        // make progress to the Sets/Variants levels below.
+        if (isCustomSubtree(chain) && level !== "manufacturer") {
+          console.log(
+            `[fetchAggregatedOptions] custom subtree detected — skipping BSC/SL for level=${level}`,
+          );
+          return {
+            success: true,
+            message:
+              "Custom selector subtree — no marketplace options to aggregate.",
+            optionsCount: 0,
+          };
+        }
+
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
@@ -2000,10 +2055,22 @@ export const syncSetsAcrossManufacturers = action({
         level: Level;
         value: string;
         platformData: { bsc?: string | string[]; sportlots?: string };
+        isCustom?: boolean;
       }> = await ctx.runQuery(
         api.selectorOptions.getAncestorChain,
         { id: args.yearId },
       );
+
+      // Custom-subtree gate (NEO-22). A custom sport/year has no BSC
+      // analogue; the downstream `fetchBscSelectorOptions` call would either
+      // 404 or return an unrelated superset.
+      if (isCustomSubtree(chain)) {
+        return {
+          success: true,
+          message: "Custom sport/year — skipping BSC set sync.",
+          totalSets: 0,
+        };
+      }
 
       const sportAncestor = chain.find((a: { level: string }) => a.level === "sport");
       const yearAncestor = chain.find((a: { level: string }) => a.level === "year");
@@ -2363,6 +2430,28 @@ export const fetchCardChecklist = action({
         }
       }
 
+      // Custom-subtree gate (NEO-22). If any node in the chain (including the
+      // leaf) is user-created, every descendant is implicitly custom. BSC and
+      // SportLots have no concept of these rows: querying them would either
+      // 404 or — worse — widen the query to an unrelated superset (the old
+      // BSC fallback would return the entire `variantType=insert` universe,
+      // ~5000 cards, when a custom parallel-of-insert had no slug). Return
+      // empty results so the UI can only offer custom children downstream.
+      if (isCustomSubtree(chain)) {
+        console.log(
+          `[fetchCardChecklist] custom subtree detected — skipping BSC/SL`,
+        );
+        return {
+          success: true,
+          message:
+            "Custom selector subtree — no marketplace data available; add custom cards.",
+          sport,
+          cards: [],
+          unknownPlayers: [],
+          unknownTeams: [],
+        };
+      }
+
       // Data-integrity precondition for BSC only. BSC is a stable service
       // that consistently returns data for properly-filtered queries; a
       // 0-card result almost always means our filter was incomplete.
@@ -2375,11 +2464,10 @@ export const fetchCardChecklist = action({
       // adapters/buysportscards.ts) AND where the slug is required for a
       // properly filtered query.
       //
-      // Insert is NOT required: users can create custom insert variants
-      // (e.g. "Prizm Gold") that BSC has no slug for. In that case we
-      // fall back to filtering only by variantType — BSC returns the
-      // wider set and reconciliation matches cards by cardNumber against
-      // SL's narrower custom-variant result.
+      // The custom-subtree gate above already short-circuits any chain that
+      // contains a user-created node, so by the time we reach this check
+      // every ancestor is sourced from a marketplace and is expected to
+      // carry BSC platform data at the required levels.
       //
       // SL is not preconditioned: per `sportlots.ts:160-164`, SL
       // deliberately returns no options at setName/variantType (SL's

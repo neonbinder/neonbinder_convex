@@ -92,12 +92,14 @@ export default function SetSelector() {
     forId: GenericId<"selectorOptions"> | null;
     isBase: boolean;
     hasMapping: boolean;
-  }>({ forId: null, isBase: false, hasMapping: false });
+    value: string;
+  }>({ forId: null, isBase: false, hasMapping: false, value: "" });
   if (stableVariantTypeFlagsRef.current.forId !== selectedVariantTypeId) {
     stableVariantTypeFlagsRef.current = {
       forId: selectedVariantTypeId,
       isBase: false,
       hasMapping: false,
+      value: "",
     };
   }
   if (selectedVariantType !== undefined) {
@@ -111,9 +113,20 @@ export default function SetSelector() {
     // presence is the reliable "user has mapped this Base" signal.
     stableVariantTypeFlagsRef.current.hasMapping =
       !!selectedVariantType?.platformData?.sportlots;
+    stableVariantTypeFlagsRef.current.value = selectedVariantType?.value ?? "";
   }
   const isBaseVariantTypeSelected = stableVariantTypeFlagsRef.current.isBase;
   const baseHasMapping = stableVariantTypeFlagsRef.current.hasMapping;
+  // Pluralized variantType label ("Insert" → "Inserts") used as the column
+  // header and Sync button text on the Variants column. Falls back to the
+  // generic "Variants" while the variantType row is still loading or when
+  // no variantType is selected.
+  const variantTypeLabel = stableVariantTypeFlagsRef.current.value;
+  const variantsColumnLabel = variantTypeLabel
+    ? variantTypeLabel.endsWith("s")
+      ? variantTypeLabel
+      : `${variantTypeLabel}s`
+    : "Variants";
   // Manual re-map trigger; the form also auto-opens on first selection
   // when no platformData exists yet.
   const [baseMappingOpen, setBaseMappingOpen] = useState(false);
@@ -157,7 +170,11 @@ export default function SetSelector() {
 
   return (
     <div className="max-w-full mx-auto p-6 flex flex-col gap-6">
-      <div className="flex flex-row gap-4 overflow-x-auto">
+      {/* pb-4 prevents the horizontal scrollbar from overlapping each
+          EntityColumn's action-button row (Sync X / + Custom). Without it,
+          Maestro web taps at the action-button y-coordinate hit the
+          scrollbar instead of the button — see PR #31 diagnosis. */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
           selector={
@@ -269,6 +286,7 @@ export default function SetSelector() {
                   onVariantSelect={handleVariantSelect}
                   expanded={variantExpanded}
                   setExpanded={setVariantExpanded}
+                  title={variantsColumnLabel}
                 />
                 {selectedVariantId && (
                   <VariantMetadataEditor optionId={selectedVariantId} />
@@ -281,7 +299,7 @@ export default function SetSelector() {
                 onDone={onDone}
               />
             )}
-            addButtonText="Sync Variants"
+            addButtonText={`Sync ${variantsColumnLabel}`}
             isVisible={!!selectedVariantTypeId}
             level="insert"
             parentId={selectedVariantTypeId || undefined}

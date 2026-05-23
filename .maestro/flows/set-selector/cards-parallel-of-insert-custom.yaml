@@ -1,0 +1,226 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Card checklist — custom parallel-of-insert fetches from marketplaces and saves 0 cards"
+tags:
+  - set-selector
+  - regression
+---
+# Verifies the card checklist fetch pipeline for a parallel-of-insert entry
+# using entirely custom data in a per-flow playground.
+#
+# Previously this coverage lived in cascade/cards-parallel-of-insert.yaml,
+# which depended on cascade/sets-move-parallels-of-inserts.yaml having run
+# first on the shared Baseball → 2024 → Topps Chrome path. That dependency
+# is now removed. This flow self-contains all the setup it needs under
+# Football → 2026 → pg-poi-<worker>.
+#
+# WHAT THIS TESTS:
+#   1. Add custom inserts "Stars", "Stars Gold" (Stars Red not needed here —
+#      just two entries so Stars Gold becomes an auto-suggested parallel).
+#   2. Open Group Parallels modal, accept all suggestions, save.
+#      ("Stars Gold" becomes a parallel nested under "Stars".)
+#   3. Tap "Stars" → new Parallels column opens → tap "Stars Gold".
+#   4. Fetch from Marketplaces on a custom parallel-of-insert.
+#   5. Assert "Saved 0 cards." (custom path short-circuits immediately).
+#
+# NOTE: We use "Stars" + "Stars Gold" (2 items), not 3. Two items is enough
+# to trigger auto-detection and the Group Parallels modal button is tappable
+# with 2+ items. Memory note: 3 items is required only when "Champions" is
+# used (non-matching third entry needed to push Stars Gold above the modal-
+# button scroll threshold). With "Stars" + "Stars Gold" the auto-suggestion
+# fires immediately and the modal is tappable.
+#
+# EXPECTED RESULT:
+#   "Saved 0 cards." — custom parallel-of-insert with no set mapping.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+# ============================================================
+# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-poi-<worker>
+# Returns with Inserts column visible and idle.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-custom-set.yaml
+    env:
+      SET_NAME: "pg-poi-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD "Stars" AND "Stars Gold" AS CUSTOM INSERTS
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# Add a third entry so the Group Parallels button is not partially off-screen
+# on the 1024×629 headless viewport (per memory: 2 items → button at edge).
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Red"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# ============================================================
+# OPEN GROUP PARALLELS MODAL, ACCEPT ALL, SAVE
+# After save: "Stars" is the top-level insert; Stars Gold + Stars Red nested.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Accept all suggestions.*"
+    timeout: 10000
+
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Save [0-9]+ change.*"
+    timeout: 5000
+
+- tapOn:
+    text: ".*Save [0-9]+ change.*"
+
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 30000
+
+# Confirm the modal closed and Stars is visible.
+- assertVisible: "Inserts"
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 10000
+
+# ============================================================
+# NAVIGATE TO "Stars Gold" (parallel-of-insert)
+# Stars is now the parent insert — tapping it opens a Parallels column
+# where Stars Gold is directly visible.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Stars"
+    visibilityPercentage: 50
+    timeout: 15000
+- tapOn: "Stars"
+
+- extendedWaitUntil:
+    visible: "Parallels"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Stars Gold"
+    visibilityPercentage: 50
+    timeout: 15000
+- tapOn: "Stars Gold"
+
+# ============================================================
+# CARD CHECKLIST PANEL APPEARS
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    timeout: 10000
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+- assertVisible: "No cards in this checklist yet."
+
+# ============================================================
+# FETCH FROM MARKETPLACES
+# Custom parallel-of-insert — short-circuit gate returns 0 cards immediately.
+# "Confirm New Players & Teams" dialog should not appear.
+# ============================================================
+
+- tapOn: "Fetch from Marketplaces"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 30000
+
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+          timeout: 10000
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved 0 cards.*"
+    timeout: 10000
+
+- assertVisible:
+    text: ".*Saved 0 cards.*"

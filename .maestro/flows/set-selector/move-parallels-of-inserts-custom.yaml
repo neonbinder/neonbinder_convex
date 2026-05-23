@@ -1,0 +1,157 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Move parallels-of-inserts — custom set; add Stars/Stars Gold/Stars Red, group, save"
+tags:
+  - set-selector
+  - regression
+---
+# Standalone test: add custom inserts to a per-flow playground, open the
+# Group Parallels modal, accept all auto-suggestions, and save the groupings.
+#
+# Previously this was the cascade flow sets-move-parallels-of-inserts.yaml,
+# which ran against the shared Baseball → 2024 → Topps Chrome path and
+# contaminated the Inserts column for other flows. It is now self-contained
+# under Football → 2026 → pg-move-<worker>.
+#
+# WHAT THIS TESTS:
+#   - Three custom inserts can be added and grouped via the modal.
+#   - Accept All + Save works end-to-end and closes the modal.
+#   - "Stars" remains as the top-level insert after grouping.
+#
+# POST-SAVE STATE:
+#   "Stars" is the only top-level insert in the Inserts column.
+#   "Stars Gold" and "Stars Red" are parallels nested under Stars.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-move-<worker>
+# Returns with Inserts column visible and idle.
+# ============================================================
+
+- runFlow:
+    file: util-drill-to-custom-set.yaml
+    env:
+      SET_NAME: "pg-move-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
+      BSC_USERNAME: ${BSC_USERNAME}
+      BSC_PASSWORD: ${BSC_PASSWORD}
+      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
+      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# ADD CONTROLLED CUSTOM INSERTS
+# Uses aria-label id: targeting (aria-label maps to resource-id in Maestro web).
+# ============================================================
+
+# --- Add "Stars" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Gold" ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Gold"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# --- Add "Stars Red" (third entry ensures button layout is stable for tapping Group Parallels) ---
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Add custom Inserts"
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- inputText: "Stars Red"
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible: "Add Custom Entry"
+    timeout: 10000
+
+# ============================================================
+# OPEN GROUP PARALLELS MODAL
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+- tapOn: "Group Parallels"
+- extendedWaitUntil:
+    visible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Top-level inserts"
+    timeout: 15000
+
+# Auto-suggestions: "Stars Gold" and "Stars Red" suggested as parallels of "Stars".
+- assertVisible: "Suggested"
+- assertVisible:
+    text: ".*Accept all suggestions.*"
+
+# ============================================================
+# ACCEPT ALL SUGGESTIONS AND SAVE
+# ============================================================
+
+- tapOn:
+    text: ".*Accept all suggestions.*"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Save [0-9]+ change.*"
+    timeout: 5000
+
+- tapOn:
+    text: ".*Save [0-9]+ change.*"
+
+# Wait for modal to close. "Drag inserts under a parent" disappears on close.
+- extendedWaitUntil:
+    notVisible:
+      text: ".*Drag inserts under a parent.*"
+    timeout: 30000
+
+# ============================================================
+# VERIFY POST-SAVE STATE
+# "Stars" remains as the top-level insert.
+# Modal is gone. Variants column heading still present.
+# ============================================================
+
+- assertVisible: "Inserts"
+- extendedWaitUntil:
+    visible: "Stars"
+    timeout: 10000
+- assertVisible: "Stars"

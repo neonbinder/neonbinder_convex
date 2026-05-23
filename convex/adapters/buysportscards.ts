@@ -1,8 +1,8 @@
 "use node";
 
-import { action } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { requireAdmin } from "../auth";
 
 // Real BSC filter endpoint (ported from cardlister-server/script-frontend/src/listing-sites/bsc.ts).
@@ -51,9 +51,14 @@ function bscHeaders(bearerToken: string): Record<string, string> {
 }
 
 /**
- * Get BSC bearer token from Secret Manager (browser service extraction)
+ * Get BSC bearer token from Secret Manager (browser service extraction).
+ *
+ * NEO-20: internalAction — never callable from frontend RPC. The
+ * previous requireAdmin gate is removed because there is no longer
+ * any legitimate non-backend caller; admin tools that need a token
+ * must run as Convex actions themselves.
  */
-export const getBscToken = action({
+export const getBscToken = internalAction({
   args: {},
   returns: v.object({
     success: v.boolean(),
@@ -61,10 +66,9 @@ export const getBscToken = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx): Promise<{ success: boolean; token?: string; error?: string }> => {
-    await requireAdmin(ctx);
     try {
       const tokenResult = await ctx.runAction(
-        api.credentials.getSiteToken,
+        internal.credentials.getSiteToken,
         { site: "buysportscards" },
       );
 
@@ -118,7 +122,7 @@ export const fetchBscSelectorOptions = action({
     try {
       // Get BSC token
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
-        api.adapters.buysportscards.getBscToken,
+        internal.adapters.buysportscards.getBscToken,
         {},
       );
 
@@ -365,7 +369,7 @@ export const fetchBscChecklist = action({
     await requireAdmin(ctx);
     try {
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
-        api.adapters.buysportscards.getBscToken,
+        internal.adapters.buysportscards.getBscToken,
         {},
       );
 
@@ -461,7 +465,7 @@ export const fetchBscChecklist = action({
         );
         // Drain the failed response body to free the socket before retrying.
         await response.text().catch(() => "");
-        const reAuth = (await ctx.runAction(api.credentials.authenticateBsc, {})) as {
+        const reAuth = (await ctx.runAction(internal.credentials.authenticateBsc, {})) as {
           success: boolean;
           message?: string;
         };
@@ -476,7 +480,7 @@ export const fetchBscChecklist = action({
           };
         }
         const refreshedToken: { success: boolean; token?: string; error?: string } =
-          await ctx.runAction(api.adapters.buysportscards.getBscToken, {});
+          await ctx.runAction(internal.adapters.buysportscards.getBscToken, {});
         if (!refreshedToken.success || !refreshedToken.token) {
           return {
             success: false,

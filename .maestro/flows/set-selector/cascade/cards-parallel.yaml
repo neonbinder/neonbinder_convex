@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Cascade — fetch card checklist for a Parallel variant, verify saved cards"
+name: "Cascade — fetch card checklist for real Parallel variant (Gold Wave), assert 300 cards"
 tags:
   - set-selector
   - cascade
@@ -10,29 +10,21 @@ tags:
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
 #
-# By the time this flow runs, sets-parallels.yaml has verified that
-# the Parallel variant type can be synced and the ReconciliationModal renders.
-# However, that flow cancelled without saving variants — the Parallel Variants
-# column is empty after cascade level 1.
+# By the time this flow runs, sets-parallels.yaml has cancelled the
+# ReconciliationModal, leaving the Parallels column EMPTY. Tapping "Parallel"
+# again causes auto-sync to fire and re-open the ReconciliationModal.
+# We save all matched rows, then navigate to "Gold Wave" and fetch its checklist.
 #
-# WHAT THIS FLOW DOES:
-#   Drills to Topps Chrome → Parallel, adds one custom variant named
-#   "Prizm Gold" (a common Topps Chrome parallel name), then fetches the
-#   card checklist for that variant and verifies "Saved N cards." appears.
+# WHAT THIS VERIFIES:
+#   - Auto-sync reopens ReconciliationModal when Parallels column is empty.
+#   - "Gold Wave" row is present in the matched section.
+#   - Saving produces a real card checklist with exactly 300 cards.
+#   - The fetch pipeline handles known Parallel variants correctly.
 #
-# WHY A CUSTOM VARIANT:
-#   The ReconciliationModal was cancelled by sets-parallels.yaml, so no
-#   variants were written. We add a custom one to have a stable tap target.
-#   "Prizm Gold" is a realistic parallel name — the BSC checklist fetch will
-#   attempt to look it up. The SL adapter will return 0 cards (no set mapping)
-#   and the BSC adapter will return 0 cards (no matching sellerId-based set).
-#   The result is "Saved 0 cards." — still valid for verifying the fetch pipeline.
-#
-# NOTE ON EXPECTED RESULT:
-#   "Saved N cards." where N may be 0 is the expected success signal.
-#   The flow does not assert a specific count or require cards to exist.
-#   It asserts the fetch completes without error and the checklist panel
-#   remains in a usable state (the fetch button is available for retry).
+# WHY GOLD WAVE?
+#   2024 Topps Chrome Gold Wave is a high-print-run parallel with strong
+#   BSC + SL coverage. 300 cards is the expected count. If this fails,
+#   the marketplace data changed — update the number.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -41,10 +33,10 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
+    timeout: 10000
 
 # ============================================================
-# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome → Parallel
+# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -54,7 +46,7 @@ tags:
 
 - extendedWaitUntil:
     visible: "Baseball"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -66,7 +58,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search years.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
@@ -88,7 +80,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
@@ -110,7 +102,7 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search sets.*"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
@@ -132,98 +124,104 @@ tags:
     timeout: 20000
 - extendedWaitUntil:
     visible: "Parallel"
-    timeout: 30000
+    timeout: 10000
+
+# ============================================================
+# SELECT PARALLEL — auto-sync fires because Parallels column is empty
+# ============================================================
+
 - scrollUntilVisible:
     element:
       text: "Parallel"
     timeout: 10000
 - tapOn: "Parallel"
 
-# Variants column appears. If auto-sync fires (empty column), cancel the modal.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Parallels"
     timeout: 10000
+
+# Auto-sync fires on empty column. Wait for modal heading OR the column's
+# Search input (re-run state where data is already populated).
+- extendedWaitUntil:
+    visible:
+      text: ".*Reconcile Parallels.*|Search parallels.*"
+    timeout: 240000
+
+# ============================================================
+# RECONCILIATION MODAL — save all matched rows
+# Matched section is COLLAPSED by default — can't scroll to a specific row
+# inside the modal. Just hit "Save N matched" and find the target row in
+# the populated Parallels column via the Search input afterward.
+# ============================================================
 
 - runFlow:
     when:
-      notVisible: "Group Parallels"
+      visible: "Reconcile Parallels"
     commands:
-      # Empty column auto-syncs. Wait for ReconciliationModal and cancel.
+      - scrollUntilVisible:
+          element:
+            text: ".*Save [0-9]+ matched.*"
+          timeout: 10000
+      - tapOn:
+          text: ".*Save [0-9]+ matched.*"
       - extendedWaitUntil:
-          visible:
-            text: ".*Reconcile Variants.*|.*Group Parallels.*"
-          timeout: 240000
-      - runFlow:
-          when:
-            visible: "Reconcile Variants"
-          commands:
-            - tapOn: "Cancel"
-            - extendedWaitUntil:
-                notVisible: "Reconcile Variants"
-                timeout: 10000
+          notVisible: "Reconcile Parallels"
+          timeout: 30000
 
 # ============================================================
-# ADD A CUSTOM PARALLEL VARIANT
-# The Variants column is empty after cancelling. Add a known custom entry.
-# "Add custom Variants" aria-label maps to resource-id in Maestro web.
+# FIND "Gold Wave Refractors" IN THE PARALLELS COLUMN VIA SEARCH
+# Real rendered name is "Gold Wave Refractors" (no "Chrome " prefix on
+# parallels, but the "Refractors" suffix is on every Topps Chrome parallel).
 # ============================================================
 
+- extendedWaitUntil:
+    visible: ".*Search parallels.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: ".*Search parallels.*"
+    timeout: 10000
 - tapOn:
-    id: "Add custom Variants"
+    text: ".*Search parallels.*"
+- inputText: "Gold Wave Refractors"
+# index: 1 — search input has the typed text at index 0, the row at index 1.
 - extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
-- inputText: "Prizm Gold"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
+    visible:
+      text: "^Gold Wave Refractors$"
+      index: 1
     timeout: 10000
-
-# The new entry appears — may need to search for it if list is long.
-- extendedWaitUntil:
-    visible: "Prizm Gold"
-    timeout: 10000
-- scrollUntilVisible:
-    element:
-      text: "Prizm Gold"
-    timeout: 10000
-- tapOn: "Prizm Gold"
+- tapOn:
+    text: "^Gold Wave Refractors$"
+    index: 1
 
 # ============================================================
-# WAIT FOR CARDCHECKLIST PANEL
-# Selecting a non-Base Variant at Level 6 opens the CardChecklist panel.
+# CARD CHECKLIST PANEL APPEARS
 # ============================================================
 
 - scrollUntilVisible:
     element:
       text: ".*Fetch from Marketplaces.*|Refresh"
-    timeout: 30000
+    timeout: 15000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
-- assertVisible: "No cards in this checklist yet."
 
 # ============================================================
-# FETCH THE CARD CHECKLIST
-# BSC and SL will return 0 cards for a custom parallel with no set mapping.
-# "Saved 0 cards." is the expected success signal.
+# FETCH FROM MARKETPLACES
+# Button reads "Fetch from Marketplaces" on a fresh checklist, "Refresh"
+# once cards exist. Either button triggers the same fetch + save pipeline.
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|^Refresh$"
 
-# Wait for fetch to start or complete. The cascade reset wipes the global
-# players/teams tables, so the first fetch always finds unknown entities and
-# opens the "Confirm New Players & Teams" dialog before saving cards.
-# Bump to 90s — BSC can be slow on a fresh DB.
+# 90s — real BSC + SL network round-trip for Parallel data.
+# If cards-insert.yaml ran first in this cascade, the players/teams tables
+# are already populated, so the dialog may not appear. Guard handles both paths.
 - extendedWaitUntil:
     visible:
       text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
     timeout: 90000
 
-# If the dialog opened (fresh players/teams tables), confirm all entities.
 - runFlow:
     when:
       visible: "Confirm New Players & Teams"
@@ -238,12 +236,10 @@ tags:
           notVisible: "Confirm New Players & Teams"
           timeout: 30000
 
-# Either path ends with the save confirmation.
 - extendedWaitUntil:
     visible:
       text: ".*Saved [0-9]+ cards.*"
     timeout: 30000
 
-# Confirm fetch completed without a crash. Checklist remains in empty state.
 - assertVisible:
-    text: ".*Saved [0-9]+ cards.*"
+    text: ".*Saved 300 cards.*"

@@ -13,18 +13,17 @@ tags:
     visible: "Profile Settings"
     timeout: 45000
 
-# Basic Info — tap label to focus, erase existing content, then type
+# Basic Info — tap label to focus, then type.
+# Skips eraseText: account=new-profile guarantees empty fields, saving ~13 erase
+# cycles (~2-3 min) per run. See NEO-7.
 - scrollUntilVisible:
     element:
       text: "Basic Info"
 - tapOn: "Username.*"
-- eraseText: 200
 - inputText: "${TEST_USERNAME}"
 - tapOn: "Display Name"
-- eraseText: 200
 - inputText: "${TEST_USERNAME}"
 - tapOn: "Tagline"
-- eraseText: 200
 - inputText: "Buying and Selling all kinds of Sports Cards"
 
 # Marketplace Links
@@ -40,7 +39,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-ebay"
-- eraseText: 200
 - inputText: "https://www.ebay.com/str/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
@@ -48,7 +46,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-bsc"
-- eraseText: 200
 - inputText: "https://www.buysportscards.com/Seller/1d8570d204/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
@@ -56,7 +53,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-sportlots"
-- eraseText: 200
 - inputText: "https://sportlots.com/dealers/?dealer=${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
@@ -64,7 +60,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-myslabs"
-- eraseText: 200
 - inputText: "http://myslabs.to/e8c447c0-5917-4326-be26-be2201e36d4a"
 
 # Payment Handles — use id-based selectors; the labels can be off-screen after
@@ -79,7 +74,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-paypal"
-- eraseText: 200
 - inputText: "${TEST_USERNAME}-pp"
 - assertVisible: "→ paypal.me/${TEST_USERNAME}-pp"
 - scrollUntilVisible:
@@ -88,7 +82,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-venmo"
-- eraseText: 200
 - inputText: "${TEST_USERNAME}-venmo"
 - assertVisible: "→ venmo.com/${TEST_USERNAME}-venmo"
 - scrollUntilVisible:
@@ -97,7 +90,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-cashapp"
-- eraseText: 200
 - inputText: "${TEST_USERNAME}-cashapp"
 - assertVisible: "→ cash.app/$${TEST_USERNAME}-cashapp"
 
@@ -111,7 +103,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-twitter"
-- eraseText: 200
 - inputText: "https://x.com/${TEST_USERNAME}-twit"
 - scrollUntilVisible:
     element:
@@ -119,7 +110,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-instagram"
-- eraseText: 200
 - inputText: "https://instagram.com/${TEST_USERNAME}-ig"
 - scrollUntilVisible:
     element:
@@ -127,7 +117,6 @@ tags:
     timeout: 10000
 - tapOn:
     id: "pub-tiktok"
-- eraseText: 200
 - inputText: "https://tiktok.com/@${TEST_USERNAME}-tt"
 
 # Save

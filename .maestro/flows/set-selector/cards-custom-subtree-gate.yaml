@@ -1,0 +1,352 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Custom subtree gates BSC/SL fetch; commits in under 10s (NEO-22)"
+tags:
+  - set-selector
+  - regression
+---
+# NEO-22 dedicated regression test.
+#
+# Asserts two things the existing cards-parallel-of-insert.yaml does NOT:
+#
+#   1. The fetchAggregatedOptions gate fires at a DIFFERENT custom level.
+#      This flow creates a custom Set (setName level) under Topps, drills in,
+#      adds a custom Variant Type, and drills in to a custom Variant. A
+#      regression that removes the short-circuit from fetchAggregatedOptions
+#      (which feeds the Variant Types and Variants columns) OR from
+#      fetchCardChecklist (which feeds the CardChecklist panel) gets caught
+#      here, where cards-parallel-of-insert only exercises the
+#      parallel-of-insert path.
+#
+#      Navigation path drilled by this flow:
+#        Baseball → 2024 → Topps → NEO22-CustomSet (custom Set)
+#          → NEO22-CustomVT (custom Variant Type)
+#            → NEO22-CustomVar (custom Variant)
+#              → CardChecklist ("Fetch from Marketplaces")
+#
+#   2. The fetch + save round-trip completes within 10 seconds, locking in
+#      the NEO-22 acceptance criterion. The original bug had this taking
+#      >30s because BSC's fallback returned ~5000 cards from a custom
+#      subtree. A silent reversion of the gate would re-introduce the stall
+#      and time out this flow instead of slipping through unnoticed under a
+#      90-second ceiling.
+#
+# CLEANUP: None. setup.yaml runs at the start of every CI cascade and resets
+# selectorOptions + cardChecklist, so the rows seeded here disappear before
+# the next run. WORKER_INDEX makes seeded values unique across parallel
+# workers within a single run; addCustomSelectorOption is idempotent on
+# normalized value so re-running the same flow in the same run is safe.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 10000
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# ============================================================
+# DRILL: Baseball → 2024 → Topps
+# Stops one level above Topps Chrome so we can add a sibling custom Set
+# under Topps (rather than a custom Variant Type under Topps Chrome, which
+# would not exercise the aggregator-side gate).
+#
+# Each column past Sports is its own `max-h-[400px] overflow-y-auto` scroll
+# container. Maestro's `scrollUntilVisible` scrolls the page, not the
+# column's internal scroll, so the per-column search-input pattern is the
+# only way to reliably target rows that sit below the column fold on the
+# 1024×629 headless viewport. Same pattern used by setup.yaml and
+# util-drill-to-2024-topps-chrome.yaml.
+# ============================================================
+
+# Guard with extendedWaitUntil before scrollUntilVisible: without it, Maestro's
+# CDP JS injection for scroll fires before the page DOM is fully hydrated and
+# throws "null cannot be cast to non-null type kotlin.Int" — a known headless
+# Chrome timing issue on this flow. The extendedWaitUntil gives the
+# selectorOptions reactive query time to resolve. Same pattern as cascade
+# cards-base.yaml, cards-insert.yaml, and cards-parallel.yaml.
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# Years column — list is newest-first (2026, 2025, 2024…), so 2024 falls
+# below the column's internal fold. Filter via the Years search input.
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+# Manufacturers column — alphabetical, Topps sits past the fold once enough
+# manufacturers are seeded. Filter via the Manufacturers search input.
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Wait for the Sets column to reach idle state, then scroll the "+ Custom"
+# button into view before tapping.
+#
+# The Sets `<EntityColumn>` swaps between three modes (idle | sync | custom).
+# The "+ Custom" button (aria-label "Add custom Sets") is only rendered in
+# idle mode. Two failure modes had to be ruled out:
+#
+#   1. Wrong idle-state signal — the column's search input is NOT a reliable
+#      idle indicator. `EntitySelector` shows the search box whenever
+#      `items.length > 8` regardless of column mode (see
+#      components/SetSelector/EntitySelector.tsx:106). So the column can
+#      show "Search sets..." while still in sync mode and "+ Custom" is
+#      absent.
+#
+#   2. Off-fold rendering — even when idle and the button is in the DOM,
+#      it sits below the column's max-h-[400px] selector list. On the
+#      1024×629 headless viewport the button can be below the page fold,
+#      so `extendedWaitUntil` (which doesn't scroll) reports the button
+#      as not visible even when it exists.
+#
+# `scrollUntilVisible` on the aria-labeled button handles both cases at once:
+# it waits for the button to render (idle mode reached) and scrolls the
+# page to bring it into view. Matches the pattern used by
+# variant-metadata-editor-insert.yaml.
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 30000
+# scrollUntilVisible with visibilityPercentage: 50 (not centerElement: true)
+# serves as the idle-mode wait: the "+ Custom" button only exists when the
+# Sets column is in idle mode (after the SetForm auto-sync completes).
+# 120s ceiling covers cold BSC/SL adapter sync. visibilityPercentage: 50 is
+# the minimum scroll needed — the column's scrollIntoView on mount already
+# brings it into the right edge of the 1024×629 viewport, so this step mainly
+# waits for idle mode, not scrolls.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    visibilityPercentage: 50
+    timeout: 120000
+
+# ============================================================
+# ADD CUSTOM SET (setName level)
+# Aria-label per column is unique: "Add custom Sets". Tapping by aria-label
+# is robust to column reordering and to the global "+ Custom" label collision.
+# ============================================================
+
+- tapOn:
+    id: "Add custom Sets"
+# Wait for the form's "Add Custom Entry" heading rather than the input
+# placeholder — the heading is the first element of the form (top of the
+# rendered card) so it enters the viewport before the input, while the
+# input/placeholder can be below the fold on 1024×629 once multiple columns
+# are open. Same pattern as variant-metadata-editor-insert.yaml.
+- extendedWaitUntil:
+    visible: "Add Custom Entry"
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomSet-${WORKER_INDEX || 0}"
+# Press Enter rather than tapping the "Add" button — `text: "Add"` is
+# ambiguous (also matches "Add Custom Entry" heading and "Add Card" button)
+# and resolves to a non-tappable element on some renders. The input's
+# onKeyDown handler (components/SetSelector/EntityColumn.tsx:129) calls
+# handleCustomSubmit on Enter. Same pattern as variant-metadata-editor-insert.
+- pressKey: Enter
+
+# Custom entries render as "<value>Custom" in the DOM (the value followed
+# by the "Custom" badge). Regex match avoids brittleness around the badge.
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomSet-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomSet-${WORKER_INDEX || 0}.*"
+
+# ============================================================
+# ASSERTION 1 — fetchAggregatedOptions gate
+# After tapping into the custom set, the Variant Types column auto-syncs.
+# The gate must short-circuit so the column never populates with Base,
+# Insert, or Parallel from BSC/SL. The sync must complete fast — slow
+# completion implies the adapters were actually called.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 10000
+
+# Wait for the auto-sync to complete. For a custom subtree the gate
+# short-circuits immediately (no BSC/SL adapter calls), so the
+# SetVariantForm calls onDone() on success and unmounts — returning
+# the column to idle mode and making "+ Custom" visible.
+#
+# WHY centerElement: true here (unlike the Sets column which uses 50%):
+#   The Variant Types column under a custom Set has ZERO items, making it a
+#   short column. Without centering, the button lands near the bottom of the
+#   629px headless viewport where the page's horizontal scrollbar (from
+#   the 5-column overflow) overlaps the tap area. centerElement: true
+#   scrolls the window down to shift the button higher in the viewport.
+#   Confirmed via maestro.log and screenshots across multiple runs.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variant Types"
+    centerElement: true
+    timeout: 30000
+
+# No marketplace-sourced variant types should appear under a custom set.
+# If any of these are visible the gate has regressed and the adapters are
+# being called. These assertions run AFTER idle mode is confirmed (the
+# "+ Custom" button is the idle signal), so they are not trivially passing
+# because the SetVariantForm was still mounted.
+- assertNotVisible: "Base"
+- assertNotVisible: "Insert"
+- assertNotVisible: "Parallel"
+
+# ============================================================
+# ADD CUSTOM VARIANT TYPE under the custom set
+# ============================================================
+
+# The Variant Types "+ Custom" button sits near the bottom of the viewport when
+# 5 columns are open and the page overflows horizontally. A native browser
+# horizontal scrollbar renders at the bottom of the overflow-x-auto container
+# and can overlap with the tap target. `waitToSettleTimeoutMs` is mobile-only;
+# instead we use `scrollUntilVisible` on the form heading immediately after the
+# tap. If the tap registered, the form is in the DOM and scrollUntilVisible
+# brings "Add Custom Entry" into view within its 5-second window. If the tap
+# missed (scrollbar intercept), the form never mounts and scrollUntilVisible
+# times out — producing a clearer failure message than `extendedWaitUntil`.
+- tapOn:
+    id: "Add custom Variant Types"
+- scrollUntilVisible:
+    element:
+      text: "Add Custom Entry"
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomVT-${WORKER_INDEX || 0}"
+# Press Enter — see note on the Sets-column "+ Custom" above re: tapOn "Add"
+# being ambiguous.
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}.*"
+
+# After selecting the custom Variant Type, the app opens a Variants column
+# (level 6) — the same Variants column used for insert parallels. The
+# CardChecklist ("Fetch from Marketplaces") only appears when a specific
+# variant is selected from that column. So we add a custom Variant and
+# select it to reach the CardChecklist panel.
+#
+# Wait for the Variants column to render. The Variants auto-sync gate also
+# short-circuits for custom subtrees — no BSC/SL calls are made, so the
+# column reaches idle mode immediately.
+#
+# NEO-16 made the column header dynamic — it's the pluralized variantType
+# `value` (e.g. "Inserts", "Parallels", or for the custom VT created above,
+# "NEO22-CustomVT-${WORKER_INDEX || 0}s"). The literal "Variants" only
+# appears as a fallback when no variantType is selected.
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomVT-${WORKER_INDEX || 0}s.*"
+    timeout: 15000
+
+# Wait for idle mode (the "+ Custom" button for the Variants column only
+# appears when the VariantForm auto-sync has completed and returned idle).
+# Use the aria-label to target this specific column's button — other columns
+# also have "+ Custom" buttons. After NEO-16, the aria-label is derived from
+# the column header label: "Add custom <pluralized variantType value>".
+- scrollUntilVisible:
+    element:
+      id: "Add custom NEO22-CustomVT-${WORKER_INDEX || 0}s"
+    centerElement: true
+    timeout: 30000
+
+# ============================================================
+# ADD CUSTOM VARIANT under the custom Variant Type
+# ============================================================
+
+# Same scrollbar-avoidance pattern as the Variant Types "+ Custom" tap above:
+# tap the button by aria-label, then use scrollUntilVisible for the form
+# heading to confirm the form opened. If the tap was intercepted by the
+# horizontal scrollbar, the form never mounts and scrollUntilVisible times out.
+- tapOn:
+    id: "Add custom NEO22-CustomVT-${WORKER_INDEX || 0}s"
+- scrollUntilVisible:
+    element:
+      text: "Add Custom Entry"
+    timeout: 5000
+- tapOn: "Enter custom value..."
+- inputText: "NEO22-CustomVar-${WORKER_INDEX || 0}"
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible:
+      text: ".*NEO22-CustomVar-${WORKER_INDEX || 0}.*"
+    timeout: 5000
+- tapOn:
+    text: ".*NEO22-CustomVar-${WORKER_INDEX || 0}.*"
+
+# ============================================================
+# ASSERTION 2 — fetchCardChecklist gate + 10s budget
+# Selecting a custom Variant opens the CardChecklist panel.
+# Clicking "Fetch from Marketplaces" on a fully-custom subtree must return
+# "Saved 0 cards." within 10 seconds AND must never open the "Confirm
+# New Players & Teams" dialog. The 10s ceiling IS the NEO-22 acceptance
+# criterion — broaden it only if the gate is intentionally being removed.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*"
+    timeout: 15000
+
+- tapOn:
+    text: ".*Fetch from Marketplaces.*"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved 0 cards.*"
+    timeout: 10000
+
+- assertNotVisible: "Confirm New Players & Teams"
+
+- assertVisible:
+    text: ".*Saved 0 cards.*"

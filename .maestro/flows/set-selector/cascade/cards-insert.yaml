@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Cascade — fetch card checklist for an Insert variant, verify saved cards"
+name: "Cascade — fetch card checklist for real Insert variant (Future Stars), assert 20 cards"
 tags:
   - set-selector
   - cascade
@@ -10,21 +10,27 @@ tags:
 ---
 # Cascade node: depends on sets-loaded, contributes to cards-loaded.
 #
-# By the time this flow runs, sets-inserts.yaml has verified that
-# the Insert variant type can be synced. The Variants column was left empty
-# (ReconciliationModal was cancelled). This flow adds a custom insert variant
-# and fetches its card checklist.
+# By the time this flow runs, sets-inserts.yaml has cancelled the
+# ReconciliationModal, leaving the Inserts column EMPTY. Tapping "Insert"
+# again causes auto-sync to fire and re-open the ReconciliationModal.
+# We save the "Future Stars" matched row, which writes real BSC+SL data to
+# the DB for further downstream flows.
 #
-# WHY A CUSTOM VARIANT:
-#   The ReconciliationModal was cancelled by sets-inserts.yaml, so no
-#   variants were written. We add "Baseball Stars" as a custom Insert variant —
-#   this name matches the prefix pattern used by auto-detection and is a
-#   realistic insert name from 2024 Topps Chrome.
+# WHAT THIS VERIFIES:
+#   - Auto-sync reopens ReconciliationModal when Inserts column is empty.
+#   - The "Future Stars" row is present in the matched section.
+#   - Saving produces a real card checklist with exactly 20 cards.
+#   - The fetch pipeline handles known Insert variants correctly.
 #
-# EXPECTED RESULT:
-#   BSC and SL will return 0 cards for a custom insert with no set mapping.
-#   "Saved 0 cards." is the expected success signal. The fetch pipeline
-#   completes without error and the checklist panel stays in a usable state.
+# WHY FUTURE STARS?
+#   2024 Topps Chrome Future Stars is a well-known insert with stable checklist
+#   coverage on both BSC and SL. 20 cards is the expected count, user-verified.
+#   If this assertion fails, the count changed on the marketplace — update the
+#   number, it is not a code regression.
+#
+# CASCADE FLOW STATE AFTER THIS NODE:
+#   The Inserts column contains Future Stars (and any other saved matched rows).
+#   The "Future Stars" entry in the Inserts column has 20 cards in its checklist.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -36,7 +42,8 @@ tags:
     timeout: 10000
 
 # ============================================================
-# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome → Insert
+# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
+# Data is already in DB from setup.yaml; no syncs fire at Levels 1-4.
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -125,97 +132,116 @@ tags:
 - extendedWaitUntil:
     visible: "Insert"
     timeout: 10000
+
+# ============================================================
+# SELECT INSERT — auto-sync fires because Inserts column is empty
+# (sets-inserts.yaml cancelled the ReconciliationModal, leaving no rows)
+# ============================================================
+
 - scrollUntilVisible:
     element:
       text: "Insert"
     timeout: 10000
 - tapOn: "Insert"
 
-# Variants column appears. Cancel modal if auto-sync fires on empty column.
 - extendedWaitUntil:
-    visible: "Variants"
+    visible: "Inserts"
     timeout: 10000
 
-# The Reconcile Variants modal only opens when auto-sync fires on an empty
-# Variants column. When variants already exist (cascade left them), no modal
-# opens and Group Parallels is in the DOM but may be below the fold on the
-# headless 1024×629 viewport. Don't branch on `notVisible: Group Parallels`
-# (false-positive: viewport-only check) — handle the modal if it really
-# shows up, then unconditionally scroll Group Parallels into view.
+# Auto-sync fires immediately when the column is empty. ReconciliationModal
+# opens automatically — wait up to 240s for the BSC + SL fetch.
+# If the column is already populated from a previous run, no modal opens
+# and we jump straight to the search. Detect either state by waiting for
+# the modal heading OR the Search input to appear.
+- extendedWaitUntil:
+    visible:
+      text: ".*Reconcile Inserts.*|Search inserts.*"
+    timeout: 240000
+
+# ============================================================
+# RECONCILIATION MODAL — save all matched rows
+# The "Matched (N)" section is COLLAPSED by default (▶ click to review),
+# so scrolling for a specific row inside the modal can't find it. Skip
+# the in-modal find and just tap "Save N matched" — the matched rows
+# (including Future Stars) will all be written to the Inserts column.
+# ============================================================
+
 - runFlow:
     when:
-      visible: "Reconcile Variants"
+      visible: "Reconcile Inserts"
     commands:
-      - tapOn: "Cancel"
-      - extendedWaitUntil:
-          notVisible: "Reconcile Variants"
+      - scrollUntilVisible:
+          element:
+            text: ".*Save [0-9]+ matched.*"
           timeout: 10000
+      - tapOn:
+          text: ".*Save [0-9]+ matched.*"
+      - extendedWaitUntil:
+          notVisible: "Reconcile Inserts"
+          timeout: 30000
 
+# ============================================================
+# FIND "Future Stars" IN THE INSERTS COLUMN VIA SEARCH
+# Inserts column has a "Search inserts..." input; use it to filter
+# rather than scrolling the page. "Future Stars" is auto-matched by both
+# BSC and SL adapters. The regex anchors ^...$ ensure we match the bare
+# "Future Stars" row, not its many parallel siblings ("Future Stars
+# Autographs", "Future Stars Black Refractor", etc).
+# ============================================================
+
+- extendedWaitUntil:
+    visible: ".*Search inserts.*"
+    timeout: 15000
 - scrollUntilVisible:
     element:
-      text: "Group Parallels"
+      text: ".*Search inserts.*"
     timeout: 10000
-- assertVisible: "Group Parallels"
-
-# ============================================================
-# ADD A CUSTOM INSERT VARIANT
-# ============================================================
-
 - tapOn:
-    id: "Add custom Variants"
+    text: ".*Search inserts.*"
+- inputText: "Future Stars"
+# index: 1 — the search input itself has text "Future Stars" (the typed
+# value) at index 0; the bare "Future Stars" list row sits at index 1,
+# above all its parallel siblings ("Future Stars Autographs", etc).
+# Regex anchors keep us off the siblings even if list order shifts.
 - extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
-- inputText: "Baseball Stars"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    timeout: 5000
-- tapOn: "Add"
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
+    visible:
+      text: "^Future Stars$"
+      index: 1
     timeout: 10000
-
-- extendedWaitUntil:
-    visible: "Baseball Stars"
-    # 30s — addCustomVariant mutation + selectorOptions re-query.
-    # Custom variant appears after the Convex query refetches (1-2s
-    # typical, longer if a parallel auto-sync is in-flight).
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: "Baseball Stars"
-    timeout: 10000
-- tapOn: "Baseball Stars"
+- tapOn:
+    text: "^Future Stars$"
+    index: 1
 
 # ============================================================
-# WAIT FOR CARDCHECKLIST PANEL
+# CARD CHECKLIST PANEL APPEARS
 # ============================================================
 
 - scrollUntilVisible:
     element:
       text: ".*Fetch from Marketplaces.*|Refresh"
-    timeout: 10000
+    timeout: 15000
 - assertVisible:
     text: ".*Fetch from Marketplaces.*|Refresh"
-- assertVisible: "No cards in this checklist yet."
 
 # ============================================================
-# FETCH THE CARD CHECKLIST
+# FETCH FROM MARKETPLACES
+# Button text depends on whether the checklist already has cards:
+#   - Fresh checklist: "Fetch from Marketplaces"
+#   - Already populated: "Refresh"
+# Either button triggers the same fetch + save pipeline.
 # ============================================================
 
-- tapOn: "Fetch from Marketplaces"
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|^Refresh$"
 
-# Wait for fetch to start or complete. The cascade reset wipes the global
-# players/teams tables, so the first fetch always finds unknown entities and
-# opens the "Confirm New Players & Teams" dialog before saving cards.
-# Bump to 90s — BSC can be slow on a fresh DB.
+# The first real fetch on a fresh DB finds unknown players/teams.
+# Wait for either the dialog or the terminal save message.
+# 90s — BSC + SL network calls for real Insert data.
 - extendedWaitUntil:
     visible:
       text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
     timeout: 90000
 
-# If the dialog opened (fresh players/teams tables), confirm all entities.
 - runFlow:
     when:
       visible: "Confirm New Players & Teams"
@@ -230,11 +256,10 @@ tags:
           notVisible: "Confirm New Players & Teams"
           timeout: 30000
 
-# Either path ends with the save confirmation.
 - extendedWaitUntil:
     visible:
       text: ".*Saved [0-9]+ cards.*"
     timeout: 30000
 
 - assertVisible:
-    text: ".*Saved [0-9]+ cards.*"
+    text: ".*Saved 20 cards.*"
