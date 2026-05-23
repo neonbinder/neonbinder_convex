@@ -5,14 +5,8 @@ tags:
   - set-selector
   - cascade
   - regression
-  - wip
   - requires:setup-done
   - provides:sets-loaded
-# FIXME: Insert sync action hangs past 240s in headless local runs (Reconcile
-# Variants modal never appears, no "Stored N variants" message either). Likely
-# a real Convex action timeout / BSC seller-id refresh issue specific to this
-# heavy 2024 Topps Chrome Insert query. Re-enable once the action completes
-# reliably or stub the BSC/SL fetch in the test environment.
 ---
 # Cascade node: depends on setup-done, contributes to sets-loaded.
 #

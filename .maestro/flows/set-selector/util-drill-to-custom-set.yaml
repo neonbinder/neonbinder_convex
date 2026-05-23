@@ -1,0 +1,351 @@
+appId: com.neonbinder.web
+name: "Util — drill to Football → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
+tags:
+  - util
+---
+# Creates and drills to a per-flow custom set under Football → 2026.
+#
+# WHY Football / 2026?
+#   Flows that add custom data (Stars, Stars Gold, META-TEST, etc.) must NOT
+#   touch Baseball → 2024 → Topps Chrome — that path is owned by the cascade
+#   and uses real BSC/SL marketplace data. Football → 2026 is a fresh sport/year
+#   combination that no cascade flow touches, so custom-data flows are fully
+#   isolated and cannot interfere with the cascade's reconciliation behaviour.
+#
+# INPUTS:
+#   SET_NAME    (required) — basename of the flow, e.g. "parallel-grouping-suggestions-0"
+#   VARIANT_TYPE (optional, defaults to "Insert") — variant type to select after landing
+#
+# CONTRACT:
+#   - Caller has called launchApp and the session is signed in.
+#   - Caller has BSC + SL credentials available (passed via env or already saved).
+#   - This util navigates to /set-selector, adds Football → 2026 → <SET_NAME>
+#     if not already present, and returns with:
+#       * The custom set selected (Sets column)
+#       * Variant Types column visible
+#       * Custom Variant Type selected (if VARIANT_TYPE is provided)
+#     The column is in idle mode — the auto-sync gate short-circuits for custom
+#     subtrees (no BSC/SL adapter calls), so the "+ Custom" button is immediately
+#     available in the Variant Types column on return.
+#
+# IDEMPOTENCY:
+#   If Football, 2026, and SET_NAME already exist from a prior iteration in this
+#   CI run (e.g. re-run), the drill taps through to the existing items.
+#   addCustomSelectorOption is idempotent on normalized value — no duplicates.
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# ============================================================
+# LEVEL 1 — Football
+# Football is not seeded by the cascade setup, so the Sports column may not
+# list it until we add it as a custom entry. Use "Add custom Sports" to
+# ensure it exists, then tap it. The addCustomSelectorOption mutation is
+# idempotent — tapping "+ Custom" and typing "Football" twice in the same
+# run is safe: the second insert is deduplicated by normalized value.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Sports"
+    timeout: 30000
+
+# Wait for the Sports column to reach idle mode (auto-sync settles).
+# Use the "Baseball" entry as the idle signal — Baseball is always seeded
+# by the cascade setup.yaml, so its appearance confirms the sync is done.
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 60000
+
+# Try to tap Football directly first (it may already exist from a prior run).
+- runFlow:
+    when:
+      notVisible: "Football"
+    commands:
+      # Football is not yet in the list. Add it as a custom Sport entry.
+      - scrollUntilVisible:
+          element:
+            id: "Add custom Sports"
+          visibilityPercentage: 50
+          timeout: 10000
+      - tapOn:
+          id: "Add custom Sports"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Football"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+- extendedWaitUntil:
+    visible: "Football"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Football"
+    timeout: 10000
+- tapOn: "Football"
+
+# ============================================================
+# LEVEL 2 — Year 2026
+# 2026 will not be in the Years column unless it was previously added.
+# Add it as a custom year if absent, then tap it.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+
+# Wait for Years column to settle. For a fresh custom sport (Football) the
+# YearForm fires briefly and then short-circuits via the custom-subtree gate.
+# The settled state has the "+ Custom" button (aria-label "Add custom Years")
+# present. scrollUntilVisible waits for that element, tolerating in-flight
+# sync — it polls until found or timeout.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Years"
+    visibilityPercentage: 50
+    timeout: 60000
+
+- runFlow:
+    when:
+      notVisible: "2026"
+    commands:
+      - tapOn:
+          id: "Add custom Years"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "2026"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+- extendedWaitUntil:
+    visible: "2026"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "2026"
+    timeout: 10000
+- tapOn: "2026"
+
+# ============================================================
+# LEVEL 3 — Manufacturer: search for "Topps" and tap it
+# Football/2026 sport+year already provides isolation from the Baseball/2024
+# cascade path, and the per-flow unique SET_NAME at level 4 makes each
+# flow's data unique. No need to add a custom manufacturer here. Mirrors
+# the proven search-input pattern from util-drill-to-2024-topps-chrome.yaml.
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# ============================================================
+# LEVEL 4 — Set (the per-flow unique SET_NAME)
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+
+# Wait for Sets column to settle (custom-subtree gate short-circuits the
+# SetForm). scrollUntilVisible tolerates the brief in-flight sync.
+# centerElement: true is required — the 1024×629 headless viewport has a
+# footer that paints over the body's overflow region and steals clicks; a
+# "+ Custom" button rendered near the bottom (y≈583+) gets its tap registered
+# but the modal's follow-up events get swallowed by the footer, so the modal
+# never visibly opens. Centering the button puts it mid-viewport (y≈315),
+# clear of the footer. See memory reference_maestro_headless_viewport.md.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    centerElement: true
+    timeout: 60000
+
+- runFlow:
+    when:
+      notVisible: ${SET_NAME}
+    commands:
+      - tapOn:
+          id: "Add custom Sets"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: ${SET_NAME}
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*${SET_NAME}.*"
+    timeout: 10000
+# Tap the SET_NAME row. Two paths depending on column population:
+#
+#   A. List has >8 items → EntitySelector shows a "Search sets..." input.
+#      Filter via search so the target row is the only one rendered, then
+#      tap it at index: 1 (index 0 is the search input echoing the typed
+#      value). This is necessary because the list wraps in
+#      `max-h-[400px] overflow-y-auto` — when worker-state has accumulated
+#      9+ sets, the SET_NAME we just created sorts past the visible
+#      portion and Maestro's hit-test reports bounds outside the rendered
+#      area, so direct taps land in the gap between the clipped row and
+#      the action buttons (CI repro: PR #31).
+#
+#   B. List has ≤8 items → no search input. Direct tap is reliable
+#      because the row fits inside the inner overflow.
+- runFlow:
+    when:
+      visible: ".*Search sets.*"
+    commands:
+      # The Add-custom-Sets centerElement: true scroll above leaves the
+      # column's top half (Sets header + Search input) above the viewport;
+      # Search-sets ends up at y≈4 under the fixed nav header. CI logs from
+      # 758de86 confirmed `scrollUntilVisible centerElement: true` on the
+      # search input itself was a no-op (Maestro doesn't pull elements
+      # already at viewport-top further down). Use `scrollUntilVisible`
+      # with direction: UP looking for the column's "Sets" h2 header — UP
+      # means swipe-down gesture, which scrolls the page DOWN (pulls content
+      # that's above viewport down INTO viewport). The header lives above
+      # the search input in the EntitySelector layout, so once "Sets" is
+      # visible at center, the search input lands just below it (~y=360),
+      # clear of the nav header.
+      - scrollUntilVisible:
+          element:
+            text: "^Sets$"
+          direction: UP
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: ${SET_NAME}
+      - extendedWaitUntil:
+          visible:
+            text: ".*${SET_NAME}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*${SET_NAME}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+# Fallback path for small lists (no search input). Guarded by
+# `notVisible: "Variant Types"` so it doesn't double-tap after the
+# search-input branch above succeeded — when that branch selects the
+# row, Search-sets disappears AND Variant Types appears; without this
+# guard, the fallback would also fire (Search-sets gone) and re-tap
+# the already-selected row, collapsing the column and re-mounting the
+# next column mid-flight (PR #31 vme-insert-2 CI failure).
+- runFlow:
+    when:
+      notVisible: "Variant Types"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*${SET_NAME}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*${SET_NAME}.*"
+          waitToSettleTimeoutMs: 2000
+
+# ============================================================
+# LEVEL 5 — Variant Types
+# Custom subtree: gate short-circuits, no BSC/SL adapter calls.
+# Wait for idle mode (the "+ Custom" button appears when mode=idle).
+# Then select the requested VARIANT_TYPE (defaults to "Insert").
+# If VARIANT_TYPE does not exist yet, add it as a custom entry first.
+#
+# Bumped to 30000 from 10000 — under shared-Convex contention from
+# parallel workers, the Variant Types column can take longer to render
+# after the SET_NAME tap. Observed ~11s render time in CI (PR #31 first run).
+# ============================================================
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 30000
+
+# Short-circuit makes idle mode arrive quickly (<5s).
+# NOTE (PR #31): previously used centerElement: true. CI fb5c2b6 showed
+# Maestro CDP didn't reliably center this button — it landed at y=179
+# and the subsequent tap missed (modal never opened). Use plain
+# visibilityPercentage scroll instead; the Variant Types column has at
+# most 4 items (Base/Insert/Parallel/Promo) so the "+ Custom" button
+# is naturally close to the column header, not pushed near the
+# footer/scrollbar zone the centerElement workaround was guarding.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variant Types"
+    visibilityPercentage: 100
+    timeout: 30000
+
+# Insert: add if absent, then tap. waitToSettleTimeoutMs on the tap
+# defends against the stale-coordinate race observed in PR #31
+# variant-metadata-editor-insert CI failures: Maestro found the
+# "+ Custom" button at y=179 then the page scrolled before the tap
+# fired (button moved up to y≈90), so the tap landed in empty space
+# below the button and the create modal never opened.
+- runFlow:
+    when:
+      notVisible: ${VARIANT_TYPE || "Insert"}
+    commands:
+      - tapOn:
+          id: "Add custom Variant Types"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 10000
+      - inputText: ${VARIANT_TYPE || "Insert"}
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible:
+            text: ".*${VARIANT_TYPE || 'Insert'}.*"
+          timeout: 5000
+
+- scrollUntilVisible:
+    element:
+      text: ${VARIANT_TYPE || "Insert"}
+    timeout: 10000
+- tapOn: ${VARIANT_TYPE || "Insert"}
+
+# ============================================================
+# Verify the Variants column opened for the selected type.
+# Column header is the pluralized variantType value.
+# For "Insert" the header is "Inserts".
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      text: ".*${VARIANT_TYPE || 'Insert'}s.*"
+    timeout: 15000
+
+# Wait for idle mode in the Variants column (short-circuits for custom VT).
+- scrollUntilVisible:
+    element:
+      id: "Add custom ${VARIANT_TYPE || 'Insert'}s"
+    visibilityPercentage: 50
+    timeout: 30000
