@@ -174,16 +174,16 @@ tags:
 
 # Wait for Sets column to settle (custom-subtree gate short-circuits the
 # SetForm). scrollUntilVisible tolerates the brief in-flight sync.
-# NOTE (PR #31): previously used centerElement: true here to clear the
-# horizontal scrollbar overlap. With the pb-4 fix on the columns wrapper
-# (b0f9c6e), the scrollbar no longer overlaps the "+ Custom" button row,
-# so centering is unnecessary AND counterproductive — it over-scrolls
-# the page DOWN, leaving the column's Search-sets input at y≈4 (under
-# the fixed nav header) and breaking the subsequent search-filter tap.
+# centerElement: true is required — the 1024×629 headless viewport has a
+# footer that paints over the body's overflow region and steals clicks; a
+# "+ Custom" button rendered near the bottom (y≈583+) gets its tap registered
+# but the modal's follow-up events get swallowed by the footer, so the modal
+# never visibly opens. Centering the button puts it mid-viewport (y≈315),
+# clear of the footer. See memory reference_maestro_headless_viewport.md.
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
-    visibilityPercentage: 50
+    centerElement: true
     timeout: 60000
 
 - runFlow:
@@ -223,6 +223,19 @@ tags:
     when:
       visible: ".*Search sets.*"
     commands:
+      # Center the search input before tapping. Without this, the page
+      # scroll can leave the input at y≈4 (top of viewport, under the
+      # fixed nav header) — Maestro taps the header instead of the input,
+      # focus stays elsewhere, inputText goes nowhere, and the filter
+      # never applies. centerElement: true scrolls so the input is at
+      # mid-viewport (y≈315), clear of the header. Mirrors what the
+      # passing cards-insert.yaml does implicitly because its search
+      # input lands at y≈493 organically.
+      - scrollUntilVisible:
+          element:
+            text: ".*Search sets.*"
+          centerElement: true
+          timeout: 10000
       - tapOn:
           text: ".*Search sets.*"
       - inputText: ${SET_NAME}
