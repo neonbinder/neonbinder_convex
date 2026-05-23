@@ -223,17 +223,22 @@ tags:
     when:
       visible: ".*Search sets.*"
     commands:
-      # Center the search input before tapping. Without this, the page
-      # scroll can leave the input at y≈4 (top of viewport, under the
-      # fixed nav header) — Maestro taps the header instead of the input,
-      # focus stays elsewhere, inputText goes nowhere, and the filter
-      # never applies. centerElement: true scrolls so the input is at
-      # mid-viewport (y≈315), clear of the header. Mirrors what the
-      # passing cards-insert.yaml does implicitly because its search
-      # input lands at y≈493 organically.
+      # The Add-custom-Sets centerElement: true scroll above leaves the
+      # column's top half (Sets header + Search input) above the viewport;
+      # Search-sets ends up at y≈4 under the fixed nav header. CI logs from
+      # 758de86 confirmed `scrollUntilVisible centerElement: true` on the
+      # search input itself was a no-op (Maestro doesn't pull elements
+      # already at viewport-top further down). Use `scrollUntilVisible`
+      # with direction: UP looking for the column's "Sets" h2 header — UP
+      # means swipe-down gesture, which scrolls the page DOWN (pulls content
+      # that's above viewport down INTO viewport). The header lives above
+      # the search input in the EntitySelector layout, so once "Sets" is
+      # visible at center, the search input lands just below it (~y=360),
+      # clear of the nav header.
       - scrollUntilVisible:
           element:
-            text: ".*Search sets.*"
+            text: "^Sets$"
+          direction: UP
           centerElement: true
           timeout: 10000
       - tapOn:
