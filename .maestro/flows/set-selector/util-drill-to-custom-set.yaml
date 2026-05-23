@@ -291,17 +291,22 @@ tags:
     centerElement: true
     timeout: 30000
 
-# Insert: add if absent, then tap.
+# Insert: add if absent, then tap. waitToSettleTimeoutMs on the tap
+# defends against the stale-coordinate race observed in PR #31
+# variant-metadata-editor-insert CI failures: Maestro found the
+# "+ Custom" button at y=179 then the page scrolled before the tap
+# fired (button moved up to y≈90), so the tap landed in empty space
+# below the button and the create modal never opened.
 - runFlow:
     when:
       notVisible: ${VARIANT_TYPE || "Insert"}
     commands:
       - tapOn:
           id: "Add custom Variant Types"
-      - scrollUntilVisible:
-          element:
-            text: "Add Custom Entry"
-          timeout: 5000
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 10000
       - inputText: ${VARIANT_TYPE || "Insert"}
       - pressKey: Enter
       - extendedWaitUntil:
