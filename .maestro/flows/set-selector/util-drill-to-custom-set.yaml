@@ -253,9 +253,16 @@ tags:
           text: ".*${SET_NAME}.*"
           index: 1
           waitToSettleTimeoutMs: 2000
+# Fallback path for small lists (no search input). Guarded by
+# `notVisible: "Variant Types"` so it doesn't double-tap after the
+# search-input branch above succeeded — when that branch selects the
+# row, Search-sets disappears AND Variant Types appears; without this
+# guard, the fallback would also fire (Search-sets gone) and re-tap
+# the already-selected row, collapsing the column and re-mounting the
+# next column mid-flight (PR #31 vme-insert-2 CI failure).
 - runFlow:
     when:
-      notVisible: ".*Search sets.*"
+      notVisible: "Variant Types"
     commands:
       - scrollUntilVisible:
           element:
