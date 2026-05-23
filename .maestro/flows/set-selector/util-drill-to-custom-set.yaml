@@ -223,6 +223,19 @@ tags:
     when:
       visible: ".*Search sets.*"
     commands:
+      # Center the search input before tapping. Without this, the page
+      # scroll can leave the input at y≈4 (top of viewport, under the
+      # fixed nav header) — Maestro taps the header instead of the input,
+      # focus stays elsewhere, inputText goes nowhere, and the filter
+      # never applies. centerElement: true scrolls so the input is at
+      # mid-viewport (y≈315), clear of the header. Mirrors what the
+      # passing cards-insert.yaml does implicitly because its search
+      # input lands at y≈493 organically.
+      - scrollUntilVisible:
+          element:
+            text: ".*Search sets.*"
+          centerElement: true
+          timeout: 10000
       - tapOn:
           text: ".*Search sets.*"
       - inputText: ${SET_NAME}
