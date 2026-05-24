@@ -106,19 +106,26 @@ tags:
 # ============================================================
 
 # After the add-custom-card preamble scrolled DOWN to verify the new row,
-# the Sync button sits at y~17-49 — technically in the viewport but
-# OBSCURED by the sticky page header (z-20). scrollUntilVisible's
-# visibility is DOM-rect intersection, not z-index-aware, so it won't
-# scroll past the obscured button. Force a real scroll UP to "Re-map
-# Base" — a button in the variant-types row well ABOVE the cards
-# section. Centering it puts the cards section (and Sync button)
-# clearly below the header.
+# the Sync button can land at y~17-49 when centerElement is applied to it
+# directly — the 1024x629 headless viewport places it inside the 64px-tall
+# sticky binder-header (z-20), whose overlay absorbs the tap.
+#
+# Fix: scroll UP to "Add Card" (the CardChecklist header button). "Add Card"
+# and "Sync card checklist" are in the same flex row — centering "Add Card"
+# at mid-viewport (~y=315) puts the Sync button at the same y. This is the
+# same pattern used in multi-source-panel-opens-dialog.yaml (line 167-172).
+# visibilityPercentage: 50 matches the multi-source flow's exact params.
 - scrollUntilVisible:
     element:
-      text: "Re-map Base"
+      text: "Add Card"
     direction: UP
     centerElement: true
+    visibilityPercentage: 50
     timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Sync card checklist"
+    timeout: 5000
 # Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
 # `text: ".*Refresh"` regex matched a different Refresh element on the
 # page (NEO-13 root cause).

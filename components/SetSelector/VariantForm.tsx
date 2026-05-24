@@ -264,11 +264,27 @@ export default function VariantForm({
           showMetadata
           setName={setNameValue || ""}
           manufacturer={manufacturerValue || ""}
-          extraSlPrefixes={
-            baseVariant?.platformData?.sportlotsDisplay
-              ? [baseVariant.platformData.sportlotsDisplay]
-              : []
-          }
+          extraSlPrefixes={(() => {
+            // extraSlPrefixes wants human display strings for the SL prefix
+            // filter (sibling `sportlots` holds numeric radio IDs).
+            // Primary's display name comes from sportlotsDisplay (NEO-16).
+            // For multi-source rows (NEO-6), extra IDs may carry human
+            // labels in platformLabels.sportlots — include those too.
+            const prefixes: string[] = [];
+            const seen = new Set<string>();
+            const push = (s?: string) => {
+              if (s && !seen.has(s)) {
+                seen.add(s);
+                prefixes.push(s);
+              }
+            };
+            push(baseVariant?.platformData?.sportlotsDisplay);
+            const slLabels = baseVariant?.platformLabels?.sportlots;
+            const sl = baseVariant?.platformData?.sportlots;
+            const ids = !sl ? [] : Array.isArray(sl) ? sl : [sl];
+            for (const id of ids) push(slLabels?.[id]);
+            return prefixes;
+          })()}
           usedSlPlatformValues={usedIdentifiers?.slPlatformValues}
           usedBscPlatformValues={usedIdentifiers?.bscPlatformValues}
           existingRows={existingVariantRows?.map((r) => ({

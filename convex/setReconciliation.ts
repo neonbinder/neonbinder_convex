@@ -511,6 +511,34 @@ export const fetchRawOptions = action({
 
 // ===== MUTATIONS =====
 
+// Normalize a platformData side (string | string[] | undefined) to an array.
+function pdToArray(v: string | string[] | undefined): string[] {
+  if (v === undefined) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+// Pack an ID list back into the canonical shape: undefined / string / string[].
+function packIds(ids: string[]): string | string[] | undefined {
+  if (ids.length === 0) return undefined;
+  if (ids.length === 1) return ids[0];
+  return ids;
+}
+
+// Returns true if a row carries operator-attached extras beyond the primary
+// — i.e. would be destructive to delete during reconciliation cleanup.
+function hasOperatorExtras(row: {
+  platformData: { bsc?: string | string[]; sportlots?: string | string[] };
+  primaryPlatformId?: { bsc?: string; sportlots?: string };
+}): boolean {
+  for (const side of ["bsc", "sportlots"] as const) {
+    const ids = pdToArray(row.platformData[side]);
+    const primary = row.primaryPlatformId?.[side] ?? ids[0];
+    const extras = ids.filter((id) => id !== primary);
+    if (extras.length > 0) return true;
+  }
+  return false;
+}
+
 export const storeReconciledOptions = mutation({
   args: {
     level: levelValidator,
@@ -520,7 +548,7 @@ export const storeReconciledOptions = mutation({
         value: v.string(),
         platformData: v.object({
           bsc: v.optional(v.union(v.string(), v.array(v.string()))),
-          sportlots: v.optional(v.string()),
+          sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         }),
         metadata: metadataValidator,
       }),
@@ -557,20 +585,81 @@ export const storeReconciledOptions = mutation({
 
       const existing = existingByValue.get(normalizedValue);
       if (existing) {
+        // Refresh-without-clobber (NEO-6): replace only the entry matching
+        // the existing primaryPlatformId per side; keep operator-attached
+        // extras and their labels. Always rewrite primaryPlatformId to the
+        // reconciler's value so future re-reconciles continue to refresh
+        // the right slot.
+        const mergedPD: { bsc?: string | string[]; sportlots?: string | string[] } = {};
+        const mergedLabels: {
+          bsc?: Record<string, string>;
+          sportlots?: Record<string, string>;
+        } = {};
+        const newPrimary: { bsc?: string; sportlots?: string } = {};
+
+        for (const side of ["bsc", "sportlots"] as const) {
+          const oldIds = pdToArray(existing.platformData[side]);
+          const oldPrimary = existing.primaryPlatformId?.[side] ?? oldIds[0];
+          const extras = oldIds.filter((id) => id !== oldPrimary);
+          const reconciledIds = pdToArray(item.platformData[side]);
+          const refreshedPrimary = reconciledIds[0];
+
+          const merged = refreshedPrimary
+            ? [refreshedPrimary, ...extras]
+            : extras;
+          mergedPD[side] = packIds(merged);
+          if (refreshedPrimary) newPrimary[side] = refreshedPrimary;
+
+          // Preserve labels for surviving extra IDs. Reconciler does not
+          // produce labels (those come from the operator's attach dialog).
+          const oldLabels = existing.platformLabels?.[side] ?? {};
+          const survivingLabels: Record<string, string> = {};
+          for (const id of extras) {
+            if (oldLabels[id]) survivingLabels[id] = oldLabels[id];
+          }
+          if (Object.keys(survivingLabels).length > 0) {
+            mergedLabels[side] = survivingLabels;
+          }
+        }
+
         const patch: Record<string, unknown> = {
-          platformData: item.platformData,
+          platformData: mergedPD,
           lastUpdated: Date.now(),
         };
+        if (Object.keys(mergedLabels).length > 0) {
+          patch.platformLabels = mergedLabels;
+        } else if (existing.platformLabels !== undefined) {
+          // Clear stale labels when no extras remain.
+          patch.platformLabels = undefined;
+        }
+        // Always rewrite primaryPlatformId (or clear it). Convex patch is
+        // a shallow merge at the top level, so replacing the whole object
+        // also drops any side the reconciler no longer owns. Without this
+        // a removed primary would linger and pose as the primary on the
+        // next reconciliation pass.
+        patch.primaryPlatformId =
+          Object.keys(newPrimary).length > 0 ? newPrimary : undefined;
         if (item.metadata) {
           patch.metadata = { ...(existing.metadata || {}), ...item.metadata };
         }
         await ctx.db.patch(existing._id, patch);
         insertedIds.push(existing._id);
       } else {
+        // Fresh insert: reconciler is the only source of IDs, so its values
+        // are the primary on both sides.
+        const newPrimary: { bsc?: string; sportlots?: string } = {};
+        const bscIds = pdToArray(item.platformData.bsc);
+        const slIds = pdToArray(item.platformData.sportlots);
+        if (bscIds[0]) newPrimary.bsc = bscIds[0];
+        if (slIds[0]) newPrimary.sportlots = slIds[0];
+
         const id = await ctx.db.insert("selectorOptions", {
           level,
           value: item.value,
           platformData: item.platformData,
+          ...(Object.keys(newPrimary).length > 0
+            ? { primaryPlatformId: newPrimary }
+            : {}),
           parentId,
           children: [],
           metadata: item.metadata,
@@ -580,27 +669,34 @@ export const storeReconciledOptions = mutation({
       }
     }
 
-    // Delete old non-custom options that weren't in the reconciled set
+    // Delete old non-custom options that weren't in the reconciled set —
+    // but preserve any row carrying operator-attached extras (NEO-6).
+    // Reconciler-only rows are still deleted as before.
     if (reconciledItems.length > 0) {
       for (const existing of existingOptions) {
         const normalizedValue = existing.value.toLowerCase().trim();
-        if (!processedValues.has(normalizedValue) && !existing.isCustom) {
+        if (
+          !processedValues.has(normalizedValue) &&
+          !existing.isCustom &&
+          !hasOperatorExtras(existing)
+        ) {
           await ctx.db.delete(existing._id);
         }
       }
     }
 
-    // Update parent's children array
+    // Update parent's children array — keep insertedIds, plus any existing
+    // row that wasn't deleted (custom rows OR operator-extras-preserved rows).
     if (parentId && insertedIds.length > 0) {
-      const customIds = existingOptions
+      const preservedIds = existingOptions
         .filter(
           (o) =>
-            o.isCustom &&
-            !processedValues.has(o.value.toLowerCase().trim()),
+            !processedValues.has(o.value.toLowerCase().trim()) &&
+            (o.isCustom || hasOperatorExtras(o)),
         )
         .map((o) => o._id);
       await ctx.db.patch(parentId, {
-        children: [...insertedIds, ...customIds],
+        children: [...insertedIds, ...preservedIds],
       });
     }
 

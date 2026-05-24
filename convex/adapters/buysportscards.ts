@@ -268,6 +268,11 @@ const checklistCardValidator = v.object({
   cardVariation: v.optional(v.string()),
   platformRef: v.optional(v.string()),
   sportlotsRef: v.optional(v.string()),
+  // NEO-6: the BSC source-set slug this card came from (e.g.
+  // "2022-topps-baseball" vs "2022-topps-baseball-update"). Populated from
+  // raw `r.setName` so callers can tell which attached BSC set produced
+  // the card when the variant has multiple BSC IDs attached.
+  sourceBscSetSlug: v.optional(v.string()),
 });
 
 /**
@@ -360,7 +365,7 @@ export const fetchBscChecklist = action({
     cards: v.array(checklistCardValidator),
     message: v.optional(v.string()),
   }),
-  handler: async (ctx, args): Promise<{ success: boolean; cards: Array<{ cardNumber: string; cardName: string; team?: string; teams?: string[]; players?: string[]; attributes?: string[]; printRun?: number; autographType?: string; cardVariation?: string; platformRef?: string; sportlotsRef?: string }>; message?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; cards: Array<{ cardNumber: string; cardName: string; team?: string; teams?: string[]; players?: string[]; attributes?: string[]; printRun?: number; autographType?: string; cardVariation?: string; platformRef?: string; sportlotsRef?: string; sourceBscSetSlug?: string }>; message?: string }> => {
     await requireAdmin(ctx);
     try {
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
@@ -554,6 +559,15 @@ export const fetchBscChecklist = action({
             ? String(platformRefRaw)
             : undefined;
 
+          // NEO-6: BSC's bulk-upload row carries the source set slug per
+          // card. When the variant has multiple BSC IDs attached (single
+          // call returns the union), this is how we tell them apart.
+          const sourceBscSetSlugRaw = r.setName;
+          const sourceBscSetSlug =
+            typeof sourceBscSetSlugRaw === "string" && sourceBscSetSlugRaw.trim()
+              ? sourceBscSetSlugRaw.trim()
+              : undefined;
+
           return {
             cardNumber,
             cardName,
@@ -566,6 +580,7 @@ export const fetchBscChecklist = action({
             cardVariation,
             platformRef,
             sportlotsRef: undefined,
+            sourceBscSetSlug,
           };
         })
         .filter((c): c is NonNullable<typeof c> => c !== null);

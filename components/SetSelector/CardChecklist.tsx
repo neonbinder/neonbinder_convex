@@ -6,9 +6,23 @@ import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
 import NeonButton from "../modules/NeonButton";
 import UnknownEntitiesDialog from "./UnknownEntitiesDialog";
+import ChecklistSourceFilter, {
+  type SourceChips,
+  type SourceFilter,
+} from "./ChecklistSourceFilter";
 
 type CardChecklistProps = {
   variantId: GenericId<"selectorOptions">;
+  // NEO-6: source-set chip data + per-card label maps derived in the
+  // parent SetSelector from the variant row. Lifted out so this component
+  // no longer needs its own useQuery for the row, which kept the
+  // chip-data hooks above the `if (!cards) return Loading` early-return
+  // and previously violated the Rules of Hooks.
+  sourceChips: SourceChips;
+  sourceLabelMaps: {
+    bsc: Record<string, string>;
+    sportlots: Record<string, string>;
+  };
 };
 
 /**
@@ -38,7 +52,11 @@ type FetchPreview = {
   unknownTeams: string[];
 };
 
-export default function CardChecklist({ variantId }: CardChecklistProps) {
+export default function CardChecklist({
+  variantId,
+  sourceChips,
+  sourceLabelMaps,
+}: CardChecklistProps) {
   const cards = useQuery(api.selectorOptions.getCardChecklist, {
     selectorOptionId: variantId,
   });
@@ -58,6 +76,16 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
   // (which lets the user confirm Wikidata enrichment). Optional.
   const [newPlayers, setNewPlayers] = useState("");
   const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>({
+    bsc: null,
+    sportlots: null,
+  });
+
+  // Reset filter when the variant changes — chips for one variant don't
+  // apply to another.
+  useEffect(() => {
+    setSourceFilter({ bsc: null, sportlots: null });
+  }, [variantId]);
 
   // Virtuoso scroll handle + a one-shot flag so that when the user adds a
   // card via the form, the just-added row is scrolled into view. New cards
@@ -202,7 +230,20 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
     );
   }
 
-  const sortedCards = [...cards].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sortedCards = [...cards]
+    .filter((c) => {
+      if (sourceFilter.bsc && c.sourcePlatformIds?.bsc !== sourceFilter.bsc) {
+        return false;
+      }
+      if (
+        sourceFilter.sportlots &&
+        c.sourcePlatformIds?.sportlots !== sourceFilter.sportlots
+      ) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const lastSynced = cards.length > 0
     ? Math.max(...cards.map((c: { lastUpdated: number }) => c.lastUpdated))
     : null;
@@ -268,6 +309,12 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
           </div>
         )}
 
+        <ChecklistSourceFilter
+          chips={sourceChips}
+          filter={sourceFilter}
+          onChange={setSourceFilter}
+        />
+
         {sortedCards.length === 0 ? (
           <div className="text-center py-6">
             <p className="text-gray-500 dark:text-gray-400 mb-4">
@@ -288,7 +335,10 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
             computeItemKey={(_, card) => card._id}
             itemContent={(_, card) => (
               <div className="pb-1.5">
-                <CardChecklistItem card={card} />
+                <CardChecklistItem
+                  card={card}
+                  sourceLabelMaps={sourceLabelMaps}
+                />
               </div>
             )}
             style={{ height: "min(70vh, 800px)" }}
