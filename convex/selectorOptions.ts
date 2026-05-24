@@ -48,6 +48,14 @@ export const getSelectorOptions = query({
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlotsDisplay: v.optional(v.string()),
       }),
+      platformLabels: v.optional(v.object({
+        bsc: v.optional(v.record(v.string(), v.string())),
+        sportlots: v.optional(v.record(v.string(), v.string())),
+      })),
+      primaryPlatformId: v.optional(v.object({
+        bsc: v.optional(v.string()),
+        sportlots: v.optional(v.string()),
+      })),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
@@ -196,6 +204,14 @@ export const getSelectorOptionById = query({
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlotsDisplay: v.optional(v.string()),
       }),
+      platformLabels: v.optional(v.object({
+        bsc: v.optional(v.record(v.string(), v.string())),
+        sportlots: v.optional(v.record(v.string(), v.string())),
+      })),
+      primaryPlatformId: v.optional(v.object({
+        bsc: v.optional(v.string()),
+        sportlots: v.optional(v.string()),
+      })),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
@@ -228,6 +244,14 @@ export const findByLevelAndValue = query({
         sportlots: v.optional(v.union(v.string(), v.array(v.string()))),
         sportlotsDisplay: v.optional(v.string()),
       }),
+      platformLabels: v.optional(v.object({
+        bsc: v.optional(v.record(v.string(), v.string())),
+        sportlots: v.optional(v.record(v.string(), v.string())),
+      })),
+      primaryPlatformId: v.optional(v.object({
+        bsc: v.optional(v.string()),
+        sportlots: v.optional(v.string()),
+      })),
       parentId: v.optional(v.id("selectorOptions")),
       children: v.optional(v.array(v.id("selectorOptions"))),
       isCustom: v.optional(v.boolean()),
