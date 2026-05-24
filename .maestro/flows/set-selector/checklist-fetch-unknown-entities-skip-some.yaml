@@ -122,19 +122,23 @@ tags:
 # ============================================================
 
 # After scrollUntilVisible above (which scrolled DOWN to find the new
-# custom card row at the bottom), the Sync button sits at y~17-49 —
-# technically in the viewport but OBSCURED by the sticky page header
-# (z-20). scrollUntilVisible's visibility is DOM-rect intersection, not
-# z-index-aware, so it won't scroll past the obscured button. Force a
-# real scroll UP to "Re-map Base" — a button in the variant-types row,
-# well ABOVE the cards section. Centering it puts the cards section
-# (and Sync button) clearly below the header.
+# custom card row at the bottom), the Sync button may be obscured by the
+# sticky page header (z-20) or pushed below the fold by the NEO-6
+# MultiSourcePanel ("Multi-source sets" header + BSC/SL chips + "Attach
+# more…" button) that now renders between the variant-types row and the
+# CardChecklist. scrollUntilVisible with centerElement: true on the Sync
+# button itself positions it at mid-viewport (~y=315), well clear of both
+# the header (top ~64px) and the footer/scrollbar (bottom ~490px of the
+# 1024×629 headless viewport).
 - scrollUntilVisible:
     element:
-      text: "Re-map Base"
-    direction: UP
+      id: "Sync card checklist"
     centerElement: true
     timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Sync card checklist"
+    timeout: 5000
 # Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
 # `text: ".*Refresh"` regex matched a different Refresh element on the
 # page (NEO-13 root cause).

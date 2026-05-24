@@ -173,14 +173,20 @@ tags:
 
 # ============================================================
 # ASSERT "Multi-source sets" PANEL IS VISIBLE
-# The panel renders below the Re-map Base row once baseHasMapping
-# is true. Scroll to bring it into view.
+# After centering "Add Card" (CardChecklist header), the MultiSourcePanel
+# sits above the fold. Scroll UP with centerElement: true to bring the
+# "Multi-source sets" heading to mid-viewport (~y=315). This is the only
+# reliable way to avoid the sticky binder-header (top ~64px) occlusion:
+# scrolling DOWN finds the element at the top edge (y~39) where the
+# z-index-20 header steals clicks. Scrolling UP + centering guarantees
+# the panel body is fully in the safe zone (y=64..490).
 # ============================================================
 
 - scrollUntilVisible:
     element:
       text: "Multi-source sets"
-    visibilityPercentage: 50
+    direction: UP
+    centerElement: true
     timeout: 10000
 - assertVisible: "Multi-source sets"
 
@@ -188,21 +194,30 @@ tags:
 # OPEN THE ATTACH DIALOG
 # The "Attach more…" button has aria-label "Attach more source sets".
 # In Maestro web, aria-label maps to resource-id — use id: not text:.
+#
+# After centering "Multi-source sets" (the panel heading), the "Attach
+# more…" button is in the same panel row — also at mid-viewport and
+# clear of the sticky header. The extendedWaitUntil before tapOn is a
+# safety guard: if for any reason the button is not yet in a tappable
+# position, the assertion surfaces it as a clear failure rather than a
+# silent tap-miss.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
-      id: "Attach more source sets"
-    visibilityPercentage: 50
-    timeout: 10000
-- tapOn:
-    id: "Attach more source sets"
-
-# Dialog should open — its heading/title has aria-label "Attach more source sets".
-# assertVisible with id: checks the dialog container is present.
 - extendedWaitUntil:
     visible:
       id: "Attach more source sets"
+    timeout: 5000
+- tapOn:
+    id: "Attach more source sets"
+
+# Dialog should open — the BSC search input (aria-label "Search BSC sets")
+# only exists inside the dialog, making it the unambiguous open signal.
+# The panel's "Attach more source sets" button also carries that aria-label,
+# so asserting `id: "Attach more source sets"` is unreliable as a
+# dialog-open check (the button is always present on the panel).
+- extendedWaitUntil:
+    visible:
+      id: "Search BSC sets"
     timeout: 10000
 
 # ============================================================
@@ -233,10 +248,13 @@ tags:
     timeout: 10000
 - tapOn: "Cancel"
 
-# Wait for dialog to close.
+# Wait for dialog to close — the BSC search input disappears when the
+# dialog unmounts. Using the search input as the close signal avoids the
+# ambiguity of the panel's "Attach more source sets" aria-label (which
+# remains on the panel button after the dialog closes).
 - extendedWaitUntil:
     notVisible:
-      id: "Attach more source sets"
+      id: "Search BSC sets"
     timeout: 10000
 
 # ============================================================

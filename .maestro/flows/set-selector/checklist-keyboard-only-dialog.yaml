@@ -157,22 +157,27 @@ tags:
 # drive fetchCardChecklist, so match either.
 # Tap the CardChecklist's Fetch/Refresh button by its aria-label. After
 # scrollUntilVisible above (which scrolls down to find the new custom
-# card at the bottom of the list), the Sync button is at y~17-49 —
-# technically in the viewport but OBSCURED by the sticky page header
-# (z-20, ~64px tall — see binder-header.tsx).
+# card at the bottom of the list), the Sync button may be obscured by
+# the sticky page header (z-20, ~64px tall) or pushed below the fold by
+# the NEO-6 MultiSourcePanel ("Multi-source sets" header + BSC/SL chips +
+# "Attach more…" button) that now renders between the variant-types row
+# and the CardChecklist.
 #
-# scrollUntilVisible's visibility check is DOM-rect intersection; it
-# doesn't account for z-index occlusion, so the button is "visible" and
-# no scroll happens. Force a real scroll up to "Re-map Base" — a button
-# in the variant-types row that lives well ABOVE the cards section.
-# Centering it puts the cards section (and Sync button) clearly below
-# the header.
+# scrollUntilVisible with centerElement: true on the Sync button itself
+# positions it at mid-viewport (~y=315), well clear of both the header
+# (top ~64px) and the footer/scrollbar (bottom ~490px of the 1024×629
+# headless viewport). The extendedWaitUntil after the scroll ensures the
+# button is confirmed visible before tapping — a silently-failed scroll
+# surfaces as a clear assertion failure instead of a mysterious tap-miss.
 - scrollUntilVisible:
     element:
-      text: "Re-map Base"
-    direction: UP
+      id: "Sync card checklist"
     centerElement: true
     timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Sync card checklist"
+    timeout: 5000
 - tapOn:
     id: "Sync card checklist"
 # The custom-card preamble guarantees an unknown player, so the dialog
