@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
@@ -13,6 +13,16 @@ import ChecklistSourceFilter, {
 
 type CardChecklistProps = {
   variantId: GenericId<"selectorOptions">;
+  // NEO-6: source-set chip data + per-card label maps derived in the
+  // parent SetSelector from the variant row. Lifted out so this component
+  // no longer needs its own useQuery for the row, which kept the
+  // chip-data hooks above the `if (!cards) return Loading` early-return
+  // and previously violated the Rules of Hooks.
+  sourceChips: SourceChips;
+  sourceLabelMaps: {
+    bsc: Record<string, string>;
+    sportlots: Record<string, string>;
+  };
 };
 
 /**
@@ -42,19 +52,13 @@ type FetchPreview = {
   unknownTeams: string[];
 };
 
-function toArray(v: string | string[] | undefined): string[] {
-  if (v === undefined) return [];
-  return Array.isArray(v) ? v : [v];
-}
-
-export default function CardChecklist({ variantId }: CardChecklistProps) {
+export default function CardChecklist({
+  variantId,
+  sourceChips,
+  sourceLabelMaps,
+}: CardChecklistProps) {
   const cards = useQuery(api.selectorOptions.getCardChecklist, {
     selectorOptionId: variantId,
-  });
-  // NEO-6: read the parent variant row so we can derive filter chips from
-  // its attached platformData IDs + platformLabels.
-  const variantRow = useQuery(api.selectorOptions.getSelectorOptionById, {
-    id: variantId,
   });
   const fetchChecklist = useAction(api.selectorOptions.fetchCardChecklist);
   const commitChecklist = useMutation(api.selectorOptions.commitCardChecklist);
@@ -225,33 +229,6 @@ export default function CardChecklist({ variantId }: CardChecklistProps) {
       </div>
     );
   }
-
-  // NEO-6: chip data + filtered list derived from the variant's attached
-  // platformData/labels and each card's sourcePlatformIds.
-  const sourceChips: SourceChips = useMemo(() => {
-    if (!variantRow) return {};
-    const out: SourceChips = {};
-    for (const side of ["bsc", "sportlots"] as const) {
-      const ids = toArray(variantRow.platformData?.[side]);
-      if (ids.length <= 1) continue;
-      const labels = variantRow.platformLabels?.[side] ?? {};
-      const primaryId = variantRow.primaryPlatformId?.[side] ?? ids[0];
-      out[side] = {
-        primaryId,
-        chips: ids.map((id) => ({ id, label: labels[id] ?? id })),
-      };
-    }
-    return out;
-  }, [variantRow]);
-
-  // Label maps for the per-card source badge. Only populated when the
-  // chip group exists on that side.
-  const sourceLabelMaps = useMemo(() => {
-    return {
-      bsc: variantRow?.platformLabels?.bsc ?? {},
-      sportlots: variantRow?.platformLabels?.sportlots ?? {},
-    } as { bsc: Record<string, string>; sportlots: Record<string, string> };
-  }, [variantRow]);
 
   const sortedCards = [...cards]
     .filter((c) => {

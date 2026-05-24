@@ -1,9 +1,10 @@
 "use client";
 
 import type { GenericId } from "convex/values";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { SourceChips } from "../SetSelector/ChecklistSourceFilter";
 
 import SportSelector from "../SetSelector/SportSelector";
 import YearSelector from "../SetSelector/YearSelector";
@@ -167,6 +168,43 @@ export default function SetSelector() {
     selectedVariantOfVariantId ||
     selectedVariantId ||
     (isBaseVariantTypeSelected ? selectedVariantTypeId : null);
+
+  // NEO-6: read the cardChecklist row here (once) and derive the source-
+  // set chip data + per-card label maps. Previously this lived inside
+  // CardChecklist, but the two useMemos sat below an `if (!cards) return`
+  // early return — a Rules-of-Hooks violation that crashed the page with
+  // React error #310 after the variantType chip was tapped. Lifting them
+  // to the parent puts these hooks alongside the other unconditional
+  // top-level hooks. Convex deduplicates same-arg queries, so the Base
+  // case (cardChecklistId === selectedVariantTypeId) does not refetch.
+  const cardChecklistRow = useQuery(
+    api.selectorOptions.getSelectorOptionById,
+    cardChecklistId ? { id: cardChecklistId } : "skip",
+  );
+  const sourceChips: SourceChips = useMemo(() => {
+    if (!cardChecklistRow) return {};
+    const out: SourceChips = {};
+    for (const side of ["bsc", "sportlots"] as const) {
+      const raw = cardChecklistRow.platformData?.[side];
+      const ids = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+      if (ids.length <= 1) continue;
+      const labels = cardChecklistRow.platformLabels?.[side] ?? {};
+      const primaryId =
+        cardChecklistRow.primaryPlatformId?.[side] ?? ids[0];
+      out[side] = {
+        primaryId,
+        chips: ids.map((id) => ({ id, label: labels[id] ?? id })),
+      };
+    }
+    return out;
+  }, [cardChecklistRow]);
+  const sourceLabelMaps = useMemo(
+    () => ({
+      bsc: cardChecklistRow?.platformLabels?.bsc ?? {},
+      sportlots: cardChecklistRow?.platformLabels?.sportlots ?? {},
+    }),
+    [cardChecklistRow],
+  );
 
   return (
     <div className="max-w-full mx-auto p-6 flex flex-col gap-6">
@@ -377,7 +415,13 @@ export default function SetSelector() {
           stays stable across transient query refetches because the
           `isBaseVariantTypeSelected` it depends on is cached via
           `stableVariantTypeFlagsRef` above. */}
-      {cardChecklistId && <CardChecklist variantId={cardChecklistId} />}
+      {cardChecklistId && (
+        <CardChecklist
+          variantId={cardChecklistId}
+          sourceChips={sourceChips}
+          sourceLabelMaps={sourceLabelMaps}
+        />
+      )}
 
       {/* Parallel-grouping modal — mounted at the page root so it overlays
           on top of the selector row regardless of horizontal scroll. */}
