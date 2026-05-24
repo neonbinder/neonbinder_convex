@@ -148,10 +148,22 @@ jobs:
             sleep 0.5
           done
 
+      - name: Read pinned versions
+        id: pins
+        run: |
+          # Single source of truth for Maestro + Java versions. Local devs
+          # read the same files via setup-maestro.sh.
+          maestro_version="$(tr -d '[:space:]' < .maestro/version)"
+          java_version="$(tr -d '[:space:]' < .java-version)"
+          echo "maestro=${maestro_version}" >> "$GITHUB_OUTPUT"
+          echo "java=${java_version}" >> "$GITHUB_OUTPUT"
+          echo "Pinned Maestro: ${maestro_version}"
+          echo "Pinned Java:    ${java_version}"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ steps.pins.outputs.java }}
 
       - uses: browser-actions/setup-chrome@v1
 
@@ -163,16 +175,34 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Install Maestro CLI
+        env:
+          MAESTRO_VERSION: ${{ steps.pins.outputs.maestro }}
+          # Suppress the first-run analytics opt-in banner so `maestro --version`
+          # returns just the version string. Without this, the version-match
+          # check below sees multi-line output and fails even when the version
+          # is correct. Also propagate to downstream steps via GITHUB_ENV.
+          MAESTRO_CLI_NO_ANALYTICS: "1"
         run: |
+          # Pin Maestro to .maestro/version. The installer reads MAESTRO_VERSION
+          # to grab a specific tag instead of latest — without this, CI drifts
+          # away from local boxes as upstream releases land.
           # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
           # as a non-zero exit — the install script prints the error but exits 0.
           set -o pipefail
           curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
             "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-          # Verify the binary is actually installed before we spend 30 min in
-          # downstream steps discovering it isn't.
-          "$HOME/.maestro/bin/maestro" --version
+          echo "MAESTRO_CLI_NO_ANALYTICS=1" >> $GITHUB_ENV
+          # Verify the binary is actually installed AND matches the pin before
+          # we spend 30 min in downstream steps discovering it doesn't. Extract
+          # just the semver line with grep — defensive against any leftover
+          # banner output if MAESTRO_CLI_NO_ANALYTICS isn't honored.
+          installed="$("$HOME/.maestro/bin/maestro" --version | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)"
+          if [ "$installed" != "$MAESTRO_VERSION" ]; then
+            echo "::error::Maestro installer returned '${installed}' but pin is '${MAESTRO_VERSION}'"
+            exit 1
+          fi
+          echo "Maestro ${installed} ready (pinned)"
 
       - name: Run Maestro E2E suite (smoke + regression)
         env:

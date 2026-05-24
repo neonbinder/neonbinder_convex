@@ -668,18 +668,87 @@ fi
 # Simpler approach: just cap cascade concurrency at PARALLELISM via the batch
 # helper. The phase-1 lanes naturally finish during the cascade because each
 # cascade level forks its own set of maestro processes.
+# ─── Cascade prerequisite tracking ──────────────────────────────────────────
+# Before NEO-23: if a level-N producer flow failed, level-N+1 flows ran anyway
+# with state that didn't match what the test expected. That made local↔CI
+# divergence noisy: a flake at level N changed downstream behavior in subtle
+# ways (e.g. cards-insert "passing" locally only because sets-inserts SIGSEGV'd
+# and didn't write reconciliation rows that would have tripped a validator bug
+# in CI). Now: track which provides-states have at least one PASSing producer.
+# Any flow whose requires can't be satisfied gets SKIPped and recorded as
+# FAIL (the test wasn't run, but the cascade is broken — surface it).
+#
+# Opt out via MAESTRO_CASCADE_PERMISSIVE=true if you want the old run-anyway
+# behavior (e.g. for debugging a single failing flow at level 0).
+CASCADE_PERMISSIVE="${MAESTRO_CASCADE_PERMISSIVE:-}"
+
+# Map of "state name" -> "1" once at least one producer has passed.
+declare -A STATE_SATISFIED
+
+# Check whether a flow appears as PASS in any worker's results.
+flow_passed_in_results() {
+  local flow="$1"
+  for ((w = 0; w < PARALLELISM; w++)); do
+    if grep -qE "^PASS ${flow}\$" "$REPORT_DIR/logs/worker-${w}.results" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [ "$MAX_LEVEL" -ge 0 ]; then
   for ((lvl = 0; lvl <= MAX_LEVEL; lvl++)); do
     level_flows=()
+    skipped_flows=()
     for flow in "${DEPGRAPH_FLOWS[@]}"; do
       flow_i=$(flow_idx_of "$flow")
       if [ "${FLOW_LEVEL_LIST[$flow_i]}" = "$lvl" ]; then
-        level_flows+=("$flow")
+        # Check every required state has at least one passed producer.
+        # (Level 0 flows have no requires, so this loop is a no-op for them.)
+        missing_state=""
+        if [ -z "$CASCADE_PERMISSIVE" ]; then
+          for state in ${FLOW_REQUIRES_LIST[$flow_i]}; do
+            if [ "${STATE_SATISFIED[$state]:-0}" != "1" ]; then
+              missing_state="$state"
+              break
+            fi
+          done
+        fi
+        if [ -n "$missing_state" ]; then
+          skipped_flows+=("$flow:$missing_state")
+        else
+          level_flows+=("$flow")
+        fi
       fi
     done
+
+    # Record skips before running this level so the worker-0 log shows them
+    # in the right order. Each skip counts as a FAIL in the aggregate so the
+    # cascade-broken state is visible in the sticky PR comment.
+    for entry in "${skipped_flows[@]}"; do
+      flow="${entry%%:*}"
+      state="${entry##*:}"
+      log_file="$REPORT_DIR/logs/worker-0.log"
+      results_file="$REPORT_DIR/logs/worker-0.results"
+      echo "⏭️  [w0] Skipped (missing prerequisite \"$state\"): $flow" >> "$log_file"
+      echo "FAIL $flow (skipped: prerequisite \"$state\" not satisfied)" >> "$results_file"
+    done
+
     if [ ${#level_flows[@]} -gt 0 ]; then
       run_parallel_batch "${level_flows[@]}"
     fi
+
+    # After the level finishes, record any newly-satisfied states. A state is
+    # satisfied iff at least one of its producers PASSed at this level (or
+    # earlier; STATE_SATISFIED is monotonic-add).
+    for flow in "${level_flows[@]}"; do
+      if flow_passed_in_results "$flow"; then
+        flow_i=$(flow_idx_of "$flow")
+        for state in ${FLOW_PROVIDES_LIST[$flow_i]}; do
+          STATE_SATISFIED["$state"]="1"
+        done
+      fi
+    done
   done
 fi
 
