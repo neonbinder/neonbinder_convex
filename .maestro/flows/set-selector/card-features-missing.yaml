@@ -128,7 +128,8 @@ tags:
 - tapOn:
     id: "Edit card 991"
 - extendedWaitUntil:
-    visible: "Card name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 # The "Show features" button is visible (collapsed by default).

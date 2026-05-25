@@ -189,7 +189,8 @@ tags:
 
 # The inline edit form opens with the card name input and TeamPicker.
 - extendedWaitUntil:
-    visible: "Card name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 # Rename the card.

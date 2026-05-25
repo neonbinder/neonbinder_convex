@@ -125,7 +125,8 @@ tags:
 - tapOn:
     id: "Edit card 888"
 - extendedWaitUntil:
-    visible: "Card name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 # The old "Team" text input does NOT exist. The TeamPicker renders instead.

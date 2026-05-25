@@ -416,8 +416,13 @@ export default function SetSelector() {
           and the propagation engine writes through to every descendant
           cardChecklist row. Anchored at the setName row (`selectedSetId`)
           so vintage/manufacturer-level rows can stay aggregator-only and
-          marketplace-specific facets live closest to the set. */}
-      {selectedSetId && <SetFeaturesPanel selectorOptionId={selectedSetId} />}
+          marketplace-specific facets live closest to the set. Only renders
+          when setName is the DEEPEST selected node; once the user drills
+          into a variantType the cards / MultiSourcePanel surface takes
+          over and we don't want to push that content off-screen. */}
+      {selectedSetId && !selectedVariantTypeId && (
+        <SetFeaturesPanel selectorOptionId={selectedSetId} />
+      )}
 
       {/* Cards — full width below the selector row. `cardChecklistId`
           stays stable across transient query refetches because the

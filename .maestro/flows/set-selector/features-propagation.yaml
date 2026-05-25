@@ -195,7 +195,8 @@ tags:
 - tapOn:
     id: "Edit card 992"
 - extendedWaitUntil:
-    visible: "Card name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 # Expand the CardFeaturesEditor.
@@ -359,7 +360,8 @@ tags:
 - tapOn:
     id: "Edit card 992"
 - extendedWaitUntil:
-    visible: "Card name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 - tapOn:
