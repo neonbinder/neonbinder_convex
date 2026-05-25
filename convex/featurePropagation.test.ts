@@ -381,4 +381,205 @@ describe("commitCardChecklist (ancestor feature inheritance)", () => {
       expect(card.features?.cardType).toBe("Base Card");
     }
   });
+
+  // -------------------------------------------------------------------------
+  // NEO-24 Stage 3b — per-card feature derivation from BSC/SL adapter fields
+  // -------------------------------------------------------------------------
+  test("per-card derived features (signedBy, parallelName, isRookie, isRelic) land on insert", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = t.withIdentity(ADMIN_IDENTITY);
+
+    const subtreeIds = await t.run(async (ctx) => {
+      const sportId = await ctx.db.insert("selectorOptions", {
+        level: "sport",
+        value: "Baseball",
+        platformData: {},
+        features: { league: "MLB" }, // inherited; should still survive merge
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      const setNameId = await ctx.db.insert("selectorOptions", {
+        level: "setName",
+        value: "2024 Topps Chrome",
+        platformData: {},
+        parentId: sportId,
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      await ctx.db.patch(sportId, { children: [setNameId] });
+      const variantTypeId = await ctx.db.insert("selectorOptions", {
+        level: "variantType",
+        value: "Base",
+        platformData: {},
+        parentId: setNameId,
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      await ctx.db.patch(setNameId, { children: [variantTypeId] });
+      return { sportId, setNameId, variantTypeId };
+    });
+
+    await asAdmin.mutation(api.selectorOptions.commitCardChecklist, {
+      selectorOptionId: subtreeIds.variantTypeId,
+      sport: "Baseball",
+      cards: [
+        // Card 1: rookie, signed, gold parallel
+        {
+          cardNumber: "1",
+          cardName: "Mike Trout",
+          team: undefined,
+          teams: [],
+          players: ["Mike Trout"],
+          attributes: ["RC", "AU"],
+          isRookie: true,
+          isRelic: false,
+          printRun: 99,
+          autographType: "On-Card",
+          cardVariation: "Gold",
+          platformData: { bsc: "bsc-1" },
+          sourcePlatformIds: undefined,
+          unmatched: undefined,
+        },
+        // Card 2: relic, no auto, no variation
+        {
+          cardNumber: "2",
+          cardName: "Aaron Judge",
+          team: undefined,
+          teams: [],
+          players: ["Aaron Judge"],
+          attributes: ["RELIC"],
+          isRookie: false,
+          isRelic: true,
+          printRun: undefined,
+          autographType: undefined,
+          cardVariation: undefined,
+          platformData: { bsc: "bsc-2" },
+          sourcePlatformIds: undefined,
+          unmatched: undefined,
+        },
+      ],
+      confirmedNewPlayers: ["Mike Trout", "Aaron Judge"],
+      confirmedNewTeams: [],
+    });
+
+    const cards = await t.run(async (ctx) =>
+      ctx.db
+        .query("cardChecklist")
+        .withIndex("by_selector_option", (q) =>
+          q.eq("selectorOptionId", subtreeIds.variantTypeId),
+        )
+        .collect(),
+    );
+
+    const byNumber = new Map(cards.map((c) => [c.cardNumber, c]));
+    const c1 = byNumber.get("1")!;
+    const c2 = byNumber.get("2")!;
+
+    // Inherited from sport.
+    expect(c1.features?.league).toBe("MLB");
+    expect(c2.features?.league).toBe("MLB");
+
+    // Derived from per-card columns.
+    expect(c1.features?.isRookie).toBe("true");
+    expect(c1.features?.signedBy).toBe("On-Card");
+    expect(c1.features?.parallelName).toBe("Gold");
+    expect(c1.features?.isRelic).toBeUndefined();
+
+    expect(c2.features?.isRelic).toBe("true");
+    expect(c2.features?.isRookie).toBeUndefined();
+    expect(c2.features?.signedBy).toBeUndefined();
+    expect(c2.features?.parallelName).toBeUndefined();
+  });
+
+  test("set-level totalCardCount + lastSyncedAt land on the setName ancestor after commit", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = t.withIdentity(ADMIN_IDENTITY);
+
+    const subtreeIds = await t.run(async (ctx) => {
+      const sportId = await ctx.db.insert("selectorOptions", {
+        level: "sport",
+        value: "Baseball",
+        platformData: {},
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      const setNameId = await ctx.db.insert("selectorOptions", {
+        level: "setName",
+        value: "2024 Topps Chrome",
+        platformData: {},
+        parentId: sportId,
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      await ctx.db.patch(sportId, { children: [setNameId] });
+      // Commit AT the setName level so totalCardCount is taken as-is.
+      return { sportId, setNameId };
+    });
+
+    const before = Date.now();
+    await asAdmin.mutation(api.selectorOptions.commitCardChecklist, {
+      selectorOptionId: subtreeIds.setNameId,
+      sport: "Baseball",
+      cards: [
+        {
+          cardNumber: "1",
+          cardName: "A",
+          team: undefined,
+          teams: [],
+          players: ["A"],
+          attributes: [],
+          isRookie: false,
+          isRelic: false,
+          printRun: undefined,
+          autographType: undefined,
+          cardVariation: undefined,
+          platformData: {},
+          sourcePlatformIds: undefined,
+          unmatched: undefined,
+        },
+        {
+          cardNumber: "2",
+          cardName: "B",
+          team: undefined,
+          teams: [],
+          players: ["B"],
+          attributes: [],
+          isRookie: false,
+          isRelic: false,
+          printRun: undefined,
+          autographType: undefined,
+          cardVariation: undefined,
+          platformData: {},
+          sourcePlatformIds: undefined,
+          unmatched: undefined,
+        },
+        {
+          cardNumber: "3",
+          cardName: "C",
+          team: undefined,
+          teams: [],
+          players: ["C"],
+          attributes: [],
+          isRookie: false,
+          isRelic: false,
+          printRun: undefined,
+          autographType: undefined,
+          cardVariation: undefined,
+          platformData: {},
+          sourcePlatformIds: undefined,
+          unmatched: undefined,
+        },
+      ],
+      confirmedNewPlayers: ["A", "B", "C"],
+      confirmedNewTeams: [],
+    });
+
+    const row = await asAdmin.query(
+      api.selectorOptions.getSelectorOptionById,
+      { id: subtreeIds.setNameId },
+    );
+    expect(row).not.toBeNull();
+    expect(row!.setMetadata?.totalCardCount).toBe(3);
+    expect(row!.setMetadata?.lastSyncedAt).toBeGreaterThanOrEqual(before);
+  });
 });

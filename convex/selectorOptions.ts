@@ -1,4 +1,10 @@
-import { query, mutation, action, internalMutation } from "./_generated/server";
+import {
+  query,
+  mutation,
+  action,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
@@ -3284,6 +3290,36 @@ export const commitCardChecklist = mutation({
     const inheritedFeaturesOrUndefined: Record<string, string> | undefined =
       Object.keys(inheritedFeatures).length > 0 ? inheritedFeatures : undefined;
 
+    // NEO-24 Stage 3b: derive per-card feature keys from typed columns
+    // harvested out of the BSC/SL adapters. Keys mirror `EXPECTED_FEATURES`
+    // so the SetFeaturesPanel can render coverage uniformly. We merge:
+    //   inherited (ancestor features, may be undefined) ← shallowest
+    //   ← per-card derived (overrides inherited if the card carries it)
+    // The result is written only for NEW card rows. Existing rows are
+    // owned by `setSelectorOptionFeature` / `setCardFeature` (operator
+    // overrides must not be clobbered on re-fetch).
+    const derivePerCardFeatures = (card: {
+      isRookie?: boolean;
+      isRelic?: boolean;
+      autographType?: string;
+      cardVariation?: string;
+    }): Record<string, string> => {
+      const derived: Record<string, string> = {};
+      if (card.isRookie) derived.isRookie = "true";
+      if (card.isRelic) derived.isRelic = "true";
+      if (card.autographType && card.autographType.trim()) {
+        // We don't know who signed (player name isn't tied to the autograph
+        // record at this layer), so we mark the *type* as the value. The
+        // SetFeaturesPanel's `signedBy` rendering can read either "yes" /
+        // type string and treat both as positive signal.
+        derived.signedBy = card.autographType.trim();
+      }
+      if (card.cardVariation && card.cardVariation.trim()) {
+        derived.parallelName = card.cardVariation.trim();
+      }
+      return derived;
+    };
+
     // Pre-compute the target sortOrder for every card that will be in this
     // selectorOption after the upsert: incoming richCards (marketplace) PLUS
     // preserved custom cards (existing rows with isCustom=true that are not
@@ -3330,6 +3366,17 @@ export const commitCardChecklist = mutation({
           lastUpdated: Date.now(),
         });
       } else {
+        // NEO-24 Stage 3b: merge ancestor features + per-card derived features.
+        // Per-card values win (they reflect what the BSC/SL adapter actually
+        // observed on this specific card vs. what's true of the parent set).
+        const derived = derivePerCardFeatures(card);
+        const mergedFeatures: Record<string, string> = {
+          ...(inheritedFeaturesOrUndefined ?? {}),
+          ...derived,
+        };
+        const featuresOrUndefined =
+          Object.keys(mergedFeatures).length > 0 ? mergedFeatures : undefined;
+
         await ctx.db.insert("cardChecklist", {
           selectorOptionId: args.selectorOptionId,
           cardNumber: card.cardNumber,
@@ -3345,11 +3392,9 @@ export const commitCardChecklist = mutation({
           cardVariation: card.cardVariation,
           platformData: card.platformData,
           sourcePlatformIds: card.sourcePlatformIds,
-          // NEO-24: inherit merged ancestor `features` for new cards only.
-          // Existing rows are owned by the propagation engine.
-          ...(inheritedFeaturesOrUndefined
-            ? { features: inheritedFeaturesOrUndefined }
-            : {}),
+          // NEO-24: inherit ancestor + derive per-card on insert. Existing
+          // rows are owned by the propagation engine; never clobbered here.
+          ...(featuresOrUndefined ? { features: featuresOrUndefined } : {}),
           sortOrder: newSortOrder,
           lastUpdated: Date.now(),
         });
@@ -3420,11 +3465,129 @@ export const commitCardChecklist = mutation({
       );
     }
 
+    // NEO-24 Stage 3b: walk up to the setName ancestor and harvest the
+    // card-count we just observed. This is the only set-level metadata we
+    // can produce locally without TCDB; releaseDate / block / sourceUrl
+    // come from the scheduled enrichment. Patching the setName row keeps
+    // metadata centralized at the canonical level (variantType / insert /
+    // parallel rows are version-of-a-set; metadata lives one level up).
+    let setNameAncestorId: Id<"selectorOptions"> | undefined;
+    {
+      let cursor: Id<"selectorOptions"> | undefined = args.selectorOptionId;
+      let depth = 0;
+      while (cursor && depth < 16) {
+        const node: any = await ctx.db.get(cursor);
+        if (!node) break;
+        if (node.level === "setName") {
+          setNameAncestorId = node._id;
+          break;
+        }
+        cursor = node.parentId;
+        depth += 1;
+      }
+    }
+    if (setNameAncestorId) {
+      const setNameRow = await ctx.db.get(setNameAncestorId);
+      if (setNameRow) {
+        // Only bump totalCardCount when the current commit is itself happening
+        // at the setName level (otherwise this is a variant/insert/parallel
+        // fetch and our card count is a subset, not the set total).
+        const isAtSetNameLevel =
+          args.selectorOptionId === setNameAncestorId;
+        const patch: { setMetadata?: Record<string, unknown>; lastUpdated: number } = {
+          lastUpdated: Date.now(),
+        };
+        const mergedMeta: Record<string, unknown> = {
+          ...(setNameRow.setMetadata ?? {}),
+          lastSyncedAt: Date.now(),
+        };
+        if (isAtSetNameLevel) {
+          mergedMeta.totalCardCount = richCards.length;
+        }
+        patch.setMetadata = mergedMeta;
+        await ctx.db.patch(setNameAncestorId, patch);
+      }
+
+      // Schedule the TCDB enrichment in the background. Caller gets its
+      // response back immediately; releaseDate / block / additionalFeatures
+      // land async. Tolerant of TCDB outage — see adapters/tcdb.ts.
+      await ctx.scheduler.runAfter(
+        0,
+        internal.adapters.tcdb.enrichSetFromTcdb,
+        { selectorOptionId: setNameAncestorId },
+      );
+    }
+
     return {
       success: true,
       count: richCards.length,
       createdPlayerIds,
       createdTeamIds,
+    };
+  },
+});
+
+// ===========================================================================
+// NEO-24 Stage 3b — TCDB enrichment support
+// ===========================================================================
+
+/**
+ * Internal query consumed by `adapters/tcdb.enrichSetFromTcdb`.
+ *
+ * Lives here (not in adapters/tcdb.ts) because `adapters/tcdb.ts` is a
+ * "use node" action file — Convex requires queries to run in the
+ * isolate, not Node. Same split pattern as wikidata → players.getInternal.
+ *
+ * Returns the pieces the enrichment action needs:
+ *   - level + value (must be `setName` for enrichment to proceed)
+ *   - sport + year walked from the ancestor chain
+ *   - any cached tcdbSetId so the search step can be skipped
+ *   - existing features so the action knows what to leave alone
+ */
+export const _getTcdbEnrichmentChain = internalQuery({
+  args: { selectorOptionId: v.id("selectorOptions") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      level: levelValidator,
+      setName: v.string(),
+      sport: v.optional(v.string()),
+      year: v.optional(v.number()),
+      cachedTcdbSetId: v.optional(v.string()),
+      existingFeatures: v.optional(v.record(v.string(), v.string())),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.selectorOptionId);
+    if (!row) return null;
+
+    let sport: string | undefined;
+    let year: number | undefined;
+
+    // Walk parentId pointers; cap depth at 16 to avoid pathological cycles.
+    // The deepest legitimate chain is 7 levels (sport→year→manufacturer→
+    // setName→variantType→insert→parallel) so 16 is comfortable headroom.
+    let cursor: Id<"selectorOptions"> | undefined = row.parentId;
+    let depth = 0;
+    while (cursor && depth < 16) {
+      const a: any = await ctx.db.get(cursor);
+      if (!a) break;
+      if (a.level === "sport" && !sport) sport = a.value;
+      if (a.level === "year" && !year) {
+        const n = Number(a.value);
+        if (Number.isFinite(n)) year = n;
+      }
+      cursor = a.parentId;
+      depth += 1;
+    }
+
+    return {
+      level: row.level,
+      setName: row.value,
+      sport,
+      year,
+      cachedTcdbSetId: row.setMetadata?.tcdbSetId,
+      existingFeatures: row.features,
     };
   },
 });

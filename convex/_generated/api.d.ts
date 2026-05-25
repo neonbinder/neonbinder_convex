@@ -16,6 +16,7 @@ import type * as adapters_index from "../adapters/index.js";
 import type * as adapters_mycardpost from "../adapters/mycardpost.js";
 import type * as adapters_myslabs from "../adapters/myslabs.js";
 import type * as adapters_sportlots from "../adapters/sportlots.js";
+import type * as adapters_tcdb from "../adapters/tcdb.js";
 import type * as adapters_testBscSetParameters from "../adapters/testBscSetParameters.js";
 import type * as adapters_types from "../adapters/types.js";
 import type * as adapters_wikidata from "../adapters/wikidata.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "adapters/mycardpost": typeof adapters_mycardpost;
   "adapters/myslabs": typeof adapters_myslabs;
   "adapters/sportlots": typeof adapters_sportlots;
+  "adapters/tcdb": typeof adapters_tcdb;
   "adapters/testBscSetParameters": typeof adapters_testBscSetParameters;
   "adapters/types": typeof adapters_types;
   "adapters/wikidata": typeof adapters_wikidata;
