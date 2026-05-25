@@ -60,6 +60,16 @@ export default function CardChecklist({
   const cards = useQuery(api.selectorOptions.getCardChecklist, {
     selectorOptionId: variantId,
   });
+  // NEO-26: walk the ancestor chain once at this layer so every
+  // CardChecklistItem below can hand the resolved sport to TeamPicker
+  // (typeahead filter) + CardFeaturesEditor (applicability filter).
+  // Convex deduplicates same-arg queries, so the additional hook here
+  // does not cost a round trip beyond what the existing query graph
+  // already pays.
+  const ancestorChain = useQuery(api.selectorOptions.getAncestorChain, {
+    id: variantId,
+  });
+  const ancestorSport = ancestorChain?.find((c) => c.level === "sport")?.value;
   const fetchChecklist = useAction(api.selectorOptions.fetchCardChecklist);
   const commitChecklist = useMutation(api.selectorOptions.commitCardChecklist);
   const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
@@ -186,7 +196,10 @@ export default function CardChecklist({
         selectorOptionId: variantId,
         cardNumber: newCardNumber.trim(),
         cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
-        team: teamTrimmed || undefined,
+        // NEO-26: legacy `team: string` arg removed. The team string
+        // is surfaced via `teams` → pendingTeamNames → UnknownEntitiesDialog
+        // confirmation on the next sync, which materializes a teams
+        // entity link via `teamOnCardIds[]`.
         ...(players.length > 0 ? { players } : {}),
         ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
       });
@@ -338,6 +351,7 @@ export default function CardChecklist({
                 <CardChecklistItem
                   card={card}
                   sourceLabelMaps={sourceLabelMaps}
+                  ancestorSport={ancestorSport}
                 />
               </div>
             )}

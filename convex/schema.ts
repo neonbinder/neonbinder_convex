@@ -123,8 +123,15 @@ export default defineSchema({
     selectorOptionId: v.id("selectorOptions"), // Points to variant-level option
     cardNumber: v.string(),
     cardName: v.string(),
-    // Free-text fallback retained for legacy rows + display when no team
-    // entity is linked yet. Going forward, prefer teamOnCardIds.
+    // NEO-26: DEPRECATED. The free-text `team` column was the source of
+    // the "Team field is always blank when editing a card" bug — the
+    // BSC/SL fetch path wrote here but the form UI read from
+    // `teamOnCardIds[]`. The schema field is kept as `v.optional`
+    // strictly so the `backfillTeamToOnCardIds` internal migration
+    // (see `convex/cardChecklist.ts`) can read legacy rows on the way
+    // to clearing the column. No code path writes to it anymore. A
+    // follow-up PR removes the field outright once backfill has run
+    // on prod + dev Convex.
     team: v.optional(v.string()),
     // Many-to-many links to entity tables. Multi-player cards (dual autos,
     // checklist tickets) carry multiple playerIds. teamOnCardIds is the

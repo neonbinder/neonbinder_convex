@@ -1,14 +1,16 @@
-import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import TeamPicker from "./TeamPicker";
+import CardFeaturesEditor from "./CardFeaturesEditor";
 
 type CardChecklistItemProps = {
   card: {
     _id: Id<"cardChecklist">;
+    selectorOptionId: Id<"selectorOptions">;
     cardNumber: string;
     cardName: string;
-    team?: string;
     playerIds?: Array<Id<"players">>;
     teamOnCardIds?: Array<Id<"teams">>;
     attributes?: string[];
@@ -17,6 +19,7 @@ type CardChecklistItemProps = {
     printRun?: number;
     autographType?: string;
     cardVariation?: string;
+    features?: Record<string, string>;
     platformData: {
       bsc?: string;
       sportlots?: string;
@@ -34,6 +37,13 @@ type CardChecklistItemProps = {
     bsc: Record<string, string>;
     sportlots: Record<string, string>;
   };
+  /**
+   * Sport from the active variant's ancestor chain. Forwarded to the
+   * TeamPicker (typeahead filter) and CardFeaturesEditor (drives
+   * EXPECTED_FEATURES applicability). Passed in from the parent
+   * CardChecklist so we don't re-query the ancestor chain per row.
+   */
+  ancestorSport?: string;
 };
 
 /**
@@ -65,11 +75,34 @@ function badgeLabel(token: string): { label: string; cls: string } {
 export default function CardChecklistItem({
   card,
   sourceLabelMaps,
+  ancestorSport,
 }: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
   const [cardName, setCardName] = useState(card.cardName);
-  const [team, setTeam] = useState(card.team || "");
+  // NEO-26: teamOnCardIds is the canonical representation. Local
+  // draft list is committed on Save; cancel reverts to the prop value.
+  const [teamIds, setTeamIds] = useState<Array<Id<"teams">>>(
+    card.teamOnCardIds ?? [],
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Resolve team display names for the non-editing view + for chip
+  // labels inside the editor. Skipped when the card has no teams.
+  const teamsToShow = card.teamOnCardIds ?? [];
+  const teamRows = useQuery(
+    api.teams.getManyByIds,
+    teamsToShow.length > 0 ? { ids: teamsToShow } : "skip",
+  );
+
+  // Reset the editor draft whenever the prop changes (e.g. a propagation
+  // engine write updated teamOnCardIds elsewhere on the page). Without
+  // this, opening Edit would show a stale list.
+  useEffect(() => {
+    if (!editing) {
+      setTeamIds(card.teamOnCardIds ?? []);
+      setCardName(card.cardName);
+    }
+  }, [card.teamOnCardIds, card.cardName, editing]);
 
   const updateCard = useMutation(api.selectorOptions.updateCard);
   const deleteCard = useMutation(api.selectorOptions.deleteCard);
@@ -78,7 +111,9 @@ export default function CardChecklistItem({
     await updateCard({
       id: card._id,
       cardName,
-      team: team || undefined,
+      // Always pass the full array (NEO-26): a card moving from
+      // 1 team to 2 (or 0) is the same write path.
+      teamOnCardIds: teamIds,
     });
     setEditing(false);
   };
@@ -88,28 +123,59 @@ export default function CardChecklistItem({
     setConfirmDelete(false);
   };
 
+  const teamLabel = useMemo(() => {
+    if (!teamRows || teamRows.length === 0) return "";
+    return teamRows.map((t) => t.name).join(", ");
+  }, [teamRows]);
+
   if (editing) {
     return (
-      <div className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2">
-        <div className="flex gap-2">
+      <div
+        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2"
+        aria-label={`Edit card ${card.cardNumber}`}
+      >
+        <div className="flex gap-2 flex-wrap">
           <input
             type="text"
             value={cardName}
             onChange={(e) => setCardName(e.target.value)}
-            className="flex-1 p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleSave();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setCardName(card.cardName);
+                setTeamIds(card.teamOnCardIds ?? []);
+                setEditing(false);
+              }
+            }}
+            className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
             placeholder="Card name"
-          />
-          <input
-            type="text"
-            value={team}
-            onChange={(e) => setTeam(e.target.value)}
-            className="w-32 p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-            placeholder="Team"
+            aria-label="Card name"
+            autoFocus
           />
         </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+            Teams
+          </label>
+          <TeamPicker
+            value={teamIds}
+            onChange={setTeamIds}
+            sport={ancestorSport}
+          />
+        </div>
+        <CardFeaturesEditor
+          cardChecklistId={card._id}
+          selectorOptionId={card.selectorOptionId}
+          cardFeatures={card.features}
+          ancestorSport={ancestorSport}
+        />
         <div className="flex gap-1">
           <button
             onClick={handleSave}
+            aria-label="Save card edit"
             className="px-2 py-1 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
           >
             Save
@@ -117,9 +183,10 @@ export default function CardChecklistItem({
           <button
             onClick={() => {
               setCardName(card.cardName);
-              setTeam(card.team || "");
+              setTeamIds(card.teamOnCardIds ?? []);
               setEditing(false);
             }}
+            aria-label="Cancel card edit"
             className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
           >
             Cancel
@@ -129,9 +196,9 @@ export default function CardChecklistItem({
     );
   }
 
-  // Build the secondary line: "<team> · /99 · Refractor · On-Card auto"
+  // Build the secondary line: "<team(s)> · /99 · Refractor · On-Card auto"
   const subParts: string[] = [];
-  if (card.team) subParts.push(card.team);
+  if (teamLabel) subParts.push(teamLabel);
   if (card.printRun) subParts.push(`/${card.printRun}`);
   if (card.cardVariation) subParts.push(card.cardVariation);
   if (card.autographType) subParts.push(`${card.autographType} auto`);
@@ -209,6 +276,7 @@ export default function CardChecklistItem({
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={() => setEditing(true)}
+          aria-label={`Edit card ${card.cardNumber}`}
           className="px-1.5 py-0.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
           title="Edit"
         >
@@ -217,6 +285,7 @@ export default function CardChecklistItem({
         {confirmDelete ? (
           <button
             onClick={handleDelete}
+            aria-label={`Confirm delete card ${card.cardNumber}`}
             className="px-1.5 py-0.5 text-xs text-red-600 dark:text-red-400 font-medium"
           >
             Confirm?
@@ -225,6 +294,7 @@ export default function CardChecklistItem({
           <button
             onClick={() => setConfirmDelete(true)}
             onBlur={() => setConfirmDelete(false)}
+            aria-label={`Delete card ${card.cardNumber}`}
             className="px-1.5 py-0.5 text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
             title="Delete"
           >

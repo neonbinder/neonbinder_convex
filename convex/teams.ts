@@ -110,6 +110,21 @@ export const get = query({
 });
 
 /**
+ * Batch lookup for resolving a list of teamIds back to display rows.
+ * Used by the CardChecklistItem display row + TeamPicker chip view to
+ * render the names without N round-trips. Missing IDs are silently
+ * dropped (an orphaned link is a soft data error, not a fatal one).
+ */
+export const getManyByIds = query({
+  args: { ids: v.array(v.id("teams")) },
+  returns: v.array(teamDocValidator),
+  handler: async (ctx, args) => {
+    const rows = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+  },
+});
+
+/**
  * Internal `get` and `findOrCreate` for actions that run outside user
  * auth (e.g. Wikidata enrichment). The Wikidata player adapter resolves
  * each P54 team membership through findOrCreateInternal, which is why

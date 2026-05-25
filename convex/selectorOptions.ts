@@ -377,6 +377,11 @@ export const getCardChecklist = query({
       selectorOptionId: v.id("selectorOptions"),
       cardNumber: v.string(),
       cardName: v.string(),
+      // NEO-26: DEPRECATED — kept in returns validator only so legacy
+      // rows that pre-date the `backfillTeamToOnCardIds` migration
+      // still round-trip without `ReturnsValidationError`. No code
+      // path writes to it. Follow-up PR removes once backfill is
+      // confirmed clean on prod + dev.
       team: v.optional(v.string()),
       playerIds: v.optional(v.array(v.id("players"))),
       teamOnCardIds: v.optional(v.array(v.id("teams"))),
@@ -908,7 +913,7 @@ export const renamePlatformLabel = mutation({
 const richChecklistCardValidator = v.object({
   cardNumber: v.string(),
   cardName: v.string(),
-  team: v.optional(v.string()),
+  // NEO-26: free-text `team` removed; callers pass `teamOnCardIds[]`.
   playerIds: v.optional(v.array(v.id("players"))),
   teamOnCardIds: v.optional(v.array(v.id("teams"))),
   attributes: v.optional(v.array(v.string())),
@@ -1022,7 +1027,7 @@ export const storeCardChecklist = mutation({
         };
         await ctx.db.patch(existing._id, {
           cardName: card.cardName,
-          team: card.team,
+          // NEO-26: legacy `team` removed; only teamOnCardIds[] is written.
           playerIds: card.playerIds,
           teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
@@ -1040,7 +1045,7 @@ export const storeCardChecklist = mutation({
           selectorOptionId,
           cardNumber: card.cardNumber,
           cardName: card.cardName,
-          team: card.team,
+          // NEO-26: legacy `team` removed; only teamOnCardIds[] is written.
           playerIds: card.playerIds,
           teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
@@ -1080,7 +1085,10 @@ export const addCustomCard = mutation({
     selectorOptionId: v.id("selectorOptions"),
     cardNumber: v.string(),
     cardName: v.string(),
-    team: v.optional(v.string()),
+    // NEO-26: legacy `team: v.string()` removed. Callers that have a
+    // team display string should put it in `teams: [string]` so the
+    // commitCardChecklist resolution path can turn it into a teams
+    // entity link via the UnknownEntitiesDialog confirmation flow.
     attributes: v.optional(v.array(v.string())),
     // Player names the user wants linked to this custom card. Surface as
     // unknownPlayers on the next fetchCardChecklist run so the user can
@@ -1109,7 +1117,9 @@ export const addCustomCard = mutation({
       selectorOptionId: args.selectorOptionId,
       cardNumber: args.cardNumber,
       cardName: args.cardName,
-      team: args.team,
+      // NEO-26: legacy `team` removed. The team string supplied via
+      // `args.teams` becomes a pendingTeamName above, then a teams
+      // entity link after the user confirms in UnknownEntitiesDialog.
       attributes: args.attributes,
       platformData: {},
       isCustom: true,
@@ -1134,7 +1144,11 @@ export const updateCard = mutation({
     id: v.id("cardChecklist"),
     cardNumber: v.optional(v.string()),
     cardName: v.optional(v.string()),
-    team: v.optional(v.string()),
+    // NEO-26: full-replacement teams patch. Callers pass the entire
+    // desired array of team entity ids (or omit to leave untouched).
+    // Empty array clears the link; the legacy free-text `team` field
+    // was removed in this PR.
+    teamOnCardIds: v.optional(v.array(v.id("teams"))),
     attributes: v.optional(v.array(v.string())),
     // NEO-24: full-replacement features patch. Callers pass the entire
     // desired map (or omit). Per-key edits should go through
@@ -1241,6 +1255,36 @@ async function collectDescendantIds(
   }
   return out;
 }
+
+/**
+ * NEO-24: count every cardChecklist row in the subtree rooted at this
+ * selectorOption. Used by `<SetFeaturesPanel>` to render the
+ * "Will propagate to N cards" preview before the operator commits a
+ * feature edit. Read-only query — `withIndex` on by_selector_option
+ * keeps it bounded even on large sets.
+ */
+export const getDescendantCardCount = query({
+  args: { selectorOptionId: v.id("selectorOptions") },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const subtreeIds: Array<Id<"selectorOptions">> = [
+      args.selectorOptionId,
+      ...(await collectDescendantIds(ctx as any, args.selectorOptionId)),
+    ];
+    let count = 0;
+    for (const optId of subtreeIds) {
+      const cards = await ctx.db
+        .query("cardChecklist")
+        .withIndex("by_selector_option", (q) =>
+          q.eq("selectorOptionId", optId),
+        )
+        .collect();
+      count += cards.length;
+    }
+    return count;
+  },
+});
 
 export const setSelectorOptionFeature = mutation({
   args: {
@@ -3236,7 +3280,9 @@ export const commitCardChecklist = mutation({
       return {
         cardNumber: c.cardNumber,
         cardName: c.cardName,
-        team: c.team,
+        // NEO-26: legacy `team` no longer emitted. The free-text string
+        // from the adapter is consumed above to resolve teamOnCardIds[];
+        // it isn't written to cardChecklist anywhere.
         playerIds: playerIds.length ? playerIds : undefined,
         teamOnCardIds: teamOnCardIds.length ? teamOnCardIds : undefined,
         attributes: c.unmatched
@@ -3351,7 +3397,7 @@ export const commitCardChecklist = mutation({
         };
         await ctx.db.patch(existing._id, {
           cardName: card.cardName,
-          team: card.team,
+          // NEO-26: legacy `team` removed; only teamOnCardIds[] is written.
           playerIds: card.playerIds,
           teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
@@ -3381,7 +3427,7 @@ export const commitCardChecklist = mutation({
           selectorOptionId: args.selectorOptionId,
           cardNumber: card.cardNumber,
           cardName: card.cardName,
-          team: card.team,
+          // NEO-26: legacy `team` removed; only teamOnCardIds[] is written.
           playerIds: card.playerIds,
           teamOnCardIds: card.teamOnCardIds,
           attributes: card.attributes,
