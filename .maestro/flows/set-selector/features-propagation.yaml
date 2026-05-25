@@ -227,7 +227,8 @@ tags:
 - inputText: "992"
 - tapOn: "Player name"
 - inputText: "Propagation Test Player"
-- tapOn: "Add"
+- tapOn:
+    id: "Submit new card"
 - extendedWaitUntil:
     visible: "Propagation Test Player"
     timeout: 10000

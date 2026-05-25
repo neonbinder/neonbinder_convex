@@ -148,7 +148,8 @@ tags:
 - inputText: "991"
 - tapOn: "Player name"
 - inputText: "Missing Features Player"
-- tapOn: "Add"
+- tapOn:
+    id: "Submit new card"
 - extendedWaitUntil:
     visible: "Missing Features Player"
     timeout: 10000

@@ -150,7 +150,8 @@ tags:
 - inputText: "888"
 - tapOn: "Player name"
 - inputText: "Team Smoke Player"
-- tapOn: "Add"
+- tapOn:
+    id: "Submit new card"
 - extendedWaitUntil:
     visible: "Team Smoke Player"
     timeout: 10000

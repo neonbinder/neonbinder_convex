@@ -401,8 +401,14 @@ export default function CardChecklist({
             aria-label="Team"
           />
           <div className="flex gap-2">
-            <NeonButton onClick={handleAddCard}>Add</NeonButton>
-            <NeonButton cancel onClick={() => setShowAddForm(false)}>
+            <NeonButton onClick={handleAddCard} aria-label="Submit new card">
+              Add
+            </NeonButton>
+            <NeonButton
+              cancel
+              onClick={() => setShowAddForm(false)}
+              aria-label="Cancel new card"
+            >
               Cancel
             </NeonButton>
           </div>

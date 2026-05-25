@@ -206,7 +206,8 @@ tags:
 - inputText: "777"
 - tapOn: "Player name"
 - inputText: "Edit Test Player"
-- tapOn: "Add"
+- tapOn:
+    id: "Submit new card"
 - extendedWaitUntil:
     visible: "Edit Test Player"
     timeout: 10000
