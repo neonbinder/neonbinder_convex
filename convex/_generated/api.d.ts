@@ -21,6 +21,7 @@ import type * as adapters_types from "../adapters/types.js";
 import type * as adapters_wikidata from "../adapters/wikidata.js";
 import type * as auth from "../auth.js";
 import type * as credentials from "../credentials.js";
+import type * as features_expectedFeatures from "../features/expectedFeatures.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as players from "../players.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   "adapters/wikidata": typeof adapters_wikidata;
   auth: typeof auth;
   credentials: typeof credentials;
+  "features/expectedFeatures": typeof features_expectedFeatures;
   http: typeof http;
   myFunctions: typeof myFunctions;
   players: typeof players;
