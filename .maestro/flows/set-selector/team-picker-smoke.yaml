@@ -117,10 +117,15 @@ tags:
     element:
       text: "Team Smoke Player"
     centerElement: true
-    timeout: 5000
+    # 30s timeout: virtualized list with 300+ cards can take a while
+    # to scroll through when the duplicate is near the bottom.
+    timeout: 30000
     optional: true
-- runFlow:
-    when:
+# Loop-delete: prior aborted runs may have left multiple duplicate
+# rows with the same cardNumber + name. Delete every visible match,
+# not just the first one.
+- repeat:
+    while:
       visible: "Team Smoke Player"
     commands:
       - tapOn:
@@ -131,8 +136,8 @@ tags:
       - tapOn:
           id: "Confirm delete card 888"
       - extendedWaitUntil:
-          notVisible: "Team Smoke Player"
-          timeout: 10000
+          notVisible: "Confirm?"
+          timeout: 5000
 
 # Re-anchor on the "Add Card" button after the optional delete.
 - scrollUntilVisible:
