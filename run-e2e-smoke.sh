@@ -682,8 +682,22 @@ fi
 # behavior (e.g. for debugging a single failing flow at level 0).
 CASCADE_PERMISSIVE="${MAESTRO_CASCADE_PERMISSIVE:-}"
 
-# Map of "state name" -> "1" once at least one producer has passed.
-declare -A STATE_SATISFIED
+# Set of satisfied states, stored as a space-delimited string with sentinel
+# spaces on both ends so simple `case` glob membership tests don't need
+# tricky escaping. (Why not `declare -A`: macOS ships bash 3.2.57 which
+# doesn't support associative arrays, and we want this script to run on
+# dev macOS as well as Linux CI. Tracked as a follow-up to drop the bash
+# wrapper entirely in favor of native Maestro orchestration.)
+STATE_SATISFIED=" "
+
+# state_is_satisfied <state> → exit 0 if at least one producer of <state>
+# has passed, exit 1 otherwise. Membership test on STATE_SATISFIED.
+state_is_satisfied() {
+  case "$STATE_SATISFIED" in
+    *" $1 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
 
 # Check whether a flow appears as PASS in any worker's results.
 flow_passed_in_results() {
@@ -708,7 +722,7 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
         missing_state=""
         if [ -z "$CASCADE_PERMISSIVE" ]; then
           for state in ${FLOW_REQUIRES_LIST[$flow_i]}; do
-            if [ "${STATE_SATISFIED[$state]:-0}" != "1" ]; then
+            if ! state_is_satisfied "$state"; then
               missing_state="$state"
               break
             fi
@@ -745,7 +759,10 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
       if flow_passed_in_results "$flow"; then
         flow_i=$(flow_idx_of "$flow")
         for state in ${FLOW_PROVIDES_LIST[$flow_i]}; do
-          STATE_SATISFIED["$state"]="1"
+          # Skip duplicate-add: monotonic-add semantics, idempotent on repeat.
+          if ! state_is_satisfied "$state"; then
+            STATE_SATISFIED="${STATE_SATISFIED}${state} "
+          fi
         done
       fi
     done
