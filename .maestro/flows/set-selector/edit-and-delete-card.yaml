@@ -160,6 +160,38 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
+# Idempotent cleanup: delete card #777 if a prior attempt left it behind.
+# The flow ends with a delete, but if attempt 1 fails between create and
+# delete, attempt 2 needs to start from a clean slate.
+- scrollUntilVisible:
+    element:
+      text: "Edit Test Player"
+    centerElement: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Edit Test Player"
+    commands:
+      - tapOn:
+          id: "Delete card 777"
+      - extendedWaitUntil:
+          visible: "Confirm?"
+          timeout: 5000
+      - tapOn:
+          id: "Confirm delete card 777"
+      - extendedWaitUntil:
+          notVisible: "Edit Test Player"
+          timeout: 10000
+
+# Re-anchor on Add Card.
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
 # ============================================================
 # ADD A CUSTOM CARD TO EDIT AND DELETE
 # We add our own card so we have control over what we edit + delete.

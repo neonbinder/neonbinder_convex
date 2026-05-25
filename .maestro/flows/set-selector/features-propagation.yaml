@@ -183,6 +183,42 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
+# Idempotent cleanup: if a prior attempt of this flow left card #992
+# behind, delete it before re-creating. Runner retries (max 2 attempts)
+# rerun this flow against the same per-PR Convex preview, so cardChecklist
+# rows from attempt 1 are still present on attempt 2. Without this cleanup
+# the addCustomCard below would duplicate the row and the assertions in
+# Step B would see prior-attempt override state (e.g., PropTest-NL from
+# Step C) instead of the inherited value from Step A.
+- scrollUntilVisible:
+    element:
+      text: "Propagation Test Player"
+    centerElement: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Propagation Test Player"
+    commands:
+      - tapOn:
+          id: "Delete card 992"
+      - extendedWaitUntil:
+          visible: "Confirm?"
+          timeout: 5000
+      - tapOn:
+          id: "Confirm delete card 992"
+      - extendedWaitUntil:
+          notVisible: "Propagation Test Player"
+          timeout: 10000
+
+# Re-anchor the page on the "Add Card" button after the optional delete.
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
 # Add a custom card that will serve as the override target.
 - tapOn: "Add Card"
 - extendedWaitUntil:

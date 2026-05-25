@@ -108,6 +108,40 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
+# Idempotent cleanup: if a prior attempt of this flow left card #888 +
+# its Yankees chip behind, delete it before re-creating. Runner retries
+# rerun this flow against the same per-PR Convex preview; without
+# cleanup the second attempt's team typeahead returns "No matches" for
+# Yankees (already attached) and the Add tap creates a duplicate row.
+- scrollUntilVisible:
+    element:
+      text: "Team Smoke Player"
+    centerElement: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Team Smoke Player"
+    commands:
+      - tapOn:
+          id: "Delete card 888"
+      - extendedWaitUntil:
+          visible: "Confirm?"
+          timeout: 5000
+      - tapOn:
+          id: "Confirm delete card 888"
+      - extendedWaitUntil:
+          notVisible: "Team Smoke Player"
+          timeout: 10000
+
+# Re-anchor on the "Add Card" button after the optional delete.
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
 # Add a custom card to use as the edit target.
 - tapOn: "Add Card"
 - extendedWaitUntil:

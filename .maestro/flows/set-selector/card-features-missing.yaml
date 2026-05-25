@@ -111,6 +111,35 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
+# Idempotent cleanup: delete card #991 if a prior attempt left it behind.
+- scrollUntilVisible:
+    element:
+      text: "Missing Features Player"
+    centerElement: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Missing Features Player"
+    commands:
+      - tapOn:
+          id: "Delete card 991"
+      - extendedWaitUntil:
+          visible: "Confirm?"
+          timeout: 5000
+      - tapOn:
+          id: "Confirm delete card 991"
+      - extendedWaitUntil:
+          notVisible: "Missing Features Player"
+          timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
 # Add a fresh card with no features.
 - tapOn: "Add Card"
 - extendedWaitUntil:

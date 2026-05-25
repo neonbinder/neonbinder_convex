@@ -107,6 +107,40 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
+# Idempotent cleanup: if a prior attempt of this flow left card #889
+# (with its Yankees / Mets chip attachments) behind, delete it. Without
+# this cleanup, the typeahead later in the flow would return "No matches"
+# for already-attached teams, and the chip-remove aria-label lookup
+# would target the wrong row.
+- scrollUntilVisible:
+    element:
+      text: "Team Feature Player"
+    centerElement: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible: "Team Feature Player"
+    commands:
+      - tapOn:
+          id: "Delete card 889"
+      - extendedWaitUntil:
+          visible: "Confirm?"
+          timeout: 5000
+      - tapOn:
+          id: "Confirm delete card 889"
+      - extendedWaitUntil:
+          notVisible: "Team Feature Player"
+          timeout: 10000
+
+# Re-anchor on the "Add Card" button after the optional delete.
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
 # ============================================================
 # Add a custom card to serve as the test target.
 # ============================================================
