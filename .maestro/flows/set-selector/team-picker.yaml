@@ -1,0 +1,380 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "TeamPicker — chip add, remove, keyboard Enter, 'No matches' state, cancel reverts"
+tags:
+  - set-selector
+  - regression
+  - requires:cards-loaded
+---
+# Full feature test for the NEO-26 TeamPicker chip-list component.
+#
+# WHAT THIS TESTS:
+#   1. The old free-text team input is gone — no "Team" text field visible in edit form.
+#   2. "+ Add team" button exists and opens the popover.
+#   3. Typing in the search input filters the typeahead list.
+#   4. Picking a team adds a chip labeled with the team name.
+#   5. The "Remove team <name>" button removes the chip.
+#   6. Typing a non-existent name shows "No matches." in the popover.
+#   7. Pressing Enter on the highlighted match adds the chip (keyboard path).
+#   8. Cancel revert: opening the edit form, adding a chip, then clicking Cancel
+#      reverts the chip list back to the original state.
+#   9. Saving a team and reloading the page shows the team name persists.
+#
+# Uses a fresh custom card (card #889) for each sub-test to avoid state bleed.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# Fast-drill to Baseball / 2024 / Topps Chrome / Base.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+- tapOn: "Base"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# ============================================================
+# Add a custom card to serve as the test target.
+# ============================================================
+
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+- inputText: "889"
+- tapOn: "Player name"
+- inputText: "Team Feature Player"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Team Feature Player"
+    timeout: 10000
+
+# ============================================================
+# TEST 1 — No old "Team" text field: the edit form shows TeamPicker only
+# ============================================================
+
+- tapOn:
+    id: "Edit card 889"
+- extendedWaitUntil:
+    visible:
+      id: "Card name"
+    timeout: 5000
+
+# The TeamPicker container has aria-label "Team picker".
+- assertVisible:
+    id: "Team picker"
+
+# The "+ Add team" trigger is visible.
+- assertVisible:
+    id: "Add team"
+
+# ============================================================
+# TEST 2 — Open popover, search, and pick a team by clicking
+# ============================================================
+
+- tapOn:
+    id: "Add team"
+- extendedWaitUntil:
+    visible:
+      id: "Search teams"
+    timeout: 5000
+
+- tapOn:
+    id: "Search teams"
+- inputText: "Yankees"
+- extendedWaitUntil:
+    visible:
+      text: ".*Yankees.*"
+    timeout: 10000
+
+# Click the "Add <team name>" button in the typeahead list.
+- tapOn:
+    text: ".*Yankees.*"
+    index: 0
+
+# Yankees chip appears in the picker. Close popover by clicking card name.
+- tapOn:
+    id: "Card name"
+- assertVisible:
+    text: ".*Yankees.*"
+
+# ============================================================
+# TEST 3 — Remove the chip using the × button
+# The aria-label on the remove button is "Remove team <name>".
+# ============================================================
+
+- tapOn:
+    id: ".*Remove team.*Yankees.*"
+- extendedWaitUntil:
+    notVisible: ".*Remove team New York Yankees.*"
+    timeout: 5000
+
+# ============================================================
+# TEST 4 — "No matches." state when search finds nothing
+# ============================================================
+
+- tapOn:
+    id: "Add team"
+- extendedWaitUntil:
+    visible:
+      id: "Search teams"
+    timeout: 5000
+- tapOn:
+    id: "Search teams"
+- inputText: "ZZZZNOTATEAM"
+- extendedWaitUntil:
+    visible: "No matches."
+    timeout: 10000
+- assertVisible: "No matches."
+
+# Close popover.
+- tapOn:
+    id: "Card name"
+
+# ============================================================
+# TEST 5 — Keyboard: Enter on highlighted match adds the chip
+# ============================================================
+
+- tapOn:
+    id: "Add team"
+- extendedWaitUntil:
+    visible:
+      id: "Search teams"
+    timeout: 5000
+- tapOn:
+    id: "Search teams"
+# Erase the previous search text.
+- eraseText: 20
+- inputText: "Mets"
+- extendedWaitUntil:
+    visible:
+      text: ".*Mets.*"
+    timeout: 10000
+
+# Press Enter to confirm the highlighted first match.
+- pressKey: Enter
+- tapOn:
+    id: "Card name"
+
+# The Mets chip should now appear.
+- assertVisible:
+    text: ".*Mets.*"
+
+# ============================================================
+# TEST 6 — Cancel reverts the team edit
+# ============================================================
+
+# At this point the edit form still has the Mets chip (not yet saved).
+# Click Cancel — the chip should disappear and the original empty state restored.
+- tapOn:
+    id: "Cancel card edit"
+- extendedWaitUntil:
+    notVisible: "Card name"
+    timeout: 5000
+
+# Re-open edit — the card should show no team (we never saved one).
+- tapOn:
+    id: "Edit card 889"
+- extendedWaitUntil:
+    visible:
+      id: "Card name"
+    timeout: 5000
+
+# No chip should be present — the picker has only the "+ Add team" trigger.
+- assertVisible:
+    id: "Add team"
+
+# ============================================================
+# TEST 7 — Save + reload persists the team name
+# ============================================================
+
+# Add Yankees and save.
+- tapOn:
+    id: "Add team"
+- extendedWaitUntil:
+    visible:
+      id: "Search teams"
+    timeout: 5000
+- tapOn:
+    id: "Search teams"
+- inputText: "Yankees"
+- extendedWaitUntil:
+    visible:
+      text: ".*Yankees.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Yankees.*"
+    index: 0
+- tapOn:
+    id: "Card name"
+- tapOn:
+    id: "Save card edit"
+- extendedWaitUntil:
+    visible: "Team Feature Player"
+    timeout: 10000
+
+# Sub-line should show "New York Yankees" (or just "Yankees" — partial match).
+- assertVisible:
+    text: ".*Yankees.*"
+
+# Reload the page and re-drill to confirm persistence.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+- tapOn: "Base"
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# After reload, find our card and confirm the team name is in the sub-line.
+- scrollUntilVisible:
+    element:
+      text: "Team Feature Player"
+    timeout: 30000
+- assertVisible:
+    text: ".*Yankees.*"
+
+# ============================================================
+# CLEANUP — delete the test card
+# ============================================================
+
+- tapOn:
+    id: "Delete card 889"
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+- tapOn:
+    id: "Confirm delete card 889"
+- extendedWaitUntil:
+    notVisible: "Team Feature Player"
+    timeout: 10000

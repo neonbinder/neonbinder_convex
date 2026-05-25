@@ -188,7 +188,7 @@ tags:
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
-- inputText: "992${TEST_USERNAME}"
+- inputText: "992"
 - tapOn: "Player name"
 - inputText: "Propagation Test Player"
 - tapOn: "Add"
@@ -198,7 +198,7 @@ tags:
 
 # Open the edit form for our card.
 - tapOn:
-    id: "Edit card 992${TEST_USERNAME}"
+    id: "Edit card 992"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -363,7 +363,7 @@ tags:
     timeout: 30000
 
 - tapOn:
-    id: "Edit card 992${TEST_USERNAME}"
+    id: "Edit card 992"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -421,12 +421,12 @@ tags:
 # ============================================================
 
 - tapOn:
-    id: "Delete card 992${TEST_USERNAME}"
+    id: "Delete card 992"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 992${TEST_USERNAME}"
+    id: "Confirm delete card 992"
 - extendedWaitUntil:
     notVisible: "Propagation Test Player"
     timeout: 10000
