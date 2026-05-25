@@ -106,7 +106,7 @@ tags:
 
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
@@ -135,15 +135,17 @@ tags:
 
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
 
 # Add a fresh card with no features.
-- tapOn: "Add Card"
+- tapOn:
+    id: "Open add card form"
 - extendedWaitUntil:
-    visible: "Player name"
+    visible:
+      id: "Card name"
     timeout: 5000
 - inputText: "991"
 - tapOn: "Player name"

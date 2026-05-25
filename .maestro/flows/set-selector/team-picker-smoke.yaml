@@ -103,7 +103,7 @@ tags:
 
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
@@ -137,15 +137,17 @@ tags:
 # Re-anchor on the "Add Card" button after the optional delete.
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
 
 # Add a custom card to use as the edit target.
-- tapOn: "Add Card"
+- tapOn:
+    id: "Open add card form"
 - extendedWaitUntil:
-    visible: "Player name"
+    visible:
+      id: "Card name"
     timeout: 5000
 - inputText: "888"
 - tapOn: "Player name"

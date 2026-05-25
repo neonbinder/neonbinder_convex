@@ -155,7 +155,7 @@ tags:
 # Wait for the CardChecklist action row to become visible.
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
@@ -187,7 +187,7 @@ tags:
 # Re-anchor on Add Card.
 - scrollUntilVisible:
     element:
-      text: "Add Card"
+      id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
@@ -197,9 +197,11 @@ tags:
 # We add our own card so we have control over what we edit + delete.
 # ============================================================
 
-- tapOn: "Add Card"
+- tapOn:
+    id: "Open add card form"
 - extendedWaitUntil:
-    visible: "Player name"
+    visible:
+      id: "Card name"
     timeout: 5000
 
 # Card number input has autoFocus — type directly.

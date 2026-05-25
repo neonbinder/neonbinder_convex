@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -78,6 +78,16 @@ export default function CardChecklistItem({
   ancestorSport,
 }: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
+  const editFormRef = useRef<HTMLDivElement | null>(null);
+
+  // When the inline edit form opens, scroll it fully into view so the
+  // TeamPicker, features section, and Save/Cancel buttons aren't hidden
+  // below the fold on short viewports (Maestro headless web = 1024×629).
+  useEffect(() => {
+    if (editing && editFormRef.current) {
+      editFormRef.current.scrollIntoView({ block: "center" });
+    }
+  }, [editing]);
   const [cardName, setCardName] = useState(card.cardName);
   // NEO-26: teamOnCardIds is the canonical representation. Local
   // draft list is committed on Save; cancel reverts to the prop value.
@@ -131,6 +141,7 @@ export default function CardChecklistItem({
   if (editing) {
     return (
       <div
+        ref={editFormRef}
         className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2"
         aria-label={`Edit card ${card.cardNumber}`}
       >

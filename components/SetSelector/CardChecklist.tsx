@@ -284,7 +284,10 @@ export default function CardChecklist({
           </h2>
           {!showAddForm && (
             <div className="flex gap-2">
-              <NeonButton onClick={() => setShowAddForm(true)}>
+              <NeonButton
+                onClick={() => setShowAddForm(true)}
+                aria-label="Open add card form"
+              >
                 Add Card
               </NeonButton>
               {sortedCards.length > 0 && (
@@ -300,6 +303,64 @@ export default function CardChecklist({
             </div>
           )}
         </div>
+
+        {/* Add Card Form — rendered inline right under the header so the
+            inputs are immediately visible after the user taps "Add Card".
+            Previously this lived below the 70vh Virtuoso list, which on
+            headless 1024×629 viewports put Player name 440–800px off-screen
+            and broke every flow that wanted to add a custom card. */}
+        {showAddForm && (
+          <div className="bg-gray-50 dark:bg-gray-900/40 p-4 mb-4 rounded-lg space-y-3">
+            <h3 className="font-semibold text-sm">Add Card</h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCardNumber}
+                onChange={(e) => setNewCardNumber(e.target.value)}
+                className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                placeholder="#"
+                aria-label="Card number"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={newCardName}
+                onChange={(e) => setNewCardName(e.target.value)}
+                className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                placeholder="Player name"
+                aria-label="Card name"
+              />
+            </div>
+            <input
+              type="text"
+              value={newPlayers}
+              onChange={(e) => setNewPlayers(e.target.value)}
+              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Player(s) — comma separated, optional"
+              aria-label="Players"
+            />
+            <input
+              type="text"
+              value={newTeam}
+              onChange={(e) => setNewTeam(e.target.value)}
+              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Team (optional)"
+              aria-label="Team"
+            />
+            <div className="flex gap-2">
+              <NeonButton onClick={handleAddCard} aria-label="Submit new card">
+                Add
+              </NeonButton>
+              <NeonButton
+                cancel
+                onClick={() => setShowAddForm(false)}
+                aria-label="Cancel new card"
+              >
+                Cancel
+              </NeonButton>
+            </div>
+          </div>
+        )}
 
         {lastSynced && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -360,60 +421,6 @@ export default function CardChecklist({
           />
         )}
       </div>
-
-      {/* Add Card Form (only rendered when user opens it from the header action) */}
-      {showAddForm && (
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
-          <h3 className="font-semibold text-sm">Add Card</h3>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newCardNumber}
-              onChange={(e) => setNewCardNumber(e.target.value)}
-              className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-              placeholder="#"
-              aria-label="Card number"
-              autoFocus
-            />
-            <input
-              type="text"
-              value={newCardName}
-              onChange={(e) => setNewCardName(e.target.value)}
-              className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-              placeholder="Player name"
-              aria-label="Card name"
-            />
-          </div>
-          <input
-            type="text"
-            value={newPlayers}
-            onChange={(e) => setNewPlayers(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Player(s) — comma separated, optional"
-            aria-label="Players"
-          />
-          <input
-            type="text"
-            value={newTeam}
-            onChange={(e) => setNewTeam(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Team (optional)"
-            aria-label="Team"
-          />
-          <div className="flex gap-2">
-            <NeonButton onClick={handleAddCard} aria-label="Submit new card">
-              Add
-            </NeonButton>
-            <NeonButton
-              cancel
-              onClick={() => setShowAddForm(false)}
-              aria-label="Cancel new card"
-            >
-              Cancel
-            </NeonButton>
-          </div>
-        </div>
-      )}
 
       <UnknownEntitiesDialog
         isOpen={pendingPreview !== null}
