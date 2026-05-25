@@ -89,6 +89,25 @@ export default defineSchema({
       isInsert: v.optional(v.boolean()),
       isParallel: v.optional(v.boolean()),
     })),
+    // NEO-24: marketplace-listing metadata at the set level. Populated by
+    // TCDB enrichment (Stage 3) and admin edits. Set-level only — does NOT
+    // propagate to descendant cardChecklist rows (those use `features`).
+    setMetadata: v.optional(v.object({
+      releaseDate: v.optional(v.string()),       // ISO date string when known
+      totalCardCount: v.optional(v.number()),    // declared set size
+      block: v.optional(v.string()),             // e.g. "Series 1", "Update"
+      tcdbSetId: v.optional(v.string()),         // canonical TCDB SID for re-sync
+      sourceUrl: v.optional(v.string()),         // last-fetched audit trail
+      lastSyncedAt: v.optional(v.number()),      // ms epoch of last enrichment
+    })),
+    // NEO-24: marketplace-agnostic feature map. Keys come from
+    // `convex/features/expectedFeatures.ts` (e.g. "league", "era",
+    // "isReprint", "cardType"). Values are strings ("MLB", "Modern",
+    // "true"/"false", "Base Card"). When set at a higher level
+    // (sport/year/manufacturer/setName/variant), the propagation engine
+    // writes the value down to every descendant `cardChecklist` row that
+    // has not explicitly overridden the key. See `setSelectorOptionFeature`.
+    features: v.optional(v.record(v.string(), v.string())),
     lastUpdated: v.number(),
   })
     .index("by_level", ["level"])
@@ -156,6 +175,12 @@ export default defineSchema({
     // re-prompt for the same player).
     pendingPlayerNames: v.optional(v.array(v.string())),
     pendingTeamNames: v.optional(v.array(v.string())),
+    // NEO-24: per-card override of marketplace-agnostic feature map. Inherits
+    // merged ancestor `selectorOptions.features` at card-creation time
+    // (`commitCardChecklist`). Subsequent edits via `setSelectorOptionFeature`
+    // propagate down only to cards whose key is undefined OR equal to the
+    // previous set-level value. Overridden entries stay put.
+    features: v.optional(v.record(v.string(), v.string())),
     sortOrder: v.number(),
     lastUpdated: v.number(),
   })
