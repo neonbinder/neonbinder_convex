@@ -1109,6 +1109,30 @@ export const addCustomCard = mutation({
       ?.map((n) => n.trim())
       .filter((n) => n.length > 0);
 
+    // NEO-24: inherit `features` from the selectorOption ancestor chain.
+    // The commitCardChecklist (marketplace-fetch) path does the same walk
+    // for new cards — manual add must match so the test of
+    // "set feature at set level → new manual card inherits it" passes.
+    const inheritedFeatures: Record<string, string> = {};
+    {
+      let cursorId: Id<"selectorOptions"> | undefined = args.selectorOptionId;
+      const chain: Array<Record<string, string> | undefined> = [];
+      while (cursorId) {
+        const node: any = await ctx.db.get(cursorId);
+        if (!node) break;
+        chain.unshift(node.features);
+        cursorId = node.parentId;
+      }
+      for (const f of chain) {
+        if (!f) continue;
+        for (const [k, val] of Object.entries(f)) {
+          inheritedFeatures[k] = val;
+        }
+      }
+    }
+    const inheritedFeaturesOrUndefined: Record<string, string> | undefined =
+      Object.keys(inheritedFeatures).length > 0 ? inheritedFeatures : undefined;
+
     // Insert with a placeholder sortOrder; restampCardChecklistSortOrders
     // below assigns the correct natural-cardNumber position. This way a
     // user can add #42 to a set already containing #1..#100 and the new
@@ -1128,6 +1152,9 @@ export const addCustomCard = mutation({
         : {}),
       ...(pendingTeamNames && pendingTeamNames.length > 0
         ? { pendingTeamNames }
+        : {}),
+      ...(inheritedFeaturesOrUndefined
+        ? { features: inheritedFeaturesOrUndefined }
         : {}),
       sortOrder: 0,
       lastUpdated: Date.now(),

@@ -142,7 +142,11 @@ export default function CardChecklistItem({
     return (
       <div
         ref={editFormRef}
-        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2"
+        // max-h + overflow-y so the form stays addressable by Maestro / a
+        // user on short viewports once Show-features-editor expands it
+        // past viewport height — Save/Cancel/Delete remain reachable by
+        // scrolling within the form rather than the page.
+        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2 max-h-[70vh] overflow-y-auto"
         aria-label={`Edit card ${card.cardNumber}`}
       >
         <div className="flex gap-2 flex-wrap">
