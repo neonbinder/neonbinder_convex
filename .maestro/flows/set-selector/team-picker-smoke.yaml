@@ -113,7 +113,7 @@ tags:
 - extendedWaitUntil:
     visible: "Player name"
     timeout: 5000
-- inputText: "888"
+- inputText: "888${TEST_USERNAME}"
 - tapOn: "Player name"
 - inputText: "Team Smoke Player"
 - tapOn: "Add"
@@ -123,7 +123,7 @@ tags:
 
 # Open the edit form.
 - tapOn:
-    id: "Edit card 888"
+    id: "Edit card 888${TEST_USERNAME}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -177,11 +177,11 @@ tags:
 
 # Clean up: delete the custom card.
 - tapOn:
-    id: "Delete card 888"
+    id: "Delete card 888${TEST_USERNAME}"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 888"
+    id: "Confirm delete card 888${TEST_USERNAME}"
 # Delete dispatched. Row-disappearance assertion unreliable on per-PR
 # Convex preview where duplicate cardName rows may exist from prior runs.
