@@ -144,12 +144,16 @@ tags:
 # TEST 1 — No old "Team" text field: the edit form shows TeamPicker only
 # ============================================================
 
+# waitToSettleTimeoutMs mitigates the virtualisation race — parallel
+# workers' mutations refetch the global cardChecklist live query and
+# can shift this row's y-coord between lookup and tap dispatch.
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 # The TeamPicker container has aria-label "Team picker".
 - assertVisible:
@@ -268,10 +272,11 @@ tags:
 # Re-open edit — the card should show no team (we never saved one).
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 # No chip should be present — the picker has only the "+ Add team" trigger.
 - assertVisible:

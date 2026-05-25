@@ -139,13 +139,24 @@ tags:
     visible: "Missing Features Player ${ATTEMPT_ID}"
     timeout: 10000
 
-# Open the edit form.
+# Scroll the just-added card's Edit button into view before tapping.
+- scrollUntilVisible:
+    element:
+      id: "Edit card 991-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# Open the edit form. `waitToSettleTimeoutMs` mitigates the
+# virtualisation race — parallel workers' live-query refetches can
+# shift this row between Maestro's element lookup and tap dispatch.
 - tapOn:
     id: "Edit card 991-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 # The "Show features" button is visible (collapsed by default).
 - assertVisible:

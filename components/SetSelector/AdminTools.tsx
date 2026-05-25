@@ -28,6 +28,12 @@ type WipeBaseStatus =
     }
   | { kind: "error"; message: string };
 
+type SeedTeamsStatus =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { kind: "success"; created: number; existing: number }
+  | { kind: "error"; message: string };
+
 /**
  * Admin-only section on the Set Builder page for destructive dev
  * utilities. Today: "Reset Set Builder Data" — wipes every row in
@@ -43,11 +49,28 @@ export default function AdminTools() {
   const wipeLegacyBaseChildren = useMutation(
     api.selectorOptions.wipeLegacyBaseChildren,
   );
+  const seedTestTeams = useMutation(api.teams.seedTestTeams);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [confirmInput, setConfirmInput] = useState("");
   const [wipeBaseStatus, setWipeBaseStatus] = useState<WipeBaseStatus>({
     kind: "idle",
   });
+  const [seedTeamsStatus, setSeedTeamsStatus] = useState<SeedTeamsStatus>({
+    kind: "idle",
+  });
+
+  const handleSeedTestTeams = async () => {
+    setSeedTeamsStatus({ kind: "running" });
+    try {
+      const result = await seedTestTeams();
+      setSeedTeamsStatus({ kind: "success", ...result });
+    } catch (error) {
+      setSeedTeamsStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
 
   const handleWipeBase = async () => {
     setWipeBaseStatus({ kind: "running" });
@@ -110,6 +133,15 @@ export default function AdminTools() {
           <div className="flex gap-2 flex-wrap">
             <NeonButton
               secondary
+              onClick={handleSeedTestTeams}
+              disabled={seedTeamsStatus.kind === "running"}
+            >
+              {seedTeamsStatus.kind === "running"
+                ? "Seeding…"
+                : "Seed Test Teams"}
+            </NeonButton>
+            <NeonButton
+              secondary
               onClick={handleWipeBase}
               disabled={wipeBaseStatus.kind === "running"}
             >
@@ -123,6 +155,33 @@ export default function AdminTools() {
           </div>
         )}
       </div>
+
+      {seedTeamsStatus.kind === "success" && (
+        <div className="mt-4 p-3 rounded-md bg-green-950/40 border border-green-800 text-green-200 text-sm">
+          Seed complete: created {seedTeamsStatus.created} new team(s),{" "}
+          {seedTeamsStatus.existing} already existed.
+          <button
+            type="button"
+            onClick={() => setSeedTeamsStatus({ kind: "idle" })}
+            className="ml-3 underline text-green-300 hover:text-green-200"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {seedTeamsStatus.kind === "error" && (
+        <div className="mt-4 p-3 rounded-md bg-red-950/40 border border-red-800 text-red-200 text-sm">
+          Seed failed: {seedTeamsStatus.message}
+          <button
+            type="button"
+            onClick={() => setSeedTeamsStatus({ kind: "idle" })}
+            className="ml-3 underline text-red-300 hover:text-red-200"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {wipeBaseStatus.kind === "success" && (
         <div className="mt-4 p-3 rounded-md bg-green-950/40 border border-green-800 text-green-200 text-sm">

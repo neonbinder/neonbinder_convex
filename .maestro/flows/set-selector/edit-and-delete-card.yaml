@@ -160,42 +160,10 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Idempotent cleanup: delete card #777 if a prior attempt left it behind.
-# The flow ends with a delete, but if attempt 1 fails between create and
-# delete, attempt 2 needs to start from a clean slate.
-- scrollUntilVisible:
-    element:
-      text: "Edit Test Player"
-    centerElement: true
-    # 30s timeout: virtualized list with 300+ cards can take a while
-    # to scroll through when the duplicate is near the bottom.
-    timeout: 30000
-    optional: true
-# Loop-delete: prior aborted runs may have left multiple duplicate
-# rows with the same cardNumber + name. Delete every visible match,
-# not just the first one.
-- repeat:
-    while:
-      visible: "Edit Test Player"
-    commands:
-      - tapOn:
-          id: "Delete card 777"
-      - extendedWaitUntil:
-          visible: "Confirm?"
-          timeout: 5000
-      - tapOn:
-          id: "Confirm delete card 777"
-      - extendedWaitUntil:
-          notVisible: "Confirm?"
-          timeout: 5000
-
-# Re-anchor on Add Card.
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+# Per-attempt-unique card number + player name. The runner injects
+# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
+# collide with attempt-1's row left in the global cardChecklist. No
+# idempotent cleanup loop needed.
 
 # ============================================================
 # ADD A CUSTOM CARD TO EDIT AND DELETE
@@ -210,22 +178,37 @@ tags:
     timeout: 5000
 
 # Card number input has autoFocus — type directly.
-- inputText: "777"
+- inputText: "777-${ATTEMPT_ID}"
 - tapOn: "Player name"
-- inputText: "Edit Test Player"
+- inputText: "Edit Test Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
 - extendedWaitUntil:
-    visible: "Edit Test Player"
+    visible: "Edit Test Player ${ATTEMPT_ID}"
+    timeout: 10000
+
+# Scroll the just-added card into view before tapping its Edit button —
+# without this, the row can land below the viewport edge post-submit,
+# and the Edit-tap coords land on a different row (the team-picker-smoke
+# CI failure on PR #39 showed this exact pattern with stale scroll).
+- scrollUntilVisible:
+    element:
+      id: "Edit card 777-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
     timeout: 10000
 
 # ============================================================
 # EDIT THE CARD — rename + add a team via TeamPicker
 # ============================================================
 
-# The Edit button is in the hover-action row. Tap it.
+# The Edit button is in the hover-action row. `waitToSettleTimeoutMs`
+# mitigates the virtualisation race — parallel workers' add/delete
+# mutations refetch the global cardChecklist live query, shifting row
+# y-coords between Maestro's lookup and tap dispatch.
 - tapOn:
-    id: "Edit card 777"
+    id: "Edit card 777-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 
 # The inline edit form opens with the card name input and TeamPicker.
 - extendedWaitUntil:
@@ -236,8 +219,8 @@ tags:
 # Rename the card.
 - tapOn:
     id: "Card name"
-- eraseText: 20
-- inputText: "Renamed Player"
+- eraseText: 40
+- inputText: "Renamed Player ${ATTEMPT_ID}"
 
 # Open the TeamPicker popover via the "+ Add team" button
 # (aria-label "Add team" → resource-id in Maestro web).
@@ -250,23 +233,21 @@ tags:
       id: "Search teams"
     timeout: 5000
 
-# Type a team name. Teams for Baseball are seeded from the card checklist
-# fetch — "New York Yankees" is one of the most common teams in Topps Chrome.
-# We search for "Yankees" to narrow down to one result.
+# Type a team name. cascade/setup.yaml seeds New York Yankees + New York
+# Mets for Baseball, so the typeahead is guaranteed to find Yankees.
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
 
-# The typeahead should show the team. The button has aria-label "Add <name>".
+# The typeahead match button has aria-label "Add <name>". Use the explicit
+# label to disambiguate from the search input's typed value.
 - extendedWaitUntil:
     visible:
-      text: ".*Yankees.*"
+      id: "Add New York Yankees"
     timeout: 10000
 
-# Tap the first match. The match button text is the team name itself.
 - tapOn:
-    text: ".*Yankees.*"
-    index: 0
+    id: "Add New York Yankees"
 
 # The popover should still be open (stays open for multi-team cards).
 # Close it by tapping outside (the overlay area) — tap the card name input.
@@ -275,7 +256,7 @@ tags:
 
 # Verify the Yankees chip appeared in the TeamPicker area.
 - assertVisible:
-    text: ".*Yankees.*"
+    id: "Remove team New York Yankees"
 
 # Save the edit.
 - tapOn:
@@ -287,7 +268,7 @@ tags:
 
 # The inline form should close and the card list should show the new name.
 - extendedWaitUntil:
-    visible: "Renamed Player"
+    visible: "Renamed Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # The sub-line of the card row should show the team name.
@@ -300,7 +281,7 @@ tags:
 
 # Tap the "Del" button on the Renamed Player card row.
 - tapOn:
-    id: "Delete card 777"
+    id: "Delete card 777-${ATTEMPT_ID}"
 
 # A "Confirm?" prompt replaces the "Del" button.
 - extendedWaitUntil:
@@ -309,7 +290,7 @@ tags:
 
 # Confirm the deletion.
 - tapOn:
-    id: "Confirm delete card 777"
+    id: "Confirm delete card 777-${ATTEMPT_ID}"
 
 # ============================================================
 # VERIFY THE CARD WAS REMOVED

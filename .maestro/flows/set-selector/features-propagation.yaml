@@ -204,13 +204,24 @@ tags:
     visible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 10000
 
-# Open the edit form for our card.
+# Scroll the just-added card's Edit button into view before tapping.
+- scrollUntilVisible:
+    element:
+      id: "Edit card 992-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# Open the edit form for our card. `waitToSettleTimeoutMs` mitigates the
+# virtualisation race — parallel workers' live-query refetches can shift
+# this row between Maestro's element lookup and tap dispatch.
 - tapOn:
     id: "Edit card 992-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 # Expand the CardFeaturesEditor.
 - tapOn:
@@ -250,7 +261,16 @@ tags:
 - assertVisible:
     id: "Value for League"
 
-# Save the card edit (closes the form).
+# Save the card edit (closes the form). The Save button sits at the bottom
+# of the edit form; with FEATURES expanded showing ERA/REPRINT/CARD TYPE
+# rows, Save is pushed below the headless 1024×629 viewport. Scroll it
+# into view first so the tap doesn't fail with "Element not found".
+- scrollUntilVisible:
+    element:
+      id: "Save card edit"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Save card edit"
 - extendedWaitUntil:
@@ -366,16 +386,18 @@ tags:
 
 - scrollUntilVisible:
     element:
-      text: "Propagation Test Player ${ATTEMPT_ID}"
+      id: "Edit card 992-${ATTEMPT_ID}"
     centerElement: true
+    visibilityPercentage: 50
     timeout: 30000
 
 - tapOn:
     id: "Edit card 992-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 - tapOn:
     id: "Show features editor"

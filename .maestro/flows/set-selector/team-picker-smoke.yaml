@@ -131,8 +131,7 @@ tags:
 
 # Scroll the just-added card into view before tapping its Edit button.
 # Without this, the row may be below the viewport edge after submit,
-# and the Edit-tap coords land on a different row (the team-picker-smoke
-# CI failure on PR #39 showed this exact pattern with stale scroll).
+# and the Edit-tap coords land on a different row (PR #39 CI hit this).
 - scrollUntilVisible:
     element:
       id: "Edit card 888-${ATTEMPT_ID}"
@@ -140,13 +139,18 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Open the edit form.
+# Open the edit form. `waitToSettleTimeoutMs: 2000` mitigates a
+# virtualisation race: parallel workers' add/delete mutations refetch
+# the global cardChecklist query, causing the row to shift y-coords
+# between Maestro's element lookup and tap dispatch. Settle gives the
+# list time to stabilise, then Maestro re-queries the element bounds.
 - tapOn:
     id: "Edit card 888-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: "Card name"
-    timeout: 5000
+    timeout: 10000
 
 # The old "Team" text input does NOT exist. The TeamPicker renders instead.
 # "+ Add team" button (aria-label "Add team") is the popover trigger.
