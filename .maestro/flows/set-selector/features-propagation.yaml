@@ -151,10 +151,15 @@ tags:
 # STEP B — Drill to Base, add a custom card, verify inherited value
 # ============================================================
 
-# Scroll back up to select Base variant type.
+# Scroll back up to select Base variant type. After Step A wrote to the
+# SetFeaturesPanel, the panel + cards section dominate the viewport and
+# the Variant Types column is scrolled off the top. Need an explicit UP
+# direction; the default DOWN never finds the row.
 - scrollUntilVisible:
     element:
       text: "Base"
+    direction: UP
+    centerElement: true
     timeout: 15000
 - tapOn: "Base"
 

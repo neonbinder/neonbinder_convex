@@ -206,7 +206,8 @@ tags:
 
 # The popover opens with a search input.
 - extendedWaitUntil:
-    visible: "Search teams"
+    visible:
+      id: "Search teams"
     timeout: 5000
 
 # Type a team name. Teams for Baseball are seeded from the card checklist

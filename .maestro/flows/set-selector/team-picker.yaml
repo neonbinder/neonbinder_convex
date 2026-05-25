@@ -149,7 +149,8 @@ tags:
 - tapOn:
     id: "Add team"
 - extendedWaitUntil:
-    visible: "Search teams"
+    visible:
+      id: "Search teams"
     timeout: 5000
 
 - tapOn:
@@ -189,7 +190,8 @@ tags:
 - tapOn:
     id: "Add team"
 - extendedWaitUntil:
-    visible: "Search teams"
+    visible:
+      id: "Search teams"
     timeout: 5000
 - tapOn:
     id: "Search teams"
@@ -210,7 +212,8 @@ tags:
 - tapOn:
     id: "Add team"
 - extendedWaitUntil:
-    visible: "Search teams"
+    visible:
+      id: "Search teams"
     timeout: 5000
 - tapOn:
     id: "Search teams"
@@ -263,7 +266,8 @@ tags:
 - tapOn:
     id: "Add team"
 - extendedWaitUntil:
-    visible: "Search teams"
+    visible:
+      id: "Search teams"
     timeout: 5000
 - tapOn:
     id: "Search teams"
