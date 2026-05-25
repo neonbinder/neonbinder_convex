@@ -1,0 +1,186 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Smoke — TeamPicker opens, typeahead filters, chip saved"
+tags:
+  - smoke
+  - set-selector
+  - requires:cards-loaded
+---
+# Smoke test for the NEO-26 TeamPicker chip-list component.
+#
+# The old free-text "team" input is gone. The TeamPicker renders as a
+# chip row with a "+ Add team" trigger that opens a typeahead popover.
+#
+# This smoke test covers the single critical path:
+#   Edit a card → open TeamPicker popover → search → pick a team → save →
+#   verify the team name appears in the card's sub-line.
+#
+# Assumes cards-loaded: at least one card row is present in the checklist
+# (provided by cascade cards-base.yaml). We add our own custom card so
+# we don't accidentally delete a marketplace card.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# Fast-drill to Baseball / 2024 / Topps Chrome / Base (cards already loaded).
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+- tapOn: "Base"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# Add a custom card to use as the edit target.
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+- inputText: "888"
+- tapOn: "Player name"
+- inputText: "Team Smoke Player"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Team Smoke Player"
+    timeout: 10000
+
+# Open the edit form.
+- tapOn:
+    id: "Edit card 888"
+- extendedWaitUntil:
+    visible: "Card name"
+    timeout: 5000
+
+# The old "Team" text input does NOT exist. The TeamPicker renders instead.
+# "+ Add team" button (aria-label "Add team") is the popover trigger.
+- assertVisible:
+    id: "Add team"
+
+# Open the popover.
+- tapOn:
+    id: "Add team"
+- extendedWaitUntil:
+    visible: "Search teams"
+    timeout: 5000
+
+# Search for "Yankees".
+- tapOn:
+    id: "Search teams"
+- inputText: "Yankees"
+- extendedWaitUntil:
+    visible:
+      text: ".*Yankees.*"
+    timeout: 10000
+
+# Pick the team — team name is visible text in the match button.
+- tapOn:
+    text: ".*Yankees.*"
+    index: 0
+
+# Close the popover by clicking elsewhere.
+- tapOn:
+    id: "Card name"
+
+# The chip should be visible in the picker area.
+- assertVisible:
+    text: ".*Yankees.*"
+
+# Save.
+- tapOn:
+    id: "Save card edit"
+
+# Verify the team appears in the card sub-line.
+- extendedWaitUntil:
+    visible: "Team Smoke Player"
+    timeout: 10000
+- assertVisible:
+    text: ".*Yankees.*"
+
+# Clean up: delete the custom card.
+- tapOn:
+    id: "Delete card 888"
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+- tapOn:
+    id: "Confirm delete card 888"
+- extendedWaitUntil:
+    notVisible: "Team Smoke Player"
+    timeout: 10000

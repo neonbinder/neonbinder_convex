@@ -205,12 +205,77 @@ On SUCCESS the form auto-closes (calls onDone()) and the idle button returns.
 - Submit button: "Add"
 - Cancel button: "Cancel"
 
-## Card row (CardChecklistItem)
+## Card row (CardChecklistItem) — NEO-26 update
 - Card number shown as: "#[number]" (e.g., "#42")
 - Actions revealed on hover: "Edit", "Del"
 - Delete confirm prompt: "Confirm?" (replaces "Del" button)
-- Edit form fields: "Card name" placeholder, "Team" placeholder
-- Edit form buttons: "Save", "Cancel"
+- Edit form: uses `aria-label={`Edit card ${cardNumber}`}` on the Edit button → `id: "Edit card 42"` in Maestro
+- Delete button: `aria-label={`Delete card ${cardNumber}`}` → `id: "Delete card 42"` in Maestro
+- Confirm delete button: `aria-label={`Confirm delete card ${cardNumber}`}` → `id: "Confirm delete card 42"` in Maestro
+- Edit form card name input: `aria-label="Card name"` → `id: "Card name"` in Maestro
+- Edit form save button: `aria-label="Save card edit"` → `id: "Save card edit"` in Maestro
+- Edit form cancel button: `aria-label="Cancel card edit"` → `id: "Cancel card edit"` in Maestro
+- NEO-26: The old "Team" free-text input is GONE. Team is now TeamPicker (chip-list).
+- Sub-line format: `<team(s)> · /<printRun> · <cardVariation> · <autographType> auto`
+  Team names are resolved from teamOnCardIds[] → displayed comma-separated
+
+## TeamPicker (NEO-26 chip-list component)
+- Container: `aria-label="Team picker"` → `id: "Team picker"` in Maestro
+- Chip label span: `aria-label={`Team: <name>`}` — but use the visible text to assert chip presence
+- Remove chip button: `aria-label={`Remove team <name>`}` → `id: "Remove team New York Yankees"` in Maestro
+- Add team trigger: `aria-label="Add team"` → `id: "Add team"` in Maestro; visible text "+ Add team"
+- Typeahead popover (opens on trigger click):
+  - Search input: `aria-label="Search teams"` → `id: "Search teams"` in Maestro
+  - Match button: `aria-label={`Add <name>`}` → visible text IS the team name → `tapOn: text: ".*Yankees.*" index: 0`
+  - Empty search state: visible text "Start typing a team name…"
+  - No matches state: visible text "No matches." (when query typed but no results)
+  - Loading state: visible text "Loading…"
+- Keyboard: Enter on focused match button selects it; Escape closes popover; Backspace on empty input removes last chip
+- `pressKey: Enter` works for confirming the highlighted result (keyboard path tested via Enter after typing query)
+- Team names in the picker are sport-filtered (passed in `sport` prop from ancestor chain)
+
+## CardFeaturesEditor (NEO-24 per-card features)
+- Collapsed trigger: `aria-label="Show features editor"` → `id: "Show features editor"` in Maestro; visible text "Show features ▾"
+- Editor container: `aria-label="Card features editor"` → `id: "Card features editor"` in Maestro
+- Hide button: `aria-label="Hide features editor"` → `id: "Hide features editor"` in Maestro; visible text "Hide ▴"
+- Feature row (label element): `aria-label={`Feature ${label}`}` → e.g. `id: "Feature League"` in Maestro
+- Feature value input: `aria-label={`Value for ${label}`}` → e.g. `id: "Value for League"` in Maestro
+- Revert button: `aria-label={`Revert ${label} to inherited`}` → e.g. `id: "Revert League to inherited"` in Maestro
+- Inherited value label: `aria-label={`Inherited value: ${inheritedValue}`}` → visible text "Inherited: <value>"
+- Missing feature icon: `aria-label="Missing required feature"` → `id: "Missing required feature"` in Maestro; visible text "⚠"
+- Missing feature highlight: amber border + bg-amber-500/5 (visual, not assertable via text)
+- AMBIGUITY WARNING: Both CardFeaturesEditor and SetFeaturesPanel use `aria-label={`Value for ${label}`}` on their inputs.
+  When both are in the DOM (card edit form open + SetFeaturesPanel below), `tapOn: id: "Value for League"` hits the
+  CardFeaturesEditor's input (earlier in DOM order). Always `scrollUntilVisible: element: id: "Value for League"` first.
+
+## SetFeaturesPanel (NEO-24 set-level features)
+- Panel container: `aria-label="Set features panel"` → `id: "Set features panel"` in Maestro
+- Panel heading: visible text "Set features" (h3)
+- "Will propagate to N cards" counter: `aria-label={`Will propagate to ${N} descendant cards`}`
+  Visible text pattern: "Will propagate to N cards" or "Counting…"
+- setMetadata chips container: `aria-label="Set metadata chips"` or `aria-label="No set metadata yet"` (empty state)
+  Empty state text: "No set metadata yet — pending sync."
+  Chip labels (uppercase, visible): "Released", "Cards", "Block", "TCDB SID", "Synced"
+- Feature row (label element): `aria-label={`Set feature ${label}`}` → e.g. `id: "Set feature League"` in Maestro
+- Feature value input: `aria-label={`Value for ${label}`}` → same as CardFeaturesEditor! (see AMBIGUITY WARNING above)
+- Missing feature icon on set row: same `aria-label="Missing required feature"` as CardFeaturesEditor
+- Save toast: `role="status"` aria-live="polite"; text pattern "Updated N cards" or "Updated N cards; skipped M with overrides"
+  Toast auto-dismisses after 6 seconds.
+- SetFeaturesPanel renders BELOW the MultiSourcePanel and the card columns. Always scroll down to reach it.
+- Active condition: renders whenever a setName-level row (level 4, "Topps Chrome") is selected.
+  Selecting a variant type does NOT close SetFeaturesPanel — it stays visible below.
+
+## EXPECTED_FEATURES keys (from convex/features/expectedFeatures.ts)
+- "league" / "League" — applicableSports: Baseball, Basketball, Football, Hockey
+- "era" / "Era"
+- "isReprint" / "Reprint"
+- "cardType" / "Card Type"
+- "signedBy" / "Signed By"
+- "isRookie" / "Rookie Card"
+- "isRelic" / "Memorabilia Relic"
+- "parallelName" / "Parallel/Variety"
+- "vintage" / "Vintage"
+- "manufacturer" / "Manufacturer"
 
 ## EntitySelector column — internal scroll container (IMPORTANT)
 Each column (Sports, Years, Manufacturers, etc.) has its OWN internal scroll container.

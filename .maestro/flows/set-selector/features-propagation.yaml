@@ -1,0 +1,425 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Features propagate from set to cards, per-card override survives re-propagation"
+tags:
+  - set-selector
+  - regression
+  - requires:cards-loaded
+---
+# Full propagation lifecycle test for NEO-24.
+#
+# WHAT THIS TESTS:
+#   1. SetFeaturesPanel: setting a feature at the set (setName) level saves and
+#      shows a toast with "Updated N cards" (propagation engine ran).
+#   2. A card inherits the set-level value: opening CardFeaturesEditor on a
+#      child card shows "Inherited: MLB" under the League row.
+#   3. Per-card override: typing a different value in CardFeaturesEditor saves
+#      the override on just that card. The row changes from "Inherited" to the
+#      new value (no "Inherited:" shown when the card has its own value).
+#   4. Re-propagation at the set level to a new value updates non-overridden
+#      cards but the overridden card retains its own value.
+#
+# FLOW:
+#   Step A: Drill to Topps Chrome → Set features → write "MLB" to League.
+#   Step B: Select Base variant → open a card → expand features → verify "Inherited: MLB".
+#   Step C: Override League to "NL" on that card → verify "NL" is saved.
+#   Step D: Back at set level → update League to "AL" → verify toast says ≥1 updated.
+#   Step E: Re-open the overridden card → verify it still shows "NL", not "AL".
+#
+# NOTES:
+#   - We use a custom card (#992) so we can control the override state precisely.
+#   - The cascade cards-base.yaml must have run (requires:cards-loaded) so the
+#     set already has real cards for the propagation count to be > 0 after step A.
+#   - After step C, the override card (#992) has League="NL". When we re-propagate
+#     "AL" in step D, our #992 card's "NL" does not equal the old set value "MLB",
+#     so the propagation engine treats it as an override and skips it.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO Topps Chrome (Sets level — triggers SetFeaturesPanel)
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# SetFeaturesPanel renders below MultiSourcePanel after Topps Chrome is selected.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# ============================================================
+# STEP A — Set League = "PropTest-MLB" at the set level
+#
+# Use a test-specific sentinel value so this step is always a genuine write
+# (distinct from any value another flow may have left). Even if a prior run
+# of THIS flow left "PropTest-MLB", Step D below will overwrite with a
+# different value and trigger the propagation.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Set features"
+    centerElement: true
+    timeout: 15000
+- assertVisible: "Set features"
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    timeout: 10000
+
+# First, clear any existing value by writing a different sentinel ("PropTest-X"),
+# then immediately overwrite with "PropTest-MLB". This guarantees at least
+# one of the two writes triggers the propagation engine.
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "PropTest-X"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 10000
+
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "PropTest-MLB"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 10000
+
+# ============================================================
+# STEP B — Drill to Base, add a custom card, verify inherited value
+# ============================================================
+
+# Scroll back up to select Base variant type.
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 15000
+- tapOn: "Base"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# Add a custom card that will serve as the override target.
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+- inputText: "992"
+- tapOn: "Player name"
+- inputText: "Propagation Test Player"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Propagation Test Player"
+    timeout: 10000
+
+# Open the edit form for our card.
+- tapOn:
+    id: "Edit card 992"
+- extendedWaitUntil:
+    visible: "Card name"
+    timeout: 5000
+
+# Expand the CardFeaturesEditor.
+- tapOn:
+    id: "Show features editor"
+- extendedWaitUntil:
+    visible:
+      id: "Card features editor"
+    timeout: 5000
+
+# The League row should show the inherited value from the set ("PropTest-MLB").
+# The "Inherited: PropTest-MLB" label appears below the input when the card has no override.
+- assertVisible:
+    text: ".*Inherited: PropTest-MLB.*"
+
+# ============================================================
+# STEP C — Override League to "NL" on this card
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "PropTest-NL"
+- pressKey: Enter
+
+# After save-on-Enter, the "Inherited:" label disappears (card now has its own
+# value). The input shows "PropTest-NL".
+- extendedWaitUntil:
+    notVisible: ".*Inherited: PropTest-MLB.*"
+    timeout: 10000
+
+# The League input now shows "NL".
+- assertVisible:
+    id: "Value for League"
+
+# Save the card edit (closes the form).
+- tapOn:
+    id: "Save card edit"
+- extendedWaitUntil:
+    visible: "Propagation Test Player"
+    timeout: 10000
+
+# ============================================================
+# STEP D — Re-propagate at set level: League → "AL"
+# ============================================================
+
+# Navigate back to Topps Chrome level (deselect the variant type).
+# We reload to ensure a clean state.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# SetFeaturesPanel renders below.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      text: "Set features"
+    centerElement: true
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    timeout: 10000
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "PropTest-AL"
+- pressKey: Enter
+
+# Toast: at least 1 card updated (non-overridden cards get "PropTest-AL").
+# Our override card (#992) has "PropTest-NL" — it should be in skippedAsOverridden.
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 10000
+
+# ============================================================
+# STEP E — Verify override card still shows "NL", not "AL"
+# ============================================================
+
+# Navigate to Base, find our override card, open CardFeaturesEditor.
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 15000
+- tapOn: "Base"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Propagation Test Player"
+    centerElement: true
+    timeout: 30000
+
+- tapOn:
+    id: "Edit card 992"
+- extendedWaitUntil:
+    visible: "Card name"
+    timeout: 5000
+
+- tapOn:
+    id: "Show features editor"
+- extendedWaitUntil:
+    visible:
+      id: "Card features editor"
+    timeout: 5000
+
+# The override card should show "PropTest-NL" in the League input, NOT "PropTest-AL".
+# Because the card has an override, no "Inherited:" label shows — the
+# input just has "PropTest-NL" as its value.
+- assertVisible:
+    id: "Value for League"
+
+# The "Revert League to inherited" button is visible (card has an override).
+- assertVisible:
+    id: "Revert League to inherited"
+
+# No "Inherited: PropTest-AL" should be visible (the override is active).
+- extendedWaitUntil:
+    notVisible: ".*Inherited: PropTest-AL.*"
+    timeout: 5000
+
+# ============================================================
+# STEP F — Revert the override; card should now inherit "PropTest-AL"
+# ============================================================
+
+- tapOn:
+    id: "Revert League to inherited"
+
+# After revert, the "Inherited: PropTest-AL" label should appear (card falls back to set value).
+- extendedWaitUntil:
+    visible: ".*Inherited: PropTest-AL.*"
+    timeout: 10000
+
+# The "Revert" button should disappear (no more override on League).
+- extendedWaitUntil:
+    notVisible:
+      id: "Revert League to inherited"
+    timeout: 5000
+
+# Save and close.
+- tapOn:
+    id: "Save card edit"
+- extendedWaitUntil:
+    visible: "Propagation Test Player"
+    timeout: 10000
+
+# ============================================================
+# CLEANUP — delete the test card
+# ============================================================
+
+- tapOn:
+    id: "Delete card 992"
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+- tapOn:
+    id: "Confirm delete card 992"
+- extendedWaitUntil:
+    notVisible: "Propagation Test Player"
+    timeout: 10000

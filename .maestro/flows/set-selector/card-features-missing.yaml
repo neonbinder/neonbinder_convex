@@ -1,0 +1,177 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Smoke — card with no features shows amber missing-feature highlight in CardFeaturesEditor"
+tags:
+  - smoke
+  - set-selector
+  - requires:cards-loaded
+---
+# Smoke test: a freshly-added custom card has no feature values. Opening the
+# CardFeaturesEditor and expanding it should show the amber "Missing required
+# feature" indicator (⚠) on the rows that have no value and no inherited value.
+#
+# WHY SMOKE:
+#   This is a cheap visual assertion — no mutations needed. The "Show features"
+#   button is always present on any card edit form; the amber state always
+#   renders when features are absent. Fast and focused on the single most
+#   important path: the missing-feature UI surfaces to the user.
+#
+# WHAT THIS TESTS:
+#   - "Show features" button is present in the card edit form
+#   - Clicking it reveals the "Card features editor" section
+#   - At least one row with the "Missing required feature" indicator (⚠) is shown
+#   - "Hide ▴" collapses the editor back
+#
+# PREREQUISITE:
+#   cards-loaded (cascade cards-base.yaml has run). We add a fresh custom card
+#   with no features to guarantee the missing-feature state.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# Fast-drill to Baseball / 2024 / Topps Chrome / Base.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+- tapOn: "Base"
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# Add a fresh card with no features.
+- tapOn: "Add Card"
+- extendedWaitUntil:
+    visible: "Player name"
+    timeout: 5000
+- inputText: "991"
+- tapOn: "Player name"
+- inputText: "Missing Features Player"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible: "Missing Features Player"
+    timeout: 10000
+
+# Open the edit form.
+- tapOn:
+    id: "Edit card 991"
+- extendedWaitUntil:
+    visible: "Card name"
+    timeout: 5000
+
+# The "Show features" button is visible (collapsed by default).
+- assertVisible:
+    id: "Show features editor"
+
+# Click it to expand the CardFeaturesEditor.
+- tapOn:
+    id: "Show features editor"
+
+# The "Card features editor" section appears.
+- extendedWaitUntil:
+    visible:
+      id: "Card features editor"
+    timeout: 5000
+
+# At least one feature row shows the amber missing-feature indicator.
+# The ⚠ icon has aria-label "Missing required feature".
+- assertVisible:
+    id: "Missing required feature"
+
+# The "Hide ▴" button collapses the editor.
+- tapOn:
+    id: "Hide features editor"
+- extendedWaitUntil:
+    notVisible:
+      id: "Card features editor"
+    timeout: 5000
+
+# Verify the "Show features ▾" button reappears.
+- assertVisible:
+    id: "Show features editor"
+
+# Cleanup: cancel edit and delete the test card.
+- tapOn:
+    id: "Cancel card edit"
+- tapOn:
+    id: "Delete card 991"
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+- tapOn:
+    id: "Confirm delete card 991"
+- extendedWaitUntil:
+    notVisible: "Missing Features Player"
+    timeout: 10000
