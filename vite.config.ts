@@ -2,20 +2,8 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import mkcert from "vite-plugin-mkcert";
 import path from "path";
-
-// Lazy mkcert import — `vite-plugin-mkcert@2` pulls in `undici@8.x` whose
-// CacheStorage init calls `webidl.util.markAsUncloneable`. That API only
-// landed in Node 22.13+; on older Node 22 (e.g. 22.5.x) the *top-level*
-// import side-effect throws. Skip the import entirely when HTTPS is
-// disabled (VITE_DEV_DISABLE_HTTPS=1), which is how Maestro flows + the
-// like-CI local runner expect Vite to start.
-function loadMkcertIfHttpsEnabled(): Plugin | null {
-  if (process.env.VITE_DEV_DISABLE_HTTPS) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mkcert = require("vite-plugin-mkcert").default as () => Plugin;
-  return mkcert();
-}
 import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
 
 // Dev-only middleware that mirrors api/auth/testing.ts so that Maestro E2E
@@ -159,10 +147,7 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     tailwindcss(),
-    ...(function () {
-      const p = loadMkcertIfHttpsEnabled();
-      return p ? [p] : [];
-    })(),
+    ...(process.env.VITE_DEV_DISABLE_HTTPS ? [] : [mkcert()]),
     clerkTestingApiPlugin(),
     sentryVitePlugin({
       org: "neon-binder",
