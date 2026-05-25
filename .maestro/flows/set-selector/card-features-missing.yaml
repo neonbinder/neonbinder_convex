@@ -111,33 +111,11 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Idempotent cleanup: delete card #991 if a prior attempt left it behind.
-- scrollUntilVisible:
-    element:
-      text: "Missing Features Player"
-    centerElement: true
-    # 30s timeout: virtualized list with 300+ cards can take a while
-    # to scroll through when the duplicate is near the bottom.
-    timeout: 30000
-    optional: true
-# Loop-delete: prior aborted runs may have left multiple duplicate
-# rows with the same cardNumber + name. Delete every visible match,
-# not just the first one.
-- repeat:
-    while:
-      visible: "Missing Features Player"
-    commands:
-      - tapOn:
-          id: "Delete card 991"
-      - extendedWaitUntil:
-          visible: "Confirm?"
-          timeout: 5000
-      - tapOn:
-          id: "Confirm delete card 991"
-      - extendedWaitUntil:
-          notVisible: "Confirm?"
-          timeout: 5000
-
+# Per-attempt-unique card number + player name. The runner injects
+# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
+# collide with the row attempt-1 left in the global cardChecklist
+# (resetSetBuilderData only runs once per CI run via cascade/setup).
+# No idempotent cleanup loop needed when names are unique per attempt.
 - scrollUntilVisible:
     element:
       id: "Open add card form"
@@ -152,18 +130,18 @@ tags:
     visible:
       id: "Card name"
     timeout: 5000
-- inputText: "991"
+- inputText: "991-${ATTEMPT_ID}"
 - tapOn: "Player name"
-- inputText: "Missing Features Player"
+- inputText: "Missing Features Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
 - extendedWaitUntil:
-    visible: "Missing Features Player"
+    visible: "Missing Features Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # Open the edit form.
 - tapOn:
-    id: "Edit card 991"
+    id: "Edit card 991-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -200,16 +178,16 @@ tags:
 - assertVisible:
     id: "Show features editor"
 
-# Cleanup: cancel edit and delete the test card.
+# Cleanup: cancel edit and delete this attempt's test card.
 - tapOn:
     id: "Cancel card edit"
 - tapOn:
-    id: "Delete card 991"
+    id: "Delete card 991-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 991"
+    id: "Confirm delete card 991-${ATTEMPT_ID}"
 - extendedWaitUntil:
-    notVisible: "Missing Features Player"
+    notVisible: "Missing Features Player ${ATTEMPT_ID}"
     timeout: 10000

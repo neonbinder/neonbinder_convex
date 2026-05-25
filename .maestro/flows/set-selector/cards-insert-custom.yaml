@@ -4,6 +4,7 @@ name: "Card checklist — custom Insert variant fetches from marketplaces and sa
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # Verifies the card checklist fetch pipeline for a custom Insert variant
 # with no marketplace set mapping.

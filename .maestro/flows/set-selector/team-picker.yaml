@@ -107,44 +107,11 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Idempotent cleanup: if a prior attempt of this flow left card #889
-# (with its Yankees / Mets chip attachments) behind, delete it. Without
-# this cleanup, the typeahead later in the flow would return "No matches"
-# for already-attached teams, and the chip-remove aria-label lookup
-# would target the wrong row.
-- scrollUntilVisible:
-    element:
-      text: "Team Feature Player"
-    centerElement: true
-    # 30s timeout: virtualized list with 300+ cards can take a while
-    # to scroll through when the duplicate is near the bottom.
-    timeout: 30000
-    optional: true
-# Loop-delete: prior aborted runs may have left multiple duplicate
-# rows with the same cardNumber + name. Delete every visible match,
-# not just the first one.
-- repeat:
-    while:
-      visible: "Team Feature Player"
-    commands:
-      - tapOn:
-          id: "Delete card 889"
-      - extendedWaitUntil:
-          visible: "Confirm?"
-          timeout: 5000
-      - tapOn:
-          id: "Confirm delete card 889"
-      - extendedWaitUntil:
-          notVisible: "Confirm?"
-          timeout: 5000
-
-# Re-anchor on the "Add Card" button after the optional delete.
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+# Per-attempt-unique card number + player name. The runner injects
+# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
+# collide with attempt-1's row left in the global cardChecklist (and
+# its Yankees attachment which would make the typeahead "No matches").
+# No idempotent cleanup loop needed when names are unique per attempt.
 
 # ============================================================
 # Add a custom card to serve as the test target.
@@ -156,13 +123,21 @@ tags:
     visible:
       id: "Card name"
     timeout: 5000
-- inputText: "889"
+- inputText: "889-${ATTEMPT_ID}"
 - tapOn: "Player name"
-- inputText: "Team Feature Player"
+- inputText: "Team Feature Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
 - extendedWaitUntil:
-    visible: "Team Feature Player"
+    visible: "Team Feature Player ${ATTEMPT_ID}"
+    timeout: 10000
+
+# Scroll the just-added card into view before tapping its Edit button.
+- scrollUntilVisible:
+    element:
+      id: "Edit card 889-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
     timeout: 10000
 
 # ============================================================
@@ -170,7 +145,7 @@ tags:
 # ============================================================
 
 - tapOn:
-    id: "Edit card 889"
+    id: "Edit card 889-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -198,21 +173,22 @@ tags:
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
+# Use the typeahead match button's explicit aria-label (`Add <name>`,
+# see TeamPicker.tsx:223) rather than text matching. `tapOn: text` was
+# ambiguous between the input value and the match-button text content.
 - extendedWaitUntil:
     visible:
-      text: ".*Yankees.*"
+      id: "Add New York Yankees"
     timeout: 10000
 
-# Click the "Add <team name>" button in the typeahead list.
 - tapOn:
-    text: ".*Yankees.*"
-    index: 0
+    id: "Add New York Yankees"
 
 # Yankees chip appears in the picker. Close popover by clicking card name.
 - tapOn:
     id: "Card name"
 - assertVisible:
-    text: ".*Yankees.*"
+    id: "Remove team New York Yankees"
 
 # ============================================================
 # TEST 3 — Remove the chip using the × button
@@ -220,9 +196,10 @@ tags:
 # ============================================================
 
 - tapOn:
-    id: ".*Remove team.*Yankees.*"
+    id: "Remove team New York Yankees"
 - extendedWaitUntil:
-    notVisible: ".*Remove team New York Yankees.*"
+    notVisible:
+      id: "Remove team New York Yankees"
     timeout: 5000
 
 # ============================================================
@@ -264,7 +241,7 @@ tags:
 - inputText: "Mets"
 - extendedWaitUntil:
     visible:
-      text: ".*Mets.*"
+      id: "Add New York Mets"
     timeout: 10000
 
 # Press Enter to confirm the highlighted first match.
@@ -274,7 +251,7 @@ tags:
 
 # The Mets chip should now appear.
 - assertVisible:
-    text: ".*Mets.*"
+    id: "Remove team New York Mets"
 
 # ============================================================
 # TEST 6 — Cancel reverts the team edit
@@ -290,7 +267,7 @@ tags:
 
 # Re-open edit — the card should show no team (we never saved one).
 - tapOn:
-    id: "Edit card 889"
+    id: "Edit card 889-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -316,17 +293,16 @@ tags:
 - inputText: "Yankees"
 - extendedWaitUntil:
     visible:
-      text: ".*Yankees.*"
+      id: "Add New York Yankees"
     timeout: 10000
 - tapOn:
-    text: ".*Yankees.*"
-    index: 0
+    id: "Add New York Yankees"
 - tapOn:
     id: "Card name"
 - tapOn:
     id: "Save card edit"
 - extendedWaitUntil:
-    visible: "Team Feature Player"
+    visible: "Team Feature Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # Sub-line should show "New York Yankees" (or just "Yankees" — partial match).
@@ -401,22 +377,22 @@ tags:
 # After reload, find our card and confirm the team name is in the sub-line.
 - scrollUntilVisible:
     element:
-      text: "Team Feature Player"
+      text: "Team Feature Player ${ATTEMPT_ID}"
     timeout: 30000
 - assertVisible:
     text: ".*Yankees.*"
 
 # ============================================================
-# CLEANUP — delete the test card
+# CLEANUP — delete this attempt's test card
 # ============================================================
 
 - tapOn:
-    id: "Delete card 889"
+    id: "Delete card 889-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 889"
+    id: "Confirm delete card 889-${ATTEMPT_ID}"
 - extendedWaitUntil:
-    notVisible: "Team Feature Player"
+    notVisible: "Team Feature Player ${ATTEMPT_ID}"
     timeout: 10000

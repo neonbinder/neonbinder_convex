@@ -183,46 +183,10 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Idempotent cleanup: if a prior attempt of this flow left card #992
-# behind, delete it before re-creating. Runner retries (max 2 attempts)
-# rerun this flow against the same per-PR Convex preview, so cardChecklist
-# rows from attempt 1 are still present on attempt 2. Without this cleanup
-# the addCustomCard below would duplicate the row and the assertions in
-# Step B would see prior-attempt override state (e.g., PropTest-NL from
-# Step C) instead of the inherited value from Step A.
-- scrollUntilVisible:
-    element:
-      text: "Propagation Test Player"
-    centerElement: true
-    # 30s timeout: virtualized list with 300+ cards can take a while
-    # to scroll through when the duplicate is near the bottom.
-    timeout: 30000
-    optional: true
-# Loop-delete: prior aborted runs may have left multiple duplicate
-# rows with the same cardNumber + name. Delete every visible match,
-# not just the first one.
-- repeat:
-    while:
-      visible: "Propagation Test Player"
-    commands:
-      - tapOn:
-          id: "Delete card 992"
-      - extendedWaitUntil:
-          visible: "Confirm?"
-          timeout: 5000
-      - tapOn:
-          id: "Confirm delete card 992"
-      - extendedWaitUntil:
-          notVisible: "Confirm?"
-          timeout: 5000
-
-# Re-anchor the page on the "Add Card" button after the optional delete.
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+# Per-attempt-unique card number + player name. The runner injects
+# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
+# collide with attempt-1's row (and its PropTest-NL override) left
+# in the global cardChecklist. No idempotent cleanup loop needed.
 
 # Add a custom card that will serve as the override target.
 - tapOn:
@@ -231,18 +195,18 @@ tags:
     visible:
       id: "Card name"
     timeout: 5000
-- inputText: "992"
+- inputText: "992-${ATTEMPT_ID}"
 - tapOn: "Player name"
-- inputText: "Propagation Test Player"
+- inputText: "Propagation Test Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
 - extendedWaitUntil:
-    visible: "Propagation Test Player"
+    visible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # Open the edit form for our card.
 - tapOn:
-    id: "Edit card 992"
+    id: "Edit card 992-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -290,7 +254,7 @@ tags:
 - tapOn:
     id: "Save card edit"
 - extendedWaitUntil:
-    visible: "Propagation Test Player"
+    visible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # ============================================================
@@ -402,12 +366,12 @@ tags:
 
 - scrollUntilVisible:
     element:
-      text: "Propagation Test Player"
+      text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 30000
 
 - tapOn:
-    id: "Edit card 992"
+    id: "Edit card 992-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -457,20 +421,20 @@ tags:
 - tapOn:
     id: "Save card edit"
 - extendedWaitUntil:
-    visible: "Propagation Test Player"
+    visible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 10000
 
 # ============================================================
-# CLEANUP — delete the test card
+# CLEANUP — delete this attempt's test card
 # ============================================================
 
 - tapOn:
-    id: "Delete card 992"
+    id: "Delete card 992-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 992"
+    id: "Confirm delete card 992-${ATTEMPT_ID}"
 - extendedWaitUntil:
-    notVisible: "Propagation Test Player"
+    notVisible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 10000

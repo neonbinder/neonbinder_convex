@@ -108,44 +108,10 @@ tags:
     visibilityPercentage: 50
     timeout: 10000
 
-# Idempotent cleanup: if a prior attempt of this flow left card #888 +
-# its Yankees chip behind, delete it before re-creating. Runner retries
-# rerun this flow against the same per-PR Convex preview; without
-# cleanup the second attempt's team typeahead returns "No matches" for
-# Yankees (already attached) and the Add tap creates a duplicate row.
-- scrollUntilVisible:
-    element:
-      text: "Team Smoke Player"
-    centerElement: true
-    # 30s timeout: virtualized list with 300+ cards can take a while
-    # to scroll through when the duplicate is near the bottom.
-    timeout: 30000
-    optional: true
-# Loop-delete: prior aborted runs may have left multiple duplicate
-# rows with the same cardNumber + name. Delete every visible match,
-# not just the first one.
-- repeat:
-    while:
-      visible: "Team Smoke Player"
-    commands:
-      - tapOn:
-          id: "Delete card 888"
-      - extendedWaitUntil:
-          visible: "Confirm?"
-          timeout: 5000
-      - tapOn:
-          id: "Confirm delete card 888"
-      - extendedWaitUntil:
-          notVisible: "Confirm?"
-          timeout: 5000
-
-# Re-anchor on the "Add Card" button after the optional delete.
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+# Per-attempt-unique card number + player name. The runner injects
+# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
+# collide with attempt-1's row left in the global cardChecklist. No
+# idempotent cleanup loop needed when names are unique per attempt.
 
 # Add a custom card to use as the edit target.
 - tapOn:
@@ -154,18 +120,29 @@ tags:
     visible:
       id: "Card name"
     timeout: 5000
-- inputText: "888"
+- inputText: "888-${ATTEMPT_ID}"
 - tapOn: "Player name"
-- inputText: "Team Smoke Player"
+- inputText: "Team Smoke Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
 - extendedWaitUntil:
-    visible: "Team Smoke Player"
+    visible: "Team Smoke Player ${ATTEMPT_ID}"
+    timeout: 10000
+
+# Scroll the just-added card into view before tapping its Edit button.
+# Without this, the row may be below the viewport edge after submit,
+# and the Edit-tap coords land on a different row (the team-picker-smoke
+# CI failure on PR #39 showed this exact pattern with stale scroll).
+- scrollUntilVisible:
+    element:
+      id: "Edit card 888-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
     timeout: 10000
 
 # Open the edit form.
 - tapOn:
-    id: "Edit card 888"
+    id: "Edit card 888-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -190,13 +167,15 @@ tags:
 - inputText: "Yankees"
 - extendedWaitUntil:
     visible:
-      text: ".*Yankees.*"
+      id: "Add New York Yankees"
     timeout: 10000
 
-# Pick the team — team name is visible text in the match button.
+# Pick the team — use the typeahead match button's explicit aria-label
+# ("Add New York Yankees" — see TeamPicker.tsx:223). Tapping by `text`
+# was ambiguous: the search input's value also contains "Yankees", and
+# index 0 landed on the input instead of the match button.
 - tapOn:
-    text: ".*Yankees.*"
-    index: 0
+    id: "Add New York Yankees"
 
 # Close the popover by clicking elsewhere.
 - tapOn:
@@ -204,7 +183,7 @@ tags:
 
 # The chip should be visible in the picker area.
 - assertVisible:
-    text: ".*Yankees.*"
+    id: "Remove team New York Yankees"
 
 # Save.
 - tapOn:
@@ -212,18 +191,18 @@ tags:
 
 # Verify the team appears in the card sub-line.
 - extendedWaitUntil:
-    visible: "Team Smoke Player"
+    visible: "Team Smoke Player ${ATTEMPT_ID}"
     timeout: 10000
 - assertVisible:
     text: ".*Yankees.*"
 
-# Clean up: delete the custom card.
+# Clean up: delete this attempt's custom card.
 - tapOn:
-    id: "Delete card 888"
+    id: "Delete card 888-${ATTEMPT_ID}"
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
 - tapOn:
-    id: "Confirm delete card 888"
-# Delete dispatched. Row-disappearance assertion unreliable on per-PR
-# Convex preview where duplicate cardName rows may exist from prior runs.
+    id: "Confirm delete card 888-${ATTEMPT_ID}"
+# Delete dispatched. Row-disappearance assertion is unique enough on
+# ${ATTEMPT_ID}-suffixed names that a future re-add can't false-positive.

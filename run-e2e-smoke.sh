@@ -431,12 +431,19 @@ run_flow_on_worker() {
     if [ "$attempt" -gt 1 ]; then
       echo "↻ [w$worker_index] Retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
     fi
+    # Per-attempt unique ID. Flows that add cards to the global
+    # cardChecklist table reference ${ATTEMPT_ID} in their card
+    # numbers + player names so attempt 2 doesn't collide with the
+    # rows attempt 1 left behind (setup.yaml's resetSetBuilderData
+    # only runs once per CI run, not between in-run retries).
+    local attempt_id="w${worker_index}-a${attempt}-${RANDOM}"
+    local attempt_args=("${worker_args[@]}" -e "ATTEMPT_ID=$attempt_id")
     if [ -n "$TIMEOUT_CMD" ]; then
       # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
       # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
-      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     else
-      "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     fi
     if [ "$exit_code" -eq 0 ]; then
       break
