@@ -178,7 +178,7 @@ tags:
 # ============================================================
 
 - tapOn:
-    id: "Remove team New York Yankees"
+    id: ".*Remove team.*Yankees.*"
 - extendedWaitUntil:
     notVisible: ".*Remove team New York Yankees.*"
     timeout: 5000

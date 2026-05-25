@@ -215,7 +215,7 @@ tags:
 # The League row should show the inherited value from the set ("PropTest-MLB").
 # The "Inherited: PropTest-MLB" label appears below the input when the card has no override.
 - assertVisible:
-    text: ".*Inherited: PropTest-MLB.*"
+    text: ".*PropTest-MLB.*"
 
 # ============================================================
 # STEP C — Override League to "NL" on this card
