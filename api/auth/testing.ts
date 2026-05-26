@@ -133,11 +133,17 @@ export default async function handler(
       deploymentUrl,
       vercelEnv,
       ts: new Date().toISOString(),
+      // Surface upstream Clerk failures into Vercel logs so we can tell
+      // a real "user not found" apart from a 429/5xx that the wrapper
+      // would otherwise mask. Server-side only — the response body below
+      // intentionally omits `detail` because it may contain Clerk
+      // internals that the test client shouldn't see.
+      ...(result.ok ? {} : { detail: result.detail }),
     }),
   );
 
   if (!result.ok) {
-    res.status(result.status).json({ error: result.error, detail: result.detail });
+    res.status(result.status).json({ error: result.error });
     return;
   }
 

@@ -8,7 +8,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["convex/**/*.test.ts"],
+    include: ["convex/**/*.test.ts", "lib/**/*.test.ts"],
     ...({ environmentMatchGlobs: [["convex/**", "edge-runtime"]] } as Record<string, unknown>),
   },
   resolve: {
