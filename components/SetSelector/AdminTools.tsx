@@ -129,7 +129,7 @@ export default function AdminTools() {
             users.
           </p>
         </div>
-        {status.kind === "idle" && (
+        {status.kind !== "confirming" && status.kind !== "running" && (
           <div className="flex gap-2 flex-wrap">
             <NeonButton
               secondary

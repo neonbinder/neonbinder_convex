@@ -4,6 +4,7 @@ name: "Variant metadata editor — edit Prefix on a custom Insert variant and ve
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # Tests the VariantMetadataEditor component on an Insert variantType variant row.
 #
