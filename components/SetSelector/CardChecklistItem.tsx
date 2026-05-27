@@ -142,55 +142,54 @@ export default function CardChecklistItem({
     return (
       <div
         ref={editFormRef}
-        // No inner max-h / overflow. An inner overflow:auto container hides
-        // its trailing content (Save/Cancel) from Maestro's page-level
-        // scrollUntilVisible — Maestro can only scroll the page, not the
-        // inner container. Letting the form grow vertically and relying on
-        // page scroll keeps Save reachable for headless tests and real
-        // users alike. (Earlier code used max-h-[70vh] overflow-y-auto for
-        // short-viewport ergonomics; the headless cost wasn't worth it.)
-        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2"
+        // Outer wrapper has no overflow. Save/Cancel render OUTSIDE the
+        // inner overflow-y-auto region so they're always reachable by
+        // Maestro's page-level scrollUntilVisible AND by any user
+        // regardless of how tall the features editor has grown.
+        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
         aria-label={`Edit card ${card.cardNumber}`}
       >
-        <div className="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            value={cardName}
-            onChange={(e) => setCardName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void handleSave();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setCardName(card.cardName);
-                setTeamIds(card.teamOnCardIds ?? []);
-                setEditing(false);
-              }
-            }}
-            className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-            placeholder="Card name"
-            aria-label="Card name"
-            autoFocus
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={cardName}
+              onChange={(e) => setCardName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSave();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setCardName(card.cardName);
+                  setTeamIds(card.teamOnCardIds ?? []);
+                  setEditing(false);
+                }
+              }}
+              className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+              placeholder="Card name"
+              aria-label="Card name"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+              Teams
+            </label>
+            <TeamPicker
+              value={teamIds}
+              onChange={setTeamIds}
+              sport={ancestorSport}
+            />
+          </div>
+          <CardFeaturesEditor
+            cardChecklistId={card._id}
+            selectorOptionId={card.selectorOptionId}
+            cardFeatures={card.features}
+            ancestorSport={ancestorSport}
           />
         </div>
-        <div>
-          <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-            Teams
-          </label>
-          <TeamPicker
-            value={teamIds}
-            onChange={setTeamIds}
-            sport={ancestorSport}
-          />
-        </div>
-        <CardFeaturesEditor
-          cardChecklistId={card._id}
-          selectorOptionId={card.selectorOptionId}
-          cardFeatures={card.features}
-          ancestorSport={ancestorSport}
-        />
-        <div className="flex gap-1">
+        <div className="flex gap-1 pt-2 mt-2 border-t border-gray-300 dark:border-gray-600">
           <button
             onClick={handleSave}
             aria-label="Save card edit"

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
@@ -97,13 +96,12 @@ export default function CardChecklist({
     setSourceFilter({ bsc: null, sportlots: null });
   }, [variantId]);
 
-  // Virtuoso scroll handle + a one-shot flag so that when the user adds a
-  // card via the form, the just-added row is scrolled into view. New cards
-  // sort to the end of the list (sortOrder = max + 1), and Virtuoso only
-  // renders rows in/near the viewport — without this the user (and the
-  // E2E test) would see no visible feedback after submit. Cleared after
-  // the next render where `cards` length has grown.
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // Scroll-to-new-card: one-shot flag so when the user adds a card via the
+  // form, the just-added row is scrolled into view. New cards sort to the
+  // end of the list (sortOrder = max + 1). Used by the scrollIntoView
+  // effect below. Without it the user (and Maestro) would see no visible
+  // feedback after submit. Cleared once `cards` length has grown.
+  const newCardRowRef = useRef<HTMLDivElement>(null);
   const scrollToNewCardRef = useRef(false);
   const prevCardCountRef = useRef(0);
 
@@ -216,7 +214,7 @@ export default function CardChecklist({
 
   // After the addCustomCard mutation resolves, Convex's reactive query
   // refreshes `cards` with the new row appended. Detect the length growth
-  // and scroll Virtuoso to the new (last) entry exactly once.
+  // and scroll the new (last) DOM row into view exactly once.
   useEffect(() => {
     const count = cards?.length ?? 0;
     if (
@@ -224,17 +222,8 @@ export default function CardChecklist({
       count > prevCardCountRef.current &&
       count > 0
     ) {
-      virtuosoRef.current?.scrollToIndex({
-        index: count - 1,
-        align: "end",
-        // "auto" (instant) instead of "smooth" so the just-added row is
-        // in the viewport on the next frame. Smooth-scroll animation
-        // (~300-800 ms via Virtuoso) was racing Maestro's "is visible"
-        // check on cold runners and causing card-features-missing /
-        // team-picker / features-propagation flows to fail right after
-        // Submit. UX-wise the row appears at the bottom of the list
-        // either way; the animation is barely noticeable on the
-        // typical-fast path and doesn't add information.
+      newCardRowRef.current?.scrollIntoView({
+        block: "center",
         behavior: "auto",
       });
       scrollToNewCardRef.current = false;
@@ -411,31 +400,34 @@ export default function CardChecklist({
             </NeonButton>
           </div>
         ) : (
-          <Virtuoso
-            ref={virtuosoRef}
-            data={sortedCards}
-            computeItemKey={(_, card) => card._id}
-            itemContent={(_, card) => (
-              <div className="pb-1.5">
+          // Non-virtualized: every card row is in the DOM regardless of
+          // viewport. Trade-off: 600+ cards = 600+ items mounted at once,
+          // which is a one-time render cost but completely flat for
+          // subsequent interactions. Why we left virtualization behind:
+          // Virtuoso's inner-scroll container hid off-fold rows from
+          // Maestro's page-level `scrollUntilVisible` (Maestro can't
+          // scroll inside another scrollable element) — features-propagation
+          // Step E and team-picker Test 7 reload-check both needed to
+          // find a freshly-added card that virtualization had unmounted.
+          // `useWindowScroll` mode of Virtuoso changed which "Value for
+          // League" Maestro matched (SetFeaturesPanel vs CardFeaturesEditor)
+          // because items rendered at different page positions, breaking
+          // unrelated assertions. Non-virtualized is the simplest path
+          // where Maestro and a real user behave the same.
+          <div className="space-y-1.5">
+            {sortedCards.map((card, i) => (
+              <div
+                key={card._id}
+                ref={i === sortedCards.length - 1 ? newCardRowRef : undefined}
+              >
                 <CardChecklistItem
                   card={card}
                   sourceLabelMaps={sourceLabelMaps}
                   ancestorSport={ancestorSport}
                 />
               </div>
-            )}
-            // useWindowScroll: virtualize using the document scroll instead
-            // of a fixed-height inner container. The inner container hid
-            // off-fold rows from Maestro's page-level scrollUntilVisible —
-            // it could only scroll the page, not the Virtuoso viewport,
-            // and the test's targets (`Edit card N`, `Save card edit`)
-            // for cards near the bottom of a 600+ row list were never
-            // reachable. Page-scroll mode lets Maestro find them by
-            // scrolling normally. Real users get a slightly different
-            // shape (no internal scrollbar) but the same content.
-            useWindowScroll
-            increaseViewportBy={{ top: 200, bottom: 400 }}
-          />
+            ))}
+          </div>
         )}
       </div>
 
