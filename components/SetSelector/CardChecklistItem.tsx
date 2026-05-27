@@ -142,11 +142,14 @@ export default function CardChecklistItem({
     return (
       <div
         ref={editFormRef}
-        // max-h + overflow-y so the form stays addressable by Maestro / a
-        // user on short viewports once Show-features-editor expands it
-        // past viewport height — Save/Cancel/Delete remain reachable by
-        // scrolling within the form rather than the page.
-        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2 max-h-[70vh] overflow-y-auto"
+        // No inner max-h / overflow. An inner overflow:auto container hides
+        // its trailing content (Save/Cancel) from Maestro's page-level
+        // scrollUntilVisible — Maestro can only scroll the page, not the
+        // inner container. Letting the form grow vertically and relying on
+        // page scroll keeps Save reachable for headless tests and real
+        // users alike. (Earlier code used max-h-[70vh] overflow-y-auto for
+        // short-viewport ergonomics; the headless cost wasn't worth it.)
+        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2"
         aria-label={`Edit card ${card.cardNumber}`}
       >
         <div className="flex gap-2 flex-wrap">

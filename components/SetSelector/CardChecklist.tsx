@@ -424,7 +424,16 @@ export default function CardChecklist({
                 />
               </div>
             )}
-            style={{ height: "min(70vh, 800px)" }}
+            // useWindowScroll: virtualize using the document scroll instead
+            // of a fixed-height inner container. The inner container hid
+            // off-fold rows from Maestro's page-level scrollUntilVisible —
+            // it could only scroll the page, not the Virtuoso viewport,
+            // and the test's targets (`Edit card N`, `Save card edit`)
+            // for cards near the bottom of a 600+ row list were never
+            // reachable. Page-scroll mode lets Maestro find them by
+            // scrolling normally. Real users get a slightly different
+            // shape (no internal scrollbar) but the same content.
+            useWindowScroll
             increaseViewportBy={{ top: 200, bottom: 400 }}
           />
         )}
