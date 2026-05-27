@@ -53,6 +53,7 @@ describe("issueClerkTestingTokens", () => {
       ok: true,
       signInToken: "st_x",
       testingToken: "tt_x",
+      clerkUserId: "user_x",
     });
     // 3 calls: /users + parallel /sign_in_tokens + /testing_tokens
     expect(fetchFn).toHaveBeenCalledTimes(3);

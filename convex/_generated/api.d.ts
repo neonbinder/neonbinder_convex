@@ -33,6 +33,7 @@ import type * as resolveRedirect from "../resolveRedirect.js";
 import type * as selectorOptions from "../selectorOptions.js";
 import type * as setReconciliation from "../setReconciliation.js";
 import type * as teams from "../teams.js";
+import type * as testing from "../testing.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   selectorOptions: typeof selectorOptions;
   setReconciliation: typeof setReconciliation;
   teams: typeof teams;
+  testing: typeof testing;
   userProfile: typeof userProfile;
 }>;
 

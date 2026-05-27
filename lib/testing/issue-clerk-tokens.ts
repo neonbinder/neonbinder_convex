@@ -23,7 +23,12 @@ export interface ClerkErrorDetail {
 }
 
 export type IssueResult =
-  | { ok: true; signInToken: string; testingToken: string | undefined }
+  | {
+      ok: true;
+      signInToken: string;
+      testingToken: string | undefined;
+      clerkUserId: string;
+    }
   | {
       ok: false;
       status: number;
@@ -253,5 +258,6 @@ export async function issueClerkTestingTokens(
     ok: true,
     signInToken: signInBody.token,
     testingToken,
+    clerkUserId: userId,
   };
 }

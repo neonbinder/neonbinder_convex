@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { issueClerkTestingTokens } from "../../lib/testing/issue-clerk-tokens.js";
+import { resetTestUserState } from "../../lib/testing/reset-test-user.js";
 
 // POST /api/auth/testing — mints Clerk sign-in + testing tokens for E2E runs.
 //
@@ -144,6 +145,39 @@ export default async function handler(
 
   if (!result.ok) {
     res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  // Per-user state reset for test isolation. NEW_PROFILE_TEST_EMAIL_<worker>
+  // and TEST_EMAIL_<worker> are reused across CI runs; without this, prior
+  // runs' profile/preferences/prize-pool rows leak into the next run and
+  // cause assertion failures (the canary was `assertVisible
+  // "→ paypal.me/<expected>"` in fill-profile-data.yaml, where Maestro
+  // `inputText` was appending to a non-empty field).
+  const resetResult = await resetTestUserState({
+    convexUrl: process.env.VITE_CONVEX_URL,
+    testingResetSecret: process.env.TESTING_RESET_SECRET,
+    clerkUserId: result.clerkUserId,
+  });
+  console.log(
+    JSON.stringify({
+      event: "testing_user_reset",
+      ok: resetResult.ok,
+      account,
+      worker,
+      email: testEmail,
+      clerkUserId: result.clerkUserId,
+      ts: new Date().toISOString(),
+      ...(resetResult.ok
+        ? { counts: resetResult.counts }
+        : { status: resetResult.status, error: resetResult.error, detail: resetResult.detail }),
+    }),
+  );
+  if (!resetResult.ok) {
+    // Hard fail: returning the tokens without a clean state would mean the
+    // test runs against polluted data — the original bug. Better to surface
+    // the misconfiguration than to mint tokens and let the flow flake.
+    res.status(resetResult.status).json({ error: resetResult.error });
     return;
   }
 
