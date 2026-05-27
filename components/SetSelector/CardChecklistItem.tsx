@@ -142,54 +142,52 @@ export default function CardChecklistItem({
     return (
       <div
         ref={editFormRef}
-        // Outer wrapper has no overflow. Save/Cancel render OUTSIDE the
-        // inner overflow-y-auto region so they're always reachable by
-        // Maestro's page-level scrollUntilVisible AND by any user
-        // regardless of how tall the features editor has grown.
-        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
+        // max-h + overflow-y so the form stays addressable by Maestro / a
+        // user on short viewports once Show-features-editor expands it
+        // past viewport height — Save/Cancel/Delete remain reachable by
+        // scrolling within the form rather than the page.
+        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2 max-h-[70vh] overflow-y-auto"
         aria-label={`Edit card ${card.cardNumber}`}
       >
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-          <div className="flex gap-2 flex-wrap">
-            <input
-              type="text"
-              value={cardName}
-              onChange={(e) => setCardName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void handleSave();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  setCardName(card.cardName);
-                  setTeamIds(card.teamOnCardIds ?? []);
-                  setEditing(false);
-                }
-              }}
-              className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-              placeholder="Card name"
-              aria-label="Card name"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-              Teams
-            </label>
-            <TeamPicker
-              value={teamIds}
-              onChange={setTeamIds}
-              sport={ancestorSport}
-            />
-          </div>
-          <CardFeaturesEditor
-            cardChecklistId={card._id}
-            selectorOptionId={card.selectorOptionId}
-            cardFeatures={card.features}
-            ancestorSport={ancestorSport}
+        <div className="flex gap-2 flex-wrap">
+          <input
+            type="text"
+            value={cardName}
+            onChange={(e) => setCardName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleSave();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setCardName(card.cardName);
+                setTeamIds(card.teamOnCardIds ?? []);
+                setEditing(false);
+              }
+            }}
+            className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+            placeholder="Card name"
+            aria-label="Card name"
+            autoFocus
           />
         </div>
-        <div className="flex gap-1 pt-2 mt-2 border-t border-gray-300 dark:border-gray-600">
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+            Teams
+          </label>
+          <TeamPicker
+            value={teamIds}
+            onChange={setTeamIds}
+            sport={ancestorSport}
+          />
+        </div>
+        <CardFeaturesEditor
+          cardChecklistId={card._id}
+          selectorOptionId={card.selectorOptionId}
+          cardFeatures={card.features}
+          ancestorSport={ancestorSport}
+        />
+        <div className="flex gap-1">
           <button
             onClick={handleSave}
             aria-label="Save card edit"
