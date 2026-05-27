@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -78,16 +79,8 @@ export default function CardChecklistItem({
   ancestorSport,
 }: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
-  const editFormRef = useRef<HTMLDivElement | null>(null);
+  const cardNameInputRef = useRef<HTMLInputElement | null>(null);
 
-  // When the inline edit form opens, scroll it fully into view so the
-  // TeamPicker, features section, and Save/Cancel buttons aren't hidden
-  // below the fold on short viewports (Maestro headless web = 1024×629).
-  useEffect(() => {
-    if (editing && editFormRef.current) {
-      editFormRef.current.scrollIntoView({ block: "center" });
-    }
-  }, [editing]);
   const [cardName, setCardName] = useState(card.cardName);
   // NEO-26: teamOnCardIds is the canonical representation. Local
   // draft list is committed on Save; cancel reverts to the prop value.
@@ -138,78 +131,127 @@ export default function CardChecklistItem({
     return teamRows.map((t) => t.name).join(", ");
   }, [teamRows]);
 
-  if (editing) {
-    return (
-      <div
-        ref={editFormRef}
-        // max-h + overflow-y so the form stays addressable by Maestro / a
-        // user on short viewports once Show-features-editor expands it
-        // past viewport height — Save/Cancel/Delete remain reachable by
-        // scrolling within the form rather than the page.
-        className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2 max-h-[70vh] overflow-y-auto"
-        aria-label={`Edit card ${card.cardNumber}`}
-      >
-        <div className="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            value={cardName}
-            onChange={(e) => setCardName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void handleSave();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setCardName(card.cardName);
-                setTeamIds(card.teamOnCardIds ?? []);
-                setEditing(false);
-              }
-            }}
-            className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-            placeholder="Card name"
-            aria-label="Card name"
-            autoFocus
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-            Teams
-          </label>
-          <TeamPicker
-            value={teamIds}
-            onChange={setTeamIds}
-            sport={ancestorSport}
-          />
-        </div>
-        <CardFeaturesEditor
-          cardChecklistId={card._id}
-          selectorOptionId={card.selectorOptionId}
-          cardFeatures={card.features}
-          ancestorSport={ancestorSport}
-        />
-        <div className="flex gap-1">
-          <button
-            onClick={handleSave}
-            aria-label="Save card edit"
-            className="px-2 py-1 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
+  const cancelEdit = () => {
+    setCardName(card.cardName);
+    setTeamIds(card.teamOnCardIds ?? []);
+    setEditing(false);
+  };
+
+  // Focus the card-name input when the modal opens.
+  useEffect(() => {
+    if (editing) cardNameInputRef.current?.focus();
+  }, [editing]);
+
+  // Escape closes the modal with cancel semantics. Listening on the
+  // document covers Escape from inside the TeamPicker popover too.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEdit();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  // Portal to document.body so the modal isn't a descendant of the
+  // Virtuoso row's React tree. Virtuoso re-measures and shuffles its
+  // children aggressively; rendering the modal as a row sibling caused
+  // Maestro's hierarchy-based-tap to occasionally not see the modal
+  // appear after clicking Edit. The portal renders the modal as a
+  // direct child of <body>, fully decoupled from Virtuoso.
+  const editModal = editing ? createPortal(
+    // Fixed positioning escapes Virtuoso's inner scroll + the row's any
+    // ancestor overflow boundary, so Save/Cancel + the TeamPicker
+    // popover are always reachable on the Maestro headless 1024×629
+    // viewport without scrolling a nested container.
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`edit-card-title-${card._id}`}
+      onClick={(e) => {
+        // Click-outside-to-cancel: only fire when the backdrop itself is
+        // the target, not when a click bubbles up from the content box.
+        if (e.target === e.currentTarget) cancelEdit();
+      }}
+    >
+      <div className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-300 dark:border-gray-600">
+          <h2
+            id={`edit-card-title-${card._id}`}
+            className="text-sm font-semibold text-gray-900 dark:text-gray-100"
           >
-            Save
-          </button>
+            Edit card #{card.cardNumber}
+          </h2>
+        </div>
+        {/* Static section: name + teams. No overflow-y-auto so the
+            TeamPicker's absolute-positioned popover can extend below
+            its trigger without being clipped at the section boundary. */}
+        <div className="px-4 pt-4 pb-3 space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              ref={cardNameInputRef}
+              type="text"
+              value={cardName}
+              onChange={(e) => setCardName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSave();
+                }
+              }}
+              className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+              placeholder="Card name"
+              aria-label="Card name"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+              Teams
+            </label>
+            <TeamPicker
+              value={teamIds}
+              onChange={setTeamIds}
+              sport={ancestorSport}
+            />
+          </div>
+        </div>
+        {/* Features editor is the tall section — give it the modal's
+            remaining vertical space with its own scroll boundary so the
+            modal as a whole doesn't need a content-wide scroll (which
+            would clip the TeamPicker popover). */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+          <CardFeaturesEditor
+            cardChecklistId={card._id}
+            selectorOptionId={card.selectorOptionId}
+            cardFeatures={card.features}
+            ancestorSport={ancestorSport}
+          />
+        </div>
+        <div className="px-4 py-3 border-t border-gray-300 dark:border-gray-600 flex gap-2 justify-end">
           <button
-            onClick={() => {
-              setCardName(card.cardName);
-              setTeamIds(card.teamOnCardIds ?? []);
-              setEditing(false);
-            }}
+            onClick={cancelEdit}
             aria-label="Cancel card edit"
-            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+            className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
           >
             Cancel
           </button>
+          <button
+            onClick={handleSave}
+            aria-label="Save card edit"
+            className="px-3 py-1.5 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
+          >
+            Save
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>,
+    document.body,
+  ) : null;
 
   // Build the secondary line: "<team(s)> · /99 · Refractor · On-Card auto"
   const subParts: string[] = [];
@@ -219,6 +261,8 @@ export default function CardChecklistItem({
   if (card.autographType) subParts.push(`${card.autographType} auto`);
 
   return (
+    <>
+    {editModal}
     <div className="flex items-center gap-3 p-2.5 border rounded-md dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
       <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-12 text-right shrink-0">
         #{card.cardNumber}
@@ -324,5 +368,6 @@ export default function CardChecklistItem({
         )}
       </div>
     </div>
+    </>
   );
 }

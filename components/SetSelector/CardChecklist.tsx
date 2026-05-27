@@ -104,7 +104,7 @@ export default function CardChecklist({
   // see no visible feedback after submit. Cleared once `cards` length has
   // grown.
   const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollToNewCardRef = useRef(false);
+  const newCardIdRef = useRef<Id<"cardChecklist"> | null>(null);
   const prevCardCountRef = useRef(0);
 
   /**
@@ -192,7 +192,7 @@ export default function CardChecklist({
       .filter((n) => n.length > 0);
     const teamTrimmed = newTeam.trim();
     try {
-      await addCustomCard({
+      const newId = await addCustomCard({
         selectorOptionId: variantId,
         cardNumber: newCardNumber.trim(),
         cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
@@ -208,31 +208,46 @@ export default function CardChecklist({
       setNewTeam("");
       setNewPlayers("");
       setShowAddForm(false);
-      scrollToNewCardRef.current = true;
+      newCardIdRef.current = newId;
     } catch (error) {
       console.error("Failed to add card:", error);
     }
   };
 
   // After the addCustomCard mutation resolves, Convex's reactive query
-  // refreshes `cards` with the new row appended. Detect the length growth
-  // and scroll Virtuoso to the new (last) entry exactly once.
+  // refreshes `cards` with the new row. The new card's position in the
+  // sorted list is NOT necessarily the last index — addCustomCard calls
+  // restampCardChecklistSortOrders which slots the card by natural
+  // cardNumber order. Find the new card by id and scroll Virtuoso to it.
+  // "center" keeps the row away from the sticky binder-header at y≈84,
+  // where Maestro's bounds-then-tap window races Virtuoso's height
+  // recompute (edit-and-delete-card.yaml regression).
   useEffect(() => {
     const count = cards?.length ?? 0;
-    if (
-      scrollToNewCardRef.current &&
-      count > prevCardCountRef.current &&
-      count > 0
-    ) {
-      virtuosoRef.current?.scrollToIndex({
-        index: count - 1,
-        align: "end",
-        behavior: "auto",
-      });
-      scrollToNewCardRef.current = false;
+    const targetId = newCardIdRef.current;
+    if (targetId && count > prevCardCountRef.current && cards) {
+      const idx = cards.findIndex((c) => c._id === targetId);
+      if (idx >= 0) {
+        // The data prop on Virtuoso below is sortedCards, which sorts by
+        // sortOrder ascending. cards from Convex carry sortOrder fields,
+        // so a sort-aware index is needed. Compute it via cardsBySortOrder.
+        const sortedIdx = [...cards]
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .findIndex((c) => c._id === targetId);
+        if (sortedIdx >= 0) {
+          requestAnimationFrame(() => {
+            virtuosoRef.current?.scrollToIndex({
+              index: sortedIdx,
+              align: "center",
+              behavior: "auto",
+            });
+          });
+        }
+        newCardIdRef.current = null;
+      }
     }
     prevCardCountRef.current = count;
-  }, [cards?.length]);
+  }, [cards?.length, cards]);
 
   if (!cards) {
     return (
