@@ -227,7 +227,15 @@ export default function CardChecklist({
       virtuosoRef.current?.scrollToIndex({
         index: count - 1,
         align: "end",
-        behavior: "smooth",
+        // "auto" (instant) instead of "smooth" so the just-added row is
+        // in the viewport on the next frame. Smooth-scroll animation
+        // (~300-800 ms via Virtuoso) was racing Maestro's "is visible"
+        // check on cold runners and causing card-features-missing /
+        // team-picker / features-propagation flows to fail right after
+        // Submit. UX-wise the row appears at the bottom of the list
+        // either way; the animation is barely noticeable on the
+        // typical-fast path and doesn't add information.
+        behavior: "auto",
       });
       scrollToNewCardRef.current = false;
     }
