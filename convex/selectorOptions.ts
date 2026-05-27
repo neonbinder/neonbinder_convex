@@ -3,6 +3,11 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getCurrentUserId, requireAdmin } from "./auth";
+import {
+  recordAdapterCall,
+  newRequestId,
+  classifyAdapterError,
+} from "./observability";
 
 // ===== LEVEL VALIDATOR (reused across functions) =====
 const levelValidator = v.union(
@@ -1797,12 +1802,21 @@ export const fetchAggregatedOptions = action({
     // cleanly to the client instead of being rewritten as "Failed to fetch
     // options: Admin access required" by the generic catch below.
     await requireAdmin(ctx);
+
+    // Correlation id for the adapter-perf dashboard. Generated here at the
+    // outermost aggregator so child BSC/SL calls can tag their own
+    // adapter_sync_call events with the same id, letting us reconstruct the
+    // total/branch breakdown for a single user-facing request.
+    const requestId = newRequestId();
+    const aggregatorStart = Date.now();
+
     try {
       const { level, parentId, parentFilters } = args;
 
       console.log(
         `[fetchAggregatedOptions] Fetching ${level} options with filters:`,
         parentFilters,
+        `requestId=${requestId}`,
       );
 
       // Build platform-specific filters from the ancestor chain so each
@@ -1836,6 +1850,19 @@ export const fetchAggregatedOptions = action({
           console.log(
             `[fetchAggregatedOptions] custom subtree detected — skipping BSC/SL for level=${level}`,
           );
+          await recordAdapterCall(ctx, {
+            requestId,
+            operation: "fetchAggregatedOptions",
+            platform: "aggregator",
+            level,
+            parentSport: parentFilters?.sport,
+            parentYear: parentFilters?.year,
+            parentSetName: parentFilters?.setName,
+            duration_ms: Date.now() - aggregatorStart,
+            success: true,
+            result_count: 0,
+            error_class: "skipped_custom_subtree",
+          });
           return {
             success: true,
             message:
@@ -1880,6 +1907,19 @@ export const fetchAggregatedOptions = action({
           `slugs on: ${aggMissingBsc.join(", ")}. Upstream selectorOptions ` +
           `hydration did not write the BSC slugs we need.`;
         console.error(`[fetchAggregatedOptions] precondition failed: ${msg}`);
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchAggregatedOptions",
+          platform: "aggregator",
+          level,
+          parentSport: parentFilters?.sport,
+          parentYear: parentFilters?.year,
+          parentSetName: parentFilters?.setName,
+          duration_ms: Date.now() - aggregatorStart,
+          success: false,
+          result_count: 0,
+          error_class: "precondition_missing_slug",
+        });
         return {
           success: false,
           message: msg,
@@ -1903,22 +1943,39 @@ export const fetchAggregatedOptions = action({
       // Promise.allSettled keeps one slow/failing platform from blocking
       // the other; per-platform errors are still captured into
       // platformErrors for the PostHog event + warning suffix.
+      //
+      // Each branch is wrapped in a Date.now() pair so we can attribute
+      // total_ms to the SL branch vs the BSC branch on the adapter-perf
+      // dashboard. Per-branch adapter_sync_call events are also fired by
+      // the child actions themselves (see fetchBscSelectorOptions /
+      // fetchSportLotsSelectorOptions) — this aggregator-level event is
+      // what tells us how the two compose under Promise.allSettled.
+      const slStart = Date.now();
+      const bscStart = Date.now();
       const [slSettled, bscSettled] = await Promise.allSettled([
         ctx.runAction(api.adapters.sportlots.fetchSportLotsSelectorOptions, {
           level,
           parentFilters: parentFilters || {},
           ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
+          requestId,
         }),
         ctx.runAction(api.adapters.buysportscards.fetchBscSelectorOptions, {
           level,
           parentFilters: parentFilters || {},
           ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
+          requestId,
         }),
       ]);
+      const slDurationMs = Date.now() - slStart;
+      const bscDurationMs = Date.now() - bscStart;
+
+      let slSuccess = false;
+      let bscSuccess = false;
 
       if (slSettled.status === "fulfilled") {
         const sportlotsOptions = slSettled.value;
         if (sportlotsOptions.success && sportlotsOptions.options) {
+          slSuccess = true;
           allOptions.push(
             ...sportlotsOptions.options.map((o: { value: string; platformValue: string }) => ({
               value: o.value,
@@ -1937,6 +1994,7 @@ export const fetchAggregatedOptions = action({
       if (bscSettled.status === "fulfilled") {
         const bscOptions = bscSettled.value;
         if (bscOptions.success && bscOptions.options) {
+          bscSuccess = true;
           allOptions.push(
             ...bscOptions.options.map((o: { value: string; platformValue: string }) => ({
               value: o.value,
@@ -2012,6 +2070,25 @@ export const fetchAggregatedOptions = action({
 
       // 5. If no options were fetched from any platform, report failure
       if (deduped.length === 0) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchAggregatedOptions",
+          platform: "aggregator",
+          level,
+          parentSport: parentFilters?.sport,
+          parentYear: parentFilters?.year,
+          parentSetName: parentFilters?.setName,
+          duration_ms: Date.now() - aggregatorStart,
+          success: false,
+          sl_ms: slDurationMs,
+          bsc_ms: bscDurationMs,
+          sl_success: slSuccess,
+          bsc_success: bscSuccess,
+          result_count: 0,
+          error_class: classifyAdapterError(
+            platformErrors.bsc || platformErrors.sportlots,
+          ),
+        });
         return {
           success: false,
           message: `No ${level} options returned from any platform. Check that credentials are configured for BSC and SportLots.`,
@@ -2040,6 +2117,29 @@ export const fetchAggregatedOptions = action({
               .join("; ")})`
           : "";
 
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchAggregatedOptions",
+        platform: "aggregator",
+        level,
+        parentSport: parentFilters?.sport,
+        parentYear: parentFilters?.year,
+        parentSetName: parentFilters?.setName,
+        duration_ms: Date.now() - aggregatorStart,
+        success: result.success,
+        sl_ms: slDurationMs,
+        bsc_ms: bscDurationMs,
+        sl_success: slSuccess,
+        bsc_success: bscSuccess,
+        result_count: result.optionsCount,
+        error_class:
+          Object.keys(platformErrors).length > 0
+            ? classifyAdapterError(
+                platformErrors.bsc || platformErrors.sportlots,
+              )
+            : undefined,
+      });
+
       return {
         success: result.success,
         message: result.message + warningSuffix,
@@ -2047,6 +2147,21 @@ export const fetchAggregatedOptions = action({
       };
     } catch (error) {
       console.error(`[fetchAggregatedOptions] Error:`, error);
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchAggregatedOptions",
+        platform: "aggregator",
+        level: args.level,
+        parentSport: args.parentFilters?.sport,
+        parentYear: args.parentFilters?.year,
+        parentSetName: args.parentFilters?.setName,
+        duration_ms: Date.now() - aggregatorStart,
+        success: false,
+        result_count: 0,
+        error_class: classifyAdapterError(
+          error instanceof Error ? error.message : String(error),
+        ),
+      });
       return {
         success: false,
         message: `Failed to fetch options: ${error instanceof Error ? error.message : "Unknown error"}`,

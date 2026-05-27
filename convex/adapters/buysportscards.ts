@@ -4,6 +4,11 @@ import { action, internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
 import { requireAdmin } from "../auth";
+import {
+  recordAdapterCall,
+  newRequestId,
+  classifyAdapterError,
+} from "../observability";
 
 // Real BSC filter endpoint (ported from cardlister-server/script-frontend/src/listing-sites/bsc.ts).
 // The earlier www.buysportscards.com URL was a webpage path, not an API — CloudFront returned 403.
@@ -59,13 +64,20 @@ function bscHeaders(bearerToken: string): Record<string, string> {
  * must run as Convex actions themselves.
  */
 export const getBscToken = internalAction({
-  args: {},
+  args: {
+    // Optional correlation id from a parent aggregator call. When absent we
+    // mint a fresh one so standalone getBscToken invocations are still
+    // self-correlatable on the perf dashboard.
+    requestId: v.optional(v.string()),
+  },
   returns: v.object({
     success: v.boolean(),
     token: v.optional(v.string()),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx): Promise<{ success: boolean; token?: string; error?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; token?: string; error?: string }> => {
+    const requestId = args.requestId ?? newRequestId();
+    const start = Date.now();
     try {
       const tokenResult = await ctx.runAction(
         internal.credentials.getSiteToken,
@@ -73,15 +85,40 @@ export const getBscToken = internalAction({
       );
 
       if (tokenResult?.token) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "getBscToken",
+          platform: "bsc",
+          duration_ms: Date.now() - start,
+          success: true,
+        });
         return { success: true, token: tokenResult.token };
       }
 
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "getBscToken",
+        platform: "bsc",
+        duration_ms: Date.now() - start,
+        success: false,
+        error_class: "no_credentials",
+      });
       return {
         success: false,
         error: "No BSC token available. Connect your BSC account first.",
       };
     } catch (error) {
       console.error("[getBscToken] Error:", error);
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "getBscToken",
+        platform: "bsc",
+        duration_ms: Date.now() - start,
+        success: false,
+        error_class: classifyAdapterError(
+          error instanceof Error ? error.message : String(error),
+        ),
+      });
       return {
         success: false,
         error: `Failed to get BSC token: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -106,6 +143,9 @@ export const fetchBscSelectorOptions = action({
     // Pre-resolved BSC slugs keyed by level (e.g., { sport: ["basketball"], year: ["2024"] }).
     // When provided, these are used instead of parentFilters for the BSC API call.
     platformFilters: v.optional(v.record(v.string(), v.array(v.string()))),
+    // Optional correlation id from a parent aggregator call. When absent we
+    // mint a fresh one so standalone calls are still self-correlatable.
+    requestId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -119,14 +159,34 @@ export const fetchBscSelectorOptions = action({
   }),
   handler: async (ctx, args): Promise<{ success: boolean; options: Array<{ value: string; platformValue: string }>; message?: string }> => {
     await requireAdmin(ctx);
+    const requestId = args.requestId ?? newRequestId();
+    const start = Date.now();
+    let tokenMs: number | undefined;
+    let filtersCallMs: number | undefined;
+    let statusCode: number | undefined;
     try {
       // Get BSC token
+      const tokenStart = Date.now();
       const tokenResult: { success: boolean; token?: string; error?: string } = await ctx.runAction(
         internal.adapters.buysportscards.getBscToken,
-        {},
+        { requestId },
       );
+      tokenMs = Date.now() - tokenStart;
 
       if (!tokenResult.success || !tokenResult.token) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchBscSelectorOptions",
+          platform: "bsc",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          success: false,
+          error_class: "no_credentials",
+        });
         return {
           success: false,
           options: [],
@@ -167,6 +227,19 @@ export const fetchBscSelectorOptions = action({
 
       const facetKey = LEVEL_TO_BSC_FACET[args.level];
       if (!facetKey) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchBscSelectorOptions",
+          platform: "bsc",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          success: false,
+          error_class: "unsupported_level",
+        });
         return {
           success: false,
           options: [],
@@ -175,6 +248,7 @@ export const fetchBscSelectorOptions = action({
       }
 
       let response: Response;
+      const filtersStart = Date.now();
       try {
         response = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
           method: "POST",
@@ -182,12 +256,29 @@ export const fetchBscSelectorOptions = action({
           body: JSON.stringify({ filters }),
           signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
         });
+        filtersCallMs = Date.now() - filtersStart;
+        statusCode = response.status;
       } catch (err) {
+        filtersCallMs = Date.now() - filtersStart;
         const isTimeout = err instanceof Error && err.name === "TimeoutError";
         const msg = isTimeout
           ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
           : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
         console.error(`[fetchBscSelectorOptions] ${msg}`);
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchBscSelectorOptions",
+          platform: "bsc",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          success: false,
+          error_class: classifyAdapterError(msg),
+        });
         return { success: false, options: [], message: msg };
       }
 
@@ -196,6 +287,21 @@ export const fetchBscSelectorOptions = action({
         console.error(
           `[fetchBscSelectorOptions] BSC API ${response.status}: ${errText.slice(0, 300)}`,
         );
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchBscSelectorOptions",
+          platform: "bsc",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          error_class: classifyAdapterError(`BSC API ${response.status}`),
+        });
         return {
           success: false,
           options: [],
@@ -227,6 +333,22 @@ export const fetchBscSelectorOptions = action({
         });
       }
 
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchBscSelectorOptions",
+        platform: "bsc",
+        level: args.level,
+        parentSport: args.parentFilters.sport,
+        parentYear: args.parentFilters.year,
+        parentSetName: args.parentFilters.setName,
+        duration_ms: Date.now() - start,
+        token_ms: tokenMs,
+        filters_call_ms: filtersCallMs,
+        status_code: statusCode,
+        success: true,
+        result_count: options.length,
+      });
+
       return {
         success: true,
         options,
@@ -234,6 +356,23 @@ export const fetchBscSelectorOptions = action({
       };
     } catch (error) {
       console.error("[fetchBscSelectorOptions] Error:", error);
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchBscSelectorOptions",
+        platform: "bsc",
+        level: args.level,
+        parentSport: args.parentFilters.sport,
+        parentYear: args.parentFilters.year,
+        parentSetName: args.parentFilters.setName,
+        duration_ms: Date.now() - start,
+        token_ms: tokenMs,
+        filters_call_ms: filtersCallMs,
+        status_code: statusCode,
+        success: false,
+        error_class: classifyAdapterError(
+          error instanceof Error ? error.message : String(error),
+        ),
+      });
       return {
         success: false,
         options: [],
