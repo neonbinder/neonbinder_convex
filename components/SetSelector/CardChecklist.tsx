@@ -416,6 +416,18 @@ export default function CardChecklist({
                 />
               </div>
             )}
+            // Open at the end of the list (most-recent / highest sortOrder).
+            // Custom cards always sort to the bottom, and the E2E reload
+            // checks (team-picker Test 7, features-propagation Step E)
+            // look for a just-saved card after re-navigation — without
+            // this, Virtuoso renders only the top ~10 rows and the test
+            // card is unreachable to Maestro's page-level
+            // `scrollUntilVisible`. Initial-bottom also matches how a
+            // real operator returns to a checklist: they want to see what
+            // they were last working on, not browse from #001 every time.
+            initialTopMostItemIndex={
+              sortedCards.length > 0 ? sortedCards.length - 1 : 0
+            }
             style={{ height: "min(70vh, 800px)" }}
             increaseViewportBy={{ top: 200, bottom: 400 }}
           />
