@@ -1,8 +1,8 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Smoke — TeamPicker opens, typeahead filters, chip saved"
+name: "Regression — TeamPicker opens, typeahead filters, chip saved"
 tags:
-  - smoke
+  - regression
   - set-selector
   - requires:cards-loaded
 ---

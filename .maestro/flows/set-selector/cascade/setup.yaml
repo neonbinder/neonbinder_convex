@@ -80,14 +80,18 @@ tags:
 # repopulate teams via "Confirm New Players & Teams", but their output
 # depends on marketplace data + the order checklist-fetch-* flows hit
 # the confirm dialog. The TeamPicker tests (team-picker.yaml,
-# team-picker-smoke.yaml, edit-and-delete-card.yaml) need a deterministic
+# team-picker-regression.yaml, edit-and-delete-card.yaml) need a deterministic
 # typeahead match. Seed New York Yankees + New York Mets explicitly so
 # those flows never depend on cascade output.
 # ============================================================
 
+# After the DB reset, the sports list reloads and scrolls the viewport DOWN.
+# AdminTools is now ABOVE the fold. Scroll UP to bring the button back.
 - scrollUntilVisible:
     element:
       text: "Seed Test Teams"
+    direction: UP
+    centerElement: true
     timeout: 10000
 - tapOn: "Seed Test Teams"
 - extendedWaitUntil:

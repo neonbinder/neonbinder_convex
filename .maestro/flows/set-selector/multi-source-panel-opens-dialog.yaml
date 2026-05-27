@@ -2,7 +2,7 @@ appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Multi-source sets panel — Attach more dialog opens and cancels"
 tags:
-  - smoke
+  - regression
   - set-selector
   - neo-6
   - requires:setup-done

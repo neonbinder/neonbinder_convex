@@ -1,20 +1,21 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Smoke — card with no features shows amber missing-feature highlight in CardFeaturesEditor"
+name: "Regression — card with no features shows amber missing-feature highlight in CardFeaturesEditor"
 tags:
-  - smoke
+  - regression
   - set-selector
   - requires:cards-loaded
 ---
-# Smoke test: a freshly-added custom card has no feature values. Opening the
+# Regression test: a freshly-added custom card has no feature values. Opening the
 # CardFeaturesEditor and expanding it should show the amber "Missing required
 # feature" indicator (⚠) on the rows that have no value and no inherited value.
 #
-# WHY SMOKE:
-#   This is a cheap visual assertion — no mutations needed. The "Show features"
-#   button is always present on any card edit form; the amber state always
-#   renders when features are absent. Fast and focused on the single most
-#   important path: the missing-feature UI surfaces to the user.
+# WHY REGRESSION (not smoke):
+#   Requires cards-loaded (full cascade prerequisite). Although the assertion
+#   itself is cheap, the setup — a full cascade run, drilling to a Base variant
+#   type with a confirmed BaseMappingForm mapping — is too heavy for smoke.
+#   Moved from smoke to regression alongside team-picker, set-features-panel,
+#   and multi-source-panel-opens-dialog (all require cards-loaded or setup-done).
 #
 # WHAT THIS TESTS:
 #   - "Show features" button is present in the card edit form

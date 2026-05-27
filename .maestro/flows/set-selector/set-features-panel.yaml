@@ -1,12 +1,14 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Smoke — SetFeaturesPanel renders and accepts a feature value"
+name: "Regression — SetFeaturesPanel renders and accepts a feature value"
 tags:
-  - smoke
+  - regression
   - set-selector
   - requires:cards-loaded
 ---
-# Smoke test for the NEO-24 SetFeaturesPanel component.
+# Regression test for the NEO-24 SetFeaturesPanel component.
+# (Originally named set-features-panel-smoke.yaml; moved to regression because
+# it requires the full cascade / cards-loaded prerequisite — too heavy for smoke.)
 #
 # SetFeaturesPanel renders below the MultiSourcePanel whenever a setName-level
 # row is active (i.e. the user has selected a set in the Sets column).

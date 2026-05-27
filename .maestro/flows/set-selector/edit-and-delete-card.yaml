@@ -189,7 +189,7 @@ tags:
 
 # Scroll the just-added card into view before tapping its Edit button —
 # without this, the row can land below the viewport edge post-submit,
-# and the Edit-tap coords land on a different row (the team-picker-smoke
+# and the Edit-tap coords land on a different row (the team-picker-regression
 # CI failure on PR #39 showed this exact pattern with stale scroll).
 - scrollUntilVisible:
     element:
