@@ -287,8 +287,14 @@ export default function CardChecklistItem({
           </span>
         )}
       </div>
-      {/* Actions (visible on hover) */}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      {/* Actions always rendered. Hiding them behind hover (opacity-0
+          group-hover:opacity-100) made the buttons unreachable for
+          Maestro headless web (no mouse hover) — taps registered
+          but `setEditing` never fired. Always-on also keeps the
+          flow keyboard-accessible (feedback_keyboard_navigation).
+          Subtle text-only buttons stay visually quiet enough not
+          to clutter the row. */}
+      <div className="flex gap-1 shrink-0">
         <button
           onClick={() => setEditing(true)}
           aria-label={`Edit card ${card.cardNumber}`}
