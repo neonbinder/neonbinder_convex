@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useAction, useMutation } from "convex/react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import CardChecklistItem from "./CardChecklistItem";
@@ -96,12 +97,13 @@ export default function CardChecklist({
     setSourceFilter({ bsc: null, sportlots: null });
   }, [variantId]);
 
-  // Scroll-to-new-card: one-shot flag so when the user adds a card via the
-  // form, the just-added row is scrolled into view. New cards sort to the
-  // end of the list (sortOrder = max + 1). Used by the scrollIntoView
-  // effect below. Without it the user (and Maestro) would see no visible
-  // feedback after submit. Cleared once `cards` length has grown.
-  const newCardRowRef = useRef<HTMLDivElement>(null);
+  // Virtuoso scroll handle + a one-shot flag so when the user adds a card
+  // via the form, the just-added row is scrolled into view. New cards sort
+  // to the end of the list (sortOrder = max + 1), and Virtuoso only renders
+  // rows in/near the viewport — without this the user (and Maestro) would
+  // see no visible feedback after submit. Cleared once `cards` length has
+  // grown.
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollToNewCardRef = useRef(false);
   const prevCardCountRef = useRef(0);
 
@@ -214,7 +216,7 @@ export default function CardChecklist({
 
   // After the addCustomCard mutation resolves, Convex's reactive query
   // refreshes `cards` with the new row appended. Detect the length growth
-  // and scroll the new (last) DOM row into view exactly once.
+  // and scroll Virtuoso to the new (last) entry exactly once.
   useEffect(() => {
     const count = cards?.length ?? 0;
     if (
@@ -222,8 +224,9 @@ export default function CardChecklist({
       count > prevCardCountRef.current &&
       count > 0
     ) {
-      newCardRowRef.current?.scrollIntoView({
-        block: "center",
+      virtuosoRef.current?.scrollToIndex({
+        index: count - 1,
+        align: "end",
         behavior: "auto",
       });
       scrollToNewCardRef.current = false;
@@ -400,34 +403,22 @@ export default function CardChecklist({
             </NeonButton>
           </div>
         ) : (
-          // Non-virtualized: every card row is in the DOM regardless of
-          // viewport. Trade-off: 600+ cards = 600+ items mounted at once,
-          // which is a one-time render cost but completely flat for
-          // subsequent interactions. Why we left virtualization behind:
-          // Virtuoso's inner-scroll container hid off-fold rows from
-          // Maestro's page-level `scrollUntilVisible` (Maestro can't
-          // scroll inside another scrollable element) — features-propagation
-          // Step E and team-picker Test 7 reload-check both needed to
-          // find a freshly-added card that virtualization had unmounted.
-          // `useWindowScroll` mode of Virtuoso changed which "Value for
-          // League" Maestro matched (SetFeaturesPanel vs CardFeaturesEditor)
-          // because items rendered at different page positions, breaking
-          // unrelated assertions. Non-virtualized is the simplest path
-          // where Maestro and a real user behave the same.
-          <div className="space-y-1.5">
-            {sortedCards.map((card, i) => (
-              <div
-                key={card._id}
-                ref={i === sortedCards.length - 1 ? newCardRowRef : undefined}
-              >
+          <Virtuoso
+            ref={virtuosoRef}
+            data={sortedCards}
+            computeItemKey={(_, card) => card._id}
+            itemContent={(_, card) => (
+              <div className="pb-1.5">
                 <CardChecklistItem
                   card={card}
                   sourceLabelMaps={sourceLabelMaps}
                   ancestorSport={ancestorSport}
                 />
               </div>
-            ))}
-          </div>
+            )}
+            style={{ height: "min(70vh, 800px)" }}
+            increaseViewportBy={{ top: 200, bottom: 400 }}
+          />
         )}
       </div>
 

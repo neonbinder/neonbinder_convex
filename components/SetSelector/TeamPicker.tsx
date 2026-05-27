@@ -56,7 +56,6 @@ export default function TeamPicker({
   const [highlightIdx, setHighlightIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Reset highlight whenever the typed query changes.
   useEffect(() => {
@@ -69,30 +68,6 @@ export default function TeamPicker({
       const t = setTimeout(() => inputRef.current?.focus(), 0);
       return () => clearTimeout(t);
     }
-  }, [popoverOpen]);
-
-  // Close the popover when the user taps anywhere outside the trigger or
-  // the popover itself. Required so the test (and a real user) can hop
-  // back to the Card-name input or any other field and have the popover
-  // dismiss as expected. Without this, "+ Add team" is a toggle — tapping
-  // it while open closes the popover and tapping again re-opens, which
-  // breaks any flow that does open-search-pick-then-look-elsewhere.
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const onPointerDown = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (triggerRef.current?.contains(target)) return;
-      if (popoverRef.current?.contains(target)) return;
-      setPopoverOpen(false);
-      setQuery("");
-    };
-    // Use `mousedown` (not `click`) so the popover closes BEFORE the
-    // outside-element's click handler fires — important when the
-    // outside element is itself a button that should still receive
-    // its click (e.g. the Card-name input gaining focus).
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
   }, [popoverOpen]);
 
   const labelById = useMemo(() => {
@@ -177,7 +152,15 @@ export default function TeamPicker({
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          onClick={() => setPopoverOpen((v) => !v)}
+          // Always opens. Closing happens via Escape (on the input) or
+          // clicking a match (addChip stays open intentionally so the
+          // user can pick a second team for a multi-team card; final
+          // close is the user's Escape or selecting then explicitly
+          // moving on). Earlier code used `setPopoverOpen((v) => !v)`
+          // — a toggle — which silently closed the popover when the
+          // test (or a real user) re-tapped "+ Add team" expecting
+          // it to keep opening.
+          onClick={() => setPopoverOpen(true)}
           aria-label="Add team"
           aria-expanded={popoverOpen}
           className="px-2 py-0.5 text-xs rounded border border-dashed border-gray-400 dark:border-gray-600 hover:border-[#00D558] focus:border-[#00D558] focus:outline-none text-gray-600 dark:text-gray-300"
@@ -187,7 +170,6 @@ export default function TeamPicker({
 
         {popoverOpen && (
           <div
-            ref={popoverRef}
             className="absolute left-0 top-full mt-1 z-10 w-64 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg p-2 space-y-1"
             role="listbox"
             aria-label="Team typeahead results"
