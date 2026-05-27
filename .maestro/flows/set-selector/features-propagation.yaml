@@ -365,9 +365,14 @@ tags:
 # ============================================================
 
 # Navigate to Base, find our override card, open CardFeaturesEditor.
+# After the Step-D Set-feature update, the SetFeaturesPanel + cards
+# dominate the viewport; the Variant Types column is scrolled off the
+# top. Mirror Step B's UP + centered scroll so we land on Base.
 - scrollUntilVisible:
     element:
       text: "Base"
+    direction: UP
+    centerElement: true
     timeout: 15000
 - tapOn: "Base"
 
