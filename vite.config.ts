@@ -2,9 +2,25 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
-import mkcert from "vite-plugin-mkcert";
 import path from "path";
 import { issueClerkTestingTokens } from "./lib/testing/issue-clerk-tokens";
+
+// `vite-plugin-mkcert@2` pulls in `undici@8.x` whose CacheStorage init
+// calls `webidl.util.markAsUncloneable`. That API landed in Node 22.13+;
+// older Node 22 (e.g. 22.5.x — what a fresh worktree hits before
+// `nvm use`) blows up on the *top-level* `import mkcert` side-effect
+// with `TypeError: webidl.util.markAsUncloneable is not a function`,
+// even when VITE_DEV_DISABLE_HTTPS=1 means mkcert won't actually run.
+//
+// Deferring to a dynamic `import()` keeps the side-effect off the cold
+// path. Async defineConfig is fully supported by Vite ≥3 and matches
+// what runs on Vercel (Node ≥22.13 there, so the import would work,
+// but we never enter this branch in production builds either way).
+async function loadMkcertIfHttpsEnabled(): Promise<Plugin | null> {
+  if (process.env.VITE_DEV_DISABLE_HTTPS) return null;
+  const { default: mkcert } = await import("vite-plugin-mkcert");
+  return mkcert();
+}
 
 // Dev-only middleware that mirrors api/auth/testing.ts so that Maestro E2E
 // flows can hit /testing/sign-in against `vite dev` without needing a full
@@ -131,6 +147,7 @@ function clerkTestingApiPlugin(): Plugin {
           JSON.stringify({
             signInToken: result.signInToken,
             testingToken: result.testingToken,
+            clerkUserId: result.clerkUserId,
           }),
         );
       });
@@ -138,16 +155,17 @@ function clerkTestingApiPlugin(): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   // Load .env* into process.env for server-side code (Vite only populates
   // import.meta.env.VITE_* by default; the dev-only Clerk testing middleware
   // reads CLERK_SECRET_KEY, TEST_EMAIL, etc. from process.env).
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
+  const mkcertPlugin = await loadMkcertIfHttpsEnabled();
   return {
   plugins: [
     react(),
     tailwindcss(),
-    ...(process.env.VITE_DEV_DISABLE_HTTPS ? [] : [mkcert()]),
+    ...(mkcertPlugin ? [mkcertPlugin] : []),
     clerkTestingApiPlugin(),
     sentryVitePlugin({
       org: "neon-binder",

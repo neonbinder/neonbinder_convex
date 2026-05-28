@@ -74,6 +74,28 @@ tags:
     timeout: 60000
 
 # ============================================================
+# SEED TEST TEAMS
+# Resets above wiped the `teams` table along with selectorOptions /
+# cardChecklist / players. The cascade card-commit flows normally
+# repopulate teams via "Confirm New Players & Teams", but their output
+# depends on marketplace data + the order checklist-fetch-* flows hit
+# the confirm dialog. The TeamPicker tests (team-picker.yaml,
+# team-picker-regression.yaml, edit-and-delete-card.yaml) need a deterministic
+# typeahead match. Seed New York Yankees + New York Mets explicitly so
+# those flows never depend on cascade output.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Seed Test Teams"
+    timeout: 10000
+- tapOn: "Seed Test Teams"
+- extendedWaitUntil:
+    visible:
+      text: ".*Seed complete.*"
+    timeout: 15000
+
+# ============================================================
 # CREDENTIALS (idempotent — skips platform if creds already present)
 # ============================================================
 

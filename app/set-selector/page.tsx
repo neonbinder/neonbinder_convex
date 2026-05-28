@@ -32,25 +32,31 @@ export default function SetSelectorPage() {
     );
   }
 
+  // The break-out negative margins below are tuned for wide viewports (≥1280 px).
+  // At 1024 px (Maestro CI headless viewport), they push the inner content past
+  // x=0 and clip the leftmost AdminTools button by ~1%, which trips Maestro's
+  // 100 % visibility threshold and breaks cascade/setup.yaml. AdminTools doesn't
+  // need the break-out — it lives in a max-w-6xl wrapper either way — so render
+  // it OUTSIDE the break-out container in its own normally-padded section.
   return (
-    // Break out of binder-layout's max-w-6xl constraint using viewport-width margins.
-    // The Set Selector needs full horizontal space for its 7+ hierarchical columns.
-    <div
-      className="p-6"
-      style={{
-        width: "calc((100vw - 170px) * 0.9)",
-        marginLeft: "calc(-50vw + 50% + (100vw - 170px) * 0.05)",
-        marginRight: "calc(-50vw + 50% + 170px + (100vw - 170px) * 0.05)",
-      }}
-    >
-      <h1 className="text-3xl font-bold mb-6 text-center">Set Selector</h1>
-      <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
-        Build set parameters using marketplace APIs with searchable dropdowns
-      </p>
-      <div className="max-w-6xl mx-auto mb-4">
+    <>
+      <div className="max-w-6xl mx-auto px-6 pt-6 mb-4">
+        <h1 className="text-3xl font-bold mb-6 text-center">Set Selector</h1>
+        <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
+          Build set parameters using marketplace APIs with searchable dropdowns
+        </p>
         <AdminTools />
       </div>
-      <SetSelector />
-    </div>
+      <div
+        className="px-6 pb-6"
+        style={{
+          width: "calc((100vw - 170px) * 0.9)",
+          marginLeft: "calc(-50vw + 50% + (100vw - 170px) * 0.05)",
+          marginRight: "calc(-50vw + 50% + 170px + (100vw - 170px) * 0.05)",
+        }}
+      >
+        <SetSelector />
+      </div>
+    </>
   );
 }

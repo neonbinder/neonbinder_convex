@@ -133,16 +133,30 @@ export default async function handler(
       deploymentUrl,
       vercelEnv,
       ts: new Date().toISOString(),
+      // Surface upstream Clerk failures into Vercel logs so we can tell
+      // a real "user not found" apart from a 429/5xx that the wrapper
+      // would otherwise mask. Server-side only — the response body below
+      // intentionally omits `detail` because it may contain Clerk
+      // internals that the test client shouldn't see.
+      ...(result.ok ? {} : { detail: result.detail }),
     }),
   );
 
   if (!result.ok) {
-    res.status(result.status).json({ error: result.error, detail: result.detail });
+    res.status(result.status).json({ error: result.error });
     return;
   }
 
+  // Per-user state reset is done browser-side by the Maestro flow after
+  // sign-in: it reads the per-PR Convex URL from window.__convexUrl, then
+  // POSTs to /testing/reset-user-state on the Convex preview deployment.
+  // The Vercel lambda can't do this itself — its process.env.VITE_CONVEX_URL
+  // is the dev URL (from the Vercel dashboard), not the per-PR preview that
+  // the client bundle actually talks to. clerkUserId is returned so the test
+  // flow has the value to send as the reset body.
   res.status(200).json({
     signInToken: result.signInToken,
     testingToken: result.testingToken,
+    clerkUserId: result.clerkUserId,
   });
 }

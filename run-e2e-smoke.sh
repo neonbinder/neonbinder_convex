@@ -83,6 +83,11 @@ SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
 SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
 BSC_USERNAME="${BSC_USERNAME:-}"
 BSC_PASSWORD="${BSC_PASSWORD:-}"
+# NOTE: per-user test-state reset is NOT driven by a Maestro env secret. Flows
+# that need a clean slate route their sign-in through /testing/reset, which
+# calls the auth-scoped resetMyTestState Convex mutation from the browser. No
+# reset secret is passed via -e (Maestro serializes the full -e env map into its
+# debug artifacts, so passing secrets there would leak them).
 # Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
 # as a PR check (JUnit) and uploads the directory as an Actions artifact.
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
@@ -431,12 +436,19 @@ run_flow_on_worker() {
     if [ "$attempt" -gt 1 ]; then
       echo "↻ [w$worker_index] Retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
     fi
+    # Per-attempt unique ID. Flows that add cards to the global
+    # cardChecklist table reference ${ATTEMPT_ID} in their card
+    # numbers + player names so attempt 2 doesn't collide with the
+    # rows attempt 1 left behind (setup.yaml's resetSetBuilderData
+    # only runs once per CI run, not between in-run retries).
+    local attempt_id="w${worker_index}-a${attempt}-${RANDOM}"
+    local attempt_args=("${worker_args[@]}" -e "ATTEMPT_ID=$attempt_id")
     if [ -n "$TIMEOUT_CMD" ]; then
       # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
       # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
-      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     else
-      "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     fi
     if [ "$exit_code" -eq 0 ]; then
       break
@@ -682,8 +694,22 @@ fi
 # behavior (e.g. for debugging a single failing flow at level 0).
 CASCADE_PERMISSIVE="${MAESTRO_CASCADE_PERMISSIVE:-}"
 
-# Map of "state name" -> "1" once at least one producer has passed.
-declare -A STATE_SATISFIED
+# Set of satisfied states, stored as a space-delimited string with sentinel
+# spaces on both ends so simple `case` glob membership tests don't need
+# tricky escaping. (Why not `declare -A`: macOS ships bash 3.2.57 which
+# doesn't support associative arrays, and we want this script to run on
+# dev macOS as well as Linux CI. Tracked as a follow-up to drop the bash
+# wrapper entirely in favor of native Maestro orchestration.)
+STATE_SATISFIED=" "
+
+# state_is_satisfied <state> → exit 0 if at least one producer of <state>
+# has passed, exit 1 otherwise. Membership test on STATE_SATISFIED.
+state_is_satisfied() {
+  case "$STATE_SATISFIED" in
+    *" $1 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
 
 # Check whether a flow appears as PASS in any worker's results.
 flow_passed_in_results() {
@@ -708,7 +734,7 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
         missing_state=""
         if [ -z "$CASCADE_PERMISSIVE" ]; then
           for state in ${FLOW_REQUIRES_LIST[$flow_i]}; do
-            if [ "${STATE_SATISFIED[$state]:-0}" != "1" ]; then
+            if ! state_is_satisfied "$state"; then
               missing_state="$state"
               break
             fi
@@ -745,7 +771,10 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
       if flow_passed_in_results "$flow"; then
         flow_i=$(flow_idx_of "$flow")
         for state in ${FLOW_PROVIDES_LIST[$flow_i]}; do
-          STATE_SATISFIED["$state"]="1"
+          # Skip duplicate-add: monotonic-add semantics, idempotent on repeat.
+          if ! state_is_satisfied "$state"; then
+            STATE_SATISFIED="${STATE_SATISFIED}${state} "
+          fi
         done
       fi
     done

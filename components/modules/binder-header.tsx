@@ -21,13 +21,16 @@ export default function BinderHeader({
     navigate("/");
   };
 
+  // pointer-events-none on the sticky header background (with -auto on the
+  // interactive groups) makes the empty middle click-through so it doesn't
+  // steal clicks from elements scrolled flush against the top edge.
   return (
-    <header className="sticky top-0 z-20 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-20 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center pointer-events-none">
+      <div className="flex items-center gap-2 pointer-events-auto">
         <img src="/logo.png" alt="Neon Binder" width={40} height={40} />
         <span className="neon-header neon-header-sm">Neon Binder</span>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pointer-events-auto">
         <SignedIn>
           <UserButton />
           <NeonButton cancel onClick={handleSignOut} className="hidden sm:inline-flex">

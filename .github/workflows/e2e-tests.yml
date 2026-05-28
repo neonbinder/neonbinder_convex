@@ -211,6 +211,11 @@ jobs:
           SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
           BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
           BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          # Per-user test-state reset is handled browser-side: flows that need a
+          # clean slate route their sign-in through /testing/reset, which calls
+          # the auth-scoped resetMyTestState Convex mutation. No reset secret is
+          # passed to Maestro here — Maestro serializes the full -e env map into
+          # its uploaded debug artifacts, so secrets must never go through -e.
           # Number of parallel workers. Worker 0 runs the serial lane
           # (serial-global + serial-marketplace flows); workers 1..N-1 share
           # parallel-safe flows. Lower this if test accounts run out.

@@ -89,6 +89,25 @@ export default defineSchema({
       isInsert: v.optional(v.boolean()),
       isParallel: v.optional(v.boolean()),
     })),
+    // NEO-24: marketplace-listing metadata at the set level. Populated by
+    // TCDB enrichment (Stage 3) and admin edits. Set-level only — does NOT
+    // propagate to descendant cardChecklist rows (those use `features`).
+    setMetadata: v.optional(v.object({
+      releaseDate: v.optional(v.string()),       // ISO date string when known
+      totalCardCount: v.optional(v.number()),    // declared set size
+      block: v.optional(v.string()),             // e.g. "Series 1", "Update"
+      tcdbSetId: v.optional(v.string()),         // canonical TCDB SID for re-sync
+      sourceUrl: v.optional(v.string()),         // last-fetched audit trail
+      lastSyncedAt: v.optional(v.number()),      // ms epoch of last enrichment
+    })),
+    // NEO-24: marketplace-agnostic feature map. Keys come from
+    // `convex/features/expectedFeatures.ts` (e.g. "league", "era",
+    // "isReprint", "cardType"). Values are strings ("MLB", "Modern",
+    // "true"/"false", "Base Card"). When set at a higher level
+    // (sport/year/manufacturer/setName/variant), the propagation engine
+    // writes the value down to every descendant `cardChecklist` row that
+    // has not explicitly overridden the key. See `setSelectorOptionFeature`.
+    features: v.optional(v.record(v.string(), v.string())),
     lastUpdated: v.number(),
   })
     .index("by_level", ["level"])
@@ -104,8 +123,15 @@ export default defineSchema({
     selectorOptionId: v.id("selectorOptions"), // Points to variant-level option
     cardNumber: v.string(),
     cardName: v.string(),
-    // Free-text fallback retained for legacy rows + display when no team
-    // entity is linked yet. Going forward, prefer teamOnCardIds.
+    // NEO-26: DEPRECATED. The free-text `team` column was the source of
+    // the "Team field is always blank when editing a card" bug — the
+    // BSC/SL fetch path wrote here but the form UI read from
+    // `teamOnCardIds[]`. The schema field is kept as `v.optional`
+    // strictly so the `backfillTeamToOnCardIds` internal migration
+    // (see `convex/cardChecklist.ts`) can read legacy rows on the way
+    // to clearing the column. No code path writes to it anymore. A
+    // follow-up PR removes the field outright once backfill has run
+    // on prod + dev Convex.
     team: v.optional(v.string()),
     // Many-to-many links to entity tables. Multi-player cards (dual autos,
     // checklist tickets) carry multiple playerIds. teamOnCardIds is the
@@ -156,6 +182,12 @@ export default defineSchema({
     // re-prompt for the same player).
     pendingPlayerNames: v.optional(v.array(v.string())),
     pendingTeamNames: v.optional(v.array(v.string())),
+    // NEO-24: per-card override of marketplace-agnostic feature map. Inherits
+    // merged ancestor `selectorOptions.features` at card-creation time
+    // (`commitCardChecklist`). Subsequent edits via `setSelectorOptionFeature`
+    // propagate down only to cards whose key is undefined OR equal to the
+    // previous set-level value. Overridden entries stay put.
+    features: v.optional(v.record(v.string(), v.string())),
     sortOrder: v.number(),
     lastUpdated: v.number(),
   })

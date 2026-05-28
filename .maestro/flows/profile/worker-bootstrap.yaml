@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/reset?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: "Worker bootstrap — sign in as TEST_EMAIL_${WORKER_INDEX} and save BSC + SL creds"
 tags:
   - util
@@ -23,10 +23,26 @@ tags:
 # actual credentials in Secret Manager. The clear-then-save variants always
 # clear first, then perform a full save+auth cycle, guaranteeing a live secret
 # regardless of what the Convex flag says.
+#
+# STATE RESET: The sign-in URL routes through /testing/reset before landing on
+# /profile. That page waits for the Convex client to pick up the Clerk session,
+# then calls the auth-scoped resetMyTestState mutation, which wipes the
+# signed-in user's own publicProfiles / userProfiles / prizePool rows. This
+# guarantees fill-profile-data.yaml (and any flow that signs in as this worker's
+# main account) starts from an empty baseline regardless of what prior CI runs
+# left behind. The reset fires before any credential setup below, so the
+# userProfile table (which drives the "Clear Credentials" short-circuit logic)
+# is clean going into the clear-then-* subflows.
+#
+# No secret is passed to Maestro: the mutation is gated by Clerk auth (it can
+# only touch the caller's own rows) plus a server-side TESTING_RESET_SECRET
+# presence check on the Convex deployment (unset in prod → fails closed). This
+# avoids leaking any secret into Maestro's debug artifacts, which serialize the
+# full -e env map.
 
 - launchApp
 - extendedWaitUntil:
-    visible: "Neon Binder"
+    visible: "Profile Settings"
     timeout: 45000
 
 # Save BSC credentials for this worker's Clerk user (always clears first).

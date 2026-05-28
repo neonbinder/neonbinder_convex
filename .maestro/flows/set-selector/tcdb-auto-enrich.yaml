@@ -1,0 +1,162 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "TCDB enrichment — setMetadata chips appear after card fetch, or graceful unavailable state"
+tags:
+  - set-selector
+  - regression
+  - requires:cards-loaded
+---
+# Tests that NEO-24's TCDB auto-enrichment side-effect runs after the card
+# checklist is fetched and the results surface in the SetFeaturesPanel's
+# setMetadata chip row.
+#
+# HOW IT WORKS:
+#   When the cascade cards-base.yaml flow fetches the card checklist
+#   (cascade/cards-base.yaml, requires:sets-loaded → provides:cards-loaded),
+#   the `commitCardChecklist` Convex action schedules `enrichSetFromTcdb`
+#   as a fire-and-forget background job against the setName ancestor
+#   ("Topps Chrome"). That job calls the TCDB browser service, parses the
+#   set metadata page, and writes the results to `selectorOptions.setMetadata`.
+#
+# WHAT WE ASSERT:
+#   After waiting up to 60 seconds for the background job to complete, the
+#   SetFeaturesPanel should show either:
+#     (a) At least one setMetadata chip: "Released", "Cards", "Block", or
+#         "TCDB SID" — indicating enrichment succeeded, OR
+#     (b) "No set metadata yet — pending sync." — indicating the TCDB
+#         Puppeteer adapter returned tcdb-unavailable (Cloudflare blocked it).
+#         This is the expected graceful-degradation state.
+#
+# SOFT-FAIL POLICY (per plan Stage 5):
+#   This flow does NOT fail if TCDB is unavailable. The assertion accepts
+#   both the enriched and unavailable states. The flow fails only if the
+#   SetFeaturesPanel doesn't render at all (code error, not TCDB issue).
+#
+# NOTE ON TIMING:
+#   `enrichSetFromTcdb` is fire-and-forget. The checklist fetch can return
+#   in <10s but the Puppeteer job may take 30-60s to complete (Puppeteer
+#   session warm + TCDB page load). We wait up to 90s for a metadata chip
+#   to appear; if it hasn't appeared by then, we assert the "pending sync"
+#   fallback text instead.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO Topps Chrome (Sets level)
+# cards-loaded dependency means the cascade has already fetched cards and
+# scheduled the enrichSetFromTcdb action. We just need to navigate to the
+# SetFeaturesPanel to observe the result.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# The SetFeaturesPanel renders below MultiSourcePanel.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      text: "Set features"
+    centerElement: true
+    timeout: 15000
+- assertVisible: "Set features"
+
+# ============================================================
+# WAIT FOR ENRICHMENT OR GRACEFUL FALLBACK
+# Wait up to 90s for either a metadata chip or the "pending sync" text.
+# Both outcomes are acceptable — the critical assertion is that the panel
+# rendered and showed some content, not a blank error.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Released.*|.*Cards.*|.*Block.*|.*TCDB SID.*|.*No set metadata yet.*"
+    timeout: 90000
+
+# Confirm the outcome is one of the two expected states.
+- assertVisible:
+    text: ".*Released.*|.*Cards.*|.*Block.*|.*TCDB SID.*|.*No set metadata yet.*"
+
+# ============================================================
+# VERIFY SET METADATA SECTION RENDERS (regardless of enrichment state)
+# ============================================================
+
+# The "Will propagate to N cards" counter is always present.
+- assertVisible:
+    text: ".*Will propagate to.*"
+
+# The EXPECTED_FEATURES rows are all visible (at least one feature row).
+- assertVisible:
+    id: "Set feature League"
+
+# ============================================================
+# IF ENRICHMENT SUCCEEDED — verify chip content
+# (Conditional block — skipped if TCDB was unavailable)
+# ============================================================
+
+- runFlow:
+    when:
+      visible: "Released"
+    commands:
+      # "Synced" chip should also appear (lastSyncedAt was written).
+      - assertVisible: "Synced"
+      # The "Released" chip value is a date string.
+      # The "Cards" chip value is a number.
+      # Both confirm that the setMetadata object was populated end-to-end.
+      - assertVisible: "Released"

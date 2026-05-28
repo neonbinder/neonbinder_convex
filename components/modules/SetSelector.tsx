@@ -28,6 +28,7 @@ import BaseMappingForm from "../SetSelector/BaseMappingForm";
 import VariantMetadataEditor from "../SetSelector/VariantMetadataEditor";
 import ParallelGroupingModal from "../SetSelector/ParallelGroupingModal";
 import MultiSourcePanel from "../SetSelector/MultiSourcePanel";
+import SetFeaturesPanel from "../SetSelector/SetFeaturesPanel";
 import NeonButton from "./NeonButton";
 
 export default function SetSelector() {
@@ -410,6 +411,18 @@ export default function SetSelector() {
           Renders for variantType (when Base/terminal), insert, and
           parallel rows once they have a reconciliation primary mapped. */}
       {cardChecklistId && <MultiSourcePanel selectorOptionId={cardChecklistId} />}
+
+      {/* NEO-24: set-level features editor — operator edits keys here
+          and the propagation engine writes through to every descendant
+          cardChecklist row. Anchored at the setName row (`selectedSetId`)
+          so vintage/manufacturer-level rows can stay aggregator-only and
+          marketplace-specific facets live closest to the set. Only renders
+          when setName is the DEEPEST selected node; once the user drills
+          into a variantType the cards / MultiSourcePanel surface takes
+          over and we don't want to push that content off-screen. */}
+      {selectedSetId && !selectedVariantTypeId && (
+        <SetFeaturesPanel selectorOptionId={selectedSetId} />
+      )}
 
       {/* Cards — full width below the selector row. `cardChecklistId`
           stays stable across transient query refetches because the

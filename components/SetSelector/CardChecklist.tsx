@@ -60,6 +60,16 @@ export default function CardChecklist({
   const cards = useQuery(api.selectorOptions.getCardChecklist, {
     selectorOptionId: variantId,
   });
+  // NEO-26: walk the ancestor chain once at this layer so every
+  // CardChecklistItem below can hand the resolved sport to TeamPicker
+  // (typeahead filter) + CardFeaturesEditor (applicability filter).
+  // Convex deduplicates same-arg queries, so the additional hook here
+  // does not cost a round trip beyond what the existing query graph
+  // already pays.
+  const ancestorChain = useQuery(api.selectorOptions.getAncestorChain, {
+    id: variantId,
+  });
+  const ancestorSport = ancestorChain?.find((c) => c.level === "sport")?.value;
   const fetchChecklist = useAction(api.selectorOptions.fetchCardChecklist);
   const commitChecklist = useMutation(api.selectorOptions.commitCardChecklist);
   const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
@@ -87,14 +97,14 @@ export default function CardChecklist({
     setSourceFilter({ bsc: null, sportlots: null });
   }, [variantId]);
 
-  // Virtuoso scroll handle + a one-shot flag so that when the user adds a
-  // card via the form, the just-added row is scrolled into view. New cards
-  // sort to the end of the list (sortOrder = max + 1), and Virtuoso only
-  // renders rows in/near the viewport — without this the user (and the
-  // E2E test) would see no visible feedback after submit. Cleared after
-  // the next render where `cards` length has grown.
+  // Virtuoso scroll handle + a one-shot flag so when the user adds a card
+  // via the form, the just-added row is scrolled into view. New cards sort
+  // to the end of the list (sortOrder = max + 1), and Virtuoso only renders
+  // rows in/near the viewport — without this the user (and Maestro) would
+  // see no visible feedback after submit. Cleared once `cards` length has
+  // grown.
   const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollToNewCardRef = useRef(false);
+  const newCardIdRef = useRef<Id<"cardChecklist"> | null>(null);
   const prevCardCountRef = useRef(0);
 
   /**
@@ -182,11 +192,14 @@ export default function CardChecklist({
       .filter((n) => n.length > 0);
     const teamTrimmed = newTeam.trim();
     try {
-      await addCustomCard({
+      const newId = await addCustomCard({
         selectorOptionId: variantId,
         cardNumber: newCardNumber.trim(),
         cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
-        team: teamTrimmed || undefined,
+        // NEO-26: legacy `team: string` arg removed. The team string
+        // is surfaced via `teams` → pendingTeamNames → UnknownEntitiesDialog
+        // confirmation on the next sync, which materializes a teams
+        // entity link via `teamOnCardIds[]`.
         ...(players.length > 0 ? { players } : {}),
         ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
       });
@@ -195,31 +208,46 @@ export default function CardChecklist({
       setNewTeam("");
       setNewPlayers("");
       setShowAddForm(false);
-      scrollToNewCardRef.current = true;
+      newCardIdRef.current = newId;
     } catch (error) {
       console.error("Failed to add card:", error);
     }
   };
 
   // After the addCustomCard mutation resolves, Convex's reactive query
-  // refreshes `cards` with the new row appended. Detect the length growth
-  // and scroll Virtuoso to the new (last) entry exactly once.
+  // refreshes `cards` with the new row. The new card's position in the
+  // sorted list is NOT necessarily the last index — addCustomCard calls
+  // restampCardChecklistSortOrders which slots the card by natural
+  // cardNumber order. Find the new card by id and scroll Virtuoso to it.
+  // "center" keeps the row away from the sticky binder-header at y≈84,
+  // where Maestro's bounds-then-tap window races Virtuoso's height
+  // recompute (edit-and-delete-card.yaml regression).
   useEffect(() => {
     const count = cards?.length ?? 0;
-    if (
-      scrollToNewCardRef.current &&
-      count > prevCardCountRef.current &&
-      count > 0
-    ) {
-      virtuosoRef.current?.scrollToIndex({
-        index: count - 1,
-        align: "end",
-        behavior: "smooth",
-      });
-      scrollToNewCardRef.current = false;
+    const targetId = newCardIdRef.current;
+    if (targetId && count > prevCardCountRef.current && cards) {
+      const idx = cards.findIndex((c) => c._id === targetId);
+      if (idx >= 0) {
+        // The data prop on Virtuoso below is sortedCards, which sorts by
+        // sortOrder ascending. cards from Convex carry sortOrder fields,
+        // so a sort-aware index is needed. Compute it via cardsBySortOrder.
+        const sortedIdx = [...cards]
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .findIndex((c) => c._id === targetId);
+        if (sortedIdx >= 0) {
+          requestAnimationFrame(() => {
+            virtuosoRef.current?.scrollToIndex({
+              index: sortedIdx,
+              align: "center",
+              behavior: "auto",
+            });
+          });
+        }
+        newCardIdRef.current = null;
+      }
     }
     prevCardCountRef.current = count;
-  }, [cards?.length]);
+  }, [cards?.length, cards]);
 
   if (!cards) {
     return (
@@ -271,7 +299,10 @@ export default function CardChecklist({
           </h2>
           {!showAddForm && (
             <div className="flex gap-2">
-              <NeonButton onClick={() => setShowAddForm(true)}>
+              <NeonButton
+                onClick={() => setShowAddForm(true)}
+                aria-label="Open add card form"
+              >
                 Add Card
               </NeonButton>
               {sortedCards.length > 0 && (
@@ -287,6 +318,64 @@ export default function CardChecklist({
             </div>
           )}
         </div>
+
+        {/* Add Card Form — rendered inline right under the header so the
+            inputs are immediately visible after the user taps "Add Card".
+            Previously this lived below the 70vh Virtuoso list, which on
+            headless 1024×629 viewports put Player name 440–800px off-screen
+            and broke every flow that wanted to add a custom card. */}
+        {showAddForm && (
+          <div className="bg-gray-50 dark:bg-gray-900/40 p-4 mb-4 rounded-lg space-y-3">
+            <h3 className="font-semibold text-sm">Add Card</h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCardNumber}
+                onChange={(e) => setNewCardNumber(e.target.value)}
+                className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                placeholder="#"
+                aria-label="Card number"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={newCardName}
+                onChange={(e) => setNewCardName(e.target.value)}
+                className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                placeholder="Player name"
+                aria-label="Card name"
+              />
+            </div>
+            <input
+              type="text"
+              value={newPlayers}
+              onChange={(e) => setNewPlayers(e.target.value)}
+              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Player(s) — comma separated, optional"
+              aria-label="Players"
+            />
+            <input
+              type="text"
+              value={newTeam}
+              onChange={(e) => setNewTeam(e.target.value)}
+              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Team (optional)"
+              aria-label="Team"
+            />
+            <div className="flex gap-2">
+              <NeonButton onClick={handleAddCard} aria-label="Submit new card">
+                Add
+              </NeonButton>
+              <NeonButton
+                cancel
+                onClick={() => setShowAddForm(false)}
+                aria-label="Cancel new card"
+              >
+                Cancel
+              </NeonButton>
+            </div>
+          </div>
+        )}
 
         {lastSynced && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -338,62 +427,27 @@ export default function CardChecklist({
                 <CardChecklistItem
                   card={card}
                   sourceLabelMaps={sourceLabelMaps}
+                  ancestorSport={ancestorSport}
                 />
               </div>
             )}
+            // Open at the end of the list (most-recent / highest sortOrder).
+            // Custom cards always sort to the bottom, and the E2E reload
+            // checks (team-picker Test 7, features-propagation Step E)
+            // look for a just-saved card after re-navigation — without
+            // this, Virtuoso renders only the top ~10 rows and the test
+            // card is unreachable to Maestro's page-level
+            // `scrollUntilVisible`. Initial-bottom also matches how a
+            // real operator returns to a checklist: they want to see what
+            // they were last working on, not browse from #001 every time.
+            initialTopMostItemIndex={
+              sortedCards.length > 0 ? sortedCards.length - 1 : 0
+            }
             style={{ height: "min(70vh, 800px)" }}
             increaseViewportBy={{ top: 200, bottom: 400 }}
           />
         )}
       </div>
-
-      {/* Add Card Form (only rendered when user opens it from the header action) */}
-      {showAddForm && (
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
-          <h3 className="font-semibold text-sm">Add Card</h3>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newCardNumber}
-              onChange={(e) => setNewCardNumber(e.target.value)}
-              className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-              placeholder="#"
-              aria-label="Card number"
-              autoFocus
-            />
-            <input
-              type="text"
-              value={newCardName}
-              onChange={(e) => setNewCardName(e.target.value)}
-              className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-              placeholder="Player name"
-              aria-label="Card name"
-            />
-          </div>
-          <input
-            type="text"
-            value={newPlayers}
-            onChange={(e) => setNewPlayers(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Player(s) — comma separated, optional"
-            aria-label="Players"
-          />
-          <input
-            type="text"
-            value={newTeam}
-            onChange={(e) => setNewTeam(e.target.value)}
-            className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Team (optional)"
-            aria-label="Team"
-          />
-          <div className="flex gap-2">
-            <NeonButton onClick={handleAddCard}>Add</NeonButton>
-            <NeonButton cancel onClick={() => setShowAddForm(false)}>
-              Cancel
-            </NeonButton>
-          </div>
-        </div>
-      )}
 
       <UnknownEntitiesDialog
         isOpen={pendingPreview !== null}

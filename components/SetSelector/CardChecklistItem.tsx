@@ -1,14 +1,17 @@
-import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import TeamPicker from "./TeamPicker";
+import CardFeaturesEditor from "./CardFeaturesEditor";
 
 type CardChecklistItemProps = {
   card: {
     _id: Id<"cardChecklist">;
+    selectorOptionId: Id<"selectorOptions">;
     cardNumber: string;
     cardName: string;
-    team?: string;
     playerIds?: Array<Id<"players">>;
     teamOnCardIds?: Array<Id<"teams">>;
     attributes?: string[];
@@ -17,6 +20,7 @@ type CardChecklistItemProps = {
     printRun?: number;
     autographType?: string;
     cardVariation?: string;
+    features?: Record<string, string>;
     platformData: {
       bsc?: string;
       sportlots?: string;
@@ -34,6 +38,13 @@ type CardChecklistItemProps = {
     bsc: Record<string, string>;
     sportlots: Record<string, string>;
   };
+  /**
+   * Sport from the active variant's ancestor chain. Forwarded to the
+   * TeamPicker (typeahead filter) and CardFeaturesEditor (drives
+   * EXPECTED_FEATURES applicability). Passed in from the parent
+   * CardChecklist so we don't re-query the ancestor chain per row.
+   */
+  ancestorSport?: string;
 };
 
 /**
@@ -65,11 +76,36 @@ function badgeLabel(token: string): { label: string; cls: string } {
 export default function CardChecklistItem({
   card,
   sourceLabelMaps,
+  ancestorSport,
 }: CardChecklistItemProps) {
   const [editing, setEditing] = useState(false);
+  const cardNameInputRef = useRef<HTMLInputElement | null>(null);
+
   const [cardName, setCardName] = useState(card.cardName);
-  const [team, setTeam] = useState(card.team || "");
+  // NEO-26: teamOnCardIds is the canonical representation. Local
+  // draft list is committed on Save; cancel reverts to the prop value.
+  const [teamIds, setTeamIds] = useState<Array<Id<"teams">>>(
+    card.teamOnCardIds ?? [],
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Resolve team display names for the non-editing view + for chip
+  // labels inside the editor. Skipped when the card has no teams.
+  const teamsToShow = card.teamOnCardIds ?? [];
+  const teamRows = useQuery(
+    api.teams.getManyByIds,
+    teamsToShow.length > 0 ? { ids: teamsToShow } : "skip",
+  );
+
+  // Reset the editor draft whenever the prop changes (e.g. a propagation
+  // engine write updated teamOnCardIds elsewhere on the page). Without
+  // this, opening Edit would show a stale list.
+  useEffect(() => {
+    if (!editing) {
+      setTeamIds(card.teamOnCardIds ?? []);
+      setCardName(card.cardName);
+    }
+  }, [card.teamOnCardIds, card.cardName, editing]);
 
   const updateCard = useMutation(api.selectorOptions.updateCard);
   const deleteCard = useMutation(api.selectorOptions.deleteCard);
@@ -78,7 +114,9 @@ export default function CardChecklistItem({
     await updateCard({
       id: card._id,
       cardName,
-      team: team || undefined,
+      // Always pass the full array (NEO-26): a card moving from
+      // 1 team to 2 (or 0) is the same write path.
+      teamOnCardIds: teamIds,
     });
     setEditing(false);
   };
@@ -88,55 +126,143 @@ export default function CardChecklistItem({
     setConfirmDelete(false);
   };
 
-  if (editing) {
-    return (
-      <div className="p-3 border rounded-md dark:border-gray-600 bg-gray-50 dark:bg-gray-700 space-y-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={cardName}
-            onChange={(e) => setCardName(e.target.value)}
-            className="flex-1 p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-            placeholder="Card name"
-          />
-          <input
-            type="text"
-            value={team}
-            onChange={(e) => setTeam(e.target.value)}
-            className="w-32 p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
-            placeholder="Team"
+  const teamLabel = useMemo(() => {
+    if (!teamRows || teamRows.length === 0) return "";
+    return teamRows.map((t) => t.name).join(", ");
+  }, [teamRows]);
+
+  const cancelEdit = () => {
+    setCardName(card.cardName);
+    setTeamIds(card.teamOnCardIds ?? []);
+    setEditing(false);
+  };
+
+  // Focus the card-name input when the modal opens.
+  useEffect(() => {
+    if (editing) cardNameInputRef.current?.focus();
+  }, [editing]);
+
+  // Escape closes the modal with cancel semantics. Listening on the
+  // document covers Escape from inside the TeamPicker popover too.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEdit();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  // Portal to document.body so the modal isn't a descendant of the
+  // Virtuoso row's React tree. Virtuoso re-measures and shuffles its
+  // children aggressively; rendering the modal as a row sibling caused
+  // Maestro's hierarchy-based-tap to occasionally not see the modal
+  // appear after clicking Edit. The portal renders the modal as a
+  // direct child of <body>, fully decoupled from Virtuoso.
+  const editModal = editing ? createPortal(
+    // Fixed positioning escapes Virtuoso's inner scroll + the row's any
+    // ancestor overflow boundary, so Save/Cancel + the TeamPicker
+    // popover are always reachable on the Maestro headless 1024×629
+    // viewport without scrolling a nested container.
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`edit-card-title-${card._id}`}
+      onClick={(e) => {
+        // Click-outside-to-cancel: only fire when the backdrop itself is
+        // the target, not when a click bubbles up from the content box.
+        if (e.target === e.currentTarget) cancelEdit();
+      }}
+    >
+      <div className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-gray-300 dark:border-gray-600">
+          <h2
+            id={`edit-card-title-${card._id}`}
+            className="text-sm font-semibold text-gray-900 dark:text-gray-100"
+          >
+            Edit card #{card.cardNumber}
+          </h2>
+        </div>
+        {/* Static section: name + teams. No overflow-y-auto so the
+            TeamPicker's absolute-positioned popover can extend below
+            its trigger without being clipped at the section boundary. */}
+        <div className="px-4 pt-4 pb-3 space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              ref={cardNameInputRef}
+              type="text"
+              value={cardName}
+              onChange={(e) => setCardName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSave();
+                }
+              }}
+              className="flex-1 min-w-[160px] p-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-600"
+              placeholder="Card name"
+              aria-label="Card name"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+              Teams
+            </label>
+            <TeamPicker
+              value={teamIds}
+              onChange={setTeamIds}
+              sport={ancestorSport}
+            />
+          </div>
+        </div>
+        {/* Features editor is the tall section — give it the modal's
+            remaining vertical space with its own scroll boundary so the
+            modal as a whole doesn't need a content-wide scroll (which
+            would clip the TeamPicker popover). */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+          <CardFeaturesEditor
+            cardChecklistId={card._id}
+            selectorOptionId={card.selectorOptionId}
+            cardFeatures={card.features}
+            ancestorSport={ancestorSport}
           />
         </div>
-        <div className="flex gap-1">
+        <div className="px-4 py-3 border-t border-gray-300 dark:border-gray-600 flex gap-2 justify-end">
           <button
-            onClick={handleSave}
-            className="px-2 py-1 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
-          >
-            Save
-          </button>
-          <button
-            onClick={() => {
-              setCardName(card.cardName);
-              setTeam(card.team || "");
-              setEditing(false);
-            }}
-            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+            onClick={cancelEdit}
+            aria-label="Cancel card edit"
+            className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
           >
             Cancel
           </button>
+          <button
+            onClick={handleSave}
+            aria-label="Save card edit"
+            className="px-3 py-1.5 text-xs bg-neon-green text-black rounded hover:bg-neon-green/85"
+          >
+            Save
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>,
+    document.body,
+  ) : null;
 
-  // Build the secondary line: "<team> · /99 · Refractor · On-Card auto"
+  // Build the secondary line: "<team(s)> · /99 · Refractor · On-Card auto"
   const subParts: string[] = [];
-  if (card.team) subParts.push(card.team);
+  if (teamLabel) subParts.push(teamLabel);
   if (card.printRun) subParts.push(`/${card.printRun}`);
   if (card.cardVariation) subParts.push(card.cardVariation);
   if (card.autographType) subParts.push(`${card.autographType} auto`);
 
   return (
+    <>
+    {editModal}
     <div className="flex items-center gap-3 p-2.5 border rounded-md dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
       <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-12 text-right shrink-0">
         #{card.cardNumber}
@@ -205,10 +331,17 @@ export default function CardChecklistItem({
           </span>
         )}
       </div>
-      {/* Actions (visible on hover) */}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      {/* Actions always rendered. Hiding them behind hover (opacity-0
+          group-hover:opacity-100) made the buttons unreachable for
+          Maestro headless web (no mouse hover) — taps registered
+          but `setEditing` never fired. Always-on also keeps the
+          flow keyboard-accessible (feedback_keyboard_navigation).
+          Subtle text-only buttons stay visually quiet enough not
+          to clutter the row. */}
+      <div className="flex gap-1 shrink-0">
         <button
           onClick={() => setEditing(true)}
+          aria-label={`Edit card ${card.cardNumber}`}
           className="px-1.5 py-0.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
           title="Edit"
         >
@@ -217,6 +350,7 @@ export default function CardChecklistItem({
         {confirmDelete ? (
           <button
             onClick={handleDelete}
+            aria-label={`Confirm delete card ${card.cardNumber}`}
             className="px-1.5 py-0.5 text-xs text-red-600 dark:text-red-400 font-medium"
           >
             Confirm?
@@ -225,6 +359,7 @@ export default function CardChecklistItem({
           <button
             onClick={() => setConfirmDelete(true)}
             onBlur={() => setConfirmDelete(false)}
+            aria-label={`Delete card ${card.cardNumber}`}
             className="px-1.5 py-0.5 text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
             title="Delete"
           >
@@ -233,5 +368,6 @@ export default function CardChecklistItem({
         )}
       </div>
     </div>
+    </>
   );
 }
