@@ -11,41 +11,11 @@ tags:
 #   a "Test Credentials" call refreshes the session and ensures SL card data is
 #   returned by the checklist fetch.
 #
-# CONDITIONAL SKIP:
-#   If SPORTLOTS_PASSWORD is empty (not set in the environment), the SportLots
-#   credential steps are skipped entirely. BSC alone is sufficient to produce
-#   card data and trigger the UnknownEntitiesDialog; SL data is additive.
-#   This allows the caller to run successfully in environments where only BSC
-#   credentials are available.
-#
 # CALLER CONTRACT:
 #   - Caller must have called launchApp and waited for sign-in redirect.
-#   - Caller must pass SPORTLOTS_USERNAME and SPORTLOTS_PASSWORD in the env block.
-#   - If SPORTLOTS_PASSWORD is empty, this util exits without navigating.
+#   - Credentials are already seeded server-side by worker-bootstrap; no
+#     credential env vars need to be passed.
 #   - This util leaves the browser on /profile (same as util-login-to-bsc).
-
-# ============================================================
-# GUARD — skip everything if SPORTLOTS_PASSWORD is not set
-# ============================================================
-
-- runFlow:
-    when:
-      visible:
-        text: ".*"   # always true — we use this only to enable the when:env guard
-    env:
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
-    commands: []
-
-# The actual work is gated on SPORTLOTS_PASSWORD being non-empty.
-# Maestro does not have a native env-var conditional, so we use the
-# profile page's "Sportlots Credentials" heading as a proxy: if we can
-# load /profile and SportLots creds are present, run Test Credentials.
-# If SPORTLOTS_PASSWORD is empty we still attempt the util but setup-sportlots-credentials
-# will fail silently (no inputText to fill). To truly skip, the caller should
-# simply omit this util when SPORTLOTS_PASSWORD is not available.
-#
-# In practice: the .env.test always has both sets of credentials. The conditional
-# skip comment above documents intent for CI environments with BSC-only secrets.
 
 # ============================================================
 # NAVIGATE TO PROFILE
@@ -55,21 +25,6 @@ tags:
 - extendedWaitUntil:
     visible: "Neon Binder"
     timeout: 20000
-
-# ============================================================
-# ENSURE SPORTLOTS CREDENTIALS ARE SAVED
-# ============================================================
-
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 20000
-
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # FORCE A FRESH SPORTLOTS LOGIN — tap "Test Credentials"

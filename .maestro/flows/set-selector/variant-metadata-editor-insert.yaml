@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Variant metadata editor — edit Prefix on a custom Insert variant and verify persistence"
 tags:
   - set-selector
@@ -62,10 +62,6 @@ tags:
     env:
       SET_NAME: "vme-insert-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # ADD A CUSTOM INSERT VARIANT

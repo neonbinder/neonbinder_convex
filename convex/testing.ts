@@ -22,7 +22,8 @@
 // - Deletes are strictly scoped to the three per-user tables via the by_user
 //   index. No bulk-wipe paths, no cross-user reach.
 
-import { mutation } from "./_generated/server";
+import { mutation, action } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
 
@@ -73,5 +74,99 @@ export const resetMyTestState = mutation({
       userProfiles: userProfiles.length,
       prizePool: prizePool.length,
     };
+  },
+});
+
+// Server-side marketplace-credential seeding for E2E test isolation (NEO-29).
+//
+// Problem: Maestro flows used to receive real BSC/SportLots passwords via `-e`
+// env, which Maestro serializes into its public CI debug artifacts. Instead,
+// the dev test user's credentials are now seeded server-side from Convex env
+// vars and never touch Maestro at all.
+//
+// Same security posture as resetMyTestState: scoped to the CALLER (seeds only
+// getCurrentUserId's own credentials), gated by presence of TESTING_RESET_SECRET
+// (set on dev + preview only — fails closed in production), and reads the secret
+// values exclusively from server env (DEV_*), never from client arguments. The
+// returned summary is booleans only — no username/password/token is echoed.
+const SEED_SITE_ENV: Record<string, { username: string; password: string }> = {
+  buysportscards: { username: "DEV_BSC_USERNAME", password: "DEV_BSC_PASSWORD" },
+  sportlots: { username: "DEV_SPORTLOTS_USERNAME", password: "DEV_SPORTLOTS_PASSWORD" },
+};
+
+export const seedMyTestCredentials = action({
+  args: { sites: v.optional(v.array(v.string())) },
+  returns: v.object({
+    seeded: v.array(
+      v.object({
+        site: v.string(),
+        stored: v.boolean(),
+        authenticated: v.boolean(),
+        skipped: v.optional(v.boolean()),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    // Fail closed in production: the enabling flag is unset there.
+    if (!process.env.TESTING_RESET_SECRET) {
+      throw new Error("Test credential seeding is not enabled on this deployment");
+    }
+
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const sites = args.sites ?? ["buysportscards", "sportlots"];
+    const seeded: Array<{
+      site: string;
+      stored: boolean;
+      authenticated: boolean;
+      skipped?: boolean;
+    }> = [];
+
+    for (const site of sites) {
+      const envKeys = SEED_SITE_ENV[site];
+      const username = envKeys ? process.env[envKeys.username] : undefined;
+      const password = envKeys ? process.env[envKeys.password] : undefined;
+      if (!username || !password) {
+        // No dev creds configured for this site on this deployment — skip
+        // rather than failing the whole seed call.
+        seeded.push({ site, stored: false, authenticated: false, skipped: true });
+        continue;
+      }
+
+      const storeResult = await ctx.runAction(api.credentials.storeSiteCredentials, {
+        site,
+        username,
+        password,
+      });
+
+      let authenticated = false;
+      if (storeResult.success) {
+        await ctx.runMutation(api.userProfile.updateSiteCredentialStatus, {
+          site,
+          hasCredentials: true,
+        });
+        // Warm the marketplace session token so downstream adapter fetches
+        // don't pay a cold login mid-flow. Best-effort: a transient login
+        // failure shouldn't fail seeding (creds are still stored).
+        try {
+          const authResult =
+            site === "buysportscards"
+              ? await ctx.runAction(internal.credentials.authenticateBsc, {})
+              : await ctx.runAction(internal.credentials.authenticateSportlots, {});
+          authenticated = authResult.success;
+        } catch (e) {
+          console.error(
+            `[seedMyTestCredentials] auth warm-up failed for ${site}: ${String(e)}`,
+          );
+        }
+      }
+
+      seeded.push({ site, stored: storeResult.success, authenticated });
+    }
+
+    return { seeded };
   },
 });

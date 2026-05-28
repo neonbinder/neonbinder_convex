@@ -6,17 +6,12 @@ tags:
 # Shared prerequisite for flows that depend on a live BSC fetch.
 #
 # WHY THIS EXISTS:
-#   setup-bsc-credentials.yaml (called inside util-drill-to-2024-topps-chrome) is
-#   idempotent: when credentials are already saved it skips the save entirely, which
-#   means no new BSC login runs and no sellerId is refreshed. If the sellerId is
-#   stale or absent, BSC fetch returns 0 cards and the UnknownEntitiesDialog never
-#   opens — causing all data-dependent checklist flows to fail silently.
-#
-#   This util forces a "Test Credentials" call (which re-runs the Puppeteer BSC login
-#   and refreshes the sellerId in the DB) regardless of whether credentials were
-#   already present. It is safe to call before util-drill-to-base-variant because the
-#   drill util's credential step is also idempotent and will no-op cleanly when it
-#   finds credentials already saved.
+#   The worker-bootstrap flow seeds real credentials server-side via
+#   /testing/seed-credentials. This util forces a "Test Credentials" call
+#   (which re-runs the Puppeteer BSC login and refreshes the sellerId in the
+#   DB) regardless of whether credentials were already present. If the sellerId
+#   is stale or absent, BSC fetch returns 0 cards and the UnknownEntitiesDialog
+#   never opens — causing all data-dependent checklist flows to fail silently.
 #
 # WHEN TO CALL:
 #   Call this util (via runFlow) before util-drill-to-base-variant in any flow that:
@@ -25,7 +20,8 @@ tags:
 #
 # CALLER CONTRACT:
 #   - Caller must have called launchApp and waited for sign-in redirect.
-#   - Caller must pass BSC_USERNAME and BSC_PASSWORD in the env block.
+#   - Credentials are already seeded server-side by worker-bootstrap; no
+#     credential env vars need to be passed.
 #   - Caller is expected to call util-drill-to-base-variant after this util returns.
 #   - This util leaves the browser on /profile (the drill util will navigate from there).
 
@@ -38,24 +34,6 @@ tags:
 - extendedWaitUntil:
     visible: "Neon Binder"
     timeout: 20000
-
-# ============================================================
-# ENSURE BSC CREDENTIALS ARE SAVED
-# Uses the idempotent helper — saves only if credentials are absent.
-# If credentials are already present this is a no-op (correct: we just need
-# them to exist so "Test Credentials" can fire).
-# ============================================================
-
-- scrollUntilVisible:
-    element:
-      text: ".*Select Platform.*"
-    timeout: 20000
-
-- runFlow:
-    file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
 
 # ============================================================
 # FORCE A FRESH BSC LOGIN — tap "Test Credentials"

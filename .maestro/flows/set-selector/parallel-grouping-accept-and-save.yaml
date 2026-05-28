@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — accept suggestions and save; verify Inserts column rerenders"
 tags:
   - parallel-grouping
@@ -52,10 +52,6 @@ tags:
     env:
       SET_NAME: "pg-save-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # ADD CONTROLLED CUSTOM INSERTS

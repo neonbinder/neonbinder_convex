@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: "Set Builder Gate — admin with neither BSC nor SportLots credentials sees the warning banner"
 tags:
   - set-selector
@@ -97,15 +97,9 @@ tags:
 # ============================================================
 - runFlow:
     file: ../profile/clear-then-setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
 - extendedWaitUntil:
     visible: "Profile Settings"
     timeout: 20000
 - runFlow:
     file: ../profile/clear-then-setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}

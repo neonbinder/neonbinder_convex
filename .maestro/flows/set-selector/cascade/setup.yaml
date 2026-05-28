@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Cascade Setup — reset DB, save credentials, drill to 2024 Topps Chrome, sync Variant Types"
 tags:
   - set-selector
@@ -96,32 +96,11 @@ tags:
     timeout: 15000
 
 # ============================================================
-# CREDENTIALS (idempotent — skips platform if creds already present)
+# CREDENTIALS
+# Seeded server-side via /testing/seed-credentials in the sign-in URL chain.
+# No credential setup steps needed here — the worker user already has real
+# BSC + SL credentials in Secret Manager before launchApp returns.
 # ============================================================
-
-# Navigate to /profile before credential setup. runFlow does NOT re-navigate.
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
-
-- runFlow:
-    file: ../../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-
-# Reload /profile so the page resets to top before Sportlots setup.
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
-
-- runFlow:
-    file: ../../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # NAVIGATE TO SET SELECTOR
@@ -333,25 +312,13 @@ tags:
     file: ../util-drill-to-2024-topps-chrome.yaml
     env:
       SET: "Topps Update"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 - runFlow:
     file: ../util-drill-to-2024-topps-chrome.yaml
     env:
       SET: "Topps Pro Debut"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 - runFlow:
     file: ../util-drill-to-2024-topps-chrome.yaml
     env:
       SET: "Topps Wonderland"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
