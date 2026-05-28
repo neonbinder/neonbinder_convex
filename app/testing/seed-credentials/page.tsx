@@ -42,10 +42,7 @@ function TestingSeedCredentialsContent() {
         setStatus("Seeding marketplace credentials...");
         const result = await seedAction({});
         const summary = result.seeded
-          .map(
-            (s) =>
-              `${s.site}=${s.skipped ? "skip" : s.stored ? (s.authenticated ? "ok" : "stored") : "fail"}`,
-          )
+          .map((s) => `${s.site}=${s.skipped ? "skip" : s.stored ? "stored" : "fail"}`)
           .join(" ");
         setStatus(`Seed complete (${summary}) — redirecting...`);
         navigate(redirect);

@@ -23,7 +23,7 @@
 //   index. No bulk-wipe paths, no cross-user reach.
 
 import { mutation, action } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
 import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
 
@@ -101,7 +101,6 @@ export const seedMyTestCredentials = action({
       v.object({
         site: v.string(),
         stored: v.boolean(),
-        authenticated: v.boolean(),
         skipped: v.optional(v.boolean()),
       }),
     ),
@@ -121,7 +120,6 @@ export const seedMyTestCredentials = action({
     const seeded: Array<{
       site: string;
       stored: boolean;
-      authenticated: boolean;
       skipped?: boolean;
     }> = [];
 
@@ -132,7 +130,7 @@ export const seedMyTestCredentials = action({
       if (!username || !password) {
         // No dev creds configured for this site on this deployment — skip
         // rather than failing the whole seed call.
-        seeded.push({ site, stored: false, authenticated: false, skipped: true });
+        seeded.push({ site, stored: false, skipped: true });
         continue;
       }
 
@@ -142,29 +140,24 @@ export const seedMyTestCredentials = action({
         password,
       });
 
-      let authenticated = false;
+      // Store the creds and flip the hasCredentials flag — but do NOT
+      // authenticate here. A real Puppeteer marketplace login takes 30-65s
+      // (Cloud Run cold start), and this action is awaited by the
+      // /testing/seed-credentials page before it redirects, so authenticating
+      // here would block the redirect well past the flows' post-redirect wait
+      // budget (NEO-29 CI run 26575751575: every seed-routed flow died on the
+      // stuck "Seeding marketplace credentials" page). Token warming is done
+      // separately, where a flow can afford the latency, by tapping
+      // "Test Credentials" (see util-login-to-bsc / util-login-to-sportlots);
+      // adapters also mint a token lazily via getSiteToken on first fetch.
       if (storeResult.success) {
         await ctx.runMutation(api.userProfile.updateSiteCredentialStatus, {
           site,
           hasCredentials: true,
         });
-        // Warm the marketplace session token so downstream adapter fetches
-        // don't pay a cold login mid-flow. Best-effort: a transient login
-        // failure shouldn't fail seeding (creds are still stored).
-        try {
-          const authResult =
-            site === "buysportscards"
-              ? await ctx.runAction(internal.credentials.authenticateBsc, {})
-              : await ctx.runAction(internal.credentials.authenticateSportlots, {});
-          authenticated = authResult.success;
-        } catch (e) {
-          console.error(
-            `[seedMyTestCredentials] auth warm-up failed for ${site}: ${String(e)}`,
-          );
-        }
       }
 
-      seeded.push({ site, stored: storeResult.success, authenticated });
+      seeded.push({ site, stored: storeResult.success });
     }
 
     return { seeded };

@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: "Cascade Setup — reset DB, save credentials, drill to 2024 Topps Chrome, sync Variant Types"
 tags:
   - set-selector
@@ -27,18 +27,36 @@ tags:
 #   called via runFlow from parent flows), this flow stands alone.
 
 # ============================================================
-# LAUNCH + SIGN IN
+# LAUNCH + SIGN IN → /profile (seed-credentials redirects here)
 # ============================================================
 
 - launchApp
 - extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 10000
+    visible: "Neon Binder"
+    timeout: 20000
+
+# ============================================================
+# WARM BSC + SPORTLOTS SESSIONS
+# seed-credentials stored real creds in Secret Manager but did NOT warm the
+# marketplace Puppeteer sessions (eager auth was removed from seedMyTestCredentials
+# to avoid the 30–65s delay before the redirect). The Sync Variant Types step
+# below calls BSC + SL adapters and needs a live session. Force a "Test
+# Credentials" round-trip for each platform now — util-login-to-bsc waits up
+# to 90s for BSC auth success; util-login-to-sportlots waits up to 60s for SL.
+# Both utils leave the browser on /profile when they return.
+# ============================================================
+
+- runFlow:
+    file: ../util-login-to-bsc.yaml
+
+- runFlow:
+    file: ../util-login-to-sportlots.yaml
 
 # ============================================================
 # RESET STATE
-# Clears selectorOptions and cardChecklist rows on the shared Convex
-# deployment. Requires ALLOW_RESET_SET_BUILDER_DATA env var (dev/preview only).
+# Navigate to /set-selector where the Reset button lives, then clear
+# selectorOptions and cardChecklist rows on the shared Convex deployment.
+# Requires ALLOW_RESET_SET_BUILDER_DATA env var (dev/preview only).
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -96,10 +114,11 @@ tags:
     timeout: 15000
 
 # ============================================================
-# CREDENTIALS
-# Seeded server-side via /testing/seed-credentials in the sign-in URL chain.
-# No credential setup steps needed here — the worker user already has real
-# BSC + SL credentials in Secret Manager before launchApp returns.
+# CREDENTIALS + SESSION WARMING
+# Credentials were seeded server-side via /testing/seed-credentials in the
+# sign-in URL chain. BSC + SL Puppeteer sessions were warmed by the
+# util-login-to-bsc and util-login-to-sportlots runFlow calls above.
+# The marketplace adapters are ready for the Sync Variant Types calls below.
 # ============================================================
 
 # ============================================================
