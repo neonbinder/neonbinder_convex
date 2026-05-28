@@ -53,7 +53,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
-    timeout: 90000
+    timeout: 240000
 
 # ============================================================
 # CONFIRM AUTHENTICATED

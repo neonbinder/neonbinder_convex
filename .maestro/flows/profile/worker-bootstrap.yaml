@@ -24,3 +24,25 @@ tags:
 - extendedWaitUntil:
     visible: "Profile Settings"
     timeout: 45000
+
+# ============================================================
+# WARM MARKETPLACE TOKENS — BSC then SportLots
+# seed-credentials stored real creds in Secret Manager but does NOT
+# warm the Puppeteer sessions (eager auth was removed from
+# seedMyTestCredentials to keep the redirect snappy). Each util
+# navigates to /profile, taps "Test Credentials", and waits up to
+# 240s for the "...authenticated successfully..." message — the long
+# ceiling covers the Convex retry loop (up to ~3.5 min total). A
+# cached / already-warm token returns in <1s; the ceiling only fires
+# on a cold login with retries. Both utils leave the browser on
+# /profile when they return.
+#
+# Token warming happens ONCE here (Phase 0) per worker. All later
+# flows for this worker reuse the cached session — no re-login needed.
+# ============================================================
+
+- runFlow:
+    file: ../set-selector/util-login-to-bsc.yaml
+
+- runFlow:
+    file: ../set-selector/util-login-to-sportlots.yaml

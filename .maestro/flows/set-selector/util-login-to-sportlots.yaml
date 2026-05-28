@@ -49,7 +49,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
-    timeout: 60000
+    timeout: 240000
 
 - assertVisible:
     text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
