@@ -516,14 +516,26 @@ export const testSiteCredentials = action({
 // flow), retry a few times with backoff spread across a wider window so a
 // transient miss gets another shot. Returns the parsed success payload, or a
 // failure with the last error detail after all attempts are exhausted.
+// Sanitized login-failure diagnostics returned by the browser service (NEO-29
+// observability). Never contains credentials/tokens — the browser service
+// redacts them before returning. Forwarded to PostHog so we can spot long-term
+// failure patterns (e.g. a CAPTCHA/challenge page served to the CI context).
+type LoginDiagnostic = {
+  url?: string;
+  title?: string;
+  challengeDetected?: boolean;
+  snippet?: string;
+};
+
 async function loginWithRetry(
   loginUrl: string,
   key: string,
   label: string,
-): Promise<{ success: boolean; data: { success: boolean; message?: string; storeName?: string; sellerId?: string } | null; detail: string }> {
+): Promise<{ success: boolean; data: { success: boolean; message?: string; storeName?: string; sellerId?: string } | null; detail: string; diagnostic?: LoginDiagnostic }> {
   const maxAttempts = 3;
   const backoffsMs = [10_000, 20_000];
   let detail = "no attempt made";
+  let diagnostic: LoginDiagnostic | undefined;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await fetch(loginUrl, {
@@ -538,26 +550,35 @@ async function loginWithRetry(
           message?: string;
           storeName?: string;
           sellerId?: string;
+          diagnostic?: LoginDiagnostic;
         };
         if (data.success) {
           return { success: true, data, detail: "ok" };
         }
         detail = data.message || "login reported success=false";
+        if (data.diagnostic) diagnostic = data.diagnostic;
       } else if (response.status === 503) {
         detail = "browser service busy (503)";
       } else {
-        const err = await response.json().catch(() => ({ error: response.statusText }));
-        detail = (err as { error?: string }).error || response.statusText;
+        const err = (await response.json().catch(() => ({ error: response.statusText }))) as {
+          error?: string;
+          diagnostic?: LoginDiagnostic;
+        };
+        detail = err.error || response.statusText;
+        if (err.diagnostic) diagnostic = err.diagnostic;
       }
     } catch (e) {
       detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     }
-    console.log(`[${label}] login attempt ${attempt}/${maxAttempts} not successful: ${detail}`);
+    console.log(
+      `[${label}] login attempt ${attempt}/${maxAttempts} not successful: ${detail}` +
+        (diagnostic?.challengeDetected ? " [challenge page detected]" : ""),
+    );
     if (attempt < maxAttempts) {
       await new Promise((r) => setTimeout(r, backoffsMs[attempt - 1]));
     }
   }
-  return { success: false, data: null, detail };
+  return { success: false, data: null, detail, diagnostic };
 }
 
 export const authenticateBsc = internalAction({
@@ -588,7 +609,11 @@ export const authenticateBsc = internalAction({
         await ctx.runAction(internal.posthog.captureEvent, {
           distinctId: userId,
           event: "credential_test_failed",
-          properties: { platform: "buysportscards", reason: result.detail },
+          properties: {
+            platform: "buysportscards",
+            reason: result.detail,
+            ...(result.diagnostic ?? {}),
+          },
         }).catch(() => {});
         return {
           success: false,
@@ -663,7 +688,11 @@ export const authenticateSportlots = internalAction({
         await ctx.runAction(internal.posthog.captureEvent, {
           distinctId: userId,
           event: "credential_test_failed",
-          properties: { platform: "sportlots", reason: result.detail },
+          properties: {
+            platform: "sportlots",
+            reason: result.detail,
+            ...(result.diagnostic ?? {}),
+          },
         }).catch(() => {});
         return {
           success: false,
