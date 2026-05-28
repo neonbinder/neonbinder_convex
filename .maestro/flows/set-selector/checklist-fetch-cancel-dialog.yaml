@@ -94,9 +94,11 @@ tags:
 # submitting. Fails fast if input targeting regresses.
 - assertVisible: "CDPlayer-${TEST_USERNAME}"
 - tapOn: "Add"
-- extendedWaitUntil:
-    visible: "Cancel Dialog Test ${TEST_USERNAME}"
-    timeout: 10000
+# Card #9001 sorts to the bottom of a populated checklist — scroll to find it.
+- scrollUntilVisible:
+    element:
+      text: "Cancel Dialog Test ${TEST_USERNAME}"
+    timeout: 15000
 
 # ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
