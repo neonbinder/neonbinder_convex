@@ -147,6 +147,7 @@ function clerkTestingApiPlugin(): Plugin {
           JSON.stringify({
             signInToken: result.signInToken,
             testingToken: result.testingToken,
+            clerkUserId: result.clerkUserId,
           }),
         );
       });

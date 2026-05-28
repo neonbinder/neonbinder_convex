@@ -1,12 +1,11 @@
-// Unit tests for the `resetUserStateForTesting` internalMutation. Verifies
-// per-user scoping across publicProfiles / userProfiles / prizePool, plus the
-// clerkUserId shape guard. The secret gate lives in the HTTP action (see
-// convex/testing.ts) and is exercised end-to-end in CI; pure-Convex unit tests
-// only cover the mutation surface.
+// Unit tests for the `resetMyTestState` mutation. Verifies caller-scoped
+// deletes across publicProfiles / userProfiles / prizePool, the auth gate
+// (must be signed in), and the production fail-closed gate (mutation throws
+// unless TESTING_RESET_SECRET is present on the deployment).
 
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
-import { internal } from "./_generated/api";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { api } from "./_generated/api";
 import schema from "./schema";
 
 const modules = (import.meta as unknown as {
@@ -15,6 +14,15 @@ const modules = (import.meta as unknown as {
 
 const USER_A = "user_aaaabbbbcccc";
 const USER_B = "user_ddddeeeeffff";
+
+beforeEach(() => {
+  // Enabling flag — present on dev/preview, absent on prod.
+  process.env.TESTING_RESET_SECRET = "test-enabled";
+});
+
+afterEach(() => {
+  delete process.env.TESTING_RESET_SECRET;
+});
 
 async function seedUser(
   t: ReturnType<typeof convexTest>,
@@ -49,10 +57,6 @@ async function countRows(
   userProfiles: number;
   prizePool: number;
 }> {
-  // Use collect() + manual filter instead of `.withIndex()` to sidestep
-  // schema-aware index typing on `ReturnType<typeof convexTest>` (which
-  // falls back to SystemIndexes). Test data is tiny so the table scan is
-  // fine.
   return t.run(async (ctx) => {
     const pp = (await ctx.db.query("publicProfiles").collect()).filter(
       (r) => r.userId === userId,
@@ -71,15 +75,14 @@ async function countRows(
   });
 }
 
-describe("resetUserStateForTesting", () => {
-  test("deletes per-user rows across publicProfiles, userProfiles, and prizePool", async () => {
+describe("resetMyTestState", () => {
+  test("deletes the caller's own rows across all three tables", async () => {
     const t = convexTest(schema, modules);
     await seedUser(t, USER_A);
 
-    const result = await t.mutation(
-      internal.testing.resetUserStateForTesting,
-      { clerkUserId: USER_A },
-    );
+    const result = await t
+      .withIdentity({ subject: USER_A })
+      .mutation(api.testing.resetMyTestState, {});
 
     expect(result).toEqual({
       publicProfiles: 1,
@@ -98,9 +101,9 @@ describe("resetUserStateForTesting", () => {
     await seedUser(t, USER_A);
     await seedUser(t, USER_B);
 
-    await t.mutation(internal.testing.resetUserStateForTesting, {
-      clerkUserId: USER_A,
-    });
+    await t
+      .withIdentity({ subject: USER_A })
+      .mutation(api.testing.resetMyTestState, {});
 
     expect(await countRows(t, USER_A)).toEqual({
       publicProfiles: 0,
@@ -114,13 +117,12 @@ describe("resetUserStateForTesting", () => {
     });
   });
 
-  test("zero-count happy path when the user has no rows", async () => {
+  test("zero-count happy path when the caller has no rows", async () => {
     const t = convexTest(schema, modules);
 
-    const result = await t.mutation(
-      internal.testing.resetUserStateForTesting,
-      { clerkUserId: USER_A },
-    );
+    const result = await t
+      .withIdentity({ subject: USER_A })
+      .mutation(api.testing.resetMyTestState, {});
 
     expect(result).toEqual({
       publicProfiles: 0,
@@ -129,15 +131,13 @@ describe("resetUserStateForTesting", () => {
     });
   });
 
-  test("rejects clerkUserId that doesn't match the user_<alphanum> shape", async () => {
+  test("throws when the caller is not authenticated", async () => {
     const t = convexTest(schema, modules);
     await seedUser(t, USER_A);
 
     await expect(
-      t.mutation(internal.testing.resetUserStateForTesting, {
-        clerkUserId: "not-a-clerk-id",
-      }),
-    ).rejects.toThrow(/Invalid clerkUserId/);
+      t.mutation(api.testing.resetMyTestState, {}),
+    ).rejects.toThrow(/Not authenticated/);
 
     // Existing rows must be untouched.
     expect(await countRows(t, USER_A)).toEqual({
@@ -147,23 +147,21 @@ describe("resetUserStateForTesting", () => {
     });
   });
 
-  test("rejects empty clerkUserId", async () => {
+  test("throws (fails closed) when TESTING_RESET_SECRET is unset", async () => {
+    delete process.env.TESTING_RESET_SECRET;
     const t = convexTest(schema, modules);
+    await seedUser(t, USER_A);
 
     await expect(
-      t.mutation(internal.testing.resetUserStateForTesting, {
-        clerkUserId: "",
-      }),
-    ).rejects.toThrow(/Invalid clerkUserId/);
-  });
+      t
+        .withIdentity({ subject: USER_A })
+        .mutation(api.testing.resetMyTestState, {}),
+    ).rejects.toThrow(/not enabled/);
 
-  test("rejects clerkUserId with a non-Clerk prefix even if the rest is valid", async () => {
-    const t = convexTest(schema, modules);
-
-    await expect(
-      t.mutation(internal.testing.resetUserStateForTesting, {
-        clerkUserId: "sess_abcdef0123",
-      }),
-    ).rejects.toThrow(/Invalid clerkUserId/);
+    expect(await countRows(t, USER_A)).toEqual({
+      publicProfiles: 1,
+      userProfiles: 1,
+      prizePool: 1,
+    });
   });
 });

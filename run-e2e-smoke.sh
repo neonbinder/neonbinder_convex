@@ -83,6 +83,11 @@ SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
 SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
 BSC_USERNAME="${BSC_USERNAME:-}"
 BSC_PASSWORD="${BSC_PASSWORD:-}"
+# NOTE: per-user test-state reset is NOT driven by a Maestro env secret. Flows
+# that need a clean slate route their sign-in through /testing/reset, which
+# calls the auth-scoped resetMyTestState Convex mutation from the browser. No
+# reset secret is passed via -e (Maestro serializes the full -e env map into its
+# debug artifacts, so passing secrets there would leak them).
 # Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
 # as a PR check (JUnit) and uploads the directory as an Actions artifact.
 REPORT_DIR="${REPORT_DIR:-maestro-report}"

@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { issueClerkTestingTokens } from "../../lib/testing/issue-clerk-tokens.js";
-import { resetTestUserState } from "../../lib/testing/reset-test-user.js";
 
 // POST /api/auth/testing — mints Clerk sign-in + testing tokens for E2E runs.
 //
@@ -148,41 +147,16 @@ export default async function handler(
     return;
   }
 
-  // Per-user state reset for test isolation. NEW_PROFILE_TEST_EMAIL_<worker>
-  // and TEST_EMAIL_<worker> are reused across CI runs; without this, prior
-  // runs' profile/preferences/prize-pool rows leak into the next run and
-  // cause assertion failures (the canary was `assertVisible
-  // "→ paypal.me/<expected>"` in fill-profile-data.yaml, where Maestro
-  // `inputText` was appending to a non-empty field).
-  const resetResult = await resetTestUserState({
-    convexUrl: process.env.VITE_CONVEX_URL,
-    testingResetSecret: process.env.TESTING_RESET_SECRET,
-    clerkUserId: result.clerkUserId,
-  });
-  console.log(
-    JSON.stringify({
-      event: "testing_user_reset",
-      ok: resetResult.ok,
-      account,
-      worker,
-      email: testEmail,
-      clerkUserId: result.clerkUserId,
-      ts: new Date().toISOString(),
-      ...(resetResult.ok
-        ? { counts: resetResult.counts }
-        : { status: resetResult.status, error: resetResult.error, detail: resetResult.detail }),
-    }),
-  );
-  if (!resetResult.ok) {
-    // Hard fail: returning the tokens without a clean state would mean the
-    // test runs against polluted data — the original bug. Better to surface
-    // the misconfiguration than to mint tokens and let the flow flake.
-    res.status(resetResult.status).json({ error: resetResult.error });
-    return;
-  }
-
+  // Per-user state reset is done browser-side by the Maestro flow after
+  // sign-in: it reads the per-PR Convex URL from window.__convexUrl, then
+  // POSTs to /testing/reset-user-state on the Convex preview deployment.
+  // The Vercel lambda can't do this itself — its process.env.VITE_CONVEX_URL
+  // is the dev URL (from the Vercel dashboard), not the per-PR preview that
+  // the client bundle actually talks to. clerkUserId is returned so the test
+  // flow has the value to send as the reset body.
   res.status(200).json({
     signInToken: result.signInToken,
     testingToken: result.testingToken,
+    clerkUserId: result.clerkUserId,
   });
 }
