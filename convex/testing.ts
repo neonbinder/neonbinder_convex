@@ -134,22 +134,43 @@ export const seedMyTestCredentials = action({
         continue;
       }
 
+      // IDEMPOTENT: only store creds when none exist yet for this user+site.
+      // Re-storing matters because the browser service's PUT /credentials
+      // (secrets-manager.updateCredentials) writes a username/password-only
+      // secret version that WIPES the cached marketplace token. Since every
+      // flow routes its sign-in through /testing/seed-credentials, re-storing
+      // on each flow wiped the token every time and forced a fresh Puppeteer
+      // login per flow — a login storm that intermittently 500s/400s under the
+      // browser service's rate limiter (NEO-29 CI run 26577449109). Storing
+      // once per worker (creds persist in Secret Manager across the run) keeps
+      // the warmed token intact so subsequent flows reuse it.
+      //
+      // We never authenticate here either: a real login takes 30-65s and this
+      // action is awaited by the seed page before it redirects, so warming here
+      // would blow past the flows' post-redirect wait budget. Token warming is
+      // done where a flow can afford it, by tapping "Test Credentials"
+      // (util-login-to-bsc / util-login-to-sportlots); adapters also mint a
+      // token lazily via getSiteToken on first fetch.
+      const existing = await ctx.runAction(api.credentials.getSiteCredentials, {
+        site,
+      });
+      if (existing) {
+        // Creds already present — ensure the flag (a prior /testing/reset may
+        // have cleared the userProfile row while Secret Manager kept the creds)
+        // and leave the stored token untouched.
+        await ctx.runMutation(api.userProfile.updateSiteCredentialStatus, {
+          site,
+          hasCredentials: true,
+        });
+        seeded.push({ site, stored: true });
+        continue;
+      }
+
       const storeResult = await ctx.runAction(api.credentials.storeSiteCredentials, {
         site,
         username,
         password,
       });
-
-      // Store the creds and flip the hasCredentials flag — but do NOT
-      // authenticate here. A real Puppeteer marketplace login takes 30-65s
-      // (Cloud Run cold start), and this action is awaited by the
-      // /testing/seed-credentials page before it redirects, so authenticating
-      // here would block the redirect well past the flows' post-redirect wait
-      // budget (NEO-29 CI run 26575751575: every seed-routed flow died on the
-      // stuck "Seeding marketplace credentials" page). Token warming is done
-      // separately, where a flow can afford the latency, by tapping
-      // "Test Credentials" (see util-login-to-bsc / util-login-to-sportlots);
-      // adapters also mint a token lazily via getSiteToken on first fetch.
       if (storeResult.success) {
         await ctx.runMutation(api.userProfile.updateSiteCredentialStatus, {
           site,
