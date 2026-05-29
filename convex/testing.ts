@@ -134,16 +134,26 @@ export const seedMyTestCredentials = action({
         continue;
       }
 
-      // IDEMPOTENT: only store creds when none exist yet for this user+site.
-      // Re-storing matters because the browser service's PUT /credentials
+      // IDEMPOTENT, BUT SELF-HEALING: skip the re-store ONLY when the secret
+      // already holds the correct (canonical env) username. Re-storing matters
+      // because the browser service's PUT /credentials
       // (secrets-manager.updateCredentials) writes a username/password-only
       // secret version that WIPES the cached marketplace token. Since every
       // flow routes its sign-in through /testing/seed-credentials, re-storing
       // on each flow wiped the token every time and forced a fresh Puppeteer
       // login per flow — a login storm that intermittently 500s/400s under the
-      // browser service's rate limiter (NEO-29 CI run 26577449109). Storing
-      // once per worker (creds persist in Secret Manager across the run) keeps
-      // the warmed token intact so subsequent flows reuse it.
+      // browser service's rate limiter (NEO-29 CI run 26577449109). Skipping
+      // when the stored creds are correct keeps the warmed token intact so
+      // subsequent flows reuse it.
+      //
+      // The original "skip whenever ANY secret exists" was too coarse: a worker
+      // whose secret held a STALE username from a prior run was never refreshed,
+      // so its warm logged in with the bad username and SportLots returned
+      // "Not a valid Email Address" (NEO-29 run 26618163560, worker
+      // user_3DPlQMAl…). Comparing the stored username to the env value lets us
+      // overwrite a stale secret (which correctly wipes its dead token and
+      // forces a fresh, correct login) while still skipping — and preserving the
+      // token — on the common, already-correct path.
       //
       // We never authenticate here either: a real login takes 30-65s and this
       // action is awaited by the seed page before it redirects, so warming here
@@ -154,10 +164,16 @@ export const seedMyTestCredentials = action({
       const existing = await ctx.runAction(api.credentials.getSiteCredentials, {
         site,
       });
-      if (existing) {
-        // Creds already present — ensure the flag (a prior /testing/reset may
-        // have cleared the userProfile row while Secret Manager kept the creds)
-        // and leave the stored token untouched.
+      // Marketplace usernames are emails (case-insensitive, no surrounding
+      // whitespace). Compare normalized so benign casing/whitespace drift does
+      // NOT trigger a needless re-store (which would wipe the warmed token and
+      // reopen the storm). A genuine mismatch — or no secret at all — re-stores.
+      const norm = (value: string) => value.trim().toLowerCase();
+      const credsMatch = !!existing && norm(existing.username) === norm(username);
+      if (credsMatch) {
+        // Correct secret already present — ensure the flag (a prior
+        // /testing/reset may have cleared the userProfile row while Secret
+        // Manager kept the creds) and leave the stored token untouched.
         await ctx.runMutation(api.userProfile.updateSiteCredentialStatus, {
           site,
           hasCredentials: true,
