@@ -532,8 +532,16 @@ async function loginWithRetry(
   key: string,
   label: string,
 ): Promise<{ success: boolean; data: { success: boolean; message?: string; storeName?: string; sellerId?: string } | null; detail: string; diagnostic?: LoginDiagnostic }> {
-  const maxAttempts = 3;
-  const backoffsMs = [10_000, 20_000];
+  // Retry ONLY on 503 (browser service busy serializing Puppeteer logins) —
+  // back off and wait our turn. Do NOT retry an actual login failure: a real
+  // marketplace login takes ~30s, and retrying it just fires another login at
+  // the same shared account. With 3 workers warming at once, retrying turned a
+  // single hiccup into a sustained ~6-min burst of serialized BSC logins that
+  // tripped BSC's bot protection (NEO-29 run 26610313677: 6 straight 500s, then
+  // recovery) — the retry caused the failures it was meant to fix. So on any
+  // non-503 failure we return immediately (with the diagnostic) — matching the
+  // pre-NEO-29 behavior that ran green.
+  const maxAttempts = 4;
   let detail = "no attempt made";
   let diagnostic: LoginDiagnostic | undefined;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -555,27 +563,42 @@ async function loginWithRetry(
         if (data.success) {
           return { success: true, data, detail: "ok" };
         }
-        detail = data.message || "login reported success=false";
+        // Login ran and failed — do NOT retry (avoids hammering the account).
         if (data.diagnostic) diagnostic = data.diagnostic;
-      } else if (response.status === 503) {
-        detail = "browser service busy (503)";
-      } else {
-        const err = (await response.json().catch(() => ({ error: response.statusText }))) as {
-          error?: string;
-          diagnostic?: LoginDiagnostic;
+        return {
+          success: false,
+          data: null,
+          detail: data.message || "login reported success=false",
+          diagnostic,
         };
-        detail = err.error || response.statusText;
-        if (err.diagnostic) diagnostic = err.diagnostic;
       }
+      if (response.status === 503) {
+        detail = "browser service busy (503)";
+        console.log(`[${label}] 503 (attempt ${attempt}/${maxAttempts}) — backing off`);
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 5_000 * attempt));
+          continue;
+        }
+        return { success: false, data: null, detail, diagnostic };
+      }
+      // Any other non-OK (e.g. 500 from a failed/timed-out login) — capture the
+      // diagnostic and return immediately, no retry.
+      const err = (await response.json().catch(() => ({ error: response.statusText }))) as {
+        error?: string;
+        diagnostic?: LoginDiagnostic;
+      };
+      if (err.diagnostic) diagnostic = err.diagnostic;
+      detail = err.error || response.statusText;
+      console.log(
+        `[${label}] login failed: ${detail}` +
+          (diagnostic?.challengeDetected ? " [challenge page detected]" : ""),
+      );
+      return { success: false, data: null, detail, diagnostic };
     } catch (e) {
+      // Network/timeout to the browser service — do not retry (avoid hammering).
       detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    }
-    console.log(
-      `[${label}] login attempt ${attempt}/${maxAttempts} not successful: ${detail}` +
-        (diagnostic?.challengeDetected ? " [challenge page detected]" : ""),
-    );
-    if (attempt < maxAttempts) {
-      await new Promise((r) => setTimeout(r, backoffsMs[attempt - 1]));
+      console.log(`[${label}] login request threw: ${detail}`);
+      return { success: false, data: null, detail, diagnostic };
     }
   }
   return { success: false, data: null, detail, diagnostic };
