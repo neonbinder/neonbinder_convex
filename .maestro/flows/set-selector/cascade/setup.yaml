@@ -97,10 +97,20 @@ tags:
 # ============================================================
 # CREDENTIALS + SESSION WARMING
 # Credentials were seeded server-side via /testing/seed-credentials in the
-# sign-in URL chain. BSC + SL Puppeteer sessions were warmed once in
-# worker-bootstrap (Phase 0) and are reused here — no re-login needed.
-# The marketplace adapters are ready for the Sync Variant Types calls below.
+# sign-in URL chain. However, the marketplace token is cached PER USER
+# server-side: worker-bootstrap warms the bootstrap user's token, but
+# cascade/setup uses its own dedicated user (WORKER_INDEX-keyed). If that
+# user's token is COLD, the auto-sync that fires when the Years column opens
+# triggers a fresh Puppeteer login (~20s) and ".*Search years.*" never appears
+# within the 10s wait. Calling the warm utils here costs ~0.5s when the token
+# is already warm (cached no-op) and prevents the cold-login stall.
 # ============================================================
+
+- runFlow:
+    file: ../util-login-to-bsc.yaml
+
+- runFlow:
+    file: ../util-login-to-sportlots.yaml
 
 # ============================================================
 # NAVIGATE TO SET SELECTOR

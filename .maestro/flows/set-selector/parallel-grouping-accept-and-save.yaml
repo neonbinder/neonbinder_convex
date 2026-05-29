@@ -42,6 +42,21 @@ tags:
     timeout: 10000
 
 # ============================================================
+# CREDENTIAL WARMING
+# util-drill-to-custom-set drills Football → 2026 → Manufacturers, which
+# triggers a BSC + SL marketplace sync. If the session token is COLD,
+# that sync triggers a fresh Puppeteer login (~20s) and ".*Search
+# manufacturers.*" never appears within the 30s wait. The warm utils cost
+# ~0.5s when the token is already cached — safe to call here unconditionally.
+# ============================================================
+
+- runFlow:
+    file: util-login-to-bsc.yaml
+
+- runFlow:
+    file: util-login-to-sportlots.yaml
+
+# ============================================================
 # DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-save-<worker>
 # Isolated from Baseball → 2024 → Topps Chrome cascade path.
 # Returns with Inserts column visible and idle.
