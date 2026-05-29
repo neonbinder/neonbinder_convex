@@ -31,9 +31,16 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
+# Center the "Sportlots" tab itself rather than the "Select Platform" heading.
+# The tab row sits at y≈612–650, which falls at or below the 1024×629 headless
+# viewport fold. Scrolling to the heading leaves the tab at the very bottom edge,
+# causing tapOn to invoke Maestro's scrollToPoint which trips the CDP
+# empty-response flake. Centering the tab puts it near y≈315 so the subsequent
+# tapOn needs no implicit scroll.
 - scrollUntilVisible:
     element:
-      text: ".*Select Platform.*"
+      text: "Sportlots"
+    centerElement: true
     timeout: 20000
 
 # Switch to SportLots in the platform tablist (was a native <select> —
