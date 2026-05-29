@@ -31,11 +31,11 @@ tags:
 # warm the Puppeteer sessions (eager auth was removed from
 # seedMyTestCredentials to keep the redirect snappy). Each util
 # navigates to /profile, taps "Test Credentials", and waits up to
-# 240s for the "...authenticated successfully..." message — the long
-# ceiling covers the Convex retry loop (up to ~3.5 min total). A
-# cached / already-warm token returns in <1s; the ceiling only fires
-# on a cold login with retries. Both utils leave the browser on
-# /profile when they return.
+# 30s for the "...authenticated successfully..." message — a cold
+# Puppeteer/SSO round-trip measures ~22s; 30s gives margin. The
+# success banner renders below the button fold, so each util uses
+# scrollUntilVisible (not extendedWaitUntil) to both scroll and wait.
+# Both utils leave the browser on /profile when they return.
 #
 # Token warming happens ONCE here (Phase 0) per worker. All later
 # flows for this worker reuse the cached session — no re-login needed.

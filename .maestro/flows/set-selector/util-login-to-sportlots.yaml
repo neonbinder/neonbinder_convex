@@ -46,10 +46,14 @@ tags:
     timeout: 10000
 - tapOn: "Test Credentials"
 
-- extendedWaitUntil:
-    visible:
+# 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO round-trip (cached is <1s).
+# This is the ONE sanctioned >10s wait (the standing rule is 10s) — do NOT copy this ceiling elsewhere.
+# scrollUntilVisible both waits for the element AND scrolls it into the viewport, so the
+# assertVisible that follows is guaranteed to see it without a separate extendedWaitUntil.
+- scrollUntilVisible:
+    element:
       text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
-    timeout: 240000
+    timeout: 30000
 
 - assertVisible:
     text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
