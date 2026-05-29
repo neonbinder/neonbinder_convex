@@ -250,13 +250,14 @@ jobs:
           # The primary fix is that no secret is passed via -e anymore; these
           # excludes ensure that even if a future change reintroduces an -e var,
           # its value can't reach the public artifact via the command trace.
-          # `commands-*.json` and `maestro.log` are the serialization carriers;
-          # `maestro-home/` is Maestro's internal per-worker log tree that
-          # duplicates them. Screenshots (debug/**/*.png) are retained.
+          # Still exclude `commands-*.json` + `maestro-home/**` (verbose serialized
+          # command specs). maestro.log (readable step/assertion trace) is now
+          # INCLUDED for debugging — safe because no secret passes via -e anymore
+          # (only WORKER_INDEX/ATTEMPT_ID); revisit only if an -e secret is ever
+          # reintroduced (the hard rule forbids that). Screenshots retained.
           path: |
             maestro-report/
             !maestro-report/**/commands-*.json
-            !maestro-report/**/maestro.log
             !maestro-report/maestro-home/**
           if-no-files-found: ignore
           retention-days: 14
