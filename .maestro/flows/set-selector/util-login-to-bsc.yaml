@@ -43,11 +43,20 @@ tags:
 # Cloud Run cold-starts can add 20–30 s to the login round-trip.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
+# Wait for the stable page heading before scrolling. The DOM is fully settled
+# once "Profile Settings" is visible — starting a scroll during mid-reflow
+# widens the CDP empty-response window that causes the NEO-8 flake.
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 10000
+
+# waitToSettleTimeoutMs: Maestro waits for the view hierarchy to quiesce between
+# scroll steps, reducing CDP "end-of-input"/empty-hierarchy errors on dynamic pages.
 - scrollUntilVisible:
     element:
       text: "Test Credentials"
     timeout: 20000
+    waitToSettleTimeoutMs: 1000
 - tapOn: "Test Credentials"
 
 # 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO round-trip (cached is <1s).
@@ -58,6 +67,7 @@ tags:
     element:
       text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
     timeout: 30000
+    waitToSettleTimeoutMs: 1000
 
 # ============================================================
 # CONFIRM AUTHENTICATED

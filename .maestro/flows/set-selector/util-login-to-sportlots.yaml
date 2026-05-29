@@ -30,18 +30,27 @@ tags:
 # FORCE A FRESH SPORTLOTS LOGIN — tap "Test Credentials"
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
+# Wait for the stable page heading before scrolling. The DOM is fully settled
+# once "Profile Settings" is visible — starting a scroll during mid-reflow
+# widens the CDP empty-response window that causes the NEO-8 flake.
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 10000
+
 # Center the "Sportlots" tab itself rather than the "Select Platform" heading.
 # The tab row sits at y≈612–650, which falls at or below the 1024×629 headless
 # viewport fold. Scrolling to the heading leaves the tab at the very bottom edge,
 # causing tapOn to invoke Maestro's scrollToPoint which trips the CDP
 # empty-response flake. Centering the tab puts it near y≈315 so the subsequent
 # tapOn needs no implicit scroll.
+# waitToSettleTimeoutMs: Maestro waits for the view hierarchy to quiesce between
+# scroll steps, reducing CDP "end-of-input"/empty-hierarchy errors on dynamic pages.
 - scrollUntilVisible:
     element:
       text: "Sportlots"
     centerElement: true
     timeout: 20000
+    waitToSettleTimeoutMs: 1000
 
 # Switch to SportLots in the platform tablist (was a native <select> —
 # now role="tab" buttons; tap the visible label).
@@ -51,6 +60,7 @@ tags:
     element:
       text: "Test Credentials"
     timeout: 10000
+    waitToSettleTimeoutMs: 1000
 - tapOn: "Test Credentials"
 
 # 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO round-trip (cached is <1s).
@@ -61,6 +71,7 @@ tags:
     element:
       text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
     timeout: 30000
+    waitToSettleTimeoutMs: 1000
 
 - assertVisible:
     text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
