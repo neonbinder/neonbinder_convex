@@ -5,6 +5,11 @@ import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
 import { getCurrentUserId, requireAdmin } from "../auth";
 import { Id } from "../_generated/dataModel";
+import {
+  recordAdapterCall,
+  newRequestId,
+  classifyAdapterError,
+} from "../observability";
 
 type Level = "sport" | "year" | "manufacturer" | "setName" | "variantType" | "insert" | "parallel";
 
@@ -134,6 +139,9 @@ export const fetchSportLotsSelectorOptions = action({
     // Pre-resolved SportLots platform values keyed by level (e.g., { sport: "BB", year: "2024" }).
     // When provided, these are used directly instead of resolving via DB lookup.
     platformFilters: v.optional(v.record(v.string(), v.string())),
+    // Optional correlation id from a parent aggregator call. When absent we
+    // mint a fresh one so standalone calls are still self-correlatable.
+    requestId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -147,9 +155,29 @@ export const fetchSportLotsSelectorOptions = action({
   }),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    const requestId = args.requestId ?? newRequestId();
+    const start = Date.now();
+    let tokenMs: number | undefined;
+    let filtersCallMs: number | undefined;
+    let statusCode: number | undefined;
     try {
+      const tokenStart = Date.now();
       const sessionCookie = await getSportLotsCookie(ctx);
+      tokenMs = Date.now() - tokenStart;
       if (!sessionCookie) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          success: false,
+          error_class: "no_credentials",
+        });
         return {
           success: false,
           options: [],
@@ -160,13 +188,44 @@ export const fetchSportLotsSelectorOptions = action({
       // setName and variantType: BSC-only levels in NB's hierarchy.
       // SL doesn't have separate set or variant-type concepts.
       if (args.level === "setName" || args.level === "variantType") {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          success: true,
+          result_count: 0,
+          error_class: "unsupported_level",
+        });
         return { success: true, options: [] };
       }
 
       // insert level (NB "Variant"): SL's dealsets.tpl set list maps here.
       // SL combines set+variant into a flat list of set names.
       if (args.level === "insert") {
-        return await fetchSetNames(ctx, sessionCookie, args.parentFilters, args.platformFilters);
+        const insertResult = await fetchSetNames(ctx, sessionCookie, args.parentFilters, args.platformFilters);
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          success: insertResult.success,
+          result_count: insertResult.options.length,
+          error_class: insertResult.success
+            ? undefined
+            : classifyAdapterError(insertResult.message),
+        });
+        return insertResult;
       }
 
       // sport, year, manufacturer: POST to newinven.tpl and parse select options
@@ -189,6 +248,7 @@ export const fetchSportLotsSelectorOptions = action({
         formData.set("brd", platformBrand);
       }
 
+      const filtersStart = Date.now();
       const response = await slFetch(NEWINVEN_URL, {
         method: "POST",
         headers: {
@@ -197,8 +257,27 @@ export const fetchSportLotsSelectorOptions = action({
         },
         body: formData.toString(),
       });
+      filtersCallMs = Date.now() - filtersStart;
+      statusCode = response.status;
 
       if (!response.ok) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          error_class: classifyAdapterError(
+            `SportLots HTTP ${response.status}`,
+          ),
+        });
         return {
           success: false,
           options: [],
@@ -209,6 +288,21 @@ export const fetchSportLotsSelectorOptions = action({
       const html = await response.text();
 
       if (isSessionExpired(html)) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          error_class: "session_expired",
+        });
         return {
           success: false,
           options: [],
@@ -218,6 +312,21 @@ export const fetchSportLotsSelectorOptions = action({
 
       const targetSelect = LEVEL_TO_TARGET_SELECT[args.level];
       if (!targetSelect) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          error_class: "unsupported_level",
+        });
         return {
           success: false,
           options: [],
@@ -226,6 +335,22 @@ export const fetchSportLotsSelectorOptions = action({
       }
 
       const parsedOptions = parseSelectOptions(html, targetSelect);
+
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchSportLotsSelectorOptions",
+        platform: "sportlots",
+        level: args.level,
+        parentSport: args.parentFilters.sport,
+        parentYear: args.parentFilters.year,
+        parentSetName: args.parentFilters.setName,
+        duration_ms: Date.now() - start,
+        token_ms: tokenMs,
+        filters_call_ms: filtersCallMs,
+        status_code: statusCode,
+        success: true,
+        result_count: parsedOptions.length,
+      });
 
       return {
         success: true,
@@ -236,6 +361,23 @@ export const fetchSportLotsSelectorOptions = action({
       };
     } catch (error) {
       console.error("[fetchSportLotsSelectorOptions] Error:", error);
+      await recordAdapterCall(ctx, {
+        requestId,
+        operation: "fetchSportLotsSelectorOptions",
+        platform: "sportlots",
+        level: args.level,
+        parentSport: args.parentFilters.sport,
+        parentYear: args.parentFilters.year,
+        parentSetName: args.parentFilters.setName,
+        duration_ms: Date.now() - start,
+        token_ms: tokenMs,
+        filters_call_ms: filtersCallMs,
+        status_code: statusCode,
+        success: false,
+        error_class: classifyAdapterError(
+          error instanceof Error ? error.message : String(error),
+        ),
+      });
       return {
         success: false,
         options: [],
