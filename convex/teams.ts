@@ -2,6 +2,7 @@ import { query, mutation, internalMutation, internalQuery, action } from "./_gen
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireAdmin } from "./auth";
 
 /**
  * Lowercase + strip punctuation + token-sort. Same shape as the player
@@ -85,6 +86,60 @@ export const findOrCreate = mutation({
   },
 });
 
+/**
+ * Idempotent: ensures a fixed set of teams exists for Maestro E2E
+ * flows that need a deterministic typeahead match (TeamPicker tests
+ * assert "Add New York Yankees" / "Add New York Mets" by aria-label).
+ * The cascade `cards-base` flow normally populates the teams table
+ * via the "Confirm New Players & Teams" dialog, but its output
+ * depends on marketplace data and skip-some flows can leave specific
+ * teams absent. Calling this from cascade/setup.yaml guarantees the
+ * test teams exist regardless of cascade output.
+ *
+ * Admin-only + ALLOW_RESET_SET_BUILDER_DATA gate mirrors the reset
+ * mutation: same blast radius (test deployments only).
+ */
+export const seedTestTeams = mutation({
+  args: {},
+  returns: v.object({ created: v.number(), existing: v.number() }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    if (process.env.ALLOW_RESET_SET_BUILDER_DATA !== "true") {
+      throw new Error(
+        "Seed Test Teams is not enabled in this environment. " +
+          "Set ALLOW_RESET_SET_BUILDER_DATA=true on the Convex deployment to enable.",
+      );
+    }
+    const seeds: Array<{ name: string; sport: string }> = [
+      { name: "New York Yankees", sport: "Baseball" },
+      { name: "New York Mets", sport: "Baseball" },
+    ];
+    let created = 0;
+    let existing = 0;
+    for (const seed of seeds) {
+      const normalized = normalizeTeamName(seed.name);
+      const matches = await ctx.db
+        .query("teams")
+        .withIndex("by_name_normalized", (q) =>
+          q.eq("nameNormalized", normalized),
+        )
+        .collect();
+      if (matches.find((t) => t.sport === seed.sport)) {
+        existing += 1;
+        continue;
+      }
+      await ctx.db.insert("teams", {
+        name: seed.name,
+        nameNormalized: normalized,
+        sport: seed.sport,
+        lastUpdated: Date.now(),
+      });
+      created += 1;
+    }
+    return { created, existing };
+  },
+});
+
 export const list = query({
   args: {
     sport: v.optional(v.string()),
@@ -107,6 +162,21 @@ export const get = query({
   args: { id: v.id("teams") },
   returns: v.union(teamDocValidator, v.null()),
   handler: async (ctx, args) => await ctx.db.get(args.id),
+});
+
+/**
+ * Batch lookup for resolving a list of teamIds back to display rows.
+ * Used by the CardChecklistItem display row + TeamPicker chip view to
+ * render the names without N round-trips. Missing IDs are silently
+ * dropped (an orphaned link is a soft data error, not a fatal one).
+ */
+export const getManyByIds = query({
+  args: { ids: v.array(v.id("teams")) },
+  returns: v.array(teamDocValidator),
+  handler: async (ctx, args) => {
+    const rows = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+  },
 });
 
 /**

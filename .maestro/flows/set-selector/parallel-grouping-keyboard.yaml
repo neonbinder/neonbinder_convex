@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Parallel Grouping — modal close via Cancel button and backdrop tap"
 tags:
   - parallel-grouping
@@ -48,10 +48,6 @@ tags:
       YEAR: "2024"
       MANUFACTURER: "Topps"
       SET: "Topps Pro Debut"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # CLOSE VIA CANCEL BUTTON

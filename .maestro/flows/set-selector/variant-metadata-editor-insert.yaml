@@ -1,9 +1,10 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Variant metadata editor — edit Prefix on a custom Insert variant and verify persistence"
 tags:
   - set-selector
   - regression
+  - requires:setup-done
 ---
 # Tests the VariantMetadataEditor component on an Insert variantType variant row.
 #
@@ -50,6 +51,23 @@ tags:
     timeout: 10000
 
 # ============================================================
+# CREDENTIAL WARMING
+# seed-credentials already saved real BSC + SL credentials server-side via
+# the sign-in URL chain. Warm the Puppeteer session tokens so that any
+# marketplace-side fetch triggered during the custom-set drill uses a live
+# session (even though custom Football → 2026 subtrees short-circuit the
+# BSC/SL adapters via the NEO-22 gate, warming here costs ~0.5s and guards
+# against cold-token stalls if the gate behaviour ever changes or if a
+# prior flow in the same worker left the session expired).
+# ============================================================
+
+- runFlow:
+    file: util-login-to-bsc.yaml
+
+- runFlow:
+    file: util-login-to-sportlots.yaml
+
+# ============================================================
 # DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → variant-metadata-editor-insert-<worker>
 # Custom subtrees are isolated from the cascade's Baseball → 2024 → Topps Chrome
 # path, eliminating cross-flow contamination from custom variants added here.
@@ -61,10 +79,6 @@ tags:
     env:
       SET_NAME: "vme-insert-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # ADD A CUSTOM INSERT VARIANT

@@ -13,6 +13,10 @@ export default function CardForm({
 }) {
   const [cardNumber, setCardNumber] = useState("");
   const [playerName, setPlayerName] = useState("");
+  // NEO-26: free-text team string is collected here for the
+  // UnknownEntitiesDialog confirmation flow (`teams: [string]` →
+  // pendingTeamNames → operator confirm → teams entity). No longer
+  // written to a `cardChecklist.team` column.
   const [team, setTeam] = useState("");
   const [attributes, setAttributes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +31,14 @@ export default function CardForm({
     setSaving(true);
     setError(null);
     try {
+      const teamTrimmed = team.trim();
       await addCustomCard({
         selectorOptionId: setVariantId,
         cardNumber: cardNumber.trim(),
         cardName: playerName.trim() || `Card #${cardNumber.trim()}`,
-        team: team.trim() || undefined,
+        // NEO-26: route the team string via `teams` for entity-link
+        // resolution; no `team` arg anymore.
+        ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
         attributes: attributes.trim()
           ? attributes
               .split(",")

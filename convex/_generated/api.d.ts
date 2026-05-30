@@ -16,11 +16,14 @@ import type * as adapters_index from "../adapters/index.js";
 import type * as adapters_mycardpost from "../adapters/mycardpost.js";
 import type * as adapters_myslabs from "../adapters/myslabs.js";
 import type * as adapters_sportlots from "../adapters/sportlots.js";
+import type * as adapters_tcdb from "../adapters/tcdb.js";
 import type * as adapters_testBscSetParameters from "../adapters/testBscSetParameters.js";
 import type * as adapters_types from "../adapters/types.js";
 import type * as adapters_wikidata from "../adapters/wikidata.js";
 import type * as auth from "../auth.js";
+import type * as cardChecklist from "../cardChecklist.js";
 import type * as credentials from "../credentials.js";
+import type * as features_expectedFeatures from "../features/expectedFeatures.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as players from "../players.js";
@@ -30,6 +33,7 @@ import type * as resolveRedirect from "../resolveRedirect.js";
 import type * as selectorOptions from "../selectorOptions.js";
 import type * as setReconciliation from "../setReconciliation.js";
 import type * as teams from "../teams.js";
+import type * as testing from "../testing.js";
 import type * as userProfile from "../userProfile.js";
 
 import type {
@@ -47,11 +51,14 @@ declare const fullApi: ApiFromModules<{
   "adapters/mycardpost": typeof adapters_mycardpost;
   "adapters/myslabs": typeof adapters_myslabs;
   "adapters/sportlots": typeof adapters_sportlots;
+  "adapters/tcdb": typeof adapters_tcdb;
   "adapters/testBscSetParameters": typeof adapters_testBscSetParameters;
   "adapters/types": typeof adapters_types;
   "adapters/wikidata": typeof adapters_wikidata;
   auth: typeof auth;
+  cardChecklist: typeof cardChecklist;
   credentials: typeof credentials;
+  "features/expectedFeatures": typeof features_expectedFeatures;
   http: typeof http;
   myFunctions: typeof myFunctions;
   players: typeof players;
@@ -61,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   selectorOptions: typeof selectorOptions;
   setReconciliation: typeof setReconciliation;
   teams: typeof teams;
+  testing: typeof testing;
   userProfile: typeof userProfile;
 }>;
 

@@ -207,10 +207,13 @@ jobs:
       - name: Run Maestro E2E suite (smoke + regression)
         env:
           APP_URL: http://localhost:3000
-          SPORTLOTS_USERNAME: ${{ secrets.MAESTRO_SPORTLOTS_USERNAME }}
-          SPORTLOTS_PASSWORD: ${{ secrets.MAESTRO_SPORTLOTS_PASSWORD }}
-          BSC_USERNAME: ${{ secrets.MAESTRO_BSC_USERNAME }}
-          BSC_PASSWORD: ${{ secrets.MAESTRO_BSC_PASSWORD }}
+          # NO secrets are passed to Maestro (NEO-29). Maestro serializes the
+          # full -e env map into its uploaded debug artifacts, so any secret
+          # there leaks into the public CI artifact. Marketplace creds + per-user
+          # reset are handled browser-side: flows route their sign-in through
+          # /testing/reset (resetMyTestState) and /testing/seed-credentials
+          # (seedMyTestCredentials), both auth-scoped Convex functions that read
+          # the dev creds from Convex server env vars — never via -e.
           # Number of parallel workers. Worker 0 runs the serial lane
           # (serial-global + serial-marketplace flows); workers 1..N-1 share
           # parallel-safe flows. Lower this if test accounts run out.
@@ -242,25 +245,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: maestro-report
-          path: maestro-report/
+          # Keep junit + failure screenshots + summary, but exclude the files
+          # that serialize Maestro's `-e` env map (NEO-29 defense-in-depth).
+          # The primary fix is that no secret is passed via -e anymore; these
+          # excludes ensure that even if a future change reintroduces an -e var,
+          # its value can't reach the public artifact via the command trace.
+          # Still exclude `commands-*.json` + `maestro-home/**` (verbose serialized
+          # command specs). maestro.log (readable step/assertion trace) is now
+          # INCLUDED for debugging — safe because no secret passes via -e anymore
+          # (only WORKER_INDEX/ATTEMPT_ID); revisit only if an -e secret is ever
+          # reintroduced (the hard rule forbids that). Screenshots retained.
+          path: |
+            maestro-report/
+            !maestro-report/**/commands-*.json
+            !maestro-report/maestro-home/**
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Upload Maestro debug output
-        # Always upload Maestro's raw debug folder. `if: failure()` does not
-        # fire here because the test step uses `fail_on_failure: false` so the
-        # JUnit step can publish the summary before the job exit code is set.
-        # Without this, failing flows have no screenshots / commands JSON in
-        # the artifact (verified on run 25881347730 — neither checklist-renders-
-        # rich-fields nor checklist-fetch-unknown-entities-skip-some had debug
-        # output uploaded). `if-no-files-found: ignore` keeps this no-op on
-        # success runs that don't write to ~/.maestro/tests/.
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: maestro-debug-output
-          path: |
-            ~/.maestro/tests/
-            /tmp/maestro-*
-          if-no-files-found: ignore
-          retention-days: 7

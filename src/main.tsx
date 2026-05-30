@@ -27,6 +27,8 @@ import SignUpPage from "@/app/sign-up/[[...sign-up]]/page";
 import PublicProfile from "@/app/u/[username]/page";
 import SalePage from "@/app/u/[username]/sale/page";
 import TestSignIn from "@/app/testing/sign-in/page";
+import TestReset from "@/app/testing/reset/page";
+import TestSeedCredentials from "@/app/testing/seed-credentials/page";
 import Dashboard from "@/app/dashboard/page";
 import Profile from "@/app/profile/page";
 import SetSelector from "@/app/set-selector/page";
@@ -65,6 +67,11 @@ const SentryErrorBoundary = Sentry.withErrorBoundary(
           <Route path="/u/:username/sale" element={<SalePage />} />
           <Route path="/u/:username" element={<PublicProfile />} />
           <Route path="/testing/sign-in" element={<TestSignIn />} />
+          <Route path="/testing/reset" element={<TestReset />} />
+          <Route
+            path="/testing/seed-credentials"
+            element={<TestSeedCredentials />}
+          />
 
           {/* Protected routes — wrapped in binder shell */}
           <Route element={<ProtectedLayout />}>

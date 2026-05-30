@@ -77,12 +77,13 @@ APP_URL="${APP_URL:-https://localhost:3000}"
 # Unique username per run to avoid "already taken" in profile flows.
 # Must match the profile validation regex ^[a-z0-9-]+$ (no underscores).
 TEST_USERNAME="${TEST_USERNAME:-neontester-$(date +%s)}"
-# Credential env vars (real credentials for dev@neonbinder.io accounts).
-# Only the marketplace-lane worker receives these.
-SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
-SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
-BSC_USERNAME="${BSC_USERNAME:-}"
-BSC_PASSWORD="${BSC_PASSWORD:-}"
+# NOTE: NO marketplace credentials (or any other secret) are passed to Maestro
+# via -e. Maestro serializes the full -e env map into its debug artifacts
+# (commands-*.json / maestro.log), so any secret there leaks into the public CI
+# artifact (NEO-29). Instead, flows route their sign-in through /testing/reset
+# (auth-scoped resetMyTestState) and /testing/seed-credentials (auth-scoped
+# seedMyTestCredentials), which seed the dev user's BSC/SportLots creds from
+# Convex server env vars — the secrets never touch Maestro.
 # Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
 # as a PR check (JUnit) and uploads the directory as an Actions artifact.
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
@@ -360,17 +361,10 @@ run_flow_on_worker() {
   mkdir -p "$worker_home"
   export MAESTRO_OPTS="-Duser.home=$worker_home"
 
+  # No secrets are ever passed via -e (NEO-29) — marketplace creds are seeded
+  # server-side through /testing/seed-credentials. Only the non-secret worker
+  # index is passed here.
   local worker_args=("${ARGS_BASE[@]}" -e "WORKER_INDEX=$worker_index")
-  # Every worker receives shared marketplace credentials so the per-worker
-  # Phase 0 bootstrap can save them under its own Clerk user. The previous
-  # restriction (only worker 0 / marketplace flows) made any per-worker
-  # credential preflight on a non-zero worker silently no-op the inputs.
-  worker_args+=(
-    -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME"
-    -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD"
-    -e "BSC_USERNAME=$BSC_USERNAME"
-    -e "BSC_PASSWORD=$BSC_PASSWORD"
-  )
 
   local slug
   slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
@@ -382,36 +376,13 @@ run_flow_on_worker() {
     --debug-output "$REPORT_DIR/debug/$slug"
     --flatten-debug-output
   )
-  # Build a sanitized command line for logging — redact marketplace
-  # credential values so they never land in maestro-report artifacts /
-  # CI logs. The real worker_args (with real values) is used to invoke
-  # maestro below.
-  local logged_args=()
-  local i=0
-  while [ $i -lt ${#worker_args[@]} ]; do
-    local arg="${worker_args[$i]}"
-    if [ "$arg" = "-e" ] && [ $((i + 1)) -lt ${#worker_args[@]} ]; then
-      local kv="${worker_args[$((i + 1))]}"
-      case "$kv" in
-        BSC_USERNAME=*|BSC_PASSWORD=*|SPORTLOTS_USERNAME=*|SPORTLOTS_PASSWORD=*)
-          logged_args+=("-e" "${kv%%=*}=<redacted>")
-          ;;
-        *)
-          logged_args+=("-e" "$kv")
-          ;;
-      esac
-      i=$((i + 2))
-    else
-      logged_args+=("$arg")
-      i=$((i + 1))
-    fi
-  done
+  # worker_args carries no secrets (NEO-29), so it is safe to log verbatim.
   {
     echo "▶ [w$worker_index] $flow"
     if [ -n "$TIMEOUT_CMD" ]; then
-      echo "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+      echo "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     else
-      echo "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+      echo "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     fi
   } >> "$log_file"
   # Run with 1 retry on non-timeout failures. The Maestro CDP web driver
@@ -431,12 +402,19 @@ run_flow_on_worker() {
     if [ "$attempt" -gt 1 ]; then
       echo "↻ [w$worker_index] Retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
     fi
+    # Per-attempt unique ID. Flows that add cards to the global
+    # cardChecklist table reference ${ATTEMPT_ID} in their card
+    # numbers + player names so attempt 2 doesn't collide with the
+    # rows attempt 1 left behind (setup.yaml's resetSetBuilderData
+    # only runs once per CI run, not between in-run retries).
+    local attempt_id="w${worker_index}-a${attempt}-${RANDOM}"
+    local attempt_args=("${worker_args[@]}" -e "ATTEMPT_ID=$attempt_id")
     if [ -n "$TIMEOUT_CMD" ]; then
       # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
       # Maestro JVM's non-daemon heartbeat thread that ignores main's exit.
-      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     else
-      "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
+      "$MAESTRO" test "${attempt_args[@]}" "${report_args[@]}" "$flow" >> "$log_file" 2>&1 || exit_code=$?
     fi
     if [ "$exit_code" -eq 0 ]; then
       break
@@ -682,8 +660,22 @@ fi
 # behavior (e.g. for debugging a single failing flow at level 0).
 CASCADE_PERMISSIVE="${MAESTRO_CASCADE_PERMISSIVE:-}"
 
-# Map of "state name" -> "1" once at least one producer has passed.
-declare -A STATE_SATISFIED
+# Set of satisfied states, stored as a space-delimited string with sentinel
+# spaces on both ends so simple `case` glob membership tests don't need
+# tricky escaping. (Why not `declare -A`: macOS ships bash 3.2.57 which
+# doesn't support associative arrays, and we want this script to run on
+# dev macOS as well as Linux CI. Tracked as a follow-up to drop the bash
+# wrapper entirely in favor of native Maestro orchestration.)
+STATE_SATISFIED=" "
+
+# state_is_satisfied <state> → exit 0 if at least one producer of <state>
+# has passed, exit 1 otherwise. Membership test on STATE_SATISFIED.
+state_is_satisfied() {
+  case "$STATE_SATISFIED" in
+    *" $1 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
 
 # Check whether a flow appears as PASS in any worker's results.
 flow_passed_in_results() {
@@ -708,7 +700,7 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
         missing_state=""
         if [ -z "$CASCADE_PERMISSIVE" ]; then
           for state in ${FLOW_REQUIRES_LIST[$flow_i]}; do
-            if [ "${STATE_SATISFIED[$state]:-0}" != "1" ]; then
+            if ! state_is_satisfied "$state"; then
               missing_state="$state"
               break
             fi
@@ -745,7 +737,10 @@ if [ "$MAX_LEVEL" -ge 0 ]; then
       if flow_passed_in_results "$flow"; then
         flow_i=$(flow_idx_of "$flow")
         for state in ${FLOW_PROVIDES_LIST[$flow_i]}; do
-          STATE_SATISFIED["$state"]="1"
+          # Skip duplicate-add: monotonic-add semantics, idempotent on repeat.
+          if ! state_is_satisfied "$state"; then
+            STATE_SATISFIED="${STATE_SATISFIED}${state} "
+          fi
         done
       fi
     done

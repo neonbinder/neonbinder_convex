@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Set Selector Smoke Test
 # Demoted to regression tier (see PR description on the e2e-ci branch).
 # Writes real marketplace credentials via setup-bsc-credentials /
@@ -17,17 +17,30 @@ tags:
     timeout: 45000
 
 # --- Set up marketplace credentials for the test user ---
+# Credentials are already seeded server-side via /testing/seed-credentials
+# in the sign-in URL chain. The setup-* runFlows below are no-ops when
+# "Clear Credentials" is already visible (idempotent). They are kept here
+# so the flow's credential-gate smoke path still exercises the profile page.
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
+
+# ============================================================
+# CREDENTIAL WARMING
+# seed-credentials already saved real BSC + SL credentials server-side.
+# Warm the Puppeteer session tokens so the "Sync Sports" marketplace fetch
+# uses a live session and doesn't trigger a fresh ~20s login mid-flow,
+# which would cause the "Sync Sports" wait to time out.
+# Both warm utils cost ~0.5s when the token is already cached.
+# ============================================================
+
+- runFlow:
+    file: util-login-to-bsc.yaml
+
+- runFlow:
+    file: util-login-to-sportlots.yaml
 
 # Navigate to the Set Selector page
 - openLink: ${APP_URL || "https://localhost:3000"}/set-selector
@@ -38,19 +51,21 @@ tags:
 # Verify the Sport selector column is present
 - assertVisible: "Sports"
 
-# Scroll the Sync Sports button into view — Sports list may grow past the
-# fold on accounts with existing data, and Maestro's web driver doesn't
-# auto-scroll to find elements for assertVisible/tapOn.
-#
-# visibilityPercentage: 50 — Maestro's default 100 fails when an element
-# lands at the viewport bottom edge with even a 1-2 px cutoff (the
-# 1024×629 headless driver hits this routinely on this short page); 50%
-# is plenty for a tappable button that a real user can see.
+# Scroll "Sync Sports" into view with a relaxed visibility threshold.
+# The 1024×629 headless viewport places this button at x=-2 (2px off the
+# left edge), giving it ~98% visibility. The default 100% threshold causes
+# Maestro to attempt a centering scroll which triggers a CDP
+# MismatchedInputException when the element is already at the viewport edge.
+# visibilityPercentage: 50 accepts the 98%-visible element without triggering
+# the problematic re-center scroll. centerElement is intentionally absent.
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
     visibilityPercentage: 50
     timeout: 10000
+- extendedWaitUntil:
+    visible: "Sync Sports"
+    timeout: 5000
 - assertVisible: "Sync Sports"
 - assertVisible: "\\+ Custom"
 

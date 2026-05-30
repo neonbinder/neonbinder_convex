@@ -35,8 +35,8 @@ tags:
 #
 # CALLER CONTRACT:
 #   - Caller must have called launchApp and waited for sign-in redirect.
-#   - Caller must pass BSC_USERNAME, BSC_PASSWORD, SPORTLOTS_USERNAME,
-#     SPORTLOTS_PASSWORD in the env block of the runFlow call.
+#   - Credentials are already seeded server-side by worker-bootstrap; no
+#     credential env vars need to be passed.
 #   - Do NOT reset the DB again in the parent flow — this util does it.
 
 # ============================================================
@@ -47,11 +47,6 @@ tags:
 
 - runFlow:
     file: util-drill-to-2024-topps-chrome.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # LEVEL 5 — Select "Base" variant type
