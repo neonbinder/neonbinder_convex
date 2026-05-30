@@ -77,17 +77,13 @@ APP_URL="${APP_URL:-https://localhost:3000}"
 # Unique username per run to avoid "already taken" in profile flows.
 # Must match the profile validation regex ^[a-z0-9-]+$ (no underscores).
 TEST_USERNAME="${TEST_USERNAME:-neontester-$(date +%s)}"
-# Credential env vars (real credentials for dev@neonbinder.io accounts).
-# Only the marketplace-lane worker receives these.
-SPORTLOTS_USERNAME="${SPORTLOTS_USERNAME:-}"
-SPORTLOTS_PASSWORD="${SPORTLOTS_PASSWORD:-}"
-BSC_USERNAME="${BSC_USERNAME:-}"
-BSC_PASSWORD="${BSC_PASSWORD:-}"
-# NOTE: per-user test-state reset is NOT driven by a Maestro env secret. Flows
-# that need a clean slate route their sign-in through /testing/reset, which
-# calls the auth-scoped resetMyTestState Convex mutation from the browser. No
-# reset secret is passed via -e (Maestro serializes the full -e env map into its
-# debug artifacts, so passing secrets there would leak them).
+# NOTE: NO marketplace credentials (or any other secret) are passed to Maestro
+# via -e. Maestro serializes the full -e env map into its debug artifacts
+# (commands-*.json / maestro.log), so any secret there leaks into the public CI
+# artifact (NEO-29). Instead, flows route their sign-in through /testing/reset
+# (auth-scoped resetMyTestState) and /testing/seed-credentials (auth-scoped
+# seedMyTestCredentials), which seed the dev user's BSC/SportLots creds from
+# Convex server env vars — the secrets never touch Maestro.
 # Per-flow JUnit + screenshot artifacts land here; the CI workflow publishes them
 # as a PR check (JUnit) and uploads the directory as an Actions artifact.
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
@@ -365,17 +361,10 @@ run_flow_on_worker() {
   mkdir -p "$worker_home"
   export MAESTRO_OPTS="-Duser.home=$worker_home"
 
+  # No secrets are ever passed via -e (NEO-29) — marketplace creds are seeded
+  # server-side through /testing/seed-credentials. Only the non-secret worker
+  # index is passed here.
   local worker_args=("${ARGS_BASE[@]}" -e "WORKER_INDEX=$worker_index")
-  # Every worker receives shared marketplace credentials so the per-worker
-  # Phase 0 bootstrap can save them under its own Clerk user. The previous
-  # restriction (only worker 0 / marketplace flows) made any per-worker
-  # credential preflight on a non-zero worker silently no-op the inputs.
-  worker_args+=(
-    -e "SPORTLOTS_USERNAME=$SPORTLOTS_USERNAME"
-    -e "SPORTLOTS_PASSWORD=$SPORTLOTS_PASSWORD"
-    -e "BSC_USERNAME=$BSC_USERNAME"
-    -e "BSC_PASSWORD=$BSC_PASSWORD"
-  )
 
   local slug
   slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
@@ -387,36 +376,13 @@ run_flow_on_worker() {
     --debug-output "$REPORT_DIR/debug/$slug"
     --flatten-debug-output
   )
-  # Build a sanitized command line for logging — redact marketplace
-  # credential values so they never land in maestro-report artifacts /
-  # CI logs. The real worker_args (with real values) is used to invoke
-  # maestro below.
-  local logged_args=()
-  local i=0
-  while [ $i -lt ${#worker_args[@]} ]; do
-    local arg="${worker_args[$i]}"
-    if [ "$arg" = "-e" ] && [ $((i + 1)) -lt ${#worker_args[@]} ]; then
-      local kv="${worker_args[$((i + 1))]}"
-      case "$kv" in
-        BSC_USERNAME=*|BSC_PASSWORD=*|SPORTLOTS_USERNAME=*|SPORTLOTS_PASSWORD=*)
-          logged_args+=("-e" "${kv%%=*}=<redacted>")
-          ;;
-        *)
-          logged_args+=("-e" "$kv")
-          ;;
-      esac
-      i=$((i + 2))
-    else
-      logged_args+=("$arg")
-      i=$((i + 1))
-    fi
-  done
+  # worker_args carries no secrets (NEO-29), so it is safe to log verbatim.
   {
     echo "▶ [w$worker_index] $flow"
     if [ -n "$TIMEOUT_CMD" ]; then
-      echo "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+      echo "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     else
-      echo "$MAESTRO" test "${logged_args[@]}" "${report_args[@]}" "$flow"
+      echo "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     fi
   } >> "$log_file"
   # Run with 1 retry on non-timeout failures. The Maestro CDP web driver

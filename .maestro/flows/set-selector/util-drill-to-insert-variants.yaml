@@ -20,8 +20,8 @@ tags:
 #
 # CALLER CONTRACT:
 #   - Caller must have already called launchApp and waited for sign-in redirect.
-#   - Caller must pass BSC_USERNAME, BSC_PASSWORD, SPORTLOTS_USERNAME,
-#     SPORTLOTS_PASSWORD in the env block of the runFlow call.
+#   - Credentials are already seeded server-side by worker-bootstrap; no
+#     credential env vars need to be passed.
 #   - This util resets the DB via the AdminTools panel — safe only on dev/preview
 #     deployments where ALLOW_RESET_SET_BUILDER_DATA is set.
 #
@@ -40,10 +40,6 @@ tags:
       YEAR: ${YEAR || "2024"}
       MANUFACTURER: ${MANUFACTURER || "Topps"}
       SET: ${SET || "Topps Chrome"}
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # LEVEL 5 — Select "Insert" variant type

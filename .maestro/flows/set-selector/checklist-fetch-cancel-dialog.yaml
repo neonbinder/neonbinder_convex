@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
 tags:
   - set-selector
@@ -38,16 +38,26 @@ tags:
     timeout: 10000
 
 # ============================================================
+# CREDENTIAL WARMING
+# seed-credentials already saved real BSC + SL credentials server-side via
+# the sign-in URL chain. Warm the Puppeteer session tokens so that the
+# marketplace fetch triggered by "Fetch from Marketplaces" (the core action
+# in this test) uses a live session and doesn't trigger a fresh ~20s login
+# mid-flow that causes the UnknownEntitiesDialog to appear too late.
+# ============================================================
+
+- runFlow:
+    file: util-login-to-bsc.yaml
+
+- runFlow:
+    file: util-login-to-sportlots.yaml
+
+# ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
 
 - runFlow:
     file: util-drill-to-base-variant.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # ADD A CUSTOM CARD WITH A UNIQUE PLAYER NAME

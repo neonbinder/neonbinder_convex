@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Card checklist — custom parallel-of-insert fetches from marketplaces and saves 0 cards"
 tags:
   - set-selector
@@ -52,10 +52,6 @@ tags:
     env:
       SET_NAME: "pg-poi-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # ============================================================
 # ADD "Stars" AND "Stars Gold" AS CUSTOM INSERTS

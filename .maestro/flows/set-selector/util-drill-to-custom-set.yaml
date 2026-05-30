@@ -253,6 +253,15 @@ tags:
           text: ".*${SET_NAME}.*"
           index: 1
           waitToSettleTimeoutMs: 2000
+      # Wait for Variant Types to render before returning from this branch.
+      # Under shared-Convex contention the column can take up to ~11s to
+      # appear. Without this wait the fallback's `notVisible: "Variant Types"`
+      # guard evaluates while the column is still loading, fires a second tap
+      # that collapses the column mid-flight, and the 30s settle-wait below
+      # times out (PR #26672941213 run-26 vme-insert failure).
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
 # Fallback path for small lists (no search input). Guarded by
 # `notVisible: "Variant Types"` so it doesn't double-tap after the
 # search-input branch above succeeded — when that branch selects the
@@ -272,6 +281,13 @@ tags:
       - tapOn:
           text: ".*${SET_NAME}.*"
           waitToSettleTimeoutMs: 2000
+      # Wait for Variant Types to render before returning from this branch.
+      # Same settle guarantee as the search-input branch — ensures the
+      # top-level extendedWaitUntil below is a no-op fast-pass rather than
+      # racing the fallback guard.
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
 
 # ============================================================
 # LEVEL 5 — Variant Types

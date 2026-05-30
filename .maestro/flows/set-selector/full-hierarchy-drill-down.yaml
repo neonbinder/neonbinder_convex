@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Full Hierarchy Drill-Down — Sport to Cards Column
 tags:
   - set-selector
@@ -32,15 +32,9 @@ tags:
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 # Navigate to the set selector after credential setup
 - openLink: ${APP_URL || "https://localhost:3000"}/set-selector

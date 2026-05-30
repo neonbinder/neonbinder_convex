@@ -1,4 +1,4 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
@@ -43,9 +43,6 @@ tags:
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
-    env:
-      BSC_USERNAME: ${BSC_USERNAME}
-      BSC_PASSWORD: ${BSC_PASSWORD}
 
 # Re-navigate to /profile so the viewport resets to the top before the next
 # sub-flow runs. setup-bsc-credentials may have scrolled to the BSC section.
@@ -58,9 +55,6 @@ tags:
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
-    env:
-      SPORTLOTS_USERNAME: ${SPORTLOTS_USERNAME}
-      SPORTLOTS_PASSWORD: ${SPORTLOTS_PASSWORD}
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
@@ -151,23 +145,24 @@ tags:
 # responded. Go straight to scrollUntilVisible — the form may close before
 # Maestro can check the intermediate "Syncing Sport Options" heading.
 #
-# `visibilityPercentage: 80` is required because the page's negative-margin
+# `visibilityPercentage: 50` is required because the page's negative-margin
 # breakout layout (`app/set-selector/page.tsx:11-14`, `calc((100vw - 170px) * 0.9)`)
 # leaves the "Sync Sports" button at x=-2 at the 1024-wide CI viewport — ~98%
 # visible. The default 100% threshold made Maestro attempt a scroll that
 # triggered a CDP `Failed to execute JS` error, after which the element
-# couldn't be re-located.
+# couldn't be re-located. 50 is used (not 80) for consistency with
+# set-selector-smoke.yaml and the documented viewport-edge-button pattern.
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
     timeout: 10000
-    visibilityPercentage: 80
+    visibilityPercentage: 50
 - tapOn: "Sync Sports"
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
     timeout: 60000
-    visibilityPercentage: 80
+    visibilityPercentage: 50
 
 # ============================================================
 # STEP 3 — Verify custom entry still exists after re-sync

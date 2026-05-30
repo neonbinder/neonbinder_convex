@@ -508,6 +508,102 @@ export const testSiteCredentials = action({
  * testSiteCredentials wrapper, never directly. Direct invocation would
  * expose the success/sellerId metadata to unauthorized callers.
  */
+// Shared login retry for the marketplace authenticate actions. Marketplace
+// logins (BSC, SportLots) can transiently fail or be delayed — a dropped
+// request, a slow page, a 503 while the browser service serializes Puppeteer
+// logins, or a collision when concurrent workers log into the shared test
+// account. Rather than surface the first failure (which fails the whole E2E
+// flow), retry a few times with backoff spread across a wider window so a
+// transient miss gets another shot. Returns the parsed success payload, or a
+// failure with the last error detail after all attempts are exhausted.
+// Sanitized login-failure diagnostics returned by the browser service (NEO-29
+// observability). Never contains credentials/tokens — the browser service
+// redacts them before returning. Forwarded to PostHog so we can spot long-term
+// failure patterns (e.g. a CAPTCHA/challenge page served to the CI context).
+type LoginDiagnostic = {
+  url?: string;
+  title?: string;
+  challengeDetected?: boolean;
+  snippet?: string;
+};
+
+async function loginWithRetry(
+  loginUrl: string,
+  key: string,
+  label: string,
+): Promise<{ success: boolean; data: { success: boolean; message?: string; storeName?: string; sellerId?: string } | null; detail: string; diagnostic?: LoginDiagnostic }> {
+  // Retry ONLY on 503 (browser service busy serializing Puppeteer logins) —
+  // back off and wait our turn. Do NOT retry an actual login failure: a real
+  // marketplace login takes ~30s, and retrying it just fires another login at
+  // the same shared account. With 3 workers warming at once, retrying turned a
+  // single hiccup into a sustained ~6-min burst of serialized BSC logins that
+  // tripped BSC's bot protection (NEO-29 run 26610313677: 6 straight 500s, then
+  // recovery) — the retry caused the failures it was meant to fix. So on any
+  // non-503 failure we return immediately (with the diagnostic) — matching the
+  // pre-NEO-29 behavior that ran green.
+  const maxAttempts = 4;
+  let detail = "no attempt made";
+  let diagnostic: LoginDiagnostic | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(loginUrl, {
+        method: "POST",
+        headers: await browserAuthHeaders(),
+        body: JSON.stringify({ key }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (response.ok) {
+        const data = (await response.json().catch(() => ({ success: false }))) as {
+          success: boolean;
+          message?: string;
+          storeName?: string;
+          sellerId?: string;
+          diagnostic?: LoginDiagnostic;
+        };
+        if (data.success) {
+          return { success: true, data, detail: "ok" };
+        }
+        // Login ran and failed — do NOT retry (avoids hammering the account).
+        if (data.diagnostic) diagnostic = data.diagnostic;
+        return {
+          success: false,
+          data: null,
+          detail: data.message || "login reported success=false",
+          diagnostic,
+        };
+      }
+      if (response.status === 503) {
+        detail = "browser service busy (503)";
+        console.log(`[${label}] 503 (attempt ${attempt}/${maxAttempts}) — backing off`);
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 5_000 * attempt));
+          continue;
+        }
+        return { success: false, data: null, detail, diagnostic };
+      }
+      // Any other non-OK (e.g. 500 from a failed/timed-out login) — capture the
+      // diagnostic and return immediately, no retry.
+      const err = (await response.json().catch(() => ({ error: response.statusText }))) as {
+        error?: string;
+        diagnostic?: LoginDiagnostic;
+      };
+      if (err.diagnostic) diagnostic = err.diagnostic;
+      detail = err.error || response.statusText;
+      console.log(
+        `[${label}] login failed: ${detail}` +
+          (diagnostic?.challengeDetected ? " [challenge page detected]" : ""),
+      );
+      return { success: false, data: null, detail, diagnostic };
+    } catch (e) {
+      // Network/timeout to the browser service — do not retry (avoid hammering).
+      detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      console.log(`[${label}] login request threw: ${detail}`);
+      return { success: false, data: null, detail, diagnostic };
+    }
+  }
+  return { success: false, data: null, detail, diagnostic };
+}
+
 export const authenticateBsc = internalAction({
   args: {},
   returns: v.object({
@@ -528,52 +624,19 @@ export const authenticateBsc = internalAction({
       const url = browserUrl();
       console.log(`[authenticateBsc] Using browser URL: ${url}, key: ${key}`);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally.
-      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
-      //
-      // Retry on 503: the browser service serializes BSC logins (only one
-      // active Puppeteer browser at a time) and returns 503 when another
-      // login is in flight. This happens in CI when multiple workers — each
-      // a different Clerk user with their own saved BSC credentials — race
-      // to /login/bsc at the start of their flows. We back off and retry a
-      // few times so the second/third worker waits its turn instead of
-      // surfacing a misleading "BSC login failed" to the caller.
+      // Log in via the browser service (it reads credentials from Secret
+      // Manager internally). Retries transient failures/delays with backoff.
       console.log("[authenticateBsc] Calling browser service POST /login/bsc");
-      let response: Response | null = null;
-      const maxAttempts = 4;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        response = await fetch(`${url}/login/bsc`, {
-          method: "POST",
-          headers: await browserAuthHeaders(),
-          body: JSON.stringify({ key }),
-          signal: AbortSignal.timeout(60_000),
-        });
-        console.log(
-          `[authenticateBsc] Login response status: ${response.status} (attempt ${attempt}/${maxAttempts})`,
-        );
-        if (response.status !== 503) break;
-        if (attempt < maxAttempts) {
-          // Linear backoff: 5s, 10s, 15s. A full BSC login takes ~10-30s
-          // server-side, so these gaps usually catch the prior call wrapping
-          // up.
-          const delayMs = 5_000 * attempt;
-          console.log(
-            `[authenticateBsc] 503 from browser service — backing off ${delayMs}ms before retry`,
-          );
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
-      }
-      if (!response) {
-        throw new Error("No response from browser service after retries");
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        const detail = (errorData as { error?: string }).error || response.statusText;
+      const result = await loginWithRetry(`${url}/login/bsc`, key, "authenticateBsc");
+      if (!result.success || !result.data) {
         await ctx.runAction(internal.posthog.captureEvent, {
           distinctId: userId,
           event: "credential_test_failed",
-          properties: { platform: "buysportscards", reason: detail },
+          properties: {
+            platform: "buysportscards",
+            reason: result.detail,
+            ...(result.diagnostic ?? {}),
+          },
         }).catch(() => {});
         return {
           success: false,
@@ -581,20 +644,7 @@ export const authenticateBsc = internalAction({
         };
       }
 
-      const loginResult = await response.json() as { success: boolean; message?: string; storeName?: string; sellerId?: string };
-
-      if (!loginResult.success) {
-        const detail = loginResult.message || "Login failed";
-        await ctx.runAction(internal.posthog.captureEvent, {
-          distinctId: userId,
-          event: "credential_test_failed",
-          properties: { platform: "buysportscards", reason: detail },
-        }).catch(() => {});
-        return {
-          success: false,
-          message: "BSC login failed. Please check your credentials and try again.",
-        };
-      }
+      const loginResult = result.data;
 
       // Persist BSC sellerId on the user's profile so subsequent
       // fetchBscChecklist calls don't have to re-derive it. The browser
@@ -654,56 +704,18 @@ export const authenticateSportlots = internalAction({
     try {
       const key = credKey("sportlots", userId);
 
-      // Call browser service to log in — it reads credentials from Secret Manager internally.
-      // Login involves Puppeteer; allow up to 60s before declaring the browser service hung.
-      //
-      // Retry on 503: same rationale as authenticateBsc — the browser
-      // service serializes Puppeteer logins, so concurrent workers race
-      // and the loser sees 503. Linear backoff lets the queue drain.
-      let response: Response | null = null;
-      const maxAttempts = 4;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        response = await fetch(`${browserUrl()}/login/sportlots`, {
-          method: "POST",
-          headers: await browserAuthHeaders(),
-          body: JSON.stringify({ key }),
-          signal: AbortSignal.timeout(60_000),
-        });
-        if (response.status !== 503) break;
-        if (attempt < maxAttempts) {
-          const delayMs = 5_000 * attempt;
-          console.log(
-            `[authenticateSportlots] 503 from browser service — backing off ${delayMs}ms before retry`,
-          );
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
-      }
-      if (!response) {
-        throw new Error("No response from browser service after retries");
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        const detail = (errorData as { error?: string }).error || response.statusText;
+      // Log in via the browser service (it reads credentials from Secret
+      // Manager internally). Retries transient failures/delays with backoff.
+      const result = await loginWithRetry(`${browserUrl()}/login/sportlots`, key, "authenticateSportlots");
+      if (!result.success) {
         await ctx.runAction(internal.posthog.captureEvent, {
           distinctId: userId,
           event: "credential_test_failed",
-          properties: { platform: "sportlots", reason: detail },
-        }).catch(() => {});
-        return {
-          success: false,
-          message: "SportLots login failed. Please check your credentials and try again.",
-        };
-      }
-
-      const loginResult = await response.json() as { success: boolean; message?: string };
-
-      if (!loginResult.success) {
-        const detail = loginResult.message || "Login failed";
-        await ctx.runAction(internal.posthog.captureEvent, {
-          distinctId: userId,
-          event: "credential_test_failed",
-          properties: { platform: "sportlots", reason: detail },
+          properties: {
+            platform: "sportlots",
+            reason: result.detail,
+            ...(result.diagnostic ?? {}),
+          },
         }).catch(() => {});
         return {
           success: false,
