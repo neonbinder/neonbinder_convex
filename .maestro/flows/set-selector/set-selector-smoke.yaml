@@ -51,17 +51,17 @@ tags:
 # Verify the Sport selector column is present
 - assertVisible: "Sports"
 
-# Scroll the Sync Sports button into view and center it in the viewport.
-# centerElement: true is required — the 1024×629 headless viewport has a
-# footer that paints over the body's overflow region and steals clicks;
-# "Sync Sports" rendered near the bottom (y≈583+) gets its tap registered
-# but follow-up events get swallowed. Centering puts it at y≈315, clear of
-# the footer and the CDP MismatchedInputException flake that fires when
-# scrollUntilVisible moves an element to the very viewport edge.
+# Scroll "Sync Sports" into view with a relaxed visibility threshold.
+# The 1024×629 headless viewport places this button at x=-2 (2px off the
+# left edge), giving it ~98% visibility. The default 100% threshold causes
+# Maestro to attempt a centering scroll which triggers a CDP
+# MismatchedInputException when the element is already at the viewport edge.
+# visibilityPercentage: 50 accepts the 98%-visible element without triggering
+# the problematic re-center scroll. centerElement is intentionally absent.
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
-    centerElement: true
+    visibilityPercentage: 50
     timeout: 10000
 - extendedWaitUntil:
     visible: "Sync Sports"

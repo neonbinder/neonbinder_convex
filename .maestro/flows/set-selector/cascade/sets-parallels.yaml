@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Cascade — select Parallel variant type, sync Parallel variants, verify ReconciliationModal"
 tags:
   - set-selector
@@ -29,6 +29,20 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 10000
+
+# ============================================================
+# TOKEN WARMING
+# Credentials were seeded server-side via /testing/seed-credentials in the
+# sign-in URL chain. Warm the marketplace tokens before the fast drill so
+# that the Parallel VariantForm SL fetch doesn't stall on a cold Puppeteer login.
+# Cost: ~0.5s when tokens are already cached (no-op).
+# ============================================================
+
+- runFlow:
+    file: ../util-login-to-bsc.yaml
+
+- runFlow:
+    file: ../util-login-to-sportlots.yaml
 
 # ============================================================
 # FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
