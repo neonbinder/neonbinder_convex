@@ -31,13 +31,13 @@ tags:
 #   due to the Tab key limitation. That coverage is exercised manually. The key
 #   keyboard path — Enter to confirm without touching the mouse — is covered here.
 #
-# FRESH-DB REQUIREMENT:
-#   This test requires that the `players` and `teams` tables are EMPTY so that
-#   the UnknownEntitiesDialog opens on first fetch. The DB reset only clears
-#   `selectorOptions` and `cardChecklist` rows — not players/teams. After a
-#   first successful fetch run, entities are persisted and the dialog no longer
-#   opens, causing this test to fail locally. This test is reliable on CI where
-#   each preview deployment starts with an empty Convex database.
+# UNIQUENESS GUARANTEE:
+#   TEST_USERNAME is timestamp-based (neontester-$(date +%s)), so
+#   KOPlayer-${TEST_USERNAME} is globally unique on every run. The custom
+#   card's player is always classified as unknown by fetchCardChecklist
+#   reconciliation, guaranteeing the UnknownEntitiesDialog opens — regardless
+#   of what prior runs have written to the `players` table. An empty DB is
+#   NOT required.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -91,11 +91,6 @@ tags:
     timeout: 5000
 - tapOn:
     id: "Players"
-# Give any post-tap re-render time to settle before typing. Without this,
-# observed locally: inputText routes to the Team input above (focus
-# appears to bounce between identify and tap). See NEO-13 maestro.log.
-- waitForAnimationToEnd:
-    timeout: 1000
 - inputText: "KOPlayer-${TEST_USERNAME}"
 # Defensive: confirm the typed player name landed on the form before
 # submitting. If a future regression breaks input targeting again, this
