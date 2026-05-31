@@ -78,13 +78,21 @@ export default function CardChecklist({
   const [committing, setCommitting] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newCardNumber, setNewCardNumber] = useState("");
-  const [newCardName, setNewCardName] = useState("");
-  const [newTeam, setNewTeam] = useState("");
-  // Comma-separated player names — forwarded to addCustomCard.players so
-  // the next fetchCardChecklist surfaces them in the UnknownEntitiesDialog
-  // (which lets the user confirm Wikidata enrichment). Optional.
-  const [newPlayers, setNewPlayers] = useState("");
+  // NEO-36: the add-card form fields are UNCONTROLLED (refs, read at submit)
+  // rather than controlled React state. CardChecklist re-renders on every
+  // reactive getCardChecklist update; under parallel-worker load those
+  // externally-triggered re-renders contend with — and reset — controlled
+  // inputs, intermittently wiping the last-typed field (the player) before it
+  // commits to state, so handleAddCard submitted the card without it. React
+  // never reconciles an uncontrolled input's value, so the DOM holds exactly
+  // what the user typed and handleAddCard reads it directly at submit —
+  // "what you see is what you submit". The Players field carries comma-
+  // separated names forwarded to addCustomCard.players → pendingPlayerNames →
+  // the UnknownEntitiesDialog on the next fetch.
+  const cardNumberRef = useRef<HTMLInputElement>(null);
+  const cardNameRef = useRef<HTMLInputElement>(null);
+  const teamRef = useRef<HTMLInputElement>(null);
+  const playersRef = useRef<HTMLInputElement>(null);
   const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>({
     bsc: null,
@@ -185,17 +193,22 @@ export default function CardChecklist({
   };
 
   const handleAddCard = async () => {
-    if (!newCardNumber.trim()) return;
-    const players = newPlayers
+    // Read the live DOM values at submit (uncontrolled inputs) — see NEO-36
+    // note above. This is immune to re-render timing: the value submitted is
+    // exactly what the field shows.
+    const cardNumber = cardNumberRef.current?.value.trim() ?? "";
+    if (!cardNumber) return;
+    const players = (playersRef.current?.value ?? "")
       .split(",")
       .map((n) => n.trim())
       .filter((n) => n.length > 0);
-    const teamTrimmed = newTeam.trim();
+    const teamTrimmed = (teamRef.current?.value ?? "").trim();
+    const cardName = (cardNameRef.current?.value ?? "").trim();
     try {
       const newId = await addCustomCard({
         selectorOptionId: variantId,
-        cardNumber: newCardNumber.trim(),
-        cardName: newCardName.trim() || `Card #${newCardNumber.trim()}`,
+        cardNumber,
+        cardName: cardName || `Card #${cardNumber}`,
         // NEO-26: legacy `team: string` arg removed. The team string
         // is surfaced via `teams` → pendingTeamNames → UnknownEntitiesDialog
         // confirmation on the next sync, which materializes a teams
@@ -203,10 +216,8 @@ export default function CardChecklist({
         ...(players.length > 0 ? { players } : {}),
         ...(teamTrimmed ? { teams: [teamTrimmed] } : {}),
       });
-      setNewCardNumber("");
-      setNewCardName("");
-      setNewTeam("");
-      setNewPlayers("");
+      // Closing the form unmounts it; the uncontrolled inputs reset to empty
+      // on the next open, so no manual field clearing is needed.
       setShowAddForm(false);
       newCardIdRef.current = newId;
     } catch (error) {
@@ -330,8 +341,7 @@ export default function CardChecklist({
             <div className="flex gap-2">
               <input
                 type="text"
-                value={newCardNumber}
-                onChange={(e) => setNewCardNumber(e.target.value)}
+                ref={cardNumberRef}
                 className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
                 placeholder="#"
                 aria-label="Card number"
@@ -339,8 +349,7 @@ export default function CardChecklist({
               />
               <input
                 type="text"
-                value={newCardName}
-                onChange={(e) => setNewCardName(e.target.value)}
+                ref={cardNameRef}
                 className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
                 placeholder="Player name"
                 aria-label="Card name"
@@ -348,16 +357,14 @@ export default function CardChecklist({
             </div>
             <input
               type="text"
-              value={newPlayers}
-              onChange={(e) => setNewPlayers(e.target.value)}
+              ref={playersRef}
               className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="Player(s) — comma separated, optional"
               aria-label="Players"
             />
             <input
               type="text"
-              value={newTeam}
-              onChange={(e) => setNewTeam(e.target.value)}
+              ref={teamRef}
               className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
               placeholder="Team (optional)"
               aria-label="Team"
