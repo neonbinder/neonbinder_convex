@@ -58,10 +58,15 @@ tags:
 # Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
 # Plain text "Add custom Inserts" does NOT work — Maestro text matchers only see
 # the visible DOM text ("+ Custom"), not the aria-label.
+# centerElement: true — util-drill-to-custom-set.yaml returns with the Inserts
+# column visible but the "+ Custom" button near the bottom of the 1024×629
+# headless viewport. visibilityPercentage: 50 leaves the button in the
+# footer/scrollbar zone (y≥589) where subsequent taps are silently absorbed.
+# Centering puts the button at y≈315 before the tap.
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
-    visibilityPercentage: 50
+    centerElement: true
     timeout: 10000
 - tapOn:
     id: "Add custom Inserts"

@@ -151,17 +151,19 @@ tags:
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 30000
-# scrollUntilVisible with visibilityPercentage: 50 (not centerElement: true)
-# serves as the idle-mode wait: the "+ Custom" button only exists when the
-# Sets column is in idle mode (after the SetForm auto-sync completes).
-# 120s ceiling covers cold BSC/SL adapter sync. visibilityPercentage: 50 is
-# the minimum scroll needed — the column's scrollIntoView on mount already
-# brings it into the right edge of the 1024×629 viewport, so this step mainly
-# waits for idle mode, not scrolls.
+# centerElement: true is required — on the 1024×629 headless viewport the Sets
+# column sits right-of-center in a 5-column overflow layout. Without centering,
+# scrollUntilVisible reports COMPLETED with the button at y=589 (94% down the
+# 629px viewport), inside the footer/horizontal-scrollbar zone that steals the
+# subsequent click. Centering puts the button at y≈315, well clear of that zone.
+# Confirmed root cause of run 26693637566 failure: scrollUntilVisible COMPLETED,
+# then tapOn failed "Element not found" 17s later. Same fix as util-drill-to-
+# custom-set.yaml which already uses centerElement: true for this button.
+# 120s ceiling covers cold BSC/SL adapter sync (idle-mode wait).
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
-    visibilityPercentage: 50
+    centerElement: true
     timeout: 120000
 
 # ============================================================
