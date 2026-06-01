@@ -16,7 +16,7 @@ tags:
 #
 # SETUP:
 #   Same three custom inserts as parallel-grouping-suggestions.yaml.
-#   The DB is reset by util-drill-to-2024-topps-chrome, so the custom entries
+#   The DB is reset by util-drill-to-custom-set, so the custom entries
 #   are always freshly added.
 #
 # POST-SAVE ASSERTION STRATEGY:
@@ -40,21 +40,6 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 10000
-
-# ============================================================
-# CREDENTIAL WARMING
-# util-drill-to-custom-set drills Football → 2026 → Manufacturers, which
-# triggers a BSC + SL marketplace sync. If the session token is COLD,
-# that sync triggers a fresh Puppeteer login (~20s) and ".*Search
-# manufacturers.*" never appears within the 30s wait. The warm utils cost
-# ~0.5s when the token is already cached — safe to call here unconditionally.
-# ============================================================
-
-- runFlow:
-    file: util-login-to-bsc.yaml
-
-- runFlow:
-    file: util-login-to-sportlots.yaml
 
 # ============================================================
 # DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-save-<worker>

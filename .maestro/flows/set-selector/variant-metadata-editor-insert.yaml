@@ -51,23 +51,6 @@ tags:
     timeout: 10000
 
 # ============================================================
-# CREDENTIAL WARMING
-# seed-credentials already saved real BSC + SL credentials server-side via
-# the sign-in URL chain. Warm the Puppeteer session tokens so that any
-# marketplace-side fetch triggered during the custom-set drill uses a live
-# session (even though custom Football → 2026 subtrees short-circuit the
-# BSC/SL adapters via the NEO-22 gate, warming here costs ~0.5s and guards
-# against cold-token stalls if the gate behaviour ever changes or if a
-# prior flow in the same worker left the session expired).
-# ============================================================
-
-- runFlow:
-    file: util-login-to-bsc.yaml
-
-- runFlow:
-    file: util-login-to-sportlots.yaml
-
-# ============================================================
 # DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → variant-metadata-editor-insert-<worker>
 # Custom subtrees are isolated from the cascade's Baseball → 2024 → Topps Chrome
 # path, eliminating cross-flow contamination from custom variants added here.
