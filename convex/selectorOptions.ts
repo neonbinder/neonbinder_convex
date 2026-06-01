@@ -3315,7 +3315,7 @@ export const fetchCardChecklist = action({
         // setName has no canonical set to look up). sport/year come from the
         // chain `filters`.
         if (!filters.setName || !sport || !filters.year) return null;
-        return await ctx.runAction(api.adapters.tcdb.fetchTcdbSetData, {
+        return await ctx.runAction(internal.adapters.tcdb.fetchTcdbSetData, {
           sport: filters.sport ?? sport,
           year: filters.year,
           setName: filters.setName,

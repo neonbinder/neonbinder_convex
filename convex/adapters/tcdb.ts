@@ -1,6 +1,6 @@
 "use node";
 
-import { action, internalAction } from "../_generated/server";
+import { internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v } from "convex/values";
 import { GoogleAuth, IdTokenClient } from "google-auth-library";
@@ -38,10 +38,14 @@ import {
  * `/login/bsc`, `/login/sportlots`, and `/credentials/*` calls.
  */
 
-// TODO: swap to unsuffixed dev URL once browser PR #32 merges
+// NEO-38: TCDB routes live on the standard browser service (PR A). Prefer an
+// explicit NEONBINDER_TCDB_URL override (used to point at the held PR-A dev
+// preview while the epic is unmerged), else fall back to the normal browser
+// service URL, else the local dev default. No hardcoded ephemeral preview URL.
 const TCDB_BROWSER_URL =
   process.env.NEONBINDER_TCDB_URL ||
-  "https://pr-32---neonbinder-browser-xxlo66yxuq-uc.a.run.app";
+  process.env.NEONBINDER_BROWSER_URL ||
+  "http://localhost:8080";
 
 const TCDB_FETCH_TIMEOUT_MS = 30_000;
 const MIN_MATCH_SCORE = 0.7;
@@ -141,7 +145,7 @@ type TcdbMetadata = TcdbRawMetadata;
  * `tcdbUnavailable: true` for any non-success so the preview can show a single
  * "TCDB data unavailable" affordance regardless of the specific reason.)
  */
-export const fetchTcdbSetData = action({
+export const fetchTcdbSetData = internalAction({
   args: {
     sport: v.string(),
     year: v.string(),
