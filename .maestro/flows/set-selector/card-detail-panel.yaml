@@ -353,18 +353,17 @@ tags:
 
 # ============================================================
 # SAVE
-# Save button is in the footer (sticky at the drawer bottom — outside the
-# scroll container). It is always visible as long as the footer itself is
-# within the 629px headless viewport. We still scrollUntilVisible as a
-# safety guard in case the footer is pushed by an unexpectedly tall body.
+# Save button is in the sticky footer OUTSIDE the scroll container — it
+# is always in the fixed bottom bar of the drawer panel. scrollUntilVisible
+# cannot satisfy centering on a position:fixed / flex-col-pinned element
+# and will time out even when the button is clearly on screen (root cause
+# of the CI run 2 failure). Use a plain extendedWaitUntil + tapOn instead.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
+- extendedWaitUntil:
+    visible:
       id: "Save card edit"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+    timeout: 5000
 - tapOn:
     id: "Save card edit"
 
@@ -421,13 +420,13 @@ tags:
 
 # ============================================================
 # CLOSE via Cancel (immediate close — no dirty guard)
+# Cancel button is in the same sticky footer as Save — OUTSIDE the scroll
+# container. Same fix: extendedWaitUntil + tapOn, no scrollUntilVisible.
 # ============================================================
 
-- scrollUntilVisible:
-    element:
+- extendedWaitUntil:
+    visible:
       id: "Cancel card edit"
-    centerElement: true
-    visibilityPercentage: 50
     timeout: 5000
 - tapOn:
     id: "Cancel card edit"
