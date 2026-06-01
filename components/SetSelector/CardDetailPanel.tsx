@@ -324,32 +324,6 @@ export default function CardDetailPanel({
             handled by giving the whole body a single scroll container; the
             popover renders within it. */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
-          {/* Images */}
-          <div className="flex gap-3">
-            {hasImages ? (
-              <>
-                {front && (
-                  <img
-                    src={front}
-                    alt={`${card.cardName} front`}
-                    className="h-40 w-auto rounded border border-gray-200 dark:border-gray-700 object-contain bg-gray-100 dark:bg-gray-900"
-                  />
-                )}
-                {back && (
-                  <img
-                    src={back}
-                    alt={`${card.cardName} back`}
-                    className="h-40 w-auto rounded border border-gray-200 dark:border-gray-700 object-contain bg-gray-100 dark:bg-gray-900"
-                  />
-                )}
-              </>
-            ) : (
-              <div className="h-40 w-28 rounded border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-[10px] text-center text-gray-400 px-2">
-                No image yet
-              </div>
-            )}
-          </div>
-
           {/* Card name */}
           <div>
             <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
@@ -374,29 +348,55 @@ export default function CardDetailPanel({
             <TeamPicker value={teamIds} onChange={setTeamIds} sport={ancestorSport} />
           </div>
 
-          {/* Players (read-only) */}
+          {/* Per-card feature overrides (persists immediately via setCardFeature).
+              Kept directly under Teams — matching the old inline edit modal — so
+              the collapsed "Show features editor" toggle is above the fold and
+              reachable without scrolling the drawer body. */}
+          <div>
+            <CardFeaturesEditor
+              cardChecklistId={card._id}
+              selectorOptionId={card.selectorOptionId}
+              cardFeatures={card.features}
+              ancestorSport={ancestorSport}
+            />
+          </div>
+
+          {/* Listing title + description (marketplace-agnostic) */}
+          <div>
+            <label className="flex items-center justify-between text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+              <span>Card title</span>
+              <span
+                className={
+                  listingTitle.length > 80 ? "text-[#FF2EB3]" : "text-gray-400"
+                }
+              >
+                {listingTitle.length} chars
+              </span>
+            </label>
+            <input
+              type="text"
+              value={listingTitle}
+              onChange={(e) => setListingTitle(e.target.value)}
+              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Listing title reused across marketplaces"
+              aria-label="Card title"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Stored once and reused by every marketplace listing.
+            </p>
+          </div>
           <div>
             <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-              Players
+              Card description
             </label>
-            {playerIds.length === 0 ? (
-              <p className="text-xs text-gray-400">
-                None linked. Add players via the marketplace fetch flow.
-              </p>
-            ) : !playerRows ? (
-              <p className="text-xs text-gray-400">Loading…</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {playerRows.map((p) => (
-                  <span
-                    key={p._id}
-                    className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600"
-                  >
-                    {p.name}
-                  </span>
-                ))}
-              </div>
-            )}
+            <textarea
+              value={listingDescription}
+              onChange={(e) => setListingDescription(e.target.value)}
+              rows={3}
+              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 resize-y"
+              placeholder="Listing description reused across marketplaces"
+              aria-label="Card description"
+            />
           </div>
 
           {/* Attributes */}
@@ -440,7 +440,7 @@ export default function CardDetailPanel({
             </div>
           </div>
 
-          {/* Print run / variation / autograph */}
+          {/* Print run / autograph */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
@@ -484,42 +484,29 @@ export default function CardDetailPanel({
             />
           </div>
 
-          {/* Listing title + description (marketplace-agnostic) */}
-          <div>
-            <label className="flex items-center justify-between text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-              <span>Card title</span>
-              <span
-                className={
-                  listingTitle.length > 80 ? "text-[#FF2EB3]" : "text-gray-400"
-                }
-              >
-                {listingTitle.length} chars
-              </span>
-            </label>
-            <input
-              type="text"
-              value={listingTitle}
-              onChange={(e) => setListingTitle(e.target.value)}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
-              placeholder="Listing title reused across marketplaces"
-              aria-label="Card title"
-            />
-            <p className="text-[10px] text-gray-400 mt-1">
-              Stored once and reused by every marketplace listing.
-            </p>
-          </div>
+          {/* Players (read-only) */}
           <div>
             <label className="block text-[10px] uppercase tracking-wide text-gray-400 mb-1">
-              Card description
+              Players
             </label>
-            <textarea
-              value={listingDescription}
-              onChange={(e) => setListingDescription(e.target.value)}
-              rows={3}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 resize-y"
-              placeholder="Listing description reused across marketplaces"
-              aria-label="Card description"
-            />
+            {playerIds.length === 0 ? (
+              <p className="text-xs text-gray-400">
+                None linked. Add players via the marketplace fetch flow.
+              </p>
+            ) : !playerRows ? (
+              <p className="text-xs text-gray-400">Loading…</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {playerRows.map((p) => (
+                  <span
+                    key={p._id}
+                    className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600"
+                  >
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Inherited from set (read-only). Per-card override of these levels
@@ -545,14 +532,30 @@ export default function CardDetailPanel({
             </div>
           )}
 
-          {/* Per-card feature overrides (persists immediately via setCardFeature) */}
-          <div className="pt-1">
-            <CardFeaturesEditor
-              cardChecklistId={card._id}
-              selectorOptionId={card.selectorOptionId}
-              cardFeatures={card.features}
-              ancestorSport={ancestorSport}
-            />
+          {/* Images (bottom — display only; no fetch/upload here per the ticket) */}
+          <div className="flex gap-3">
+            {hasImages ? (
+              <>
+                {front && (
+                  <img
+                    src={front}
+                    alt={`${card.cardName} front`}
+                    className="h-40 w-auto rounded border border-gray-200 dark:border-gray-700 object-contain bg-gray-100 dark:bg-gray-900"
+                  />
+                )}
+                {back && (
+                  <img
+                    src={back}
+                    alt={`${card.cardName} back`}
+                    className="h-40 w-auto rounded border border-gray-200 dark:border-gray-700 object-contain bg-gray-100 dark:bg-gray-900"
+                  />
+                )}
+              </>
+            ) : (
+              <div className="h-40 w-28 rounded border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-[10px] text-center text-gray-400 px-2">
+                No image yet
+              </div>
+            )}
           </div>
         </div>
 

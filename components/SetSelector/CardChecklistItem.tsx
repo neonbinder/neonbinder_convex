@@ -114,13 +114,13 @@ export default function CardChecklistItem({
       <span className="text-sm font-mono text-gray-500 dark:text-gray-400 w-12 text-right shrink-0">
         #{card.cardNumber}
       </span>
-      {/* Clicking the card body opens the detail panel (the Edit button does
-          the same and is what Maestro / keyboard users target). */}
-      <button
-        type="button"
+      {/* Clicking the card body opens the detail panel. Kept as a plain div
+          (not a button) so we don't add a focusable tab-stop per row into the
+          virtualized list — the always-rendered "Edit" button is the
+          keyboard/Maestro-targeted opener. */}
+      <div
         onClick={() => onEdit(card._id)}
-        className="flex-1 min-w-0 text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00B7FF] rounded"
-        aria-label={`Open card ${card.cardNumber}`}
+        className="flex-1 min-w-0 cursor-pointer"
       >
         <div className="text-sm font-medium truncate">{card.cardName}</div>
         {subParts.length > 0 && (
@@ -128,7 +128,7 @@ export default function CardChecklistItem({
             {subParts.join(" · ")}
           </div>
         )}
-      </button>
+      </div>
       {/* Attribute badges */}
       {card.attributes && card.attributes.length > 0 && (
         <div className="flex gap-1 shrink-0 flex-wrap max-w-[40%] justify-end">
