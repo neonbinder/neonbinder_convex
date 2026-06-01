@@ -52,6 +52,20 @@ type FetchPreview = {
   }>;
   unknownPlayers: string[];
   unknownTeams: string[];
+  // NEO-38: in-band TCDB preview, carried fetch → commit so the reviewed
+  // setMetadata/features are applied at the setName node on commit.
+  tcdb?: {
+    tcdbUnavailable: boolean;
+    setMetadata?: {
+      releaseDate?: string;
+      totalCardCount?: number;
+      block?: string;
+      tcdbSetId?: string;
+      sourceUrl?: string;
+      lastSyncedAt?: number;
+    };
+    features?: Record<string, string>;
+  };
 };
 
 export default function CardChecklist({
@@ -145,6 +159,7 @@ export default function CardChecklist({
         cards: result.cards,
         unknownPlayers: result.unknownPlayers,
         unknownTeams: result.unknownTeams,
+        tcdb: result.tcdb,
       };
       if (preview.unknownPlayers.length === 0 && preview.unknownTeams.length === 0) {
         await runCommit(preview, [], []);
@@ -176,6 +191,10 @@ export default function CardChecklist({
         cards: preview.cards,
         confirmedNewPlayers: confirmedPlayers,
         confirmedNewTeams: confirmedTeams,
+        // NEO-38: hand the reviewed TCDB preview to commit so it's applied at
+        // the setName node (overriding the heuristic). Omitted when TCDB was
+        // skipped (fetch above above-setName level) — left undefined.
+        ...(preview.tcdb ? { tcdb: preview.tcdb } : {}),
       });
       const enrichmentNote =
         result.createdPlayerIds.length || result.createdTeamIds.length

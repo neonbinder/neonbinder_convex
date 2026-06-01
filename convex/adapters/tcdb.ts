@@ -1,9 +1,14 @@
 "use node";
 
-import { internalAction } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v } from "convex/values";
 import { GoogleAuth, IdTokenClient } from "google-auth-library";
+import {
+  TCDB_FEATURE_KEY_MAP,
+  mapTcdbResponseToSetData,
+  type TcdbRawMetadata,
+} from "../features/tcdbMapping";
 
 /**
  * NEO-24 Stage 3b — TCDB enrichment adapter.
@@ -41,19 +46,9 @@ const TCDB_BROWSER_URL =
 const TCDB_FETCH_TIMEOUT_MS = 30_000;
 const MIN_MATCH_SCORE = 0.7;
 
-// Known feature keys (subset of EXPECTED_FEATURES) that we will fill from
-// TCDB's `additionalFeatures` map. Keys are TCDB's labels (case-insensitive);
-// values are our feature key. Anything not in this map is ignored — operator
-// can pull novel keys in manually via SetFeaturesPanel later.
-const TCDB_FEATURE_KEY_MAP: Record<string, string> = {
-  manufacturer: "manufacturer",
-  block: "block",
-  league: "league",
-  era: "era",
-  "card type": "cardType",
-  reprint: "isReprint",
-  "is reprint": "isReprint",
-};
+// `TCDB_FEATURE_KEY_MAP` (TCDB label → NeonBinder feature key) is now shared
+// from ../features/tcdbMapping and imported above. Keep the import so the
+// legacy `enrichSetFromTcdb` backfill keeps the same mapping semantics.
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -124,15 +119,143 @@ type TcdbSearchMatch = {
   score: number;
 };
 
-type TcdbMetadata = {
-  tcdbSetId: string;
-  name: string;
-  releaseDate?: string;
-  totalCardCount?: number;
-  block?: string;
-  sourceUrl: string;
-  additionalFeatures?: Record<string, string>;
-};
+// Raw /tcdb/get-set metadata shape — aliased to the shared type from the pure
+// mapper module so the two never drift.
+type TcdbMetadata = TcdbRawMetadata;
+
+// ===========================================================================
+// NEO-38: in-band TCDB fetch (concurrent with BSC/SL during the preview).
+// ===========================================================================
+
+/**
+ * Public action conforming to the BSC/SL adapter shape. Given a set's
+ * `{ sport, year, setName }`, it:
+ *   1. POST /tcdb/search → pick the highest-confidence match (≥ MIN_MATCH_SCORE)
+ *   2. POST /tcdb/get-set → pull the set metadata
+ *   3. map the result to `{ setMetadata, features }` via the pure mapper
+ *
+ * NEVER throws. On Cloudflare interstitial (`reason: "tcdb-unavailable"`), HTTP
+ * error, network/timeout, or no confident match, returns
+ * `{ success: false, tcdbUnavailable: true, message }` so the caller's
+ * `Promise.allSettled` fan-out treats TCDB as best-effort. (We set
+ * `tcdbUnavailable: true` for any non-success so the preview can show a single
+ * "TCDB data unavailable" affordance regardless of the specific reason.)
+ */
+export const fetchTcdbSetData = action({
+  args: {
+    sport: v.string(),
+    year: v.string(),
+    setName: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    tcdbUnavailable: v.boolean(),
+    message: v.optional(v.string()),
+    setMetadata: v.optional(
+      v.object({
+        releaseDate: v.optional(v.string()),
+        totalCardCount: v.optional(v.number()),
+        block: v.optional(v.string()),
+        tcdbSetId: v.optional(v.string()),
+        sourceUrl: v.optional(v.string()),
+        lastSyncedAt: v.optional(v.number()),
+      }),
+    ),
+    features: v.optional(v.record(v.string(), v.string())),
+  }),
+  handler: async (
+    _ctx,
+    args,
+  ): Promise<{
+    success: boolean;
+    tcdbUnavailable: boolean;
+    message?: string;
+    setMetadata?: {
+      releaseDate?: string;
+      totalCardCount?: number;
+      block?: string;
+      tcdbSetId?: string;
+      sourceUrl?: string;
+      lastSyncedAt?: number;
+    };
+    features?: Record<string, string>;
+  }> => {
+    // Parse a numeric year for the /tcdb/search contract (it expects a number).
+    const yearNum = (() => {
+      const m = args.year.match(/\d{4}/);
+      return m ? parseInt(m[0], 10) : NaN;
+    })();
+    try {
+      // ----- 1. search -----
+      const searchResp = await tcdbFetch("/tcdb/search", {
+        sport: args.sport,
+        year: Number.isFinite(yearNum) ? yearNum : args.year,
+        setName: args.setName,
+      });
+      if (!searchResp.ok) {
+        return {
+          success: false,
+          tcdbUnavailable: true,
+          message: `tcdb-search-http-${searchResp.status}`,
+        };
+      }
+      const searchJson = (await searchResp.json()) as {
+        matches?: TcdbSearchMatch[];
+        reason?: string;
+      };
+      if (searchJson.reason === "tcdb-unavailable") {
+        return { success: false, tcdbUnavailable: true, message: "tcdb-unavailable" };
+      }
+      const matches = (searchJson.matches ?? []).filter(
+        (m) => typeof m.score === "number" && m.score >= MIN_MATCH_SCORE,
+      );
+      if (matches.length === 0) {
+        return {
+          success: false,
+          tcdbUnavailable: true,
+          message: "no-confident-match",
+        };
+      }
+      matches.sort((a, b) => b.score - a.score);
+      const tcdbSetId = matches[0].tcdbSetId;
+
+      // ----- 2. get-set -----
+      const getResp = await tcdbFetch("/tcdb/get-set", { tcdbSetId });
+      if (!getResp.ok) {
+        return {
+          success: false,
+          tcdbUnavailable: true,
+          message: `tcdb-get-http-${getResp.status}`,
+        };
+      }
+      const getJson = (await getResp.json()) as {
+        metadata?: TcdbMetadata | null;
+        reason?: string;
+      };
+      if (getJson.reason === "tcdb-unavailable" || !getJson.metadata) {
+        return {
+          success: false,
+          tcdbUnavailable: true,
+          message: getJson.reason ?? "tcdb-no-metadata",
+        };
+      }
+
+      // ----- 3. map -----
+      const { setMetadata, features } = mapTcdbResponseToSetData(
+        getJson.metadata,
+      );
+      return { success: true, tcdbUnavailable: false, setMetadata, features };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[fetchTcdbSetData] failed: ${detail}`);
+      return {
+        success: false,
+        tcdbUnavailable: true,
+        message: "tcdb-network-error",
+      };
+    }
+  },
+});
 
 export const enrichSetFromTcdb = internalAction({
   args: { selectorOptionId: v.id("selectorOptions") },
