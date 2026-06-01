@@ -1378,7 +1378,7 @@ export const getDescendantCardCount = query({
  * value is treated as an operator/card-observed override and left untouched
  * (counted as `skippedAsOverridden`). Re-applying the same value is idempotent.
  */
-async function materializeSelectorOptionFeature(
+export async function materializeSelectorOptionFeature(
   ctx: { db: { get: any; patch: any; query: any } },
   selectorOptionId: Id<"selectorOptions">,
   key: string,
