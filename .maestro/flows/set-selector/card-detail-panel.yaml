@@ -12,8 +12,11 @@ tags:
 #   1. Opening the drawer via the "Edit card {n}" button (row action).
 #   2. Drawer header shows "Card #{n}" (new title — old modal said "Edit card #").
 #   3. Editing the card name field (no Enter-to-save; save is via the Save button).
-#   4. Toggling the "RC" attribute chip (aria-pressed toggles on/off).
-#   5. Typing a Card title (listingTitle) and Card description (listingDescription).
+#   4. Typing a Card title (listingTitle) and Card description (listingDescription).
+#      These fields are at positions 4 and 5 in the drawer body — above the
+#      attribute chips — so they are reachable near the top of the scroll area.
+#   5. Toggling the "RC" attribute chip (aria-pressed toggles on/off).
+#      Attributes are at position 6 (below Card title/description); scroll required.
 #   6. Saving via "Save card edit" — drawer closes, row shows updated name.
 #   7. Re-opening the drawer confirms card name, RC chip state, and listing title
 #      all persisted to the database.
@@ -22,6 +25,19 @@ tags:
 #   9. "Keep editing" dismisses the confirm bar without closing the drawer.
 #  10. "Close card detail" button (×) while dirty also triggers the dirty guard.
 #  11. Cancel button always closes immediately (no dirty guard on Cancel).
+#
+# DRAWER BODY ORDER (top to bottom in scroll container):
+#   1. Card name
+#   2. Teams (TeamPicker)
+#   3. Features editor (collapsed "Show features editor" button)
+#   4. Card title  ← visible near top; no scroll needed after header
+#   5. Card description
+#   6. Attributes chips (Toggle RC / AU / RELIC / SP / SSP / NUM)  ← may need scroll
+#   7. Print run / Autograph type
+#   8. Card variation
+#   9. Players (read-only)
+#  10. Inherited from set (read-only)
+#  11. Images / "No image yet" placeholder
 #
 # NEO-25 BEHAVIORAL NOTES:
 #   - Drawer title is "Card #{n}" — the old inline modal said "Edit card #{n}".
@@ -232,9 +248,38 @@ tags:
 - inputText: "Renamed Detail Player ${ATTEMPT_ID}"
 
 # ============================================================
+# EDIT: type a Card title (listingTitle) and Card description
+# These fields are at positions 4 and 5 in the drawer body — directly
+# below the (collapsed) features editor. The header + Card name + Teams +
+# features button consume roughly 220px; Card title starts at ~220px from
+# the top of the scroll area, well above the 629px fold. No scroll
+# required, but we use extendedWaitUntil to surface any load delay.
+# We interact with these BEFORE scrolling down to the attribute chips
+# so we never have to scroll back UP to reach them.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      id: "Card title"
+    timeout: 5000
+- tapOn:
+    id: "Card title"
+- inputText: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
+
+- extendedWaitUntil:
+    visible:
+      id: "Card description"
+    timeout: 5000
+- tapOn:
+    id: "Card description"
+- inputText: "NEO-25 description body for ${ATTEMPT_ID}"
+
+# ============================================================
 # EDIT: toggle the RC attribute chip
 # The chip starts inactive (new custom card has no attributes).
 # Tapping it once activates it (aria-pressed becomes "true").
+# Attributes are at position 6 (below Card title/description) — scroll
+# down to bring the row into view before tapping.
 # ============================================================
 
 - scrollUntilVisible:
@@ -256,30 +301,6 @@ tags:
 # aria-pressed. The text "RC" is always visible for this token.)
 - assertVisible:
     id: "Toggle RC"
-
-# ============================================================
-# EDIT: type a Card title (listingTitle) and Card description
-# ============================================================
-
-- scrollUntilVisible:
-    element:
-      id: "Card title"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
-- tapOn:
-    id: "Card title"
-- inputText: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
-
-- scrollUntilVisible:
-    element:
-      id: "Card description"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
-- tapOn:
-    id: "Card description"
-- inputText: "NEO-25 description body for ${ATTEMPT_ID}"
 
 # ============================================================
 # DIRTY-GUARD: verify backdrop click shows the confirm bar
@@ -332,12 +353,10 @@ tags:
 
 # ============================================================
 # SAVE
-# Save button is in the footer. With the drawer's scrollable body
-# content (name, teams, players, attributes, print run, variation,
-# autograph, title, description, inherited-from-set, CardFeaturesEditor)
-# the footer may be below the 1024×629 headless viewport if the body
-# overflows. The footer is sticky at the drawer bottom (flex-col layout),
-# but scroll just in case.
+# Save button is in the footer (sticky at the drawer bottom — outside the
+# scroll container). It is always visible as long as the footer itself is
+# within the 629px headless viewport. We still scrollUntilVisible as a
+# safety guard in case the footer is pushed by an unexpectedly tall body.
 # ============================================================
 
 - scrollUntilVisible:
@@ -381,9 +400,16 @@ tags:
 # matches visible text in inputs against the text: selector).
 - assertVisible: "Renamed Detail Player ${ATTEMPT_ID}"
 
-# The RC chip should be active (aria-pressed="true"). We assert it is present
-# and tap it to verify it is interactive (the visual active state is not
-# directly assertable via text alone — the chip text is still "RC" either way).
+# Card title is at position 4 in the drawer body — near the top, above the
+# attribute chips. Assert it without scrolling (it's visible from mount).
+- extendedWaitUntil:
+    visible:
+      id: "Card title"
+    timeout: 5000
+- assertVisible: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
+
+# The RC chip should be active (aria-pressed="true"). Attributes are at
+# position 6 — below Card title — so scroll down to bring the row into view.
 - scrollUntilVisible:
     element:
       id: "Toggle RC"
@@ -392,15 +418,6 @@ tags:
     timeout: 10000
 - assertVisible:
     id: "Toggle RC"
-
-# The listing title should be visible in the Card title input.
-- scrollUntilVisible:
-    element:
-      id: "Card title"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
-- assertVisible: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
 
 # ============================================================
 # CLOSE via Cancel (immediate close — no dirty guard)
