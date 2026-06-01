@@ -124,10 +124,14 @@ tags:
       - tapOn:
           id: "Edit attributes"
       - extendedWaitUntil:
-          visible: "Set attributes"
+          visible:
+            id: "Hide attributes"
           timeout: 5000
 
-- assertVisible: "Set attributes"
+# "Hide attributes" is the reliable expanded-state signal. The bare string
+# "Set attributes" matches the panel container's aria-label even when collapsed.
+- assertVisible:
+    id: "Hide attributes"
 
 # The setMetadata area shows either "No set metadata yet" (fresh DB) or chips.
 - assertVisible:

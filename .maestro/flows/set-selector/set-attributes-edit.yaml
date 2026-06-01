@@ -148,15 +148,18 @@ tags:
       - tapOn:
           id: "Edit attributes"
       - extendedWaitUntil:
-          visible: "Set attributes"
+          visible:
+            id: "Hide attributes"
           timeout: 5000
 
-# The expanded heading "Set attributes" is visible.
-- assertVisible: "Set attributes"
-
-# The breadcrumb scope line mentions "Topps Chrome" and the ancestor chain separator "›".
+# The "Hide attributes" button is only present when the panel is expanded.
 - assertVisible:
-    text: ".*Topps Chrome.*›.*"
+    id: "Hide attributes"
+
+# The breadcrumb header shows "Attributes for Topps Chrome" as the leaf (last crumb, no "›" after it).
+# The ancestor chain uses "›" as a separator before the leaf, so the pattern is ".*›.*Topps Chrome.*".
+- assertVisible:
+    text: ".*›.*Topps Chrome.*"
 
 # ============================================================
 # PART C — EDIT "Value for Release Date" (setName-level metadata field)
@@ -276,8 +279,11 @@ tags:
 - assertVisible:
     id: "Edit attributes"
 
-# The full body heading is NOT visible while collapsed.
-- assertNotVisible: "Set attributes"
+# The "Hide attributes" button is ONLY present when the panel is expanded.
+# Its absence is the reliable collapsed-state signal (bare "Set attributes"
+# always matches the panel container's aria-label and cannot discriminate).
+- assertNotVisible:
+    id: "Hide attributes"
 
 # ============================================================
 # PART F — TAP "Edit attributes" TO EXPAND THE PANEL
@@ -286,13 +292,8 @@ tags:
 - tapOn:
     id: "Edit attributes"
 
-# After expanding: the heading "Set attributes" is visible and the
-# "Hide attributes" toggle replaces "Edit attributes".
-- extendedWaitUntil:
-    visible: "Set attributes"
-    timeout: 5000
-- assertVisible: "Set attributes"
-
+# After expanding: "Hide attributes" replaces "Edit attributes" as the
+# reliable signal that the panel body is now open.
 - extendedWaitUntil:
     visible:
       id: "Hide attributes"

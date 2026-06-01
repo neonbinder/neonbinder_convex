@@ -128,10 +128,13 @@ tags:
       - tapOn:
           id: "Edit attributes"
       - extendedWaitUntil:
-          visible: "Set attributes"
+          visible:
+            id: "Hide attributes"
           timeout: 5000
 
-- assertVisible: "Set attributes"
+# "Hide attributes" is only present when the panel is expanded — reliable expanded-state signal.
+- assertVisible:
+    id: "Hide attributes"
 
 - scrollUntilVisible:
     element:
@@ -366,7 +369,8 @@ tags:
       - tapOn:
           id: "Edit attributes"
       - extendedWaitUntil:
-          visible: "Set attributes"
+          visible:
+            id: "Hide attributes"
           timeout: 5000
 
 - scrollUntilVisible:
