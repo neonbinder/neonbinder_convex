@@ -220,10 +220,13 @@ export default function CardDetailPanel({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        // Escape is an explicit dismiss — discard and close immediately
+        // (matches the old edit modal + the ticket's "Escape to close
+        // panel"). If the discard confirm is showing, Escape dismisses it.
         if (pendingAction) {
           setPendingAction(null);
         } else {
-          requestExit("close");
+          onClose();
         }
         return;
       }
@@ -583,7 +586,7 @@ export default function CardDetailPanel({
         ) : (
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2 justify-end">
             <button
-              onClick={() => requestExit("close")}
+              onClick={onClose}
               aria-label="Cancel card edit"
               className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
             >
