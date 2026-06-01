@@ -14,6 +14,11 @@ import {
   newRequestId,
   classifyAdapterError,
 } from "./observability";
+import {
+  deriveSetLevelFeatures,
+  deriveCardObservedFeatures,
+  type SetLevelFeatureInputs,
+} from "./features/deriveCardFeatures";
 
 // ===== LEVEL VALIDATOR (reused across functions) =====
 const levelValidator = v.union(
@@ -1122,13 +1127,27 @@ export const addCustomCard = mutation({
     // for new cards — manual add must match so the test of
     // "set feature at set level → new manual card inherits it" passes.
     const inheritedFeatures: Record<string, string> = {};
+    // NEO-25: capture ancestor levels for auto-derived set-level features.
+    const setLevelInputs: SetLevelFeatureInputs = {};
     {
       let cursorId: Id<"selectorOptions"> | undefined = args.selectorOptionId;
       const chain: Array<Record<string, string> | undefined> = [];
+      let isLeaf = true;
       while (cursorId) {
         const node: any = await ctx.db.get(cursorId);
         if (!node) break;
         chain.unshift(node.features);
+        if (isLeaf) {
+          setLevelInputs.leafLevel = node.level;
+          setLevelInputs.leafIsInsert = node.metadata?.isInsert ?? undefined;
+          setLevelInputs.leafIsParallel = node.metadata?.isParallel ?? undefined;
+          isLeaf = false;
+        }
+        if (node.level === "sport") setLevelInputs.sport = node.value;
+        if (node.level === "year") setLevelInputs.year = node.value;
+        if (node.level === "manufacturer") {
+          setLevelInputs.manufacturer = node.value;
+        }
         cursorId = node.parentId;
       }
       for (const f of chain) {
@@ -1138,8 +1157,16 @@ export const addCustomCard = mutation({
         }
       }
     }
-    const inheritedFeaturesOrUndefined: Record<string, string> | undefined =
-      Object.keys(inheritedFeatures).length > 0 ? inheritedFeatures : undefined;
+    // NEO-25: precedence = set-level defaults < operator-set ancestor features
+    // < card-observed facts (rookie/relic derived from the custom card's
+    // attributes). Matches the commitCardChecklist new-card path.
+    const mergedFeatures: Record<string, string> = {
+      ...deriveSetLevelFeatures(setLevelInputs),
+      ...inheritedFeatures,
+      ...deriveCardObservedFeatures({ attributes: args.attributes }),
+    };
+    const featuresOrUndefined: Record<string, string> | undefined =
+      Object.keys(mergedFeatures).length > 0 ? mergedFeatures : undefined;
 
     // Insert with a placeholder sortOrder; restampCardChecklistSortOrders
     // below assigns the correct natural-cardNumber position. This way a
@@ -1161,9 +1188,7 @@ export const addCustomCard = mutation({
       ...(pendingTeamNames && pendingTeamNames.length > 0
         ? { pendingTeamNames }
         : {}),
-      ...(inheritedFeaturesOrUndefined
-        ? { features: inheritedFeaturesOrUndefined }
-        : {}),
+      ...(featuresOrUndefined ? { features: featuresOrUndefined } : {}),
       sortOrder: 0,
       lastUpdated: Date.now(),
     });
@@ -3475,13 +3500,27 @@ export const commitCardChecklist = mutation({
     // explicit `setSelectorOptionFeature` propagation owns that path so
     // operator-overridden cards aren't re-clobbered on every re-fetch.
     const inheritedFeatures: Record<string, string> = {};
+    // NEO-25: capture the ancestor levels in the same walk so we can auto-derive
+    // set-level features (league/era/vintage/manufacturer/cardType) for new cards.
+    const setLevelInputs: SetLevelFeatureInputs = { sport: args.sport };
     {
       let cursorId: Id<"selectorOptions"> | undefined = args.selectorOptionId;
       const chain: Array<Record<string, string> | undefined> = [];
+      let isLeaf = true;
       while (cursorId) {
         const node: any = await ctx.db.get(cursorId);
         if (!node) break;
         chain.unshift(node.features);
+        if (isLeaf) {
+          setLevelInputs.leafLevel = node.level;
+          setLevelInputs.leafIsInsert = node.metadata?.isInsert ?? undefined;
+          setLevelInputs.leafIsParallel = node.metadata?.isParallel ?? undefined;
+          isLeaf = false;
+        }
+        if (node.level === "year") setLevelInputs.year = node.value;
+        if (node.level === "manufacturer") {
+          setLevelInputs.manufacturer = node.value;
+        }
         cursorId = node.parentId;
       }
       for (const f of chain) {
@@ -3493,36 +3532,17 @@ export const commitCardChecklist = mutation({
     }
     const inheritedFeaturesOrUndefined: Record<string, string> | undefined =
       Object.keys(inheritedFeatures).length > 0 ? inheritedFeatures : undefined;
+    // NEO-25: set-level defaults derived from the ancestor chain. Lowest
+    // precedence — operator-set ancestor features and card-observed facts win.
+    const setLevelDefaults = deriveSetLevelFeatures(setLevelInputs);
 
-    // NEO-24 Stage 3b: derive per-card feature keys from typed columns
-    // harvested out of the BSC/SL adapters. Keys mirror `EXPECTED_FEATURES`
-    // so the SetFeaturesPanel can render coverage uniformly. We merge:
-    //   inherited (ancestor features, may be undefined) ← shallowest
-    //   ← per-card derived (overrides inherited if the card carries it)
-    // The result is written only for NEW card rows. Existing rows are
-    // owned by `setSelectorOptionFeature` / `setCardFeature` (operator
-    // overrides must not be clobbered on re-fetch).
-    const derivePerCardFeatures = (card: {
-      isRookie?: boolean;
-      isRelic?: boolean;
-      autographType?: string;
-      cardVariation?: string;
-    }): Record<string, string> => {
-      const derived: Record<string, string> = {};
-      if (card.isRookie) derived.isRookie = "true";
-      if (card.isRelic) derived.isRelic = "true";
-      if (card.autographType && card.autographType.trim()) {
-        // We don't know who signed (player name isn't tied to the autograph
-        // record at this layer), so we mark the *type* as the value. The
-        // SetFeaturesPanel's `signedBy` rendering can read either "yes" /
-        // type string and treat both as positive signal.
-        derived.signedBy = card.autographType.trim();
-      }
-      if (card.cardVariation && card.cardVariation.trim()) {
-        derived.parallelName = card.cardVariation.trim();
-      }
-      return derived;
-    };
+    // NEO-25 Stage 3b: per-card features now come from the shared
+    // `deriveCardObservedFeatures` helper (isRookie/isRelic/signedBy/
+    // parallelName), merged on top of `setLevelDefaults` (league/era/vintage/
+    // manufacturer/cardType, derived above from the ancestor chain) and the
+    // operator-set `inheritedFeatures`. The result is written only for NEW
+    // card rows; existing rows are owned by `setSelectorOptionFeature` /
+    // `setCardFeature` (operator overrides must not be clobbered on re-fetch).
 
     // Pre-compute the target sortOrder for every card that will be in this
     // selectorOption after the upsert: incoming richCards (marketplace) PLUS
@@ -3570,13 +3590,14 @@ export const commitCardChecklist = mutation({
           lastUpdated: Date.now(),
         });
       } else {
-        // NEO-24 Stage 3b: merge ancestor features + per-card derived features.
-        // Per-card values win (they reflect what the BSC/SL adapter actually
-        // observed on this specific card vs. what's true of the parent set).
-        const derived = derivePerCardFeatures(card);
+        // NEO-25: precedence = set-level defaults < operator-set ancestor
+        // features < card-observed facts. So an operator's explicit set value
+        // beats our derived guess, and a fact seen on THIS card (e.g. it's a
+        // rookie) beats both.
         const mergedFeatures: Record<string, string> = {
+          ...setLevelDefaults,
           ...(inheritedFeaturesOrUndefined ?? {}),
-          ...derived,
+          ...deriveCardObservedFeatures(card),
         };
         const featuresOrUndefined =
           Object.keys(mergedFeatures).length > 0 ? mergedFeatures : undefined;
