@@ -4,6 +4,7 @@ import type { GenericId } from "convex/values";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import type { SourceChips } from "../SetSelector/ChecklistSourceFilter";
 
 import SportSelector from "../SetSelector/SportSelector";
@@ -28,7 +29,7 @@ import BaseMappingForm from "../SetSelector/BaseMappingForm";
 import VariantMetadataEditor from "../SetSelector/VariantMetadataEditor";
 import ParallelGroupingModal from "../SetSelector/ParallelGroupingModal";
 import MultiSourcePanel from "../SetSelector/MultiSourcePanel";
-import SetFeaturesPanel from "../SetSelector/SetFeaturesPanel";
+import SetAttributesPanel from "../SetSelector/SetAttributesPanel";
 import NeonButton from "./NeonButton";
 
 export default function SetSelector() {
@@ -169,6 +170,19 @@ export default function SetSelector() {
     selectedVariantOfVariantId ||
     selectedVariantId ||
     (isBaseVariantTypeSelected ? selectedVariantTypeId : null);
+
+  // NEO-38: the deepest selected node at ANY level. Drives SetAttributesPanel
+  // so the attributes editor follows the selection down (sport → parallel)
+  // and never vanishes when a variant (e.g. "Base") is active.
+  const deepestSelectedId =
+    selectedVariantOfVariantId ||
+    selectedVariantId ||
+    selectedVariantTypeId ||
+    selectedSetId ||
+    selectedManufacturerId ||
+    selectedYearId ||
+    selectedSportId ||
+    null;
 
   // NEO-6: read the cardChecklist row here (once) and derive the source-
   // set chip data + per-card label maps. Previously this lived inside
@@ -412,16 +426,19 @@ export default function SetSelector() {
           parallel rows once they have a reconciliation primary mapped. */}
       {cardChecklistId && <MultiSourcePanel selectorOptionId={cardChecklistId} />}
 
-      {/* NEO-24: set-level features editor — operator edits keys here
-          and the propagation engine writes through to every descendant
-          cardChecklist row. Anchored at the setName row (`selectedSetId`)
-          so vintage/manufacturer-level rows can stay aggregator-only and
-          marketplace-specific facets live closest to the set. Only renders
-          when setName is the DEEPEST selected node; once the user drills
-          into a variantType the cards / MultiSourcePanel surface takes
-          over and we don't want to push that content off-screen. */}
-      {selectedSetId && !selectedVariantTypeId && (
-        <SetFeaturesPanel selectorOptionId={selectedSetId} />
+      {/* NEO-38: set ATTRIBUTES editor (features + metadata) — operator
+          edits keys here and the propagation engine writes through to every
+          descendant cardChecklist row. Mounts at the DEEPEST selected node
+          at any level (sport → parallel) so it follows the selection down
+          and never vanishes when a variant (e.g. "Base") is active. Starts
+          collapsed when cards are present (`cardChecklistId`) so it doesn't
+          push the card list off-screen; expanded otherwise so the
+          set-with-no-cards flow needs no extra tap. */}
+      {deepestSelectedId && (
+        <SetAttributesPanel
+          selectorOptionId={deepestSelectedId as Id<"selectorOptions">}
+          defaultCollapsed={!!cardChecklistId}
+        />
       )}
 
       {/* Cards — full width below the selector row. `cardChecklistId`
