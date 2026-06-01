@@ -430,14 +430,16 @@ export default function SetSelector() {
           edits keys here and the propagation engine writes through to every
           descendant cardChecklist row. Mounts at the DEEPEST selected node
           at any level (sport → parallel) so it follows the selection down
-          and never vanishes when a variant (e.g. "Base") is active. Starts
-          collapsed when cards are present (`cardChecklistId`) so it doesn't
-          push the card list off-screen; expanded otherwise so the
-          set-with-no-cards flow needs no extra tap. */}
+          and never vanishes when a variant (e.g. "Base") is active. ALWAYS
+          starts COLLAPSED (a slim summary bar): expanding it at sport/year/
+          manufacturer during drill-down used to push the selector columns and
+          hid the year list (broke the cascade's Football → 2026 pre-warm,
+          NEO-38). The operator taps "Edit attributes" to edit; flows expand it
+          via an idempotent guard. */}
       {deepestSelectedId && (
         <SetAttributesPanel
           selectorOptionId={deepestSelectedId as Id<"selectorOptions">}
-          defaultCollapsed={!!cardChecklistId}
+          defaultCollapsed={true}
         />
       )}
 
