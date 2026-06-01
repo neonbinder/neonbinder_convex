@@ -396,6 +396,9 @@ export const getCardChecklist = query({
       printRun: v.optional(v.number()),
       autographType: v.optional(v.string()),
       cardVariation: v.optional(v.string()),
+      // NEO-25: marketplace-agnostic listing strings (see schema.ts).
+      listingTitle: v.optional(v.string()),
+      listingDescription: v.optional(v.string()),
       imageUrls: v.optional(v.object({
         front: v.optional(v.string()),
         back: v.optional(v.string()),
@@ -1182,6 +1185,19 @@ export const updateCard = mutation({
     // was removed in this PR.
     teamOnCardIds: v.optional(v.array(v.id("teams"))),
     attributes: v.optional(v.array(v.string())),
+    // NEO-25: structured per-card fields now editable from the card detail
+    // panel. All are full-replacement (omit to leave untouched). `isRookie`/
+    // `isRelic` are derived by the caller from `attributes` (RC / RELIC) so
+    // the boolean columns can't drift from the token array. Clearing a string
+    // field is done by sending "" (sending undefined leaves it untouched).
+    printRun: v.optional(v.number()),
+    autographType: v.optional(v.string()),
+    cardVariation: v.optional(v.string()),
+    isRookie: v.optional(v.boolean()),
+    isRelic: v.optional(v.boolean()),
+    playerIds: v.optional(v.array(v.id("players"))),
+    listingTitle: v.optional(v.string()),
+    listingDescription: v.optional(v.string()),
     // NEO-24: full-replacement features patch. Callers pass the entire
     // desired map (or omit). Per-key edits should go through
     // `setCardFeature` so the propagation-engine semantics around the

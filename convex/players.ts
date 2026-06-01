@@ -178,6 +178,25 @@ export const get = query({
 });
 
 /**
+ * Batch lookup for resolving a list of playerIds back to display rows.
+ * NEO-25: the card detail panel renders player-name chips from
+ * `cardChecklist.playerIds[]` without N round-trips. Mirrors
+ * `teams.getManyByIds`. Missing IDs are silently dropped (an orphaned
+ * link is a soft data error, not fatal). Public — `createdByUserId`
+ * is stripped via `toPublicPlayer`.
+ */
+export const getManyByIds = query({
+  args: { ids: v.array(v.id("players")) },
+  returns: v.array(playerDocPublicValidator),
+  handler: async (ctx, args) => {
+    const rows = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return rows
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .map(toPublicPlayer);
+  },
+});
+
+/**
  * Internal counterpart of `get` — used by Wikidata enrichment actions that
  * run outside the user's auth context. Internal queries never enforce
  * Clerk identity so background enrichment can read freely.

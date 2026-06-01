@@ -3,7 +3,9 @@ import { useQuery, useAction, useMutation } from "convex/react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
+import type { Id } from "../../convex/_generated/dataModel";
 import CardChecklistItem from "./CardChecklistItem";
+import CardDetailPanel from "./CardDetailPanel";
 import NeonButton from "../modules/NeonButton";
 import UnknownEntitiesDialog from "./UnknownEntitiesDialog";
 import ChecklistSourceFilter, {
@@ -98,11 +100,17 @@ export default function CardChecklist({
     bsc: null,
     sportlots: null,
   });
+  // NEO-25: which card (if any) is open in the detail panel. Tracked by id —
+  // sortedCards re-sorts on every reactive update, so an index would silently
+  // point at a different card after any list mutation.
+  const [selectedCardId, setSelectedCardId] =
+    useState<Id<"cardChecklist"> | null>(null);
 
-  // Reset filter when the variant changes — chips for one variant don't
-  // apply to another.
+  // Reset filter + close the detail panel when the variant changes — chips and
+  // selection for one variant don't apply to another.
   useEffect(() => {
     setSourceFilter({ bsc: null, sportlots: null });
+    setSelectedCardId(null);
   }, [variantId]);
 
   // Virtuoso scroll handle + a one-shot flag so when the user adds a card
@@ -287,6 +295,24 @@ export default function CardChecklist({
     ? Math.max(...cards.map((c: { lastUpdated: number }) => c.lastUpdated))
     : null;
 
+  // NEO-25: resolve the open card from its id against the live sorted list.
+  const selectedIndex = selectedCardId
+    ? sortedCards.findIndex((c) => c._id === selectedCardId)
+    : -1;
+  const selectedCard = selectedIndex >= 0 ? sortedCards[selectedIndex] : null;
+
+  // Move selection to a list position and keep it in view. "center" matches
+  // the add-card scroll and dodges the sticky binder-header at y≈84.
+  const selectByIndex = (idx: number) => {
+    if (idx < 0 || idx >= sortedCards.length) return;
+    setSelectedCardId(sortedCards[idx]._id);
+    virtuosoRef.current?.scrollToIndex({
+      index: idx,
+      align: "center",
+      behavior: "auto",
+    });
+  };
+
   const busy = syncing || committing;
   const fetchLabel = syncing
     ? "Fetching..."
@@ -434,7 +460,8 @@ export default function CardChecklist({
                 <CardChecklistItem
                   card={card}
                   sourceLabelMaps={sourceLabelMaps}
-                  ancestorSport={ancestorSport}
+                  isSelected={card._id === selectedCardId}
+                  onEdit={(id) => setSelectedCardId(id)}
                 />
               </div>
             )}
@@ -455,6 +482,22 @@ export default function CardChecklist({
           />
         )}
       </div>
+
+      {/* NEO-25: card detail panel. Keyed on the card id so switching cards
+          (arrow nav / prev-next) remounts it with fresh draft state. */}
+      {selectedCard && (
+        <CardDetailPanel
+          key={selectedCard._id}
+          card={selectedCard}
+          ancestorChain={ancestorChain}
+          ancestorSport={ancestorSport}
+          onClose={() => setSelectedCardId(null)}
+          onPrev={() => selectByIndex(selectedIndex - 1)}
+          onNext={() => selectByIndex(selectedIndex + 1)}
+          hasPrev={selectedIndex > 0}
+          hasNext={selectedIndex >= 0 && selectedIndex < sortedCards.length - 1}
+        />
+      )}
 
       <UnknownEntitiesDialog
         isOpen={pendingPreview !== null}
