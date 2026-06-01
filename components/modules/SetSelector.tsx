@@ -171,17 +171,22 @@ export default function SetSelector() {
     selectedVariantId ||
     (isBaseVariantTypeSelected ? selectedVariantTypeId : null);
 
-  // NEO-38: the deepest selected node at ANY level. Drives SetAttributesPanel
-  // so the attributes editor follows the selection down (sport → parallel)
-  // and never vanishes when a variant (e.g. "Base") is active.
+  // NEO-38: the deepest selected node at setName-or-deeper. Drives
+  // SetAttributesPanel so the attributes editor follows the selection down
+  // (setName → variantType → insert → parallel) and never vanishes when a
+  // variant (e.g. "Base") is active. We deliberately do NOT mount it at the
+  // sport/year/manufacturer levels: a panel rendered there during drill-down
+  // adds height below the selector columns, and the cascade's drill flows
+  // (e.g. Football → custom year 2026) scroll DOWN to reach the column's
+  // "Add custom" button, which then pushed the year dropdown's top (2026)
+  // out of view → "2026 not visible" e2e failures (NEO-38). Those levels are
+  // auto-seeded by the heuristic/TCDB at commit anyway; manual editing there
+  // (rare) is a follow-up needing a non-drill-disrupting placement.
   const deepestSelectedId =
     selectedVariantOfVariantId ||
     selectedVariantId ||
     selectedVariantTypeId ||
     selectedSetId ||
-    selectedManufacturerId ||
-    selectedYearId ||
-    selectedSportId ||
     null;
 
   // NEO-6: read the cardChecklist row here (once) and derive the source-
