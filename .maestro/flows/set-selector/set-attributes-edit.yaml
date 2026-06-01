@@ -1,0 +1,337 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "SetAttributesPanel redesign — breadcrumb scope, metadata editing, collapse/expand, inherited values at Base"
+tags:
+  - regression
+  - set-selector
+  - requires:cards-loaded
+---
+# NEO-38 acceptance test for the SetAttributesPanel redesign.
+#
+# WHAT THIS TESTS (four sub-scenarios):
+#
+#   1. BREADCRUMB SCOPE TEXT
+#      Drill to Topps Chrome (setName level). The panel header shows a
+#      breadcrumb like "Attributes for Topps Chrome (Set) — Baseball › 2024 › Topps"
+#      confirming the panel identifies which node it is editing and its ancestry.
+#
+#   2. METADATA EDIT AT SETNAME LEVEL
+#      At the setName level the panel is EXPANDED by default. The editable
+#      metadata fields ("Value for Release Date", "Value for Total Cards",
+#      "Value for Block") are visible. Type a value in "Value for Release Date"
+#      and confirm the "Updated N cards" toast (metadata propagates too).
+#
+#   3. FEATURE VALUE EDIT AT SETNAME LEVEL
+#      In the same expanded panel, type a value in an existing feature input
+#      ("Value for League") and confirm the "Updated N cards" toast.
+#
+#   4. COLLAPSED STATE AT BASE LEVEL + EXPAND + INHERITED VALUES
+#      Select the Base variant type. The panel COLLAPSES (default when a card
+#      checklist is on screen). Verify the summary bar is visible with an
+#      "Edit attributes" toggle. Tap "Edit attributes". The full body opens.
+#      Verify the League value set in sub-scenario 3 is visible in the panel
+#      (inherited from the set level, shown as "Inherited: <value>").
+#
+# FLOW OVERVIEW:
+#   A. Sign in → drill to Topps Chrome → scroll to SetAttributesPanel
+#   B. Assert breadcrumb scope text
+#   C. Edit "Value for Release Date" → assert toast
+#   D. Edit "Value for League" → assert toast
+#   E. Select Base → assert panel is collapsed with "Edit attributes" summary bar
+#   F. Tap "Edit attributes" → assert panel expands with "Hide attributes"
+#   G. Assert League inherited value appears in expanded body
+#
+# PREREQUISITE: requires:cards-loaded (cascade cards-base.yaml has run)
+# so that when we select Base there is an actual card checklist on screen,
+# which is what triggers the collapsed default state.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# PART A — DRILL TO TOPPS CHROME (setName level)
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Wait for Variant Types column — confirms the setName row is selected and
+# the SetAttributesPanel will render below.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# ============================================================
+# PART B — ASSERT BREADCRUMB SCOPE TEXT
+# The panel header shows: "Attributes for Topps Chrome (Set) — Baseball › 2024 › Topps"
+# We match the prefix and the ancestry separator "›".
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Set attributes panel"
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    id: "Set attributes panel"
+
+# IDEMPOTENT EXPAND: at setName the panel defaults expanded; guard anyway.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible: "Set attributes"
+          timeout: 5000
+
+# The expanded heading "Set attributes" is visible.
+- assertVisible: "Set attributes"
+
+# The breadcrumb scope line mentions "Topps Chrome" and the ancestor chain separator "›".
+- assertVisible:
+    text: ".*Topps Chrome.*›.*"
+
+# ============================================================
+# PART C — EDIT "Value for Release Date" (setName-level metadata field)
+# At the setName level the metadata rows are EDITABLE. We write a sentinel
+# date so the test is always a genuine save (not a no-op).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for Release Date"
+    centerElement: true
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Value for Release Date"
+    timeout: 5000
+- tapOn:
+    id: "Value for Release Date"
+- eraseText: 30
+- inputText: "2024-08-01"
+- pressKey: Enter
+
+# The save toast confirms the metadata write propagated (updated ≥ 0 cards).
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 10000
+- assertVisible:
+    text: ".*Updated [0-9]+ cards.*"
+
+# ============================================================
+# PART D — EDIT "Value for League" (standard feature input)
+# Use a test-specific sentinel value distinct from other flows' values.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Value for League"
+    timeout: 5000
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "AttrEdit-MLB"
+- pressKey: Enter
+
+# Toast confirms the feature value propagated to descendant cards.
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 10000
+- assertVisible:
+    text: ".*Updated [0-9]+ cards.*"
+
+# ============================================================
+# PART E — SELECT BASE VARIANT TYPE
+# When a card checklist is on screen the panel COLLAPSES by default.
+# After the step-D write, the SetAttributesPanel + cards dominate the
+# viewport; the Variant Types column is scrolled off the top. Use a
+# UP-direction scroll to bring "Base" back into view.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- tapOn: "Base"
+
+# BaseMappingForm may open — handle both paths.
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# Wait for the CardChecklist to render (presence of "Add Card" confirms it).
+- scrollUntilVisible:
+    element:
+      text: "Add Card"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# ============================================================
+# PART E (continued) — ASSERT PANEL IS COLLAPSED
+# With a card checklist on screen the panel defaults collapsed.
+# The summary bar and "Edit attributes" toggle must be visible.
+# The full panel body ("Set attributes" heading and feature inputs) must NOT.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Set attributes panel"
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    id: "Set attributes panel"
+
+# The "Edit attributes" toggle is the collapsed state indicator.
+- extendedWaitUntil:
+    visible:
+      id: "Edit attributes"
+    timeout: 5000
+- assertVisible:
+    id: "Edit attributes"
+
+# The full body heading is NOT visible while collapsed.
+- assertNotVisible: "Set attributes"
+
+# ============================================================
+# PART F — TAP "Edit attributes" TO EXPAND THE PANEL
+# ============================================================
+
+- tapOn:
+    id: "Edit attributes"
+
+# After expanding: the heading "Set attributes" is visible and the
+# "Hide attributes" toggle replaces "Edit attributes".
+- extendedWaitUntil:
+    visible: "Set attributes"
+    timeout: 5000
+- assertVisible: "Set attributes"
+
+- extendedWaitUntil:
+    visible:
+      id: "Hide attributes"
+    timeout: 5000
+- assertVisible:
+    id: "Hide attributes"
+
+# ============================================================
+# PART G — ASSERT INHERITED VALUE IS VISIBLE
+# We set League = "AttrEdit-MLB" at the setName level in Part D.
+# With Base selected the panel shows the values inherited from the set.
+# The "Inherited: AttrEdit-MLB" label should appear below the League input.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Value for League"
+    timeout: 5000
+
+# The inherited value hint "Inherited: AttrEdit-MLB" is shown because Base
+# inherits the set-level League value we wrote in Part D.
+- assertVisible:
+    text: ".*AttrEdit-MLB.*"
+
+# ============================================================
+# PART F (cleanup) — COLLAPSE THE PANEL BACK VIA "Hide attributes"
+# Leave the panel in its default collapsed state so subsequent runs
+# that depend on the collapsed default aren't confused by this test
+# having left it open.
+# ============================================================
+
+- tapOn:
+    id: "Hide attributes"
+- extendedWaitUntil:
+    visible:
+      id: "Edit attributes"
+    timeout: 5000

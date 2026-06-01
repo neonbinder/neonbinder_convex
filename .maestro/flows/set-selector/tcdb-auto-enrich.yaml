@@ -1,14 +1,14 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "TCDB enrichment — setMetadata chips appear after card fetch, or graceful unavailable state"
+name: "TCDB enrichment — setMetadata chips appear in SetAttributesPanel after card fetch, or graceful unavailable state"
 tags:
   - set-selector
   - regression
   - requires:cards-loaded
 ---
 # Tests that NEO-24's TCDB auto-enrichment side-effect runs after the card
-# checklist is fetched and the results surface in the SetFeaturesPanel's
-# setMetadata chip row.
+# checklist is fetched and the results surface in the SetAttributesPanel's
+# setMetadata chip row (NEO-38: panel renamed from SetFeaturesPanel).
 #
 # HOW IT WORKS:
 #   When the cascade cards-base.yaml flow fetches the card checklist
@@ -105,17 +105,32 @@ tags:
     text: "Topps Chrome"
     index: 1
 
-# The SetFeaturesPanel renders below MultiSourcePanel.
+# The SetAttributesPanel renders below MultiSourcePanel.
+# At the setName level (no card checklist on screen) the panel defaults EXPANDED.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 
 - scrollUntilVisible:
     element:
-      text: "Set features"
+      id: "Set attributes panel"
     centerElement: true
     timeout: 15000
-- assertVisible: "Set features"
+
+# IDEMPOTENT EXPAND: panel defaults expanded at setName level, but guard
+# against a prior test run that left it collapsed.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible: "Set attributes"
+          timeout: 5000
+
+- assertVisible: "Set attributes"
 
 # ============================================================
 # WAIT FOR ENRICHMENT OR GRACEFUL FALLBACK
@@ -134,7 +149,7 @@ tags:
     text: ".*Released.*|.*Cards.*|.*Block.*|.*TCDB SID.*|.*No set metadata yet.*"
 
 # ============================================================
-# VERIFY SET METADATA SECTION RENDERS (regardless of enrichment state)
+# VERIFY SET ATTRIBUTES SECTION RENDERS (regardless of enrichment state)
 # ============================================================
 
 # The "Will propagate to N cards" counter is always present.
