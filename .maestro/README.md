@@ -33,11 +33,64 @@ without a separate step.
 | `npm run test:e2e` | Run the full suite (smoke + regression) |
 | `npm run test:e2e:smoke` | Smoke tag only |
 | `npm run test:e2e:regression` | Regression tag only |
+| `npm run test:e2e:pick -- <selector>` | Run just a piece of the suite (by name / list / regex / tag) — see below |
+| `npm run test:e2e:plan -- <selector>` | Dry-run: print exactly what `:pick` *would* run (incl. pulled-in prerequisites) and exit |
 | `npm run test:e2e:like-ci` | Run with CI-equivalent conditions — `MAESTRO_PARALLELISM=3`, no tag filter, pin gate enforced before start |
 | `npm run test:e2e:single` | One-off invocation; see `package.json` for the wrapper |
 
 `test:e2e:like-ci` is the closest you can get to CI on a Mac without
 Dockerizing. It refuses to run if the pin gate fails.
+
+## Running just a piece of the suite (`test:e2e:pick`)
+
+`test:e2e:pick` (and its dry-run twin `test:e2e:plan`) take one **selector**
+and run only the matching flows. Always preview first with `:plan`, which
+prints the resolved schedule without launching Maestro.
+
+| Selector | Matches |
+| --- | --- |
+| *(empty)* | all flows (minus `util`/`wip`) — same as `test:e2e` |
+| `smoke` / `regression` / `tag:NAME` | flows carrying that tag (bare word ⇒ tag, unchanged) |
+| `name:set-features-panel` | flows whose **path** contains the substring |
+| `name:features,team-picker` | comma list of substrings, OR-matched |
+| `set-features-panel,team-picker` | bare comma list ⇒ name match |
+| `grep:cards-.*custom` | case-insensitive regex over flow paths |
+| `/cards-.*custom/` | regex, slash-wrapped shorthand |
+
+```bash
+npm run test:e2e:plan -- name:set-features-panel    # preview the plan
+npm run test:e2e:pick -- name:set-features-panel    # run it (+ its cascade)
+npm run test:e2e:pick -- /parallel-grouping/        # run all parallel-grouping flows
+```
+
+**Prerequisite closure (default ON).** Most `set-selector` flows are tagged
+`requires:cards-loaded` (or `requires:setup-done`) and can't run standalone —
+they need the `setup → sets → cards` cascade to seed the DB first. `:pick`
+automatically pulls in the transitive `provides:` producers for whatever you
+select, so a single targeted flow still runs with its data seeded. Controls:
+
+| Env var | Effect |
+| --- | --- |
+| `MAESTRO_MINIMAL_DEPS=1` | pull only **one** producer per required state (prefers the `cascade`-tagged one) — fastest correct run, e.g. `setup → sets-base → cards-base → target` |
+| `MAESTRO_NO_DEPS=1` | pull **no** prerequisites; treat `requires:` as already-satisfied (use only when the DB is already seeded from a prior run) |
+| `MAESTRO_SKIP_BOOTSTRAP=1` | skip the Phase 0 per-worker credential bootstrap (use only when worker creds are already seeded) |
+
+Typical fast local-iteration loop on one flow:
+
+```bash
+# First run: seed everything, run the target (minimal cascade, single worker)
+MAESTRO_MINIMAL_DEPS=1 MAESTRO_PARALLELISM=1 \
+  npm run test:e2e:pick -- name:set-features-panel
+
+# Re-runs while iterating: skip the cascade + bootstrap, just re-run the flow
+MAESTRO_NO_DEPS=1 MAESTRO_SKIP_BOOTSTRAP=1 MAESTRO_PARALLELISM=1 \
+  npm run test:e2e:pick -- name:set-features-panel
+```
+
+> ⚠️ `setup.yaml` calls **Reset Set Builder Data**, wiping the target Convex
+> deployment's set-builder tables. Point `VITE_CONVEX_URL` at a **disposable
+> preview** (your PR's Convex preview), never shared `dev`. `MAESTRO_NO_DEPS=1`
+> skips `setup.yaml`, so re-run loops don't reset between attempts.
 
 ## What's intentionally divergent (cross-platform coverage)
 

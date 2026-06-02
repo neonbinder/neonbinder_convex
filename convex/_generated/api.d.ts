@@ -21,8 +21,10 @@ import type * as adapters_testBscSetParameters from "../adapters/testBscSetParam
 import type * as adapters_types from "../adapters/types.js";
 import type * as adapters_wikidata from "../adapters/wikidata.js";
 import type * as auth from "../auth.js";
+import type * as backfillCardFeatures from "../backfillCardFeatures.js";
 import type * as cardChecklist from "../cardChecklist.js";
 import type * as credentials from "../credentials.js";
+import type * as features_deriveCardFeatures from "../features/deriveCardFeatures.js";
 import type * as features_expectedFeatures from "../features/expectedFeatures.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
@@ -56,8 +58,10 @@ declare const fullApi: ApiFromModules<{
   "adapters/types": typeof adapters_types;
   "adapters/wikidata": typeof adapters_wikidata;
   auth: typeof auth;
+  backfillCardFeatures: typeof backfillCardFeatures;
   cardChecklist: typeof cardChecklist;
   credentials: typeof credentials;
+  "features/deriveCardFeatures": typeof features_deriveCardFeatures;
   "features/expectedFeatures": typeof features_expectedFeatures;
   http: typeof http;
   myFunctions: typeof myFunctions;

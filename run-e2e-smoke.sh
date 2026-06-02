@@ -142,38 +142,38 @@ if [ "${MAESTRO_HEADLESS:-1}" != "0" ]; then
   ARGS_BASE+=(--headless)
 fi
 
-TAG="${1:-}"
+# ─── Flow selection & discovery ─────────────────────────────────────────────
+# The first positional arg selects WHICH flows to run. Backwards-compatible:
+# an empty arg runs everything; a bare word (no ':' ',' '/') is a TAG, exactly
+# as before — so `smoke` / `regression` are unchanged. New explicit forms let
+# you run just a piece of the suite without editing the script:
+#
+#   (empty)                    all flows (minus util/wip)            [unchanged]
+#   smoke                      flows tagged "smoke"                  [unchanged]
+#   tag:regression             flows tagged "regression"            (explicit tag)
+#   name:set-features-panel    flows whose PATH contains the substring
+#   name:features,team-picker  comma list of substrings (OR-matched)
+#   set-features,team-picker   bare comma list (implies name match)
+#   grep:cards-.*custom        case-insensitive regex over flow paths
+#   /cards-.*custom/           regex, slash-wrapped shorthand
+#
+# `util` flows (reusable fragments invoked via runFlow; they assume the caller
+# already did launchApp+sign-in, so they fail standalone) are never selected.
+# `wip` flows are excluded from broad selection (all / tag / grep) but CAN be
+# hit by an explicit `name:` match so you can iterate on one you're un-wip-ing.
+#
+# Prerequisite closure (default ON): any selected flow tagged `requires:X`
+# automatically pulls in the flows tagged `provides:X`, transitively — e.g. a
+# single `requires:cards-loaded` flow drags in the cards → sets → setup
+# cascade so it actually runs with its data seeded. Controls:
+#   MAESTRO_NO_DEPS=1        don't pull prerequisites; treat each selected
+#                            flow's `requires:` as already-satisfied so it runs
+#                            immediately (use only when data is pre-seeded).
+#   MAESTRO_MINIMAL_DEPS=1   pull only ONE producer per required state (prefer
+#                            a `cascade`-tagged one) instead of every producer.
+#   MAESTRO_SKIP_BOOTSTRAP=1 skip the Phase 0 per-worker credential bootstrap
+#                            (use only when worker creds are already seeded).
 
-# ─── Flow discovery ─────────────────────────────────────────────────────────
-# Filter by tag if provided, otherwise every yaml file in .maestro/flows/
-# except ones tagged `util` or `wip`:
-#  - util: reusable fragments invoked via runFlow from other flows. They
-#    assume the caller has done launchApp + sign-in, so they fail standalone.
-#  - wip:  temporarily broken flows parked behind a feature that is still
-#    in-progress on another branch. Re-enable by removing the tag once fixed.
-# The config.yaml excludeTags rule only applies when Maestro discovers
-# flows from a directory; we pass flows to it one at a time, so we have to
-# exclude them here.
-SMOKE_FLOWS=()
-if [ -n "$TAG" ]; then
-  while IFS= read -r f; do
-    SMOKE_FLOWS+=("$f")
-  done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
-else
-  while IFS= read -r f; do
-    if grep -qE "^[[:space:]]*-[[:space:]]+(util|wip)$" "$f"; then
-      continue
-    fi
-    SMOKE_FLOWS+=("$f")
-  done < <(find .maestro/flows/ -name "*.yaml" | sort)
-fi
-
-if [ ${#SMOKE_FLOWS[@]} -eq 0 ]; then
-  echo "No flows found${TAG:+ tagged \"$TAG\"} in .maestro/flows/"
-  exit 0
-fi
-
-# ─── Tag parsing & categorization ───────────────────────────────────────────
 # flow_tags <flow.yaml> — emits one tag per line (the text after `- ` in the
 # top-level `tags:` block, before the `---` separator).
 flow_tags() {
@@ -189,6 +189,123 @@ flow_tags() {
     intags && !/^[[:space:]]/ { intags=0 }
   ' "$1"
 }
+flow_has_tag()        { flow_tags "$1" | grep -qxF "$2"; }
+flow_provides_states(){ flow_tags "$1" | sed -n 's/^provides://p'; }
+flow_requires_states(){ flow_tags "$1" | sed -n 's/^requires://p'; }
+
+NO_DEPS="${MAESTRO_NO_DEPS:-}"
+MINIMAL_DEPS="${MAESTRO_MINIMAL_DEPS:-}"
+
+SELECTOR="${1:-}"
+TAG=""                 # set only in tag mode (drives summary/comment text)
+SELECT_MODE="all"      # all | tag | name | grep
+PATTERNS=()            # name substrings (OR) or a single regex
+case "$SELECTOR" in
+  "")      SELECT_MODE="all" ;;
+  tag:*)   SELECT_MODE="tag";  TAG="${SELECTOR#tag:}" ;;
+  name:*)  SELECT_MODE="name"; IFS=',' read -ra PATTERNS <<< "${SELECTOR#name:}" ;;
+  grep:*)  SELECT_MODE="grep"; PATTERNS=("${SELECTOR#grep:}") ;;
+  /*/)     SELECT_MODE="grep"; re_body="${SELECTOR#/}"; PATTERNS=("${re_body%/}") ;;
+  *,*)     SELECT_MODE="name"; IFS=',' read -ra PATTERNS <<< "$SELECTOR" ;;
+  *)       SELECT_MODE="tag";  TAG="$SELECTOR" ;;
+esac
+
+SELECTED_FLOWS=()
+case "$SELECT_MODE" in
+  all)
+    while IFS= read -r f; do
+      flow_has_tag "$f" util && continue
+      flow_has_tag "$f" wip && continue
+      SELECTED_FLOWS+=("$f")
+    done < <(find .maestro/flows/ -name "*.yaml" | sort)
+    ;;
+  tag)
+    while IFS= read -r f; do
+      SELECTED_FLOWS+=("$f")
+    done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
+    ;;
+  name)
+    while IFS= read -r f; do
+      flow_has_tag "$f" util && continue
+      for pat in "${PATTERNS[@]}"; do
+        [ -z "$pat" ] && continue
+        case "$f" in *"$pat"*) SELECTED_FLOWS+=("$f"); break ;; esac
+      done
+    done < <(find .maestro/flows/ -name "*.yaml" | sort)
+    ;;
+  grep)
+    while IFS= read -r f; do
+      flow_has_tag "$f" util && continue
+      flow_has_tag "$f" wip && continue
+      SELECTED_FLOWS+=("$f")
+    done < <(find .maestro/flows/ -name "*.yaml" | grep -iE "${PATTERNS[0]}" | sort)
+    ;;
+esac
+
+if [ ${#SELECTED_FLOWS[@]} -eq 0 ]; then
+  echo "No flows matched selector \"${SELECTOR}\" in .maestro/flows/"
+  exit 0
+fi
+
+# ─── Prerequisite closure ───────────────────────────────────────────────────
+# For each selected flow's `requires:X`, add the universe flows tagged
+# `provides:X`, transitively. Dedup via a sentinel-padded membership string
+# (bash 3.2 on macOS has no associative arrays). No-op when every producer is
+# already selected — so the `""` / `smoke` / `regression` CI invocations are
+# byte-for-byte unchanged.
+SELECTED_PATHS=""
+for f in "${SELECTED_FLOWS[@]}"; do SELECTED_PATHS="$SELECTED_PATHS $f"; done
+in_selected() { case "$SELECTED_PATHS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+if [ -z "$NO_DEPS" ]; then
+  PRODUCER_UNIVERSE=()
+  while IFS= read -r f; do
+    flow_has_tag "$f" util && continue
+    flow_has_tag "$f" wip && continue
+    PRODUCER_UNIVERSE+=("$f")
+  done < <(find .maestro/flows/ -name "*.yaml" | sort)
+
+  worklist=("${SELECTED_FLOWS[@]}")
+  while [ ${#worklist[@]} -gt 0 ]; do
+    cur="${worklist[0]}"
+    worklist=("${worklist[@]:1}")
+    while IFS= read -r state; do
+      [ -z "$state" ] && continue
+      producers=()
+      for p in "${PRODUCER_UNIVERSE[@]}"; do
+        if flow_provides_states "$p" | grep -qxF "$state"; then producers+=("$p"); fi
+      done
+      if [ ${#producers[@]} -eq 0 ]; then
+        echo "WARNING: a selected flow requires state \"$state\" but no flow provides it." >&2
+        continue
+      fi
+      if [ -n "$MINIMAL_DEPS" ]; then
+        chosen=""
+        for p in "${producers[@]}"; do
+          if flow_has_tag "$p" cascade; then chosen="$p"; break; fi
+        done
+        [ -z "$chosen" ] && chosen="${producers[0]}"
+        producers=("$chosen")
+      fi
+      for p in "${producers[@]}"; do
+        if ! in_selected "$p"; then
+          SELECTED_FLOWS+=("$p")
+          SELECTED_PATHS="$SELECTED_PATHS $p"
+          worklist+=("$p")
+        fi
+      done
+    done < <(flow_requires_states "$cur")
+  done
+fi
+
+# Final SMOKE_FLOWS = sorted-unique selected set.
+SMOKE_FLOWS=()
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  SMOKE_FLOWS+=("$f")
+done < <(printf '%s\n' "${SELECTED_FLOWS[@]}" | sort -u)
+
+# ─── Tag parsing & categorization ───────────────────────────────────────────
 
 # Parallel indexed arrays keyed by SMOKE_FLOWS position. Bash 3.2 compatible
 # (macOS ships 3.2; no associative arrays). Look up via flow_idx_of() if you
@@ -220,7 +337,10 @@ for i in "${!SMOKE_FLOWS[@]}"; do
   has_dep=false
   while IFS= read -r tag; do
     case "$tag" in
-      requires:*)         req="$req ${tag#requires:}";  has_dep=true ;;
+      # MAESTRO_NO_DEPS asserts prerequisites are already seeded: drop the
+      # `requires:` edges so the flow schedules immediately (as independent /
+      # provides-only) instead of being skipped for an unsatisfiable state.
+      requires:*)         [ -z "$NO_DEPS" ] && { req="$req ${tag#requires:}"; has_dep=true; } ;;
       provides:*)         prov="$prov ${tag#provides:}"; has_dep=true ;;
       isolated|isolated:true) is_isolated=true ;;
       serial-global)      is_isolated=true ;;   # legacy alias for backwards compat
@@ -315,6 +435,16 @@ if [ ${#DEPGRAPH_FLOWS[@]} -gt 0 ]; then
 fi
 
 # ─── Plan summary ───────────────────────────────────────────────────────────
+case "$SELECT_MODE" in
+  all)  sel_label="all flows" ;;
+  tag)  sel_label="tag \"$TAG\"" ;;
+  name) sel_label="name ~ ${PATTERNS[*]}" ;;
+  grep) sel_label="grep /${PATTERNS[0]}/" ;;
+esac
+if [ -n "$NO_DEPS" ]; then dep_label=" — NO prerequisites (requires: treated as pre-seeded)"
+elif [ -n "$MINIMAL_DEPS" ]; then dep_label=" — minimal prerequisites (1 producer/state)"
+else dep_label=" — full prerequisite closure"; fi
+echo "Selector: ${SELECTOR:-(none)}  →  ${sel_label}${dep_label}"
 echo "Found ${#SMOKE_FLOWS[@]} flow(s)${TAG:+ tagged \"$TAG\"}"
 echo "  Isolated:    ${#ISOLATED_FLOWS[@]}"
 echo "  Marketplace: ${#MARKETPLACE_FLOWS[@]}"
@@ -347,6 +477,13 @@ if [ ${#DEPGRAPH_FLOWS[@]} -gt 0 ]; then
   done
 fi
 echo ""
+
+# Plan-only: print the schedule and exit without launching Maestro. Lets you
+# verify a selector (and its prerequisite closure) before committing to a run.
+if [ -n "${MAESTRO_PLAN_ONLY:-}" ]; then
+  echo "MAESTRO_PLAN_ONLY set — exiting before execution."
+  exit 0
+fi
 
 # ─── Worker runner ──────────────────────────────────────────────────────────
 # run_flow_on_worker <worker_index> <flow>
@@ -498,7 +635,10 @@ run_parallel_batch() {
 # options arrays return empty, the ReconciliationModal silently never
 # opens, and tests time out.
 BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
-if [ -f "$BOOTSTRAP_FLOW" ]; then
+if [ -n "${MAESTRO_SKIP_BOOTSTRAP:-}" ]; then
+  echo "Phase 0: SKIPPED (MAESTRO_SKIP_BOOTSTRAP) — assuming worker creds already seeded."
+  echo ""
+elif [ -f "$BOOTSTRAP_FLOW" ]; then
   echo "Phase 0: per-worker bootstrap (sign-in + save BSC + SL creds for every worker)"
   # SERIAL by default. Concurrent JVM startup of multiple maestro CLI processes
   # has triggered JIT-compiler SIGSEGVs in kotlin.reflect on JDK 23 / macOS
