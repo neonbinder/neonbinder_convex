@@ -24,6 +24,8 @@
     "test:e2e:single": "maestro test --platform web --config .maestro/config.yaml -e APP_URL=${APP_URL:-http://localhost:3000} -e TEST_USERNAME=${TEST_USERNAME:-neontester_$(date +%s)}",
     "test:e2e:smoke": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh smoke",
     "test:e2e:regression": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh regression",
+    "test:e2e:pick": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh",
+    "test:e2e:plan": "MAESTRO_PLAN_ONLY=1 PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh",
     "test:e2e:ci": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh smoke",
     "test:e2e:like-ci": "./run-e2e-like-ci.sh",
     "postinstall": "husky install"

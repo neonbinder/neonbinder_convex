@@ -1,24 +1,25 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Regression — SetFeaturesPanel renders and accepts a feature value"
+name: "Regression — SetAttributesPanel renders and accepts a feature value"
 tags:
   - regression
   - set-selector
   - requires:cards-loaded
 ---
-# Regression test for the NEO-24 SetFeaturesPanel component.
-# (Originally named set-features-panel-smoke.yaml; moved to regression because
-# it requires the full cascade / cards-loaded prerequisite — too heavy for smoke.)
+# Regression test for the NEO-38 SetAttributesPanel component.
+# (Previously tested SetFeaturesPanel; updated for NEO-38 redesign.)
 #
-# SetFeaturesPanel renders below the MultiSourcePanel whenever a setName-level
+# SetAttributesPanel renders below the MultiSourcePanel whenever a setName-level
 # row is active (i.e. the user has selected a set in the Sets column).
-# It shows read-only setMetadata chips (or "No set metadata yet") and editable
-# feature rows for each EXPECTED_FEATURES key.
+# It is COLLAPSIBLE: when a card checklist is on screen (terminal level selected)
+# it defaults collapsed showing a summary bar + "Edit attributes" toggle.
+# At the setName level (no cards visible) it defaults EXPANDED.
 #
-# This smoke test covers the single critical path:
-#   Drill to Topps Chrome → scroll down to SetFeaturesPanel →
-#   confirm the panel heading "Set features" is visible →
-#   type a value in the League input → blur to save →
+# This regression test covers the single critical path:
+#   Drill to Topps Chrome → scroll down to SetAttributesPanel →
+#   confirm the panel heading "Set attributes" is visible →
+#   expand the panel if collapsed (idempotent "Edit attributes" toggle) →
+#   type a value in the League input → save on Enter →
 #   confirm the toast "Updated N cards" appears.
 #
 # IMPORTANT — TCDB state:
@@ -95,18 +96,42 @@ tags:
     text: "Topps Chrome"
     index: 1
 
-# After selecting Topps Chrome, the SetFeaturesPanel renders below the
-# MultiSourcePanel. Scroll down until the panel heading is visible.
+# After selecting Topps Chrome, the SetAttributesPanel renders below the
+# MultiSourcePanel. Scroll down until the panel heading area is visible.
+# At the setName level with no card checklist on screen the panel defaults
+# EXPANDED — the "Set attributes" heading is directly visible.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 
+# Scroll to the "Edit attributes" toggle button — it is the collapsed-state
+# sentinel, small enough to be reliably centerable, and always rendered
+# (both when collapsed and as the idempotent expand entry point).
 - scrollUntilVisible:
     element:
-      text: "Set features"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
-- assertVisible: "Set features"
+
+# IDEMPOTENT EXPAND: At the setName level the panel defaults expanded,
+# but a prior test run may have left it collapsed. Tap only if still showing
+# "Edit attributes" (i.e. collapsed).
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
+
+# "Hide attributes" is the reliable expanded-state signal. The bare string
+# "Set attributes" matches the panel container's aria-label even when collapsed.
+- assertVisible:
+    id: "Hide attributes"
 
 # The setMetadata area shows either "No set metadata yet" (fresh DB) or chips.
 - assertVisible:
@@ -118,7 +143,7 @@ tags:
 
 # Find the League input (aria-label "Value for League").
 # Write a sentinel first to guarantee a state change, then write "MLB".
-# This makes the smoke test idempotent even if League was already "MLB".
+# This makes the test idempotent even if League was already "MLB".
 - scrollUntilVisible:
     element:
       id: "Value for League"

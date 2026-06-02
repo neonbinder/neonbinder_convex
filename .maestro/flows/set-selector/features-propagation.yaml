@@ -1,6 +1,6 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Features propagate from set to cards, per-card override survives re-propagation"
+name: "Features propagate from set to cards via SetAttributesPanel, per-card override survives re-propagation"
 tags:
   - set-selector
   - regression
@@ -97,7 +97,8 @@ tags:
     text: "Topps Chrome"
     index: 1
 
-# SetFeaturesPanel renders below MultiSourcePanel after Topps Chrome is selected.
+# SetAttributesPanel renders below MultiSourcePanel after Topps Chrome is selected.
+# At the setName level (no card checklist visible) the panel defaults EXPANDED.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
@@ -111,12 +112,31 @@ tags:
 # different value and trigger the propagation.
 # ============================================================
 
+# Scroll to the "Edit attributes" toggle — small, reliably centerable,
+# always present (collapsed sentinel). Avoids scrolling the large panel wrapper.
 - scrollUntilVisible:
     element:
-      text: "Set features"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
-- assertVisible: "Set features"
+
+# IDEMPOTENT EXPAND: at setName level the panel defaults expanded, but a
+# prior test run may have collapsed it. Tap "Edit attributes" only if visible.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
+
+# "Hide attributes" is only present when the panel is expanded — reliable expanded-state signal.
+- assertVisible:
+    id: "Hide attributes"
 
 - scrollUntilVisible:
     element:
@@ -331,16 +351,30 @@ tags:
     text: "Topps Chrome"
     index: 1
 
-# SetFeaturesPanel renders below.
+# SetAttributesPanel renders below. At the setName level it defaults expanded.
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 
+# Scroll to the "Edit attributes" toggle to locate the panel area.
 - scrollUntilVisible:
     element:
-      text: "Set features"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
+
+# IDEMPOTENT EXPAND for Step D re-navigation.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
 
 - scrollUntilVisible:
     element:

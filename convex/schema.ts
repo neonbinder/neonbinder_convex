@@ -155,6 +155,14 @@ export default defineSchema({
     // BSC variantName: "Gold", "Refractor", "/199", etc. Used as eBay
     // Parallel/Variety aspect tail and for title generation.
     cardVariation: v.optional(v.string()),
+    // NEO-25: marketplace-agnostic listing title & description, authored once
+    // and reused by every marketplace adapter (eBay/SportLots/BSC/MySlabs/
+    // MyCardPost) so a listing doesn't recompute the title each time. NOT
+    // eBay-specific. Manually edited today in the card detail panel; an
+    // auto-generator (composed from the card's resolved features) is a
+    // separate follow-up ticket. Optional + additive — absent on legacy rows.
+    listingTitle: v.optional(v.string()),
+    listingDescription: v.optional(v.string()),
     // User-uploaded scans only — we do NOT mirror BSC image URLs into our
     // schema (their CDN, their quotas). Empty at fetch time.
     imageUrls: v.optional(v.object({

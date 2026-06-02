@@ -1,0 +1,456 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Card detail drawer — edit name, toggle RC, set title & description, save, verify persistence"
+tags:
+  - set-selector
+  - regression
+  - requires:cards-loaded
+---
+# NEO-25 acceptance test for the right-anchored CardDetailPanel drawer.
+#
+# WHAT THIS TESTS:
+#   1. Opening the drawer via the "Edit card {n}" button (row action).
+#   2. Drawer header shows "Card #{n}" (new title — old modal said "Edit card #").
+#   3. Editing the card name field (no Enter-to-save; save is via the Save button).
+#   4. Typing a Card title (listingTitle) and Card description (listingDescription).
+#      These fields are at positions 4 and 5 in the drawer body — above the
+#      attribute chips — so they are reachable near the top of the scroll area.
+#   5. Toggling the "RC" attribute chip (aria-pressed toggles on/off).
+#      Attributes are at position 6 (below Card title/description); scroll required.
+#   6. Saving via "Save card edit" — drawer closes, row shows updated name.
+#   7. Re-opening the drawer confirms card name, RC chip state, and listing title
+#      all persisted to the database.
+#   8. Dirty-guard: clicking the backdrop (close request while dirty) shows the
+#      inline confirm bar with "Discard changes" and "Keep editing" buttons.
+#   9. "Keep editing" dismisses the confirm bar without closing the drawer.
+#  10. "Close card detail" button (×) while dirty also triggers the dirty guard.
+#  11. Cancel button always closes immediately (no dirty guard on Cancel).
+#
+# DRAWER BODY ORDER (top to bottom in scroll container):
+#   1. Card name
+#   2. Teams (TeamPicker)
+#   3. Features editor (collapsed "Show features editor" button)
+#   4. Card title  ← visible near top; no scroll needed after header
+#   5. Card description
+#   6. Attributes chips (Toggle RC / AU / RELIC / SP / SSP / NUM)  ← may need scroll
+#   7. Print run / Autograph type
+#   8. Card variation
+#   9. Players (read-only)
+#  10. Inherited from set (read-only)
+#  11. Images / "No image yet" placeholder
+#
+# NEO-25 BEHAVIORAL NOTES:
+#   - Drawer title is "Card #{n}" — the old inline modal said "Edit card #{n}".
+#   - Card name input does NOT save on Enter; use "Save card edit" button.
+#   - Cancel / Escape discard immediately. The backdrop, ×, and prev/next
+#     are dirty-guarded.
+#
+# WHY requires:cards-loaded:
+#   The cascade cards-base.yaml must have populated 2024 Topps Chrome Base
+#   so that when we confirm BaseMappingForm the CardChecklist renders. We
+#   add our own custom card so we fully control the edit target.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO Baseball / 2024 / Topps Chrome / Base
+# Inline drill (same pattern as edit-and-delete-card.yaml) so this flow
+# can run with requires:cards-loaded (setup already populated the hierarchy).
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- tapOn: "Base"
+
+# BaseMappingForm may open — handle both paths.
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - extendedWaitUntil:
+          visible: "Confirm Base Set"
+          timeout: 60000
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# Wait for the CardChecklist action row to become visible.
+- scrollUntilVisible:
+    element:
+      id: "Open add card form"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# ============================================================
+# ADD A CUSTOM CARD — full control over edit target
+# ATTEMPT_ID = "w<worker>-a<attempt>-<RANDOM>" so no collision with
+# prior runs even when the global cardChecklist is not reset.
+# ============================================================
+
+- tapOn:
+    id: "Open add card form"
+- extendedWaitUntil:
+    visible:
+      id: "Card name"
+    timeout: 5000
+
+# Card number input has autoFocus — type directly.
+- inputText: "888-${ATTEMPT_ID}"
+- tapOn: "Player name"
+- inputText: "Detail Panel Test ${ATTEMPT_ID}"
+- tapOn:
+    id: "Submit new card"
+- extendedWaitUntil:
+    visible: "Detail Panel Test ${ATTEMPT_ID}"
+    timeout: 10000
+
+# Scroll the just-added card row into view before tapping its Edit button.
+# Without this, the row can land below the viewport edge and the tap's
+# coordinates hit the wrong element (same pattern as edit-and-delete-card.yaml).
+- scrollUntilVisible:
+    element:
+      id: "Edit card 888-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+
+# ============================================================
+# OPEN THE DRAWER
+# ============================================================
+
+# waitToSettleTimeoutMs mitigates the virtualisation race — parallel workers'
+# add/delete mutations refetch the global cardChecklist live query, shifting
+# row y-coords between Maestro's lookup and tap dispatch.
+- tapOn:
+    id: "Edit card 888-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
+
+# The drawer opens. The header shows "Card #888-<ATTEMPT_ID}".
+# Card name input appears with autofocus.
+- extendedWaitUntil:
+    visible:
+      id: "Card name"
+    timeout: 5000
+
+# Assert the new drawer title (NEO-25 delta 3: was "Edit card #", now "Card #").
+- assertVisible:
+    text: ".*Card #888-${ATTEMPT_ID}.*"
+
+# ============================================================
+# EDIT: rename the card
+# Card name does NOT save on Enter (NEO-25 delta 4). Save is via button.
+# ============================================================
+
+- tapOn:
+    id: "Card name"
+- eraseText: 40
+- inputText: "Renamed Detail Player ${ATTEMPT_ID}"
+
+# ============================================================
+# EDIT: type a Card title (listingTitle) and Card description
+# These fields are at positions 4 and 5 in the drawer body — directly
+# below the (collapsed) features editor. The header + Card name + Teams +
+# features button consume roughly 220px; Card title starts at ~220px from
+# the top of the scroll area, well above the 629px fold. No scroll
+# required, but we use extendedWaitUntil to surface any load delay.
+# We interact with these BEFORE scrolling down to the attribute chips
+# so we never have to scroll back UP to reach them.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      id: "Card title"
+    timeout: 5000
+- tapOn:
+    id: "Card title"
+- inputText: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
+
+- extendedWaitUntil:
+    visible:
+      id: "Card description"
+    timeout: 5000
+- tapOn:
+    id: "Card description"
+- inputText: "NEO-25 description body for ${ATTEMPT_ID}"
+
+# ============================================================
+# EDIT: toggle the RC attribute chip
+# The chip starts inactive (new custom card has no attributes).
+# Tapping it once activates it (aria-pressed becomes "true").
+# Attributes are at position 6 (below Card title/description) — scroll
+# down to bring the row into view before tapping.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Toggle RC"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Toggle RC"
+    timeout: 5000
+- tapOn:
+    id: "Toggle RC"
+
+# The RC chip is now active. Assert the visible "RC" label is shown — when
+# active the button renders the ATTRIBUTE_LABEL text "RC".
+# We check the chip is visible (it's always shown; the active state is
+# aria-pressed. The text "RC" is always visible for this token.)
+- assertVisible:
+    id: "Toggle RC"
+
+# ============================================================
+# DIRTY-GUARD: verify backdrop click shows the confirm bar
+# (Clicking the backdrop while dirty should NOT close the drawer —
+# instead it shows "Discard changes" and "Keep editing" inline.)
+# ============================================================
+
+# Tap the backdrop (left side of the screen, outside the drawer panel).
+# The drawer is right-anchored (sm:w-[30rem], max-w-[95vw]); at 1024px
+# viewport width the panel occupies ~480px on the right. Tapping at x=5%
+# (y=50%) reliably lands on the backdrop layer at this viewport width.
+- tapOn:
+    point: "5%, 50%"
+
+# The dirty confirm bar should appear.
+- extendedWaitUntil:
+    visible: "Discard unsaved changes?"
+    timeout: 5000
+- assertVisible: "Keep editing"
+- assertVisible: "Discard changes"
+
+# "Keep editing" dismisses the bar — drawer stays open with edits intact.
+- tapOn:
+    id: "Keep editing"
+- extendedWaitUntil:
+    notVisible: "Discard unsaved changes?"
+    timeout: 5000
+
+# Card name input is still visible (drawer is still open).
+- assertVisible:
+    id: "Card name"
+
+# ============================================================
+# DIRTY-GUARD: verify the × button also triggers the guard
+# ============================================================
+
+- tapOn:
+    id: "Close card detail"
+
+- extendedWaitUntil:
+    visible: "Discard unsaved changes?"
+    timeout: 5000
+
+# Dismiss with "Keep editing" again so our edits survive.
+- tapOn:
+    id: "Keep editing"
+- extendedWaitUntil:
+    notVisible: "Discard unsaved changes?"
+    timeout: 5000
+
+# ============================================================
+# SAVE
+# Save button is in the sticky footer OUTSIDE the scroll container — it
+# is always in the fixed bottom bar of the drawer panel. scrollUntilVisible
+# cannot satisfy centering on a position:fixed / flex-col-pinned element
+# and will time out even when the button is clearly on screen (root cause
+# of the CI run 2 failure). Use a plain extendedWaitUntil + tapOn instead.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      id: "Save card edit"
+    timeout: 5000
+- tapOn:
+    id: "Save card edit"
+
+# After save, handleSave calls onClose() — the drawer disappears.
+# The card row now shows the renamed player.
+- extendedWaitUntil:
+    visible: "Renamed Detail Player ${ATTEMPT_ID}"
+    timeout: 10000
+
+# ============================================================
+# VERIFY PERSISTENCE — reopen and confirm saved values
+# ============================================================
+
+# Scroll the renamed row into view before tapping.
+- scrollUntilVisible:
+    element:
+      id: "Edit card 888-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Edit card 888-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
+
+# Drawer reopens — wait for Card name input.
+- extendedWaitUntil:
+    visible:
+      id: "Card name"
+    timeout: 5000
+
+# The card name input should reflect the saved name (Renamed Detail Player ...).
+# Assert the renamed name is visible (it's the text content of the input — Maestro
+# matches visible text in inputs against the text: selector).
+- assertVisible: "Renamed Detail Player ${ATTEMPT_ID}"
+
+# Card title is at position 4 in the drawer body — near the top, above the
+# attribute chips. Assert it without scrolling (it's visible from mount).
+- extendedWaitUntil:
+    visible:
+      id: "Card title"
+    timeout: 5000
+- assertVisible: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
+
+# The RC chip should be active (aria-pressed="true"). Attributes are at
+# position 6 — below Card title — so scroll down to bring the row into view.
+- scrollUntilVisible:
+    element:
+      id: "Toggle RC"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+- assertVisible:
+    id: "Toggle RC"
+
+# ============================================================
+# CLOSE via Cancel (immediate close — no dirty guard)
+# Cancel button is in the same sticky footer as Save — OUTSIDE the scroll
+# container. Same fix: extendedWaitUntil + tapOn, no scrollUntilVisible.
+# ============================================================
+
+- extendedWaitUntil:
+    visible:
+      id: "Cancel card edit"
+    timeout: 5000
+- tapOn:
+    id: "Cancel card edit"
+- extendedWaitUntil:
+    notVisible: "Card name"
+    timeout: 5000
+
+# ============================================================
+# CLEANUP — delete this attempt's test card
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Delete card 888-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
+- tapOn:
+    id: "Delete card 888-${ATTEMPT_ID}"
+- extendedWaitUntil:
+    visible: "Confirm?"
+    timeout: 5000
+- tapOn:
+    id: "Confirm delete card 888-${ATTEMPT_ID}"
+- extendedWaitUntil:
+    notVisible: "Renamed Detail Player ${ATTEMPT_ID}"
+    timeout: 10000

@@ -142,3 +142,62 @@ describe("setSetMetadata", () => {
     expect(withoutMeta?.setMetadata).toBeUndefined();
   });
 });
+
+describe("getAncestorChain (NEO-38: setMetadata in chain)", () => {
+  test("returns the setName row's setMetadata without ReturnsValidationError", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = t.withIdentity(ADMIN_IDENTITY);
+
+    // Seed setName (with setMetadata) → variantType, then resolve the chain
+    // from the variantType leaf.
+    const { setNameId, variantTypeId } = await t.run(async (ctx) => {
+      const setNameId = await ctx.db.insert("selectorOptions", {
+        level: "setName" as const,
+        value: "2024 Topps Series 1",
+        platformData: { bsc: "bsc-2024-topps-s1", sportlots: "sl-s1" },
+        setMetadata: {
+          releaseDate: "2024-02-14",
+          totalCardCount: 350,
+          block: "Series 1",
+          tcdbSetId: "3535",
+          sourceUrl: "https://www.tcdb.com/Checklist.cfm/sid/3535",
+          lastSyncedAt: 1714521600000,
+        },
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      const variantTypeId = await ctx.db.insert("selectorOptions", {
+        level: "variantType" as const,
+        value: "Base",
+        platformData: { bsc: "bsc-base", sportlots: "sl-base" },
+        parentId: setNameId,
+        children: [],
+        lastUpdated: Date.now(),
+      });
+      await ctx.db.patch(setNameId, { children: [variantTypeId] });
+      return { setNameId, variantTypeId };
+    });
+
+    // This call fails loudly with ReturnsValidationError if the returns
+    // validator doesn't allow `setMetadata`.
+    const chain = await asAdmin.query(api.selectorOptions.getAncestorChain, {
+      id: variantTypeId,
+    });
+
+    const setNameRow = chain.find((r) => r._id === setNameId);
+    expect(setNameRow).toBeDefined();
+    expect(setNameRow!.setMetadata?.releaseDate).toBe("2024-02-14");
+    expect(setNameRow!.setMetadata?.totalCardCount).toBe(350);
+    expect(setNameRow!.setMetadata?.block).toBe("Series 1");
+    expect(setNameRow!.setMetadata?.tcdbSetId).toBe("3535");
+    expect(setNameRow!.setMetadata?.sourceUrl).toBe(
+      "https://www.tcdb.com/Checklist.cfm/sid/3535",
+    );
+    expect(setNameRow!.setMetadata?.lastSyncedAt).toBe(1714521600000);
+
+    // A node without setMetadata still round-trips (field stays undefined).
+    const variantRow = chain.find((r) => r._id === variantTypeId);
+    expect(variantRow).toBeDefined();
+    expect(variantRow!.setMetadata).toBeUndefined();
+  });
+});

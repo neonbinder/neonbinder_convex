@@ -4,6 +4,7 @@ import type { GenericId } from "convex/values";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import type { SourceChips } from "../SetSelector/ChecklistSourceFilter";
 
 import SportSelector from "../SetSelector/SportSelector";
@@ -28,7 +29,7 @@ import BaseMappingForm from "../SetSelector/BaseMappingForm";
 import VariantMetadataEditor from "../SetSelector/VariantMetadataEditor";
 import ParallelGroupingModal from "../SetSelector/ParallelGroupingModal";
 import MultiSourcePanel from "../SetSelector/MultiSourcePanel";
-import SetFeaturesPanel from "../SetSelector/SetFeaturesPanel";
+import SetAttributesPanel from "../SetSelector/SetAttributesPanel";
 import NeonButton from "./NeonButton";
 
 export default function SetSelector() {
@@ -169,6 +170,24 @@ export default function SetSelector() {
     selectedVariantOfVariantId ||
     selectedVariantId ||
     (isBaseVariantTypeSelected ? selectedVariantTypeId : null);
+
+  // NEO-38: the deepest selected node at setName-or-deeper. Drives
+  // SetAttributesPanel so the attributes editor follows the selection down
+  // (setName → variantType → insert → parallel) and never vanishes when a
+  // variant (e.g. "Base") is active. We deliberately do NOT mount it at the
+  // sport/year/manufacturer levels: a panel rendered there during drill-down
+  // adds height below the selector columns, and the cascade's drill flows
+  // (e.g. Football → custom year 2026) scroll DOWN to reach the column's
+  // "Add custom" button, which then pushed the year dropdown's top (2026)
+  // out of view → "2026 not visible" e2e failures (NEO-38). Those levels are
+  // auto-seeded by the heuristic/TCDB at commit anyway; manual editing there
+  // (rare) is a follow-up needing a non-drill-disrupting placement.
+  const deepestSelectedId =
+    selectedVariantOfVariantId ||
+    selectedVariantId ||
+    selectedVariantTypeId ||
+    selectedSetId ||
+    null;
 
   // NEO-6: read the cardChecklist row here (once) and derive the source-
   // set chip data + per-card label maps. Previously this lived inside
@@ -412,16 +431,21 @@ export default function SetSelector() {
           parallel rows once they have a reconciliation primary mapped. */}
       {cardChecklistId && <MultiSourcePanel selectorOptionId={cardChecklistId} />}
 
-      {/* NEO-24: set-level features editor — operator edits keys here
-          and the propagation engine writes through to every descendant
-          cardChecklist row. Anchored at the setName row (`selectedSetId`)
-          so vintage/manufacturer-level rows can stay aggregator-only and
-          marketplace-specific facets live closest to the set. Only renders
-          when setName is the DEEPEST selected node; once the user drills
-          into a variantType the cards / MultiSourcePanel surface takes
-          over and we don't want to push that content off-screen. */}
-      {selectedSetId && !selectedVariantTypeId && (
-        <SetFeaturesPanel selectorOptionId={selectedSetId} />
+      {/* NEO-38: set ATTRIBUTES editor (features + metadata) — operator
+          edits keys here and the propagation engine writes through to every
+          descendant cardChecklist row. Mounts at the DEEPEST selected node
+          at any level (sport → parallel) so it follows the selection down
+          and never vanishes when a variant (e.g. "Base") is active. ALWAYS
+          starts COLLAPSED (a slim summary bar): expanding it at sport/year/
+          manufacturer during drill-down used to push the selector columns and
+          hid the year list (broke the cascade's Football → 2026 pre-warm,
+          NEO-38). The operator taps "Edit attributes" to edit; flows expand it
+          via an idempotent guard. */}
+      {deepestSelectedId && (
+        <SetAttributesPanel
+          selectorOptionId={deepestSelectedId as Id<"selectorOptions">}
+          defaultCollapsed={true}
+        />
       )}
 
       {/* Cards — full width below the selector row. `cardChecklistId`
