@@ -112,9 +112,11 @@ tags:
 # different value and trigger the propagation.
 # ============================================================
 
+# Scroll to the "Edit attributes" toggle — small, reliably centerable,
+# always present (collapsed sentinel). Avoids scrolling the large panel wrapper.
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
 
@@ -354,9 +356,10 @@ tags:
     visible: "Variant Types"
     timeout: 20000
 
+# Scroll to the "Edit attributes" toggle to locate the panel area.
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
 

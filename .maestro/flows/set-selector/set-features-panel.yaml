@@ -104,18 +104,18 @@ tags:
     visible: "Variant Types"
     timeout: 20000
 
+# Scroll to the "Edit attributes" toggle button — it is the collapsed-state
+# sentinel, small enough to be reliably centerable, and always rendered
+# (both when collapsed and as the idempotent expand entry point).
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
-- assertVisible:
-    id: "Set attributes panel"
 
-# IDEMPOTENT EXPAND: If the panel is collapsed (e.g. prior test run left it
-# collapsed), tap "Edit attributes" to open it. At the setName level the
-# panel should already be expanded, so this runFlow is a no-op in the
-# normal path.
+# IDEMPOTENT EXPAND: At the setName level the panel defaults expanded,
+# but a prior test run may have left it collapsed. Tap only if still showing
+# "Edit attributes" (i.e. collapsed).
 - runFlow:
     when:
       visible:

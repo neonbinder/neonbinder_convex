@@ -111,9 +111,12 @@ tags:
     visible: "Variant Types"
     timeout: 20000
 
+# Scroll to the "Edit attributes" toggle to locate the panel area.
+# Using the small button (not the large panel wrapper) avoids the fragile
+# centerElement scroll on a region spanning the bottom of 1024×629.
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
 
@@ -131,8 +134,7 @@ tags:
             id: "Hide attributes"
           timeout: 5000
 
-# "Hide attributes" is the reliable expanded-state signal. The bare string
-# "Set attributes" matches the panel container's aria-label even when collapsed.
+# "Hide attributes" is the reliable expanded-state signal.
 - assertVisible:
     id: "Hide attributes"
 

@@ -131,13 +131,14 @@ tags:
 # We match the prefix and the ancestry separator "›".
 # ============================================================
 
+# Scroll to the "Edit attributes" toggle to locate the panel area.
+# Using the small button avoids the fragile centerElement scroll on the
+# large panel wrapper at 1024×629.
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
-- assertVisible:
-    id: "Set attributes panel"
 
 # IDEMPOTENT EXPAND: at setName the panel defaults expanded; guard anyway.
 - runFlow:
@@ -263,13 +264,15 @@ tags:
 # The full panel body ("Set attributes" heading and feature inputs) must NOT.
 # ============================================================
 
+# Scroll to the "Edit attributes" toggle. At this point the panel is
+# collapsed (card checklist is on screen), so "Edit attributes" is always
+# visible in the summary bar. Scrolling to the button positions us in the
+# panel area without the fragile large-wrapper centerElement scroll.
 - scrollUntilVisible:
     element:
-      id: "Set attributes panel"
+      id: "Edit attributes"
     centerElement: true
     timeout: 15000
-- assertVisible:
-    id: "Set attributes panel"
 
 # The "Edit attributes" toggle is the collapsed state indicator.
 - extendedWaitUntil:

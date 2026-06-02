@@ -105,13 +105,6 @@ tags:
           notVisible: "Select Base Set"
           timeout: 30000
 
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
-
 # Per-attempt-unique card number + player name. The runner injects
 # ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
 # collide with the row attempt-1 left in the global cardChecklist
@@ -140,13 +133,29 @@ tags:
     visible: "Missing Features Player ${ATTEMPT_ID}"
     timeout: 10000
 
-# Scroll the just-added card's Edit button into view before tapping.
+# Scroll to the player name text first so Virtuoso renders this row fully
+# into the DOM before we attempt to find the action button.
+- scrollUntilVisible:
+    element:
+      text: "Missing Features Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 10000
+
+# Now scroll the Edit button into view. With the row already centered by
+# the preceding scroll, this is a small adjustment that keeps bounds non-null.
 - scrollUntilVisible:
     element:
       id: "Edit card 991-${ATTEMPT_ID}"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
+
+# Assert visibility before tapping — surfaces a failed scroll as a clear
+# assertion error rather than the null kotlin.Int bounds crash.
+- extendedWaitUntil:
+    visible:
+      id: "Edit card 991-${ATTEMPT_ID}"
+    timeout: 5000
 
 # Open the edit form. `waitToSettleTimeoutMs` mitigates the
 # virtualisation race — parallel workers' live-query refetches can
