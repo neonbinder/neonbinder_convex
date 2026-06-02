@@ -209,6 +209,7 @@ export default function SetAttributesPanel({
   return (
     <div
       className="border border-gray-700 rounded-lg bg-gray-900/60 p-4 space-y-3"
+      role="region"
       aria-label="Set attributes panel"
     >
       {/* Breadcrumb header (fixes QA #2 — which level/column applies). */}
