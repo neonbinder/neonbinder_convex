@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { EXPECTED_FEATURES } from "../../convex/features/expectedFeatures";
+import { useReactiveField } from "../forms/useReactiveField";
 
 /**
  * NEO-24 — per-card feature override editor.
@@ -145,11 +146,20 @@ function CardFeatureRow({
   onSave: (value: string) => Promise<unknown>;
   onRevert: () => Promise<unknown>;
 }) {
-  // Effective displayed value = override if any, else inherited.
-  const initial = cardValue ?? inheritedValue ?? "";
-  const [draft, setDraft] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // Effective displayed value = override if any, else inherited. The wrapper
+  // mirrors this into the (uncontrolled) input whenever the field is idle.
+  const displayed = cardValue ?? inheritedValue ?? "";
+
+  // NEO-39: uncontrolled, focus-guarded field. Commit reads the live value;
+  // empty input reverts the per-card override; the no-op baseline is the
+  // card's own value (not the displayed inherited fallback), preserving the
+  // original `trimmed === (cardValue ?? "")` check.
+  const { inputProps, busy, error: err } = useReactiveField({
+    value: displayed,
+    compareBaseline: cardValue ?? "",
+    onSave: (trimmed) => onSave(trimmed),
+    onEmptyCommit: () => onRevert(),
+  });
 
   const hasOverride =
     cardValue !== undefined && cardValue !== "" && cardValue !== inheritedValue;
@@ -157,34 +167,6 @@ function CardFeatureRow({
   const isMissing =
     (cardValue === undefined || cardValue === "") &&
     (inheritedValue === undefined || inheritedValue === "");
-
-  const commit = async () => {
-    if (busy) return;
-    const trimmed = draft.trim();
-    if (trimmed === (cardValue ?? "")) return;
-    if (trimmed.length === 0) {
-      // Empty input → revert (clears the per-card override).
-      setBusy(true);
-      try {
-        await onRevert();
-        setErr(null);
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-    setBusy(true);
-    try {
-      await onSave(trimmed);
-      setErr(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <label
@@ -221,16 +203,8 @@ function CardFeatureRow({
         )}
       </span>
       <input
+        {...inputProps}
         type="text"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void commit();
-          }
-        }}
         disabled={busy}
         aria-label={`Value for ${label}`}
         placeholder={inheritedValue ?? "—"}
