@@ -439,27 +439,24 @@ function MetadataEditableRow({
   numeric?: boolean;
   onSave: (value: string) => Promise<unknown>;
 }) {
-  const [draft, setDraft] = useState(value ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep the draft in sync with reactive updates (sync writes, other tabs),
-  // but don't stomp the user's in-flight keystrokes.
+  // Uncontrolled input (NEO-36) — same rationale as SetFeatureRow. Read the
+  // DOM value at submit; mirror external reactive updates imperatively only
+  // when the field is not focused/mid-save, so a propagation re-render can't
+  // scramble a metadata edit into the wrong field.
   useEffect(() => {
-    if (busy) return;
-    if (
-      typeof document !== "undefined" &&
-      document.activeElement === inputRef.current
-    ) {
-      return;
-    }
-    setDraft(value ?? "");
+    const el = inputRef.current;
+    if (!el || busy) return;
+    if (typeof document !== "undefined" && document.activeElement === el) return;
+    el.value = value ?? "";
   }, [value, busy]);
 
   const commit = async () => {
     if (busy) return;
-    const trimmed = draft.trim();
+    const trimmed = (inputRef.current?.value ?? "").trim();
     if (trimmed === (value ?? "")) return;
     setBusy(true);
     try {
@@ -490,8 +487,7 @@ function MetadataEditableRow({
         ref={inputRef}
         type="text"
         inputMode={numeric ? "numeric" : undefined}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        defaultValue={value ?? ""}
         onBlur={() => void commit()}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -565,35 +561,36 @@ function SetFeatureRow({
   inheritedLevel: Level | undefined;
   onSave: (value: string) => Promise<unknown>;
 }) {
-  const [draft, setDraft] = useState(value ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep the draft in sync with reactive value updates from propagation
-  // engine writes triggered elsewhere on the page — Convex pushes a fresh
-  // `row.features` map; without this the input would still show the local
-  // draft, masking the new value. Skip the auto-sync when the user is
-  // actively typing (input is focused) so we don't stomp keystrokes.
+  // Uncontrolled input (NEO-36). This row lives inside a Convex-reactive
+  // panel: the propagation mutation (setSelectorOptionFeature) pushes a fresh
+  // `row.features` map mid-edit, which re-renders every row. With a controlled
+  // `value={draft}` binding, React reconciliation stomped/scrambled the draft
+  // across rows under that churn — a date typed into "Release Date" got
+  // committed into the Card Type / Signed By feature fields
+  // (set-attributes-edit.yaml). An uncontrolled input has no React value
+  // binding, so "what's in the DOM is what we submit," immune to re-render
+  // timing. We still mirror external reactive updates imperatively, but only
+  // when the field is neither focused nor mid-save so we never stomp the
+  // user's in-flight keystrokes.
   useEffect(() => {
-    if (busy) return;
-    if (
-      typeof document !== "undefined" &&
-      document.activeElement === inputRef.current
-    ) {
-      return;
-    }
-    setDraft(value ?? "");
+    const el = inputRef.current;
+    if (!el || busy) return;
+    if (typeof document !== "undefined" && document.activeElement === el) return;
+    el.value = value ?? "";
   }, [value, busy]);
 
   const commit = async () => {
     if (busy) return;
-    const trimmed = draft.trim();
+    const trimmed = (inputRef.current?.value ?? "").trim();
     if (trimmed === (value ?? "")) return;
     if (trimmed.length === 0) {
       // Empty input: no clear-key mutation at set-level (the spec calls
       // only for write-time propagation), so treat empty as a no-op + revert.
-      setDraft(value ?? "");
+      if (inputRef.current) inputRef.current.value = value ?? "";
       return;
     }
     setBusy(true);
@@ -638,8 +635,7 @@ function SetFeatureRow({
         ref={inputRef}
         type="text"
         data-feat-key={featKey}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        defaultValue={value ?? ""}
         onBlur={() => void commit()}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
