@@ -156,10 +156,13 @@ tags:
 - eraseText: 20
 - inputText: "Smoke-sentinel"
 - pressKey: Enter
+# 15 s timeout: propagation patches all descendant cards synchronously in one
+# Convex mutation call — with 122+ selectorOption rows + card rows in the set
+# the mutation can take several seconds on a cold or loaded Convex preview.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
+    timeout: 15000
 
 # Second write: the canonical "MLB" value.
 - tapOn:
@@ -169,9 +172,10 @@ tags:
 - pressKey: Enter
 
 # The save toast appears: "Updated N cards" (N can be 0 if no cards yet in the set).
+# 15 s timeout for the same reason as the sentinel toast above.
+# The bare assertVisible after extendedWaitUntil is removed: the toast auto-
+# dismisses after 6 s; assertVisible at this point races the auto-dismiss.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
-- assertVisible:
-    text: ".*Updated [0-9]+ cards.*"
+    timeout: 15000

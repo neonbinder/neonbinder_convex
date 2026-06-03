@@ -183,14 +183,24 @@ tags:
 - inputText: "Edit Test Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
+
+# Virtuoso only renders rows near the viewport; the new card may be
+# off-screen until scrollToIndex fires. Drive the scroll directly with
+# scrollUntilVisible (does NOT depend on scrollToIndex having fired yet),
+# then confirm the row is in the DOM. This replaces the previous bare
+# extendedWaitUntil that raced Virtuoso's scroll animation (team-picker
+# CI failure on PR #39).
+- scrollUntilVisible:
+    element:
+      text: "Edit Test Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Edit Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
-# Scroll the just-added card into view before tapping its Edit button —
-# without this, the row can land below the viewport edge post-submit,
-# and the Edit-tap coords land on a different row (the team-picker-regression
-# CI failure on PR #39 showed this exact pattern with stale scroll).
+# Scroll the Edit button into view. With the player name already centered
+# by the preceding scroll, this is a small adjustment.
 - scrollUntilVisible:
     element:
       id: "Edit card 777-${ATTEMPT_ID}"
@@ -266,12 +276,21 @@ tags:
 # VERIFY EDIT WAS SAVED
 # ============================================================
 
-# The inline form should close and the card list should show the new name.
+# After the edit form closes, Virtuoso resets to its visible-range and may
+# not have re-scrolled to the saved card (which is at position ~777 in the
+# sorted list). Drive the scroll explicitly so the row is in the DOM before
+# asserting the renamed player and the Yankees sub-line.
+- scrollUntilVisible:
+    element:
+      text: "Renamed Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Renamed Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
-# The sub-line of the card row should show the team name.
+# The sub-line of the card row should show the team name. After scrolling
+# the row into the center, the Yankees sub-text is also in the DOM.
 - assertVisible:
     text: ".*Yankees.*"
 

@@ -129,17 +129,20 @@ tags:
 - inputText: "Missing Features Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
-- extendedWaitUntil:
-    visible: "Missing Features Player ${ATTEMPT_ID}"
-    timeout: 10000
 
-# Scroll to the player name text first so Virtuoso renders this row fully
-# into the DOM before we attempt to find the action button.
+# Virtuoso only renders rows near the viewport; the new card may be
+# off-screen until scrollToIndex fires. Drive the scroll directly with
+# scrollUntilVisible (does NOT depend on scrollToIndex having fired yet),
+# then confirm the row is in the DOM before proceeding. This replaces the
+# previous bare extendedWaitUntil that raced Virtuoso's scroll animation.
 - scrollUntilVisible:
     element:
       text: "Missing Features Player ${ATTEMPT_ID}"
     centerElement: true
-    timeout: 10000
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Missing Features Player ${ATTEMPT_ID}"
+    timeout: 5000
 
 # Now scroll the Edit button into view. With the row already centered by
 # the preceding scroll, this is a small adjustment that keeps bounds non-null.

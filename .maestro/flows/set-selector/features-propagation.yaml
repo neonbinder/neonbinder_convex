@@ -152,10 +152,12 @@ tags:
 - eraseText: 20
 - inputText: "PropTest-X"
 - pressKey: Enter
+# 15 s timeout: propagation patches all descendant cards synchronously in one
+# Convex mutation — with 122+ rows the mutation can take several seconds.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
+    timeout: 15000
 
 - tapOn:
     id: "Value for League"
@@ -165,7 +167,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
+    timeout: 15000
 
 # ============================================================
 # STEP B — Drill to Base, add a custom card, verify inherited value
@@ -220,9 +222,19 @@ tags:
 - inputText: "Propagation Test Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
+
+# Virtuoso only renders rows near the viewport; the new card may be
+# off-screen until scrollToIndex fires. Drive the scroll directly with
+# scrollUntilVisible (does NOT depend on scrollToIndex having fired yet),
+# then confirm the row is in the DOM before proceeding.
+- scrollUntilVisible:
+    element:
+      text: "Propagation Test Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
 # Scroll the just-added card's Edit button into view before tapping.
 - scrollUntilVisible:
@@ -293,9 +305,18 @@ tags:
     timeout: 10000
 - tapOn:
     id: "Save card edit"
+
+# After the edit form closes, Virtuoso may not have re-scrolled to the
+# saved card (the list resets to top-of-visible-range). Drive the scroll
+# explicitly before asserting, so the row is guaranteed to be in the DOM.
+- scrollUntilVisible:
+    element:
+      text: "Propagation Test Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
 # ============================================================
 # STEP D — Re-propagate at set level: League → "AL"
@@ -389,10 +410,11 @@ tags:
 
 # Toast: at least 1 card updated (non-overridden cards get "PropTest-AL").
 # Our override card (#992) has "PropTest-NL" — it should be in skippedAsOverridden.
+# 15 s timeout: same large-set propagation wait as Steps A and D above.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
+    timeout: 15000
 
 # ============================================================
 # STEP E — Verify override card still shows "NL", not "AL"
@@ -481,9 +503,17 @@ tags:
 # Save and close.
 - tapOn:
     id: "Save card edit"
+
+# After the edit form closes, Virtuoso may not have re-scrolled to the saved card.
+# Drive the scroll explicitly so the row is in the DOM before cleanup steps.
+- scrollUntilVisible:
+    element:
+      text: "Propagation Test Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
 # ============================================================
 # CLEANUP — delete this attempt's test card

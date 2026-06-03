@@ -138,6 +138,8 @@ tags:
     element:
       id: "Edit attributes"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 15000
 
 # IDEMPOTENT EXPAND: at setName the panel defaults expanded; guard anyway.
@@ -168,43 +170,87 @@ tags:
 # date so the test is always a genuine save (not a no-op).
 # ============================================================
 
+# The panel body renders conditionally ({expanded && ...}). After the expand
+# tap above, the Release Date field is below the visible fold. Scroll DOWN
+# to bring it into view.
+# NOTE: centerElement causes an infinite centering loop locally because
+# visibilityPercentageNormalized stays 0.0 (CDP hit-test clipping artifact
+# at 1200×901 local browser with DevTools). Omitting centerElement lets the
+# scroll complete as soon as the element's layout visibility exceeds 10%.
+# 15 s timeout matches the "Edit attributes" scroll above.
 - scrollUntilVisible:
     element:
       id: "Value for Release Date"
-    centerElement: true
-    timeout: 10000
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 15000
+
+# Two-step write: first write a clearing sentinel, then the test sentinel.
+# This guarantees a genuine DB write on both steps regardless of prior DB
+# state (avoids the "same value → no-op → toast never fires" race that was
+# observed when the DB already held "2024-08-01" from a previous run).
+# Mirror of the features-propagation flow's PropTest-X → PropTest-MLB pattern.
+- tapOn:
+    id: "Value for Release Date"
+- eraseText: 30
+- inputText: "1900-01-01"
+- pressKey: Enter
 - extendedWaitUntil:
     visible:
-      id: "Value for Release Date"
-    timeout: 5000
+      text: ".*Saved Release Date.*"
+    timeout: 15000
+
 - tapOn:
     id: "Value for Release Date"
 - eraseText: 30
 - inputText: "2024-08-01"
 - pressKey: Enter
 
-# The save toast confirms the metadata write propagated (updated ≥ 0 cards).
+# The save toast confirms the metadata edit reached the METADATA handler
+# ("Saved Release Date"), not a feature handler ("Updated N cards").
+# This is the regression guard: if the mis-targeting bug regresses, the edit
+# would land in League (a feature field) and emit "Updated N cards" instead,
+# causing this assertion to fail.
+# 15 s timeout: Convex round-trip on cold preview.
 - extendedWaitUntil:
     visible:
-      text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
-- assertVisible:
-    text: ".*Updated [0-9]+ cards.*"
+      text: ".*Saved Release Date.*"
+    timeout: 15000
 
 # ============================================================
 # PART D — EDIT "Value for League" (standard feature input)
 # Use a test-specific sentinel value distinct from other flows' values.
 # ============================================================
 
+# League may be above the fold after the Release Date scroll; scroll it back
+# into view. centerElement is safe here because League is near the TOP of the
+# panel body (first feature row), so it doesn't exhibit the visibilityPercentageNormalized
+# = 0.0 clipping that Release Date has when it's below the fold.
 - scrollUntilVisible:
     element:
       id: "Value for League"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "Value for League"
     timeout: 5000
+
+# Two-step write to avoid the same-value no-op: write a clearing sentinel
+# first, then the actual test value. This mirrors Part C's pattern and
+# matches features-propagation.yaml's PropTest-X → PropTest-MLB approach.
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "AttrEdit-CLEAR"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 15000
+
 - tapOn:
     id: "Value for League"
 - eraseText: 20
@@ -212,12 +258,11 @@ tags:
 - pressKey: Enter
 
 # Toast confirms the feature value propagated to descendant cards.
+# 15 s timeout for the same reason as the Release Date toast above.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 10000
-- assertVisible:
-    text: ".*Updated [0-9]+ cards.*"
+    timeout: 15000
 
 # ============================================================
 # PART E — SELECT BASE VARIANT TYPE
@@ -232,6 +277,8 @@ tags:
       text: "Base"
     direction: UP
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 15000
 - tapOn: "Base"
 
@@ -272,6 +319,8 @@ tags:
     element:
       id: "Edit attributes"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 15000
 
 # The "Edit attributes" toggle is the collapsed state indicator.
@@ -315,6 +364,8 @@ tags:
     element:
       id: "Value for League"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 10000
 - extendedWaitUntil:
     visible:
