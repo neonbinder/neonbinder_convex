@@ -1,5 +1,6 @@
 import { useReactiveField } from "./useReactiveField";
 import type { ReactiveFieldApi, ReactiveFieldOptions } from "./useReactiveField";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 /**
  * NEO-39 — reactive-safe text input.
@@ -49,6 +50,9 @@ export default function ReactiveTextField({
   ...rest
 }: ReactiveTextFieldProps) {
   const ariaLabel = rest["aria-label"];
+  // Unique per-instance marker class so Maestro's inputText targets THIS field
+  // and not the first input sharing the same className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
   const { inputProps, busy, error } = useReactiveField({
     value,
     onSave,
@@ -67,7 +71,7 @@ export default function ReactiveTextField({
         disabled={disabled || busy}
         inputMode={inputMode}
         autoFocus={autoFocus}
-        className={className}
+        className={`${fieldClass()} ${className ?? ""}`}
       />
       {children?.({ busy, error })}
     </>
