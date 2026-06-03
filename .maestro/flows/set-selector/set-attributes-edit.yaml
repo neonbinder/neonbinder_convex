@@ -171,19 +171,27 @@ tags:
 # ============================================================
 
 # The panel body renders conditionally ({expanded && ...}). After the expand
-# tap above, the Release Date field is below the visible fold. Scroll DOWN
-# to bring it into view.
-# NOTE: centerElement causes an infinite centering loop locally because
-# visibilityPercentageNormalized stays 0.0 (CDP hit-test clipping artifact
-# at 1200×901 local browser with DevTools). Omitting centerElement lets the
-# scroll complete as soon as the element's layout visibility exceeds 10%.
-# 15 s timeout matches the "Edit attributes" scroll above.
+# tap above, the Release Date field is below the visible fold.
+# CI VIEWPORT FIX: the headless CI viewport is 1024×629 and "Value for Release
+# Date" renders at y≈626 — right at the fold. Scrolling to IT (any
+# visibilityPercentage) leaves it clipped at the bottom edge, and the
+# subsequent tapOn's auto-scroll (CdpWebDriver.scrollToPoint) then crashes with
+# a CDP "null cannot be cast to Int" error. We also can't raise its own
+# visibilityPercentage — the local CDP hit-test artifact keeps the calc at 0.0,
+# so high thresholds (and centerElement) loop forever.
+# Robust fix that works in BOTH viewports: scroll to "Value for Block" — the
+# editable field directly BELOW Release Date in the same grid column — so
+# Release Date lifts FULLY into view (no clipping). tapOn then needs no scroll.
 - scrollUntilVisible:
     element:
-      id: "Value for Release Date"
+      id: "Value for Block"
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
     timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "Value for Release Date"
+    timeout: 5000
 
 # Two-step write: first write a clearing sentinel, then the test sentinel.
 # This guarantees a genuine DB write on both steps regardless of prior DB
