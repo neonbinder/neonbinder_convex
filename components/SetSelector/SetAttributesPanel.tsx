@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useReactiveField } from "../forms/useReactiveField";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -204,7 +205,25 @@ export default function SetAttributesPanel({
   const handleSaveMetadata = async (
     patch: Partial<SetMetadata>,
   ): Promise<void> => {
-    await setSetMetadata({ selectorOptionId, metadata: patch });
+    // Optimistic "Saved <field>" confirmation so the user knows the edit
+    // landed — metadata writes don't fan out to cards, so the feature handler's
+    // "Updated N cards" toast doesn't apply here. Shown before the await (it's
+    // a one-row patch). The e2e (set-attributes-edit) asserts this toast.
+    const METADATA_LABELS: Partial<Record<keyof SetMetadata, string>> = {
+      releaseDate: "Release Date",
+      totalCardCount: "Total Cards",
+      block: "Block",
+    };
+    const labels = Object.keys(patch)
+      .map((k) => METADATA_LABELS[k as keyof SetMetadata] ?? k)
+      .join(", ");
+    setToast(`Saved ${labels}`);
+    setTimeout(() => setToast(null), 6000);
+    try {
+      await setSetMetadata({ selectorOptionId, metadata: patch });
+    } catch (e) {
+      setToast(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   return (
@@ -448,6 +467,9 @@ function MetadataEditableRow({
     onSave: (trimmed) => onSave(trimmed),
     onEmptyCommit: () => onSave(""),
   });
+  // Unique per-field marker class so Maestro's inputText targets THIS field
+  // rather than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   const isMissing = value === undefined || value === "";
 
@@ -470,7 +492,7 @@ function MetadataEditableRow({
         disabled={busy}
         aria-label={`Value for ${label}`}
         placeholder="—"
-        className="w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none"
+        className={`${fieldClass()} w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none`}
       />
       {err && (
         <span className="text-[10px] text-[#FF2EB3]" role="alert">
@@ -541,6 +563,9 @@ function SetFeatureRow({
     value: value ?? "",
     onSave: (trimmed) => onSave(trimmed),
   });
+  // Unique per-field marker class so Maestro's inputText targets THIS field
+  // rather than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   const hasOwn = value !== undefined && value !== "";
   const isMissing = !hasOwn && (inherited === undefined || inherited === "");
@@ -576,7 +601,7 @@ function SetFeatureRow({
         disabled={busy}
         aria-label={`Value for ${label}`}
         placeholder={inherited ?? "—"}
-        className="w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none"
+        className={`${fieldClass()} w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none`}
       />
       {!hasOwn && inherited !== undefined && inherited !== "" && (
         <span
