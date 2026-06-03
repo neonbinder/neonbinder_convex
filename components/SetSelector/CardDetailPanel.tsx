@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import TeamPicker from "./TeamPicker";
 import CardFeaturesEditor from "./CardFeaturesEditor";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 /**
  * NEO-25: right-anchored card detail panel. Replaces the old per-row edit
@@ -103,6 +104,9 @@ export default function CardDetailPanel({
 }: CardDetailPanelProps) {
   const updateCard = useMutation(api.selectorOptions.updateCard);
   const cardNameInputRef = useRef<HTMLInputElement | null>(null);
+  // Unique per-field marker class so Maestro's inputText targets the tapped
+  // field rather than the first input in the drawer (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   // ----- editable draft state (initialized fresh on each remount) -----
   const [cardName, setCardName] = useState(card.cardName);
@@ -334,7 +338,7 @@ export default function CardDetailPanel({
               type="text"
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+              className={`${fieldClass("cardName")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600`}
               placeholder="Card name"
               aria-label="Card name"
             />
@@ -377,7 +381,7 @@ export default function CardDetailPanel({
               type="text"
               value={listingTitle}
               onChange={(e) => setListingTitle(e.target.value)}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+              className={`${fieldClass("cardTitle")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600`}
               placeholder="Listing title reused across marketplaces"
               aria-label="Card title"
             />
@@ -393,7 +397,7 @@ export default function CardDetailPanel({
               value={listingDescription}
               onChange={(e) => setListingDescription(e.target.value)}
               rows={3}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 resize-y"
+              className={`${fieldClass("cardDescription")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 resize-y`}
               placeholder="Listing description reused across marketplaces"
               aria-label="Card description"
             />
@@ -450,7 +454,7 @@ export default function CardDetailPanel({
                 type="number"
                 value={printRun}
                 onChange={(e) => setPrintRun(e.target.value)}
-                className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+                className={`${fieldClass("printRun")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600`}
                 placeholder="e.g. 99"
                 aria-label="Print run"
                 min={0}
@@ -464,7 +468,7 @@ export default function CardDetailPanel({
                 type="text"
                 value={autographType}
                 onChange={(e) => setAutographType(e.target.value)}
-                className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+                className={`${fieldClass("autographType")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600`}
                 placeholder="On-Card / Sticker / Cut"
                 aria-label="Autograph type"
               />
@@ -478,7 +482,7 @@ export default function CardDetailPanel({
               type="text"
               value={cardVariation}
               onChange={(e) => setCardVariation(e.target.value)}
-              className="w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600"
+              className={`${fieldClass("cardVariation")} w-full p-1.5 border rounded text-sm dark:bg-gray-700 dark:border-gray-600`}
               placeholder="e.g. Gold Refractor"
               aria-label="Card variation"
             />
