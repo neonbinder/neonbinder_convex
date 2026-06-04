@@ -26,12 +26,9 @@ jobs:
     # (configured below). Worker 0 owns the serial lane (set-selector +
     # marketplace flows); other workers share parallel-safe flows. Per-worker
     # accounts (TEST_EMAIL_${worker} / NEW_PROFILE_TEST_EMAIL_${worker}) must
-    # be configured on the Vercel preview env. Ceiling is a safety net — actual
-    # runs should be shorter. Raised to 150 while pinned to p=1 (NEO-46/NEO-47):
-    # the full ~57-flow suite runs SERIALLY (~110 min) to avoid the concurrent-
-    # browser auto-sync flake. Scale-out + backend isolation (NEO-46) restores
-    # parallelism and brings this back well under 30 min.
-    timeout-minutes: 150
+    # be configured on the Vercel preview env. 60-minute ceiling is a safety
+    # net — actual runs should be considerably shorter than serial.
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -220,20 +217,7 @@ jobs:
           # Number of parallel workers. Worker 0 runs the serial lane
           # (serial-global + serial-marketplace flows); workers 1..N-1 share
           # parallel-safe flows. Lower this if test accounts run out.
-          #
-          # TEMPORARY (NEO-46 / NEO-47): pinned to 1 (fully serial).
-          # Root cause is NOT CPU starvation — it is NON-DETERMINISTIC flake in
-          # the drill/auto-sync layer when MULTIPLE headless browsers hit one
-          # shared, freshly-reset backend: the column auto-sync fails to settle
-          # ("Baseball" idle-signal times out, "Add custom X" idle button never
-          # appears) and Maestro's CdpWebDriver chokes ("Failed to execute JS").
-          # p=3 lost 1 flow, p=2 lost a DIFFERENT 7 — losers shuffle per run.
-          # All 7 p=2 failures PASS first-attempt at p=1 (one browser, one
-          # session, no contention) — verified locally. So p=1 is the only
-          # reliable green until NEO-46 (isolated per-PR/per-shard backends) +
-          # NEO-47 (seed drill state directly instead of driving auto-sync).
-          # Cost: ~110 min serial — see raised timeout below.
-          MAESTRO_PARALLELISM: "1"
+          MAESTRO_PARALLELISM: "3"
           REPORT_DIR: maestro-report
         # Runs every flow in .maestro/flows/ (no tag filter) — smoke + regression
         # are the merge-blocking gate since we deploy main directly to prod.
