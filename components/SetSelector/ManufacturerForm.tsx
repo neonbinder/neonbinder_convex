@@ -39,7 +39,10 @@ export default function ManufacturerForm({
         },
       });
       setMessage(result.message);
-      if (result.success) {
+      // NEO-47: go idle on an empty result (optionsCount === 0) too, not only on
+      // success, so a no-marketplace-data case doesn't hard-block "+ Custom".
+      // autoSyncedRef prevents a re-sync loop; a thrown error (catch) keeps Retry.
+      if (result.success || result.optionsCount === 0) {
         onDone?.();
       }
     } catch (error) {

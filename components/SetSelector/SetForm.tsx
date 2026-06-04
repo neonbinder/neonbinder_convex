@@ -32,7 +32,11 @@ export default function SetForm({
     try {
       const result = await syncSets({ yearId });
       setMessage(result.message);
-      if (result.success) {
+      // NEO-47: go idle on an empty result (totalSets === 0) too, not only on
+      // success, so a no-marketplace-data case doesn't hard-block "+ Custom".
+      // (syncSets returns totalSets, not optionsCount.) autoSyncedRef prevents a
+      // re-sync loop; a thrown error (catch) keeps Retry.
+      if (result.success || result.totalSets === 0) {
         onDone?.();
       }
     } catch (error) {
