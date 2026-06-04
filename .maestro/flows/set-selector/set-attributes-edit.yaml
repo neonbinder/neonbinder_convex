@@ -243,6 +243,12 @@ tags:
 - assertVisible:
     id: "Hide attributes"
 
+# The "Will propagate to N cards" counter is visible when the panel is open at
+# the setName level — confirms the propagation preview is rendered.
+# (Unique assertion folded from set-features-panel.yaml, which was deleted.)
+- assertVisible:
+    text: ".*Will propagate to.*"
+
 # The breadcrumb header shows "... › attr-edit-{N}" as leaf.
 # The ancestor chain uses "›" as separator; assert at least one "›" exists.
 - assertVisible:

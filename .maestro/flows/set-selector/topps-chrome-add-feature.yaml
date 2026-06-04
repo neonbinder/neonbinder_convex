@@ -13,8 +13,8 @@ tags:
 # WHY ISOLATED:
 #   This is the ONE sanctioned feature-WRITE on the real Topps Chrome set.
 #   Isolated serial lane prevents concurrent mutations with other flows that
-#   also write to Topps Chrome features (set-features-panel.yaml, features-
-#   propagation.yaml). Without isolation these three flows would race in Phase
+#   also write to Topps Chrome features. Without isolation any concurrent
+#   feature-write flow would race in Phase
 #   1 and each other's toasts / assertions would mis-fire.
 #
 # PROPAGATION TOAST TIMING:

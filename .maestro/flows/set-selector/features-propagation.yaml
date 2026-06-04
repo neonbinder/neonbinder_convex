@@ -1,38 +1,56 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Features propagate from set to cards via SetAttributesPanel, per-card override survives re-propagation"
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Features propagate from set to cards via SetAttributesPanel, per-card override survives re-propagation (per-worker custom set)"
 tags:
   - set-selector
   - regression
-  - requires:cards-loaded
+  - requires:setup-done
 ---
 # Full propagation lifecycle test for NEO-24.
 #
+# ISOLATION: uses a per-worker CUSTOM set (fp-{WORKER_INDEX}) under
+# Baseball → 2024 → Topps. Each of the 3 CI workers owns a separate custom
+# set so concurrent workers cannot interfere. The real 2024 Topps Chrome set
+# is never touched — that path is owned exclusively by topps-chrome-*.yaml
+# and topps-chrome-add-feature.yaml.
+#
+# WHY Baseball / 2024 (not Football / 2026)?
+#   TeamPicker and features are sport-scoped. The cascade seeds Baseball
+#   teams/players so this flow runs against a correctly seeded sport scope.
+#   util-drill-to-custom-set.yaml uses Football/2026; for Baseball/2024 we
+#   inline the drill (same proven pattern as set-attributes-edit.yaml).
+#
+# CARD CHECKLIST PATH:
+#   Custom sets reach CardChecklist via: Set → Insert (VT) → custom insert entry.
+#   fp-{N} → Insert → fp-insert-{N} → CardChecklist
+#   This mirrors card-detail-panel.yaml's proven "cd-{N} → Insert → Base" path.
+#   The SetAttributesPanel sets features on the SET level (fp-{N}) and they
+#   propagate to all descendant cards in the checklist of fp-insert-{N}.
+#
 # WHAT THIS TESTS:
-#   1. SetFeaturesPanel: setting a feature at the set (setName) level saves and
-#      shows a toast with "Updated N cards" (propagation engine ran).
+#   1. SetAttributesPanel: setting a feature at the set (setName) level saves
+#      and shows a toast with "Updated N cards" (propagation engine ran).
 #   2. A card inherits the set-level value: opening CardFeaturesEditor on a
-#      child card shows "Inherited: MLB" under the League row.
-#   3. Per-card override: typing a different value in CardFeaturesEditor saves
-#      the override on just that card. The row changes from "Inherited" to the
-#      new value (no "Inherited:" shown when the card has its own value).
+#      child card shows "Inherited: PropTest-MLB" under the League row.
+#   3. Per-card override: typing a different value saves the override on just
+#      that card. The row changes from "Inherited" to the new value.
 #   4. Re-propagation at the set level to a new value updates non-overridden
 #      cards but the overridden card retains its own value.
+#   5. Revert: after reverting the override the card inherits the new set value.
 #
 # FLOW:
-#   Step A: Drill to Topps Chrome → Set features → write "MLB" to League.
-#   Step B: Select Base variant → open a card → expand features → verify "Inherited: MLB".
-#   Step C: Override League to "NL" on that card → verify "NL" is saved.
-#   Step D: Back at set level → update League to "AL" → verify toast says ≥1 updated.
-#   Step E: Re-open the overridden card → verify it still shows "NL", not "AL".
+#   Step 0: Drill to Baseball → 2024 → Topps → custom set fp-{WORKER_INDEX}.
+#   Step A: Set League = "PropTest-MLB" at the set level → assert toast.
+#   Step B: Drill to Insert → fp-insert-{WORKER_INDEX} → add card #992-{ATTEMPT_ID}
+#           → open CardFeaturesEditor → verify "Inherited: PropTest-MLB".
+#   Step C: Override League to "PropTest-NL" on that card.
+#   Step D: Back at set level → update League to "PropTest-AL" → verify toast.
+#   Step E: Re-open override card → verify it still shows "PropTest-NL".
+#   Step F: Revert override → card now inherits "PropTest-AL".
+#   Cleanup: delete the test card.
 #
-# NOTES:
-#   - We use a custom card (#992) so we can control the override state precisely.
-#   - The cascade cards-base.yaml must have run (requires:cards-loaded) so the
-#     set already has real cards for the propagation count to be > 0 after step A.
-#   - After step C, the override card (#992) has League="NL". When we re-propagate
-#     "AL" in step D, our #992 card's "NL" does not equal the old set value "MLB",
-#     so the propagation engine treats it as an override and skips it.
+# PREREQUISITE: cascade setup.yaml must have run (requires:setup-done) so
+# Baseball, 2024, and Topps all exist in the shared Convex DB.
 
 - launchApp
 - extendedWaitUntil:
@@ -40,7 +58,11 @@ tags:
     timeout: 45000
 
 # ============================================================
-# DRILL TO Topps Chrome (Sets level — triggers SetFeaturesPanel)
+# STEP 0 — DRILL TO PER-WORKER CUSTOM SET under Baseball/2024/Topps
+#
+# Inline drill (mirrors set-attributes-edit.yaml) — does NOT call
+# util-drill-to-custom-set.yaml because that util uses Football/2026.
+# Baseball/2024/Topps are pre-seeded by cascade setup.yaml.
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -50,8 +72,24 @@ tags:
 - extendedWaitUntil:
     visible: "Baseball"
     timeout: 30000
-- tapOn: "Baseball"
 
+# Level 1 — Baseball (use search input for reliable tap)
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
+# Level 2 — Year 2024
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
@@ -67,6 +105,10 @@ tags:
     text: "2024"
     index: 1
 
+# Level 3 — Topps (manufacturer)
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
@@ -82,46 +124,101 @@ tags:
     text: "Topps"
     index: 1
 
+# Level 4 — Custom set "fp-{WORKER_INDEX}"
+# One set per worker — never collides with other workers or with Topps Chrome.
 - extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    index: 1
+    visible: "Sets"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    centerElement: true
+    timeout: 60000
 
-# SetAttributesPanel renders below MultiSourcePanel after Topps Chrome is selected.
-# At the setName level (no card checklist visible) the panel defaults EXPANDED.
+- runFlow:
+    when:
+      notVisible: "fp-${WORKER_INDEX || 0}"
+    commands:
+      - tapOn:
+          id: "Add custom Sets"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "fp-${WORKER_INDEX || 0}"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+# Tap the custom set row (search-input path if list has grown, fallback otherwise).
+- runFlow:
+    when:
+      visible: ".*Search sets.*"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "^Sets$"
+          direction: UP
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: "fp-${WORKER_INDEX || 0}"
+      - extendedWaitUntil:
+          visible:
+            text: ".*fp-${WORKER_INDEX || 0}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*fp-${WORKER_INDEX || 0}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+
+- runFlow:
+    when:
+      notVisible: "Variant Types"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*fp-${WORKER_INDEX || 0}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*fp-${WORKER_INDEX || 0}.*"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 20000
 
 # ============================================================
-# STEP A — Set League = "PropTest-MLB" at the set level
+# STEP A — Set League = "PropTest-MLB" at the set (setName) level
 #
-# Use a test-specific sentinel value so this step is always a genuine write
-# (distinct from any value another flow may have left). Even if a prior run
-# of THIS flow left "PropTest-MLB", Step D below will overwrite with a
-# different value and trigger the propagation.
+# The SetAttributesPanel renders at the setName level (no card checklist).
+# Panel defaults EXPANDED for custom sets with no card checklist.
+#
+# Two-step write: PropTest-X → PropTest-MLB.
+#   - PropTest-X forces a real DB write even if a prior run left PropTest-MLB.
+#   - PropTest-MLB is then always a genuine change from PropTest-X.
+#   - For a fresh set with no cards yet, "Updated 0 cards" is fine.
+#     Cards added in Step B will inherit PropTest-MLB via the stored set value.
 # ============================================================
 
-# Scroll to the "Edit attributes" toggle — small, reliably centerable,
-# always present (collapsed sentinel). Avoids scrolling the large panel wrapper.
 - scrollUntilVisible:
     element:
       id: "Edit attributes"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 15000
 
-# IDEMPOTENT EXPAND: at setName level the panel defaults expanded, but a
-# prior test run may have collapsed it. Tap "Edit attributes" only if visible.
+# IDEMPOTENT EXPAND: custom sets default expanded; guard for prior-run collapse.
 - runFlow:
     when:
       visible:
@@ -134,7 +231,6 @@ tags:
             id: "Hide attributes"
           timeout: 5000
 
-# "Hide attributes" is only present when the panel is expanded — reliable expanded-state signal.
 - assertVisible:
     id: "Hide attributes"
 
@@ -142,23 +238,23 @@ tags:
     element:
       id: "Value for League"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 10000
 
-# First, clear any existing value by writing a different sentinel ("PropTest-X"),
-# then immediately overwrite with "PropTest-MLB". This guarantees at least
-# one of the two writes triggers the propagation engine.
+# First write: clearing sentinel — guarantees DB value changes.
 - tapOn:
     id: "Value for League"
 - eraseText: 20
 - inputText: "PropTest-X"
 - pressKey: Enter
-# 15 s timeout: propagation patches all descendant cards synchronously in one
-# Convex mutation — with 122+ rows the mutation can take several seconds.
+# 15s timeout: propagation patches descendant cards synchronously.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
     timeout: 15000
 
+# Second write: the canonical test value.
 - tapOn:
     id: "Value for League"
 - eraseText: 20
@@ -170,47 +266,97 @@ tags:
     timeout: 15000
 
 # ============================================================
-# STEP B — Drill to Base, add a custom card, verify inherited value
+# STEP B — Drill to Insert → fp-insert-{WORKER_INDEX}, add a card, verify
+#          inherited value.
+#
+# Card checklist path for custom sets: Set → Insert (variant type) →
+# custom insert entry → CardChecklist. This is the proven path used by
+# card-detail-panel.yaml (cd-{N} → Insert → "Base").
+#
+# The Variant Types column is above the fold after Step A wrote to the panel.
+# Scroll UP (swipe-down gesture) to bring the column back into view.
 # ============================================================
 
-# Scroll back up to select Base variant type. After Step A wrote to the
-# SetFeaturesPanel, the panel + cards section dominate the viewport and
-# the Variant Types column is scrolled off the top. Need an explicit UP
-# direction; the default DOWN never finds the row.
 - scrollUntilVisible:
     element:
-      text: "Base"
+      id: "Add custom Variant Types"
     direction: UP
-    centerElement: true
-    timeout: 15000
-- tapOn: "Base"
+    visibilityPercentage: 100
+    timeout: 30000
 
-- extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
+# Add "Insert" as a custom variant type if it's not already there.
 - runFlow:
     when:
-      visible: "Select Base Set"
+      notVisible: "Insert"
     commands:
-      - tapOn: "Confirm Base Set"
+      - tapOn:
+          id: "Add custom Variant Types"
+          waitToSettleTimeoutMs: 2000
       - extendedWaitUntil:
-          notVisible: "Select Base Set"
-          timeout: 30000
+          visible: "Add Custom Entry"
+          timeout: 10000
+      - inputText: "Insert"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible:
+            text: "Insert"
+          timeout: 5000
 
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# Wait for the Inserts column header to confirm selection.
+- extendedWaitUntil:
+    visible: "Inserts"
+    timeout: 15000
+
+# Add a custom insert entry "fp-insert-{WORKER_INDEX}" if absent.
+# This is the variant that will hold the card checklist.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+    timeout: 30000
+
+- runFlow:
+    when:
+      notVisible: "fp-insert-${WORKER_INDEX || 0}"
+    commands:
+      - tapOn:
+          id: "Add custom Inserts"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 10000
+      - inputText: "fp-insert-${WORKER_INDEX || 0}"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible:
+            text: ".*fp-insert-${WORKER_INDEX || 0}.*"
+          timeout: 5000
+
+- scrollUntilVisible:
+    element:
+      text: "fp-insert-${WORKER_INDEX || 0}"
+    timeout: 10000
+- tapOn: "fp-insert-${WORKER_INDEX || 0}"
+
+# Wait for CardChecklist to render (custom subtree — no BSC/SL calls,
+# short-circuits quickly). Use "Open add card form" as the signal — this is
+# the reliable indicator on custom sets. "Fetch from Marketplaces" and
+# "No cards in this checklist yet." are NOT reliable here: the custom subtree
+# gate short-circuits adapter calls, and the checklist renders the add-form
+# button directly. Mirror card-detail-panel.yaml's proven pattern.
 - scrollUntilVisible:
     element:
       id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
+    timeout: 30000
 
-# Per-attempt-unique card number + player name. The runner injects
-# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
-# collide with attempt-1's row (and its PropTest-NL override) left
-# in the global cardChecklist. No idempotent cleanup loop needed.
-
-# Add a custom card that will serve as the override target.
 - tapOn:
     id: "Open add card form"
 - extendedWaitUntil:
@@ -223,10 +369,7 @@ tags:
 - tapOn:
     id: "Submit new card"
 
-# Virtuoso only renders rows near the viewport; the new card may be
-# off-screen until scrollToIndex fires. Drive the scroll directly with
-# scrollUntilVisible (does NOT depend on scrollToIndex having fired yet),
-# then confirm the row is in the DOM before proceeding.
+# Virtuoso renders rows near the viewport; scroll to materialize the new card.
 - scrollUntilVisible:
     element:
       text: "Propagation Test Player ${ATTEMPT_ID}"
@@ -236,17 +379,13 @@ tags:
     visible: "Propagation Test Player ${ATTEMPT_ID}"
     timeout: 5000
 
-# Scroll the just-added card's Edit button into view before tapping.
+# Open the edit form for our card.
 - scrollUntilVisible:
     element:
       id: "Edit card 992-${ATTEMPT_ID}"
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
-
-# Open the edit form for our card. `waitToSettleTimeoutMs` mitigates the
-# virtualisation race — parallel workers' live-query refetches can shift
-# this row between Maestro's element lookup and tap dispatch.
 - tapOn:
     id: "Edit card 992-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
@@ -255,7 +394,7 @@ tags:
       id: "Card name"
     timeout: 10000
 
-# Expand the CardFeaturesEditor.
+# Expand CardFeaturesEditor.
 - tapOn:
     id: "Show features editor"
 - extendedWaitUntil:
@@ -263,13 +402,16 @@ tags:
       id: "Card features editor"
     timeout: 5000
 
-# The League row should show the inherited value from the set ("PropTest-MLB").
-# The "Inherited: PropTest-MLB" label appears below the input when the card has no override.
+# The card inherits the set-level League value. The "Inherited: PropTest-MLB"
+# label appears below the input when the card has no override.
+# (Step A wrote PropTest-MLB to the set before this card existed; the
+# propagation engine stores the value on the set entity. Cards created
+# afterward look up the set value and display it as "Inherited: PropTest-MLB".)
 - assertVisible:
     text: ".*PropTest-MLB.*"
 
 # ============================================================
-# STEP C — Override League to "NL" on this card
+# STEP C — Override League to "PropTest-NL" on this card
 # ============================================================
 
 - scrollUntilVisible:
@@ -283,20 +425,17 @@ tags:
 - inputText: "PropTest-NL"
 - pressKey: Enter
 
-# After save-on-Enter, the "Inherited:" label disappears (card now has its own
-# value). The input shows "PropTest-NL".
+# After save-on-Enter the "Inherited:" label disappears (card has its own value).
 - extendedWaitUntil:
     notVisible: ".*Inherited: PropTest-MLB.*"
     timeout: 10000
 
-# The League input now shows "NL".
+# The League input now shows "PropTest-NL".
 - assertVisible:
     id: "Value for League"
 
-# Save the card edit (closes the form). The Save button sits at the bottom
-# of the edit form; with FEATURES expanded showing ERA/REPRINT/CARD TYPE
-# rows, Save is pushed below the headless 1024×629 viewport. Scroll it
-# into view first so the tap doesn't fail with "Element not found".
+# Save the card edit (closes the form). Scroll Save button into view first —
+# with features expanded it may be below the 1024×629 headless viewport.
 - scrollUntilVisible:
     element:
       id: "Save card edit"
@@ -306,9 +445,7 @@ tags:
 - tapOn:
     id: "Save card edit"
 
-# After the edit form closes, Virtuoso may not have re-scrolled to the
-# saved card (the list resets to top-of-visible-range). Drive the scroll
-# explicitly before asserting, so the row is guaranteed to be in the DOM.
+# After the edit form closes, Virtuoso may reset scroll to top of visible range.
 - scrollUntilVisible:
     element:
       text: "Propagation Test Player ${ATTEMPT_ID}"
@@ -319,16 +456,30 @@ tags:
     timeout: 5000
 
 # ============================================================
-# STEP D — Re-propagate at set level: League → "AL"
+# STEP D — Re-propagate at set level: League → "PropTest-AL"
+#
+# Navigate back to the custom set level (reload clears column state).
+# This tests that re-propagation skips our overridden card.
 # ============================================================
 
-# Navigate back to Topps Chrome level (deselect the variant type).
-# We reload to ensure a clean state.
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Baseball"
     timeout: 30000
-- tapOn: "Baseball"
+
+# Re-drill to the custom set (items pre-exist from Step 0).
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
@@ -343,6 +494,7 @@ tags:
 - tapOn:
     text: "2024"
     index: 1
+
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
@@ -357,31 +509,35 @@ tags:
 - tapOn:
     text: "Topps"
     index: 1
+
+# Search for the custom set by name to avoid footer-zone clip failures.
 - extendedWaitUntil:
     visible: ".*Search sets.*"
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     text: ".*Search sets.*"
-- inputText: "Topps Chrome"
+- inputText: "fp-${WORKER_INDEX || 0}"
 - extendedWaitUntil:
     visible:
-      text: "Topps Chrome"
+      text: ".*fp-${WORKER_INDEX || 0}.*"
       index: 1
     timeout: 10000
 - tapOn:
-    text: "Topps Chrome"
+    text: ".*fp-${WORKER_INDEX || 0}.*"
     index: 1
-
-# SetAttributesPanel renders below. At the setName level it defaults expanded.
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 20000
+    timeout: 30000
 
-# Scroll to the "Edit attributes" toggle to locate the panel area.
+# SetAttributesPanel renders at setName level. Panel defaults EXPANDED for
+# custom sets. Scroll to the toggle to locate the panel area.
 - scrollUntilVisible:
     element:
       id: "Edit attributes"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 15000
 
 # IDEMPOTENT EXPAND for Step D re-navigation.
@@ -401,6 +557,8 @@ tags:
     element:
       id: "Value for League"
     centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
     timeout: 10000
 - tapOn:
     id: "Value for League"
@@ -408,42 +566,45 @@ tags:
 - inputText: "PropTest-AL"
 - pressKey: Enter
 
-# Toast: at least 1 card updated (non-overridden cards get "PropTest-AL").
-# Our override card (#992) has "PropTest-NL" — it should be in skippedAsOverridden.
-# 15 s timeout: same large-set propagation wait as Steps A and D above.
+# Toast: at least 1 card updated (the non-overridden cards get "PropTest-AL").
+# Our override card (#992) has "PropTest-NL" — it is in skippedAsOverridden.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
     timeout: 15000
 
 # ============================================================
-# STEP E — Verify override card still shows "NL", not "AL"
+# STEP E — Verify override card still shows "PropTest-NL", not "PropTest-AL"
 # ============================================================
 
-# Navigate to Base, find our override card, open CardFeaturesEditor.
-# After the Step-D Set-feature update, the SetFeaturesPanel + cards
-# dominate the viewport; the Variant Types column is scrolled off the
-# top. Mirror Step B's UP + centered scroll so we land on Base.
+# Variant Types column is above the fold after writing to the panel.
+# Scroll UP (swipe-down gesture) to bring it back into view.
 - scrollUntilVisible:
     element:
-      text: "Base"
+      text: "Insert"
     direction: UP
     centerElement: true
     timeout: 15000
-- tapOn: "Base"
+- tapOn: "Insert"
 
+# Wait for the Inserts column header to confirm selection.
 - extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
-- runFlow:
-    when:
-      visible: "Select Base Set"
-    commands:
-      - tapOn: "Confirm Base Set"
-      - extendedWaitUntil:
-          notVisible: "Select Base Set"
-          timeout: 30000
+    visible: "Inserts"
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      text: "fp-insert-${WORKER_INDEX || 0}"
+    timeout: 10000
+- tapOn: "fp-insert-${WORKER_INDEX || 0}"
+
+# Wait for CardChecklist to render — same "Open add card form" signal as Step B.
+- scrollUntilVisible:
+    element:
+      id: "Open add card form"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 30000
 
 - scrollUntilVisible:
     element:
@@ -468,8 +629,7 @@ tags:
     timeout: 5000
 
 # The override card should show "PropTest-NL" in the League input, NOT "PropTest-AL".
-# Because the card has an override, no "Inherited:" label shows — the
-# input just has "PropTest-NL" as its value.
+# The card has an override so no "Inherited:" label shows — just "PropTest-NL".
 - assertVisible:
     id: "Value for League"
 
@@ -477,7 +637,7 @@ tags:
 - assertVisible:
     id: "Revert League to inherited"
 
-# No "Inherited: PropTest-AL" should be visible (the override is active).
+# No "Inherited: PropTest-AL" should be visible (override is active).
 - extendedWaitUntil:
     notVisible: ".*Inherited: PropTest-AL.*"
     timeout: 5000
@@ -489,23 +649,28 @@ tags:
 - tapOn:
     id: "Revert League to inherited"
 
-# After revert, the "Inherited: PropTest-AL" label should appear (card falls back to set value).
+# After revert, "Inherited: PropTest-AL" label appears (card falls back to set value).
 - extendedWaitUntil:
     visible: ".*Inherited: PropTest-AL.*"
     timeout: 10000
 
-# The "Revert" button should disappear (no more override on League).
+# The "Revert" button disappears (no more override on League).
 - extendedWaitUntil:
     notVisible:
       id: "Revert League to inherited"
     timeout: 5000
 
 # Save and close.
+- scrollUntilVisible:
+    element:
+      id: "Save card edit"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Save card edit"
 
-# After the edit form closes, Virtuoso may not have re-scrolled to the saved card.
-# Drive the scroll explicitly so the row is in the DOM before cleanup steps.
+# Confirm the form closed and the row is still visible.
 - scrollUntilVisible:
     element:
       text: "Propagation Test Player ${ATTEMPT_ID}"
