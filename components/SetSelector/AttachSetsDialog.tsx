@@ -3,6 +3,7 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import NeonButton from "../modules/NeonButton";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 /**
  * Combined attach dialog (NEO-6 phase 1). Lists unmatched BSC and SL sets
@@ -337,6 +338,11 @@ function CandidateColumn({
   loading: boolean;
   ariaLabel: string;
 }) {
+  // Unique per-field class so Maestro inputText targets the tapped input (the
+  // column search or a specific row's label) rather than the first input
+  // sharing the className (see useFieldTestClass). The per-row label is keyed
+  // by platformValue so each selected row's input is independently addressable.
+  const fieldClass = useFieldTestClass();
   return (
     <section className="flex flex-col min-h-0">
       <header className="flex items-center justify-between mb-2">
@@ -349,7 +355,7 @@ function CandidateColumn({
         onChange={(e) => onSearch(e.target.value)}
         placeholder="Search…"
         aria-label={ariaLabel}
-        className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:border-[#00D558] focus:outline-none mb-2"
+        className={`${fieldClass("search")} bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:border-[#00D558] focus:outline-none mb-2`}
       />
       <ul className="flex-1 overflow-y-auto space-y-1 pr-1">
         {loading && (
@@ -389,7 +395,7 @@ function CandidateColumn({
                       onChange={(e) => onLabel(side, c.platformValue, e.target.value)}
                       placeholder="Label shown on filter chip"
                       aria-label={`Edit label for ${c.value}`}
-                      className="mt-1 w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#00D558] focus:outline-none"
+                      className={`${fieldClass(`label-${c.platformValue}`)} mt-1 w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#00D558] focus:outline-none`}
                     />
                   )}
                 </div>

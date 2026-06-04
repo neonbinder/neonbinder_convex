@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import NeonButton from "../modules/NeonButton";
 import type { GenericId } from "convex/values";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 export default function CardForm({
   setVariantId,
@@ -23,6 +24,10 @@ export default function CardForm({
   const [saving, setSaving] = useState(false);
 
   const addCustomCard = useMutation(api.selectorOptions.addCustomCard);
+
+  // Unique per-field class so Maestro inputText targets the tapped field rather
+  // than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +77,7 @@ export default function CardForm({
             type="text"
             value={cardNumber}
             onChange={(e) => setCardNumber(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            className={`${fieldClass("cardNumber")} w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
             placeholder="e.g., 1, 2A, 2B"
             required
           />
@@ -85,7 +90,7 @@ export default function CardForm({
             type="text"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            className={`${fieldClass("playerName")} w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
             placeholder="e.g., Mike Trout"
           />
         </div>
@@ -97,7 +102,7 @@ export default function CardForm({
             type="text"
             value={team}
             onChange={(e) => setTeam(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            className={`${fieldClass("team")} w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
             placeholder="e.g., Los Angeles Angels"
           />
         </div>
@@ -109,7 +114,7 @@ export default function CardForm({
             type="text"
             value={attributes}
             onChange={(e) => setAttributes(e.target.value)}
-            className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            className={`${fieldClass("attributes")} w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
             placeholder="e.g., RC, AU, SP"
           />
         </div>
