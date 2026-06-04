@@ -6,6 +6,7 @@ import type { GenericId } from "convex/values";
 import type { Id } from "../../convex/_generated/dataModel";
 import CardChecklistItem from "./CardChecklistItem";
 import CardDetailPanel from "./CardDetailPanel";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 import NeonButton from "../modules/NeonButton";
 import UnknownEntitiesDialog from "./UnknownEntitiesDialog";
 import ChecklistSourceFilter, {
@@ -109,6 +110,9 @@ export default function CardChecklist({
   const cardNameRef = useRef<HTMLInputElement>(null);
   const teamRef = useRef<HTMLInputElement>(null);
   const playersRef = useRef<HTMLInputElement>(null);
+  // Unique per-field marker class so Maestro's inputText targets the tapped
+  // add-card field, not the first input (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
   const [pendingPreview, setPendingPreview] = useState<FetchPreview | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>({
     bsc: null,
@@ -387,7 +391,7 @@ export default function CardChecklist({
               <input
                 type="text"
                 ref={cardNumberRef}
-                className="w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                className={`${fieldClass("cardNumber")} w-20 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600`}
                 placeholder="#"
                 aria-label="Card number"
                 autoFocus
@@ -395,7 +399,7 @@ export default function CardChecklist({
               <input
                 type="text"
                 ref={cardNameRef}
-                className="flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+                className={`${fieldClass("cardName")} flex-1 p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600`}
                 placeholder="Player name"
                 aria-label="Card name"
               />
@@ -403,14 +407,14 @@ export default function CardChecklist({
             <input
               type="text"
               ref={playersRef}
-              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              className={`${fieldClass("players")} w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600`}
               placeholder="Player(s) — comma separated, optional"
               aria-label="Players"
             />
             <input
               type="text"
               ref={teamRef}
-              className="w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600"
+              className={`${fieldClass("team")} w-full p-2 border rounded-md text-sm dark:bg-gray-700 dark:border-gray-600`}
               placeholder="Team (optional)"
               aria-label="Team"
             />
