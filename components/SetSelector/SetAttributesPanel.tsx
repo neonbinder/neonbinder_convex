@@ -298,8 +298,13 @@ export default function SetAttributesPanel({
           </div>
 
           {toast && (
+            // NEO-47: position the save confirmation FIXED in the viewport, not
+            // in-flow above the grid. A save made while scrolled down to the
+            // metadata/feature rows would otherwise render the toast off-screen
+            // above the fold — invisible to the user (and the e2e assertion).
+            // The optimistic toast fires correctly; it just wasn't visible.
             <div
-              className="p-2 bg-[#00D558]/10 border border-[#00D558]/40 rounded text-xs text-[#00D558]"
+              className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 border border-[#00D558]/60 rounded text-xs text-[#00D558] shadow-lg"
               role="status"
               aria-live="polite"
             >

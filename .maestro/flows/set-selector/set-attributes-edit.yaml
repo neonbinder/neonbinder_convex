@@ -283,14 +283,6 @@ tags:
 - eraseText: 30
 - inputText: "1900-01-01"
 - pressKey: Enter
-# Belt-and-suspenders blur: CDP pressKey: Enter does not reliably fire React's
-# onKeyDown in headless CI (confirmed root cause — see PR #50 failure). Tapping
-# the read-only "TCDB Set ID" div (aria-label="Set metadata TCDB Set ID") moves
-# focus away from the input, which fires onBlur → runCommit → the optimistic
-# "Saved Release Date" toast. The div has no click handler and is always
-# rendered at setName level — zero side effects.
-- tapOn:
-    id: "Set metadata TCDB Set ID"
 - extendedWaitUntil:
     visible:
       text: ".*Saved Release Date.*"
@@ -302,9 +294,6 @@ tags:
 - eraseText: 30
 - inputText: "2024-08-01"
 - pressKey: Enter
-# Same blur-to-commit pattern as Step 1.
-- tapOn:
-    id: "Set metadata TCDB Set ID"
 - extendedWaitUntil:
     visible:
       text: ".*Saved Release Date.*"
