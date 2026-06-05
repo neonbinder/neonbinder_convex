@@ -210,7 +210,7 @@ export const fetchSportLotsSelectorOptions = action({
     let statusCode: number | undefined;
     try {
       const tokenStart = Date.now();
-      const sessionCookie = await getSportLotsCookie(ctx);
+      let sessionCookie = await getSportLotsCookie(ctx);
       tokenMs = Date.now() - tokenStart;
       if (!sessionCookie) {
         await recordAdapterCall(ctx, {
@@ -339,28 +339,13 @@ export const fetchSportLotsSelectorOptions = action({
 
       const html = await response.text();
 
-      if (isSessionExpired(html)) {
-        await recordAdapterCall(ctx, {
-          requestId,
-          operation: "fetchSportLotsSelectorOptions",
-          platform: "sportlots",
-          level: args.level,
-          parentSport: args.parentFilters.sport,
-          parentYear: args.parentFilters.year,
-          parentSetName: args.parentFilters.setName,
-          duration_ms: Date.now() - start,
-          token_ms: tokenMs,
-          filters_call_ms: filtersCallMs,
-          status_code: statusCode,
-          success: false,
-          error_class: "session_expired",
-        });
-        return {
-          success: false,
-          options: [],
-          message: "SportLots session expired. Re-authenticate from Profile.",
-        };
-      }
+      // A session rejection here is SL's tiny login.tpl redirect stub (it has
+      // NO <select>), so it parses to 0 options below and is recovered by the
+      // re-auth retry loop. We deliberately do NOT bail with a dead "session
+      // expired" error: with a valid session SL reliably returns the options,
+      // so an empty/stub response means the (shared) session cookie was
+      // invalidated and we re-authenticate + retry — the recovery the
+      // getSiteToken architecture intends but only performs on expiresAt.
 
       const targetSelect = LEVEL_TO_TARGET_SELECT[args.level];
       if (!targetSelect) {
@@ -388,17 +373,14 @@ export const fetchSportLotsSelectorOptions = action({
 
       let parsedOptions = parseSelectOptions(html, targetSelect);
 
-      // SL selector queries (sport / year / manufacturer) are flaky: SL
-      // intermittently returns a page whose target <select> is missing or
-      // empty for a query that DOES have data — the same Football/2026
-      // manufacturer drill returns brands on most runs and 0 on others, while
-      // sibling flows on the identical path succeed. These levels are always
-      // populated upstream, so 0 parsed options means a transient SL glitch,
-      // not "no data" — re-POST the same query a few times before giving up.
-      // Each empty attempt logs exactly what SL returned (sent params, HTTP
-      // status, which <select>s were present, whether the target select
-      // existed) so the failure is visible without shelling into the
-      // deployment.
+      // 0 parsed options means SL returned a session-rejection / login.tpl stub
+      // (no <select>) — with a valid session these levels are ALWAYS populated
+      // (confirmed: SL reliably returns the full option list for a valid
+      // cookie). The shared dev SL session gets invalidated intermittently and
+      // the cached token's expiresAt still reads fresh, so re-POSTing the same
+      // cookie can't recover. Force a re-auth (fresh session), refresh the
+      // cookie, and retry. Each attempt logs what SL returned (params, status,
+      // which <select>s were present) for diagnosis — never the cookie.
       let lastHtml = html;
       let selectorAttempt = 1;
       while (
@@ -429,8 +411,13 @@ export const fetchSportLotsSelectorOptions = action({
           }),
         );
         selectorAttempt++;
-        // Brief backoff so a momentary SL glitch has time to clear before the
-        // re-POST (keeps the common path ~1s; degraded path stays a few sec).
+        // Re-authenticate to recover a fresh shared SL session, then refresh
+        // the cookie — re-POSTing the same invalidated cookie can't help.
+        await ctx
+          .runAction(internal.credentials.authenticateSportlots, {})
+          .catch(() => {});
+        sessionCookie = (await getSportLotsCookie(ctx)) ?? sessionCookie;
+        // Brief backoff so the fresh session settles before the re-POST.
         await new Promise((resolve) => setTimeout(resolve, 500));
         try {
           const retryResp = await slFetch(
@@ -448,7 +435,6 @@ export const fetchSportLotsSelectorOptions = action({
           statusCode = retryResp.status;
           if (!retryResp.ok) break;
           const retryHtml = await retryResp.text();
-          if (isSessionExpired(retryHtml)) break;
           lastHtml = retryHtml;
           parsedOptions = parseSelectOptions(retryHtml, targetSelect);
         } catch (err) {
@@ -495,6 +481,32 @@ export const fetchSportLotsSelectorOptions = action({
           .catch(() => {});
       }
 
+      // Exhausted re-auth retries and SL is still returning the session-reject
+      // stub — surface a clear, actionable error instead of a silently empty
+      // column. (With a healthy session this branch is never reached.)
+      if (parsedOptions.length === 0 && isSessionExpired(lastHtml)) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          error_class: "session_expired",
+        });
+        return {
+          success: false,
+          options: [],
+          message: "SportLots session expired. Re-authenticate from Profile.",
+        };
+      }
+
       await recordAdapterCall(ctx, {
         requestId,
         operation: "fetchSportLotsSelectorOptions",
@@ -507,7 +519,7 @@ export const fetchSportLotsSelectorOptions = action({
         token_ms: tokenMs,
         filters_call_ms: filtersCallMs,
         status_code: statusCode,
-        success: true,
+        success: parsedOptions.length > 0,
         result_count: parsedOptions.length,
       });
 
