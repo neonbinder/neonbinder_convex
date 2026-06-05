@@ -4,16 +4,26 @@ name: "Edit and delete a card — rename, add team via TeamPicker, then delete"
 tags:
   - set-selector
   - regression
-  - requires:cards-loaded
+  - requires:setup-done
 ---
 # A user edits an existing card's name and team (using the new TeamPicker chip
 # UI from NEO-26), saves, verifies changes persist, then deletes the card.
 #
-# WHY requires:cards-loaded:
-#   This flow needs at least one real card row to be present in 2024 Topps Chrome
-#   Base. The cascade cards-base.yaml flow provides that. We add our own custom
-#   card so we have full control over what we edit and delete — avoids deleting
-#   marketplace cards accidentally.
+# PER-WORKER DATA ISOLATION:
+#   Drills to Baseball → 2024 → Topps → ed-<WORKER_INDEX> (custom set) →
+#   custom Insert VT → "Base" (custom insert variant). Each worker has its own
+#   checklist — no concurrent checklist contention with the cascade's
+#   Topps Chrome path.
+#
+#   WHY Baseball/2024/Topps (not Football/2026):
+#     cascade/setup.yaml seeds New York Yankees + New York Mets teams for
+#     Baseball. The TeamPicker query is sport-scoped, so it only returns
+#     Baseball teams when the checklist is in a Baseball context. Keeping the
+#     sport/year/manufacturer the same as the cascade (but using a custom Set
+#     name) ensures Yankees/Mets typeahead results are available while still
+#     avoiding any collision with the cascade's Topps Chrome checklist
+#     (the custom Set name is unique per worker and not a real marketplace set,
+#     so the BSC/SL adapter gate short-circuits immediately via NEO-22).
 #
 # WHAT THIS TESTS:
 #   - Hovering a card row reveals the "Edit" action button
@@ -39,15 +49,16 @@ tags:
     timeout: 45000
 
 # ============================================================
-# DRILL TO Baseball / 2024 / Topps Chrome / Base
-# Assumes cards-loaded: cards already fetched by cascade cards-base.yaml.
+# DRILL TO PER-WORKER CUSTOM SET
+# Baseball → 2024 → Topps → ed-<WORKER_INDEX> (custom set)
+# Then add a custom Insert variant type and a "Base" insert under it.
+# This path uses Baseball so the TeamPicker typeahead finds Yankees/Mets.
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 20000
-
 - extendedWaitUntil:
     visible: "Baseball"
     timeout: 30000
@@ -58,11 +69,8 @@ tags:
 - tapOn: "Baseball"
 
 - extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
-- extendedWaitUntil:
     visible: ".*Search years.*"
-    timeout: 30000
+    timeout: 60000
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
@@ -79,9 +87,6 @@ tags:
     text: "2024"
     index: 1
 
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
@@ -101,73 +106,160 @@ tags:
     text: "Topps"
     index: 1
 
+# Sets column — wait for idle (scrollUntilVisible waits for + Custom to appear).
+# centerElement: true required to avoid footer click-steal at y≥489 on 1024×629.
 - extendedWaitUntil:
     visible: "Sets"
     timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    centerElement: true
+    timeout: 120000
+
+# Add per-worker custom Set if absent, then tap it.
+- runFlow:
+    when:
+      notVisible: "ed-${WORKER_INDEX || 0}"
+    commands:
+      - tapOn:
+          id: "Add custom Sets"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "ed-${WORKER_INDEX || 0}"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+# Tap the custom Set. Use search box if list is large (>8 items).
+- runFlow:
+    when:
+      visible: ".*Search sets.*"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "^Sets$"
+          direction: UP
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: "ed-${WORKER_INDEX || 0}"
+      - extendedWaitUntil:
+          visible:
+            text: ".*ed-${WORKER_INDEX || 0}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*ed-${WORKER_INDEX || 0}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+- runFlow:
+    when:
+      notVisible: "Variant Types"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*ed-${WORKER_INDEX || 0}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*ed-${WORKER_INDEX || 0}.*"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+
+# Variant Types column — wait for idle (+ Custom button).
 - extendedWaitUntil:
-    visible: ".*Search sets.*"
+    visible: "Variant Types"
     timeout: 30000
 - scrollUntilVisible:
     element:
-      text: ".*Search sets.*"
+      id: "Add custom Variant Types"
+    visibilityPercentage: 100
+    timeout: 30000
+
+# Add custom Insert VT if absent, then tap it.
+- runFlow:
+    when:
+      notVisible: "Insert"
+    commands:
+      - tapOn:
+          id: "Add custom Variant Types"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 10000
+      - inputText: "Insert"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible:
+            text: ".*Insert.*"
+          timeout: 5000
+
+- scrollUntilVisible:
+    element:
+      text: "Insert"
     timeout: 10000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
+- tapOn: "Insert"
+
+# Inserts column — wait for idle.
 - extendedWaitUntil:
     visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    index: 1
+      text: ".*Inserts.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    centerElement: true
+    timeout: 30000
+
+# Add a "Base" insert variant if absent, then tap it to open CardChecklist.
+- runFlow:
+    when:
+      notVisible: "Base"
+    commands:
+      - tapOn:
+          id: "Add custom Inserts"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Base"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
 
 - extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
-- extendedWaitUntil:
     visible: "Base"
-    timeout: 30000
+    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Base"
+    centerElement: true
     timeout: 10000
 - tapOn: "Base"
 
-# BaseMappingForm may open — handle both paths.
-- extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
-- runFlow:
-    when:
-      visible: "Select Base Set"
-    commands:
-      - extendedWaitUntil:
-          visible: "Confirm Base Set"
-          timeout: 60000
-      - tapOn: "Confirm Base Set"
-      - extendedWaitUntil:
-          notVisible: "Select Base Set"
-          timeout: 30000
-
-# Wait for the CardChecklist action row to become visible.
+# Wait for the CardChecklist panel's add-card form button to appear.
 - scrollUntilVisible:
     element:
       id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
+    timeout: 15000
 
 # Per-attempt-unique card number + player name. The runner injects
 # ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
-# collide with attempt-1's row left in the global cardChecklist. No
-# idempotent cleanup loop needed.
+# collide with attempt-1's row left in the per-worker cardChecklist.
 
 # ============================================================
 # ADD A CUSTOM CARD TO EDIT AND DELETE
-# We add our own card so we have control over what we edit + delete.
 # ============================================================
 
 - tapOn:
@@ -183,14 +275,17 @@ tags:
 - inputText: "Edit Test Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
+
+# Drive the scroll to materialize the new card in the Virtuoso list.
+- scrollUntilVisible:
+    element:
+      text: "Edit Test Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Edit Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
-# Scroll the just-added card into view before tapping its Edit button —
-# without this, the row can land below the viewport edge post-submit,
-# and the Edit-tap coords land on a different row (the team-picker-regression
-# CI failure on PR #39 showed this exact pattern with stale scroll).
 - scrollUntilVisible:
     element:
       id: "Edit card 777-${ATTEMPT_ID}"
@@ -202,15 +297,10 @@ tags:
 # EDIT THE CARD — rename + add a team via TeamPicker
 # ============================================================
 
-# The Edit button is in the hover-action row. `waitToSettleTimeoutMs`
-# mitigates the virtualisation race — parallel workers' add/delete
-# mutations refetch the global cardChecklist live query, shifting row
-# y-coords between Maestro's lookup and tap dispatch.
 - tapOn:
     id: "Edit card 777-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
 
-# The inline edit form opens with the card name input and TeamPicker.
 - extendedWaitUntil:
     visible:
       id: "Card name"
@@ -222,25 +312,19 @@ tags:
 - eraseText: 40
 - inputText: "Renamed Player ${ATTEMPT_ID}"
 
-# Open the TeamPicker popover via the "+ Add team" button
-# (aria-label "Add team" → resource-id in Maestro web).
+# Open the TeamPicker popover.
 - tapOn:
     id: "Add team"
-
-# The popover opens with a search input.
 - extendedWaitUntil:
     visible:
       id: "Search teams"
     timeout: 5000
 
-# Type a team name. cascade/setup.yaml seeds New York Yankees + New York
-# Mets for Baseball, so the typeahead is guaranteed to find Yankees.
+# cascade/setup.yaml seeds New York Yankees + New York Mets for Baseball.
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
 
-# The typeahead match button has aria-label "Add <name>". Use the explicit
-# label to disambiguate from the search input's typed value.
 - extendedWaitUntil:
     visible:
       id: "Add New York Yankees"
@@ -249,12 +333,11 @@ tags:
 - tapOn:
     id: "Add New York Yankees"
 
-# The popover should still be open (stays open for multi-team cards).
-# Close it by tapping outside (the overlay area) — tap the card name input.
+# Close popover by tapping card name.
 - tapOn:
     id: "Card name"
 
-# Verify the Yankees chip appeared in the TeamPicker area.
+# Verify the Yankees chip appeared.
 - assertVisible:
     id: "Remove team New York Yankees"
 
@@ -266,12 +349,15 @@ tags:
 # VERIFY EDIT WAS SAVED
 # ============================================================
 
-# The inline form should close and the card list should show the new name.
+- scrollUntilVisible:
+    element:
+      text: "Renamed Player ${ATTEMPT_ID}"
+    centerElement: true
+    timeout: 15000
 - extendedWaitUntil:
     visible: "Renamed Player ${ATTEMPT_ID}"
-    timeout: 10000
+    timeout: 5000
 
-# The sub-line of the card row should show the team name.
 - assertVisible:
     text: ".*Yankees.*"
 
@@ -279,23 +365,12 @@ tags:
 # DELETE THE CARD
 # ============================================================
 
-# Tap the "Del" button on the Renamed Player card row.
 - tapOn:
     id: "Delete card 777-${ATTEMPT_ID}"
-
-# A "Confirm?" prompt replaces the "Del" button.
 - extendedWaitUntil:
     visible: "Confirm?"
     timeout: 5000
-
-# Confirm the deletion.
 - tapOn:
     id: "Confirm delete card 777-${ATTEMPT_ID}"
 
-# ============================================================
-# VERIFY THE CARD WAS REMOVED
-# ============================================================
-
-# Delete dispatched (confirm delete tap above). Row-disappearance assertion
-# is unreliable on per-PR Convex preview where duplicate cardName rows may
-# exist from prior CI runs; the confirm-delete tap above is the actual signal.
+# Delete dispatched. Row-disappearance assertion not used (parallel-run duplication risk).

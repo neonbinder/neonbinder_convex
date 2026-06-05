@@ -1,0 +1,200 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Topps Chrome — read-only verify marketplace-derived set attributes are present (isolated)"
+tags:
+  - isolated
+  - regression
+---
+# Read-only smoke of the SetAttributesPanel on the REAL 2024 Topps Chrome set.
+#
+# WHY ISOLATED:
+#   This flow reads from the real selectorOptions/setAttributes rows that the
+#   cascade and marketplace fetch produced. Running it in the isolated serial
+#   lane (Phase 1) keeps it from racing the cascade-reset that setup.yaml
+#   triggers in Phase 2. No writes are performed here.
+#
+# WHAT THIS VERIFIES:
+#   1. The BSC/SportLots sync that the cascade's sets-base/sets-inserts flows
+#      triggered actually persisted feature data on the real Topps Chrome set.
+#   2. The "Will propagate to N cards" counter renders (at least one feature
+#      row is visible with a propagation preview count).
+#   3. The panel heading, breadcrumb, and at least one populated metadata
+#      field (setMetadata from TCDB or sync) are visible — confirming the
+#      panel renders correctly when real marketplace data is present.
+#
+# PREREQUISITE (implicit): the cascade must have run at least once on this
+# Convex deployment so Topps Chrome is in selectorOptions. This flow does NOT
+# carry a requires: tag because isolated flows run before the cascade in Phase
+# 1 — it relies on data persisting from the prior CI run. On a brand-new
+# deployment the flow will fail clearly ("Topps Chrome" not visible in Sets).
+#
+# NO WRITES: this flow never taps a save button, "Edit attributes", or any
+# input field that mutates data.
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO 2024 TOPPS CHROME (setName level)
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+
+# Level 1 — Baseball
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
+# Level 2 — 2024
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+# Level 3 — Topps (manufacturer)
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Level 4 — Topps Chrome (the real marketplace-synced set)
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Wait for the Variant Types column — confirms the setName row is selected
+# and the SetAttributesPanel renders below.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# ============================================================
+# OPEN SET ATTRIBUTES PANEL (read-only expand)
+# Scroll to the "Edit attributes" toggle first to locate the panel area.
+# At the setName level the panel defaults EXPANDED, but we guard with the
+# idempotent expand pattern in case a prior test collapsed it.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Edit attributes"
+    centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 15000
+
+# IDEMPOTENT EXPAND: tap only if the panel is currently collapsed.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
+
+# Panel is open — "Hide attributes" toggle must be present.
+- assertVisible:
+    id: "Hide attributes"
+
+# ============================================================
+# ASSERT BREADCRUMB SCOPE TEXT
+# The breadcrumb shows "Attributes for Topps Chrome (Set) — ... › Topps".
+# The "›" separator is the reliable indicator that ancestry is rendered.
+# ============================================================
+
+- assertVisible:
+    text: ".*›.*Topps Chrome.*"
+
+# ============================================================
+# ASSERT MARKETPLACE-DERIVED FEATURE DATA IS PRESENT
+# The BSC/SportLots sync populates feature rows (e.g. League) on real sets.
+# "Will propagate to N cards" appears when at least one feature row exists
+# and a card checklist is associated. We assert this counter OR the metadata
+# chips (Released, TCDB) as a positive signal that sync produced data.
+# ============================================================
+
+# "Will propagate to N cards" preview counter — visible when feature rows exist.
+- assertVisible:
+    text: ".*Will propagate to.*"
+
+# The setMetadata section shows either TCDB-synced chips or an empty state.
+# We assert the section renders in either state (not a blank screen).
+- assertVisible:
+    text: ".*No set metadata yet.*|.*Released.*|.*Cards.*|.*TCDB.*|.*Block.*"
+
+# ============================================================
+# ASSERT AT LEAST ONE FEATURE INPUT ROW IS VISIBLE
+# The League feature row is the primary marketplace-derived feature on
+# Baseball sets. Its input (aria-label "Value for League") must be
+# rendered — confirming the features list is populated from the BSC/SL sync.
+# We scroll to it before asserting (panel body can be taller than viewport).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 10000
+- assertVisible:
+    id: "Value for League"

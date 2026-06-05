@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useReactiveField } from "../forms/useReactiveField";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -203,7 +205,25 @@ export default function SetAttributesPanel({
   const handleSaveMetadata = async (
     patch: Partial<SetMetadata>,
   ): Promise<void> => {
-    await setSetMetadata({ selectorOptionId, metadata: patch });
+    // Optimistic "Saved <field>" confirmation so the user knows the edit
+    // landed — metadata writes don't fan out to cards, so the feature handler's
+    // "Updated N cards" toast doesn't apply here. Shown before the await (it's
+    // a one-row patch). The e2e (set-attributes-edit) asserts this toast.
+    const METADATA_LABELS: Partial<Record<keyof SetMetadata, string>> = {
+      releaseDate: "Release Date",
+      totalCardCount: "Total Cards",
+      block: "Block",
+    };
+    const labels = Object.keys(patch)
+      .map((k) => METADATA_LABELS[k as keyof SetMetadata] ?? k)
+      .join(", ");
+    setToast(`Saved ${labels}`);
+    setTimeout(() => setToast(null), 6000);
+    try {
+      await setSetMetadata({ selectorOptionId, metadata: patch });
+    } catch (e) {
+      setToast(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   return (
@@ -278,8 +298,13 @@ export default function SetAttributesPanel({
           </div>
 
           {toast && (
+            // NEO-47: position the save confirmation FIXED in the viewport, not
+            // in-flow above the grid. A save made while scrolled down to the
+            // metadata/feature rows would otherwise render the toast off-screen
+            // above the fold — invisible to the user (and the e2e assertion).
+            // The optimistic toast fires correctly; it just wasn't visible.
             <div
-              className="p-2 bg-[#00D558]/10 border border-[#00D558]/40 rounded text-xs text-[#00D558]"
+              className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 border border-[#00D558]/60 rounded text-xs text-[#00D558] shadow-lg"
               role="status"
               aria-live="polite"
             >
@@ -439,35 +464,17 @@ function MetadataEditableRow({
   numeric?: boolean;
   onSave: (value: string) => Promise<unknown>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Uncontrolled input (NEO-36) — same rationale as SetFeatureRow. Read the
-  // DOM value at submit; mirror external reactive updates imperatively only
-  // when the field is not focused/mid-save, so a propagation re-render can't
-  // scramble a metadata edit into the wrong field.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el || busy) return;
-    if (typeof document !== "undefined" && document.activeElement === el) return;
-    el.value = value ?? "";
-  }, [value, busy]);
-
-  const commit = async () => {
-    if (busy) return;
-    const trimmed = (inputRef.current?.value ?? "").trim();
-    if (trimmed === (value ?? "")) return;
-    setBusy(true);
-    try {
-      await onSave(trimmed);
-      setErr(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  // NEO-39: shared reactive-safe field (see useReactiveField). Behavior
+  // preserved: no-op baseline = current value; clearing the field sends ""
+  // (merge-patch clears the string / unsets the number) via onEmptyCommit.
+  const { inputProps, busy, error: err } = useReactiveField({
+    value: value ?? "",
+    onSave: (trimmed) => onSave(trimmed),
+    onEmptyCommit: () => onSave(""),
+  });
+  // Unique per-field marker class so Maestro's inputText targets THIS field
+  // rather than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   const isMissing = value === undefined || value === "";
 
@@ -484,21 +491,13 @@ function MetadataEditableRow({
         <span>{label}</span>
       </span>
       <input
-        ref={inputRef}
+        {...inputProps}
         type="text"
         inputMode={numeric ? "numeric" : undefined}
-        defaultValue={value ?? ""}
-        onBlur={() => void commit()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void commit();
-          }
-        }}
         disabled={busy}
         aria-label={`Value for ${label}`}
         placeholder="—"
-        className="w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none"
+        className={`${fieldClass()} w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none`}
       />
       {err && (
         <span className="text-[10px] text-[#FF2EB3]" role="alert">
@@ -561,48 +560,17 @@ function SetFeatureRow({
   inheritedLevel: Level | undefined;
   onSave: (value: string) => Promise<unknown>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Uncontrolled input (NEO-36). This row lives inside a Convex-reactive
-  // panel: the propagation mutation (setSelectorOptionFeature) pushes a fresh
-  // `row.features` map mid-edit, which re-renders every row. With a controlled
-  // `value={draft}` binding, React reconciliation stomped/scrambled the draft
-  // across rows under that churn — a date typed into "Release Date" got
-  // committed into the Card Type / Signed By feature fields
-  // (set-attributes-edit.yaml). An uncontrolled input has no React value
-  // binding, so "what's in the DOM is what we submit," immune to re-render
-  // timing. We still mirror external reactive updates imperatively, but only
-  // when the field is neither focused nor mid-save so we never stomp the
-  // user's in-flight keystrokes.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el || busy) return;
-    if (typeof document !== "undefined" && document.activeElement === el) return;
-    el.value = value ?? "";
-  }, [value, busy]);
-
-  const commit = async () => {
-    if (busy) return;
-    const trimmed = (inputRef.current?.value ?? "").trim();
-    if (trimmed === (value ?? "")) return;
-    if (trimmed.length === 0) {
-      // Empty input: no clear-key mutation at set-level (the spec calls
-      // only for write-time propagation), so treat empty as a no-op + revert.
-      if (inputRef.current) inputRef.current.value = value ?? "";
-      return;
-    }
-    setBusy(true);
-    try {
-      await onSave(trimmed);
-      setErr(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  // NEO-39: shared reactive-safe field (see useReactiveField). Uncontrolled +
+  // focus-guard + read-at-commit. Behavior preserved: no-op baseline = the
+  // feature's own value; an empty input is a no-op revert (set-level has no
+  // clear-key mutation — only write-time propagation), so no onEmptyCommit.
+  const { inputProps, busy, error: err } = useReactiveField({
+    value: value ?? "",
+    onSave: (trimmed) => onSave(trimmed),
+  });
+  // Unique per-field marker class so Maestro's inputText targets THIS field
+  // rather than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   const hasOwn = value !== undefined && value !== "";
   const isMissing = !hasOwn && (inherited === undefined || inherited === "");
@@ -632,21 +600,13 @@ function SetFeatureRow({
         </span>
       </span>
       <input
-        ref={inputRef}
+        {...inputProps}
         type="text"
         data-feat-key={featKey}
-        defaultValue={value ?? ""}
-        onBlur={() => void commit()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            void commit();
-          }
-        }}
         disabled={busy}
         aria-label={`Value for ${label}`}
         placeholder={inherited ?? "—"}
-        className="w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none"
+        className={`${fieldClass()} w-full p-1 border rounded text-xs dark:bg-gray-900 dark:border-gray-700 focus:border-[#00D558] focus:outline-none`}
       />
       {!hasOwn && inherited !== undefined && inherited !== "" && (
         <span

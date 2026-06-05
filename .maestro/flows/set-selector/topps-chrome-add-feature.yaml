@@ -1,0 +1,314 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Topps Chrome — write a feature value via SetAttributesPanel and verify propagation toast + persistence (isolated)"
+tags:
+  - isolated
+  - regression
+---
+# Writes a feature value on the REAL 2024 Topps Chrome set and verifies:
+#   1. The "Updated N cards" propagation toast fires after saving on Enter.
+#   2. The value persists: re-opening the panel (page reload + re-drill) shows
+#      the value in the "Value for League" input.
+#
+# WHY ISOLATED:
+#   This is the ONE sanctioned feature-WRITE on the real Topps Chrome set.
+#   Isolated serial lane prevents concurrent mutations with other flows that
+#   also write to Topps Chrome features. Without isolation any concurrent
+#   feature-write flow would race in Phase
+#   1 and each other's toasts / assertions would mis-fire.
+#
+# PROPAGATION TOAST TIMING:
+#   The "Updated N cards" toast is non-optimistic: the mutation runs
+#   synchronously for ALL descendant cards in one Convex mutation call. For
+#   the real Topps Chrome set with 200-500+ cards this can exceed 20s on a
+#   cold preview. We use a 30s timeout on that assertion.
+#
+# PREREQUISITE (implicit): Topps Chrome with variant types and card checklist
+# rows must already exist in the shared Convex deployment from the cascade.
+# Like topps-chrome-marketplace-read.yaml, this flow relies on that data
+# persisting from a prior CI run (does not carry requires: — isolated flows
+# run in Phase 1 before the cascade's Phase 2 reset).
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 45000
+
+# ============================================================
+# DRILL TO 2024 TOPPS CHROME (setName level)
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+
+# Level 1 — Baseball
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
+# Level 2 — 2024
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+# Level 3 — Topps (manufacturer)
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# Level 4 — Topps Chrome
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# Variant Types column confirms the setName row is selected.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# ============================================================
+# OPEN THE SET ATTRIBUTES PANEL
+# At the setName level the panel defaults EXPANDED.
+# Idempotent expand guard in case a prior isolated flow collapsed it.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Edit attributes"
+    centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 15000
+
+# IDEMPOTENT EXPAND: tap only if currently collapsed.
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
+
+- assertVisible:
+    id: "Hide attributes"
+
+# ============================================================
+# WRITE A FEATURE VALUE — "Value for League"
+# Two-step write to avoid the same-value no-op:
+#   Step 1: a clearing sentinel ("TChrome-CLEAR") that is definitively NOT
+#           the final intended value — guarantees the DB value changes.
+#   Step 2: the test sentinel ("TChrome-MLB") — the actual value to assert.
+#
+# The first write always triggers the propagation engine (DB had a different
+# value). The second write is then always a real change from "TChrome-CLEAR".
+# This matches the pattern in features-propagation.yaml (PropTest-X → PropTest-MLB).
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Value for League"
+    timeout: 5000
+
+# Step 1: clearing sentinel write.
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "TChrome-CLEAR"
+- pressKey: Enter
+
+# 30s timeout: real Topps Chrome can have 200-500+ descendant cards;
+# the propagation mutation runs synchronously and can exceed 20s on a cold
+# or loaded preview deployment.
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 30000
+
+# Step 2: the test sentinel value.
+- tapOn:
+    id: "Value for League"
+- eraseText: 20
+- inputText: "TChrome-MLB"
+- pressKey: Enter
+
+# Same 30s timeout for the same reason.
+- extendedWaitUntil:
+    visible:
+      text: ".*Updated [0-9]+ cards.*"
+    timeout: 30000
+
+# ============================================================
+# VERIFY VALUE PERSISTS — reload the page and re-drill
+# Navigate away and back to confirm "TChrome-MLB" was durably written.
+# ============================================================
+
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
+
+# Re-drill to Topps Chrome
+- tapOn:
+    id: "Search sports"
+- inputText: "Baseball"
+- extendedWaitUntil:
+    visible:
+      text: "Baseball"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Baseball"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 60000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 30000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+
+# Open the panel again.
+- scrollUntilVisible:
+    element:
+      id: "Edit attributes"
+    centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 15000
+
+- runFlow:
+    when:
+      visible:
+        id: "Edit attributes"
+    commands:
+      - tapOn:
+          id: "Edit attributes"
+      - extendedWaitUntil:
+          visible:
+            id: "Hide attributes"
+          timeout: 5000
+
+# Scroll to League and verify "TChrome-MLB" is still there.
+- scrollUntilVisible:
+    element:
+      id: "Value for League"
+    centerElement: true
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 10000
+
+# The input should now show "TChrome-MLB" (persisted from the earlier write).
+# Maestro assertVisible with a full-match regex — partial match via ".*".
+- assertVisible:
+    text: ".*TChrome-MLB.*"

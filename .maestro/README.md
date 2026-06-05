@@ -51,15 +51,15 @@ prints the resolved schedule without launching Maestro.
 | --- | --- |
 | *(empty)* | all flows (minus `util`/`wip`) — same as `test:e2e` |
 | `smoke` / `regression` / `tag:NAME` | flows carrying that tag (bare word ⇒ tag, unchanged) |
-| `name:set-features-panel` | flows whose **path** contains the substring |
+| `name:set-attributes-edit` | flows whose **path** contains the substring |
 | `name:features,team-picker` | comma list of substrings, OR-matched |
-| `set-features-panel,team-picker` | bare comma list ⇒ name match |
+| `set-attributes-edit,team-picker` | bare comma list ⇒ name match |
 | `grep:cards-.*custom` | case-insensitive regex over flow paths |
 | `/cards-.*custom/` | regex, slash-wrapped shorthand |
 
 ```bash
-npm run test:e2e:plan -- name:set-features-panel    # preview the plan
-npm run test:e2e:pick -- name:set-features-panel    # run it (+ its cascade)
+npm run test:e2e:plan -- name:set-attributes-edit   # preview the plan
+npm run test:e2e:pick -- name:set-attributes-edit   # run it (+ its cascade)
 npm run test:e2e:pick -- /parallel-grouping/        # run all parallel-grouping flows
 ```
 
@@ -80,11 +80,11 @@ Typical fast local-iteration loop on one flow:
 ```bash
 # First run: seed everything, run the target (minimal cascade, single worker)
 MAESTRO_MINIMAL_DEPS=1 MAESTRO_PARALLELISM=1 \
-  npm run test:e2e:pick -- name:set-features-panel
+  npm run test:e2e:pick -- name:set-attributes-edit
 
 # Re-runs while iterating: skip the cascade + bootstrap, just re-run the flow
 MAESTRO_NO_DEPS=1 MAESTRO_SKIP_BOOTSTRAP=1 MAESTRO_PARALLELISM=1 \
-  npm run test:e2e:pick -- name:set-features-panel
+  npm run test:e2e:pick -- name:set-attributes-edit
 ```
 
 > ⚠️ `setup.yaml` calls **Reset Set Builder Data**, wiping the target Convex

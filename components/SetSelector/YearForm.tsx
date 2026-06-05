@@ -34,7 +34,14 @@ export default function YearForm({
         },
       });
       setMessage(result.message);
-      if (result.success) {
+      // NEO-47: also go idle on an empty result (optionsCount === 0), not only
+      // on success — a custom subtree / no-marketplace-data case must not
+      // hard-block the column. Returning to idle lets the operator add a custom
+      // entry via "+ Custom"; EntityColumn's autoSyncedRef prevents a re-sync
+      // loop. Only a thrown exception (caught below) keeps the dialog + Retry.
+      // Fixes the custom-set drill e2e flake AND the matching UX bug (custom-set
+      // creators saw a misleading "check credentials" error on an empty sync).
+      if (result.success || result.optionsCount === 0) {
         onDone?.();
       }
     } catch (error) {

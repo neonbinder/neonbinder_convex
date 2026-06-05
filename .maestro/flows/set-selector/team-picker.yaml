@@ -4,7 +4,7 @@ name: "TeamPicker — chip add, remove, keyboard Enter, 'No matches' state, canc
 tags:
   - set-selector
   - regression
-  - requires:cards-loaded
+  - requires:setup-done
 ---
 # Full feature test for the NEO-26 TeamPicker chip-list component.
 #
@@ -20,14 +20,36 @@ tags:
 #      reverts the chip list back to the original state.
 #   9. Saving a team and reloading the page shows the team name persists.
 #
+# PER-WORKER DATA ISOLATION:
+#   Drills to Baseball → 2024 → Topps → tp-<WORKER_INDEX> (custom set) →
+#   custom Insert VT → "Base" (custom insert variant). Each worker has its own
+#   checklist — no concurrent checklist contention with the cascade's
+#   Topps Chrome path.
+#
+#   WHY Baseball/2024/Topps (not Football/2026):
+#     cascade/setup.yaml seeds New York Yankees + New York Mets for Baseball.
+#     The TeamPicker query is sport-scoped — a Football checklist would return
+#     NFL teams, not Yankees/Mets. Baseball context makes the seeded teams
+#     available for typeahead search. The custom Set name (tp-<worker>) is
+#     unique and not a real marketplace set, so BSC/SL adapters short-circuit
+#     via the NEO-22 gate.
+#
 # Uses a fresh custom card (card #889) for each sub-test to avoid state bleed.
+
+# ============================================================
+# LAUNCH + SIGN IN
+# ============================================================
 
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
 
-# Fast-drill to Baseball / 2024 / Topps Chrome / Base.
+# ============================================================
+# DRILL TO PER-WORKER CUSTOM SET
+# Baseball → 2024 → Topps → tp-<WORKER_INDEX> → Insert VT → "Base" insert
+# ============================================================
+
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
@@ -35,11 +57,19 @@ tags:
 - extendedWaitUntil:
     visible: "Baseball"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
 - tapOn: "Baseball"
 
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
@@ -55,6 +85,10 @@ tags:
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
@@ -67,51 +101,157 @@ tags:
     text: "Topps"
     index: 1
 
+# Sets column — wait for idle (scrollUntilVisible waits for + Custom to appear).
+# centerElement: true required to avoid footer click-steal at y≥489 on 1024×629.
 - extendedWaitUntil:
-    visible: ".*Search sets.*"
+    visible: "Sets"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    centerElement: true
+    timeout: 120000
+
+# Add per-worker custom Set if absent, then tap it.
+- runFlow:
+    when:
+      notVisible: "tp-${WORKER_INDEX || 0}"
+    commands:
+      - tapOn:
+          id: "Add custom Sets"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "tp-${WORKER_INDEX || 0}"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
+# Tap the custom Set. Use search box if list is large (>8 items).
+- runFlow:
+    when:
+      visible: ".*Search sets.*"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "^Sets$"
+          direction: UP
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: "tp-${WORKER_INDEX || 0}"
+      - extendedWaitUntil:
+          visible:
+            text: ".*tp-${WORKER_INDEX || 0}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+- runFlow:
+    when:
+      notVisible: "Variant Types"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*tp-${WORKER_INDEX || 0}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+
+# Variant Types column — wait for idle (+ Custom button).
+- extendedWaitUntil:
+    visible: "Variant Types"
     timeout: 30000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
+- scrollUntilVisible:
+    element:
+      id: "Add custom Variant Types"
+    visibilityPercentage: 100
+    timeout: 30000
+
+# Add custom Insert VT if absent, then tap it.
+- runFlow:
+    when:
+      notVisible: "Insert"
+    commands:
+      - tapOn:
+          id: "Add custom Variant Types"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 10000
+      - inputText: "Insert"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible:
+            text: ".*Insert.*"
+          timeout: 5000
+
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# Inserts column — wait for idle.
 - extendedWaitUntil:
     visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    index: 1
+      text: ".*Inserts.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    centerElement: true
+    timeout: 30000
+
+# Add a "Base" insert variant if absent, then tap it to open CardChecklist.
+- runFlow:
+    when:
+      notVisible: "Base"
+    commands:
+      - tapOn:
+          id: "Add custom Inserts"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Base"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
 
 - extendedWaitUntil:
     visible: "Base"
-    timeout: 30000
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    centerElement: true
+    timeout: 10000
 - tapOn: "Base"
 
-- extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
-- runFlow:
-    when:
-      visible: "Select Base Set"
-    commands:
-      - tapOn: "Confirm Base Set"
-      - extendedWaitUntil:
-          notVisible: "Select Base Set"
-          timeout: 30000
-
+# Wait for the CardChecklist panel to appear.
 - scrollUntilVisible:
     element:
       id: "Open add card form"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
+    timeout: 15000
 
 # Per-attempt-unique card number + player name. The runner injects
 # ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
-# collide with attempt-1's row left in the global cardChecklist (and
-# its Yankees attachment which would make the typeahead "No matches").
-# No idempotent cleanup loop needed when names are unique per attempt.
+# collide with attempt-1's row left in the per-worker cardChecklist.
 
 # ============================================================
 # Add a custom card to serve as the test target.
@@ -144,9 +284,6 @@ tags:
 # TEST 1 — No old "Team" text field: the edit form shows TeamPicker only
 # ============================================================
 
-# waitToSettleTimeoutMs mitigates the virtualisation race — parallel
-# workers' mutations refetch the global cardChecklist live query and
-# can shift this row's y-coord between lookup and tap dispatch.
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
@@ -177,9 +314,6 @@ tags:
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
-# Use the typeahead match button's explicit aria-label (`Add <name>`,
-# see TeamPicker.tsx:223) rather than text matching. `tapOn: text` was
-# ambiguous between the input value and the match-button text content.
 - extendedWaitUntil:
     visible:
       id: "Add New York Yankees"
@@ -188,7 +322,7 @@ tags:
 - tapOn:
     id: "Add New York Yankees"
 
-# Yankees chip appears in the picker. Close popover by clicking card name.
+# Yankees chip appears. Close popover by clicking card name.
 - tapOn:
     id: "Card name"
 - assertVisible:
@@ -196,7 +330,6 @@ tags:
 
 # ============================================================
 # TEST 3 — Remove the chip using the × button
-# The aria-label on the remove button is "Remove team <name>".
 # ============================================================
 
 - tapOn:
@@ -240,7 +373,6 @@ tags:
     timeout: 5000
 - tapOn:
     id: "Search teams"
-# Erase the previous search text.
 - eraseText: 20
 - inputText: "Mets"
 - extendedWaitUntil:
@@ -261,15 +393,14 @@ tags:
 # TEST 6 — Cancel reverts the team edit
 # ============================================================
 
-# At this point the edit form still has the Mets chip (not yet saved).
-# Click Cancel — the chip should disappear and the original empty state restored.
+# Cancel — chip should disappear.
 - tapOn:
     id: "Cancel card edit"
 - extendedWaitUntil:
     notVisible: "Card name"
     timeout: 5000
 
-# Re-open edit — the card should show no team (we never saved one).
+# Re-open edit — no chip (we never saved).
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
@@ -278,7 +409,7 @@ tags:
       id: "Card name"
     timeout: 10000
 
-# No chip should be present — the picker has only the "+ Add team" trigger.
+# Only the "+ Add team" trigger — no chip.
 - assertVisible:
     id: "Add team"
 
@@ -310,19 +441,34 @@ tags:
     visible: "Team Feature Player ${ATTEMPT_ID}"
     timeout: 10000
 
-# Sub-line should show "New York Yankees" (or just "Yankees" — partial match).
 - assertVisible:
     text: ".*Yankees.*"
 
-# Reload the page and re-drill to confirm persistence.
+# ============================================================
+# Reload and re-drill to the SAME per-worker custom set to confirm
+# persistence. Baseball/2024/Topps/tp-<worker>/Insert/Base.
+# ============================================================
+
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
 - extendedWaitUntil:
     visible: "Baseball"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
 - tapOn: "Baseball"
+
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
@@ -334,9 +480,14 @@ tags:
 - tapOn:
     text: "2024"
     index: 1
+
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
@@ -348,36 +499,82 @@ tags:
 - tapOn:
     text: "Topps"
     index: 1
+
+# Sets column — tap our custom set (already exists).
 - extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    index: 1
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 30000
-- tapOn: "Base"
-- extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
+    visible: "Sets"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "Add custom Sets"
+    centerElement: true
+    timeout: 120000
+
 - runFlow:
     when:
-      visible: "Select Base Set"
+      visible: ".*Search sets.*"
     commands:
-      - tapOn: "Confirm Base Set"
+      - scrollUntilVisible:
+          element:
+            text: "^Sets$"
+          direction: UP
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*Search sets.*"
+      - inputText: "tp-${WORKER_INDEX || 0}"
       - extendedWaitUntil:
-          notVisible: "Select Base Set"
+          visible:
+            text: ".*tp-${WORKER_INDEX || 0}.*"
+            index: 1
+          timeout: 10000
+      - tapOn:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          index: 1
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
           timeout: 30000
+- runFlow:
+    when:
+      notVisible: "Variant Types"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: ".*tp-${WORKER_INDEX || 0}.*"
+          centerElement: true
+          timeout: 10000
+      - tapOn:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          visible: "Variant Types"
+          timeout: 30000
+
+# Tap Insert variant type.
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    timeout: 10000
+- tapOn: "Insert"
+
+# Tap "Base" insert variant.
+- extendedWaitUntil:
+    visible:
+      text: ".*Inserts.*"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Base"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    centerElement: true
+    timeout: 10000
+- tapOn: "Base"
 
 # After reload, find our card and confirm the team name is in the sub-line.
 - scrollUntilVisible:

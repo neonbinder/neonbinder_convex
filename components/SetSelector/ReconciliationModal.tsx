@@ -14,6 +14,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import NeonButton from "../modules/NeonButton";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 // ===== TYPES =====
 
@@ -221,6 +222,10 @@ function FilterInput({
   ariaLabel: string;
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  // Unique per-instance class so Maestro inputText targets THIS filter rather
+  // than the first filter input on screen (multiple FilterInputs share a
+  // className; see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
   const clear = () => {
     onChange("");
     inputRef.current?.focus();
@@ -234,7 +239,7 @@ function FilterInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className="w-full pl-2.5 pr-7 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500"
+        className={`${fieldClass()} w-full pl-2.5 pr-7 py-1.5 text-xs bg-gray-800 border border-gray-600 rounded-md text-gray-200 placeholder-gray-500`}
       />
       {value.length > 0 && (
         <button
@@ -454,6 +459,10 @@ function MetadataEditor({
   metadata: ItemMetadata;
   onChange: (metadata: ItemMetadata) => void;
 }) {
+  // Unique per-instance class so Maestro inputText targets THIS row's Prefix
+  // input rather than the first one (MetadataEditor renders once per item;
+  // see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
   return (
     <div className="mt-2 pt-2 border-t border-gray-700 flex flex-wrap gap-3 items-center">
       <label className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -481,7 +490,7 @@ function MetadataEditor({
           value={metadata.cardNumberPrefix || ""}
           onChange={(e) => onChange({ cardNumberPrefix: e.target.value })}
           placeholder="e.g. DK-"
-          className="w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200"
+          className={`${fieldClass("prefix")} w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200`}
         />
       </label>
     </div>

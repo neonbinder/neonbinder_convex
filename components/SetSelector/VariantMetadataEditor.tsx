@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 type VariantMetadataEditorProps = {
   optionId: GenericId<"selectorOptions">;
@@ -37,6 +38,10 @@ export default function VariantMetadataEditor({
   const [cardNumberPrefix, setCardNumberPrefix] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Unique per-field class so Maestro inputText targets the Prefix input rather
+  // than the first input sharing the className (see useFieldTestClass).
+  const fieldClass = useFieldTestClass();
 
   // Sync local state from query result
   useEffect(() => {
@@ -133,7 +138,7 @@ export default function VariantMetadataEditor({
                 setDirty(true);
               }}
               placeholder="e.g. DK-"
-              className="w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200"
+              className={`${fieldClass("prefix")} w-20 px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-200`}
             />
           </label>
           {dirty && (
