@@ -295,7 +295,19 @@ export const getSiteToken = internalAction({
 
     try {
       const cached = await readCachedToken(args.site, userId);
-      if (!cached) return null;
+      if (!cached) {
+        // No cached token. The per-user creds may be seeded-but-never-warmed
+        // (seed-credentials stores creds without logging in) or the cached
+        // token was evicted by the browser-service TTL mid-session. Mint a
+        // fresh token via re-auth (which logs in using the stored creds)
+        // before giving up — otherwise the caller fails with `no_credentials`
+        // even though credentials exist. Confirmed E2E root cause: a worker's
+        // token was evicted ~18min after warm, so a later sport/year fetch got
+        // a null token and the column came up empty (no Football, etc.).
+        const minted = await refreshSiteToken(ctx, args.site);
+        if (!minted) return null;
+        return await readCachedToken(args.site, userId);
+      }
 
       const isFresh =
         typeof cached.expiresAt === "number" &&
