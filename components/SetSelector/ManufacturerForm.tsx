@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
+import { useSelectorSync } from "./useSelectorSync";
 
 export default function ManufacturerForm({
   yearId,
@@ -17,49 +18,42 @@ export default function ManufacturerForm({
   const ancestorChain = useQuery(api.selectorOptions.getAncestorChain, {
     id: yearId,
   });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const triggered = useRef(false);
 
   // Extract sport and year values from the ancestor chain
   const sportValue = ancestorChain?.find((a: { level: string }) => a.level === "sport")?.value;
   const yearValue = ancestorChain?.find((a: { level: string }) => a.level === "year")?.value;
 
-  const doSync = async () => {
-    if (!sportValue || !yearValue) return;
-    setLoading(true);
-    setMessage(null);
-    try {
-      const result = await fetchAggregatedOptions({
-        level: "manufacturer",
-        parentId: yearId,
-        parentFilters: {
-          sport: sportValue,
-          year: yearValue,
-        },
-      });
-      setMessage(result.message);
-      // NEO-47: go idle on an empty result (optionsCount === 0) too, not only on
-      // success, so a no-marketplace-data case doesn't hard-block "+ Custom".
-      // autoSyncedRef prevents a re-sync loop; a thrown error (catch) keeps Retry.
-      if (result.success || result.optionsCount === 0) {
-        onDone?.();
-      }
-    } catch (error) {
-      setMessage(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const run = useCallback(async () => {
+    if (!sportValue || !yearValue) return undefined;
+    return fetchAggregatedOptions({
+      level: "manufacturer",
+      parentId: yearId,
+      parentFilters: {
+        sport: sportValue,
+        year: yearValue,
+      },
+    });
+  }, [fetchAggregatedOptions, sportValue, yearValue, yearId]);
+
+  const { loading, hasError, message, retry, start } = useSelectorSync({
+    level: "manufacturer",
+    onDone,
+    run,
+  });
+
+  // Autofocus the Retry control so a keyboard user can recover with Enter.
+  const retryRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (hasError) retryRef.current?.focus();
+  }, [hasError]);
 
   useEffect(() => {
     if (sportValue && yearValue && !triggered.current) {
       triggered.current = true;
-      doSync();
+      start();
     }
-  }, [sportValue, yearValue]);
+  }, [sportValue, yearValue, start]);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
@@ -77,19 +71,26 @@ export default function ManufacturerForm({
         </p>
       )}
 
-      {message && (
-        <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
-          {message}
-        </div>
-      )}
+      {message &&
+        (hasError ? (
+          <div className="p-3 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
+            {message}
+          </div>
+        ) : (
+          <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
+            {message}
+          </div>
+        ))}
 
       {!loading && (
         <div className="flex gap-2">
-          {message?.startsWith("Error") && (
-            <NeonButton onClick={doSync}>Retry</NeonButton>
+          {hasError && (
+            <NeonButton ref={retryRef} onClick={retry}>
+              Retry
+            </NeonButton>
           )}
           <NeonButton cancel onClick={onDone}>
-            {message?.startsWith("Error") ? "Cancel" : "Close"}
+            {hasError ? "Cancel" : "Close"}
           </NeonButton>
         </div>
       )}

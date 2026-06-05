@@ -15,7 +15,24 @@ import {
 const BSC_API_BASE = "https://api-prod.buysportscards.com";
 const BSC_FILTERS_PATH = "/search/bulk-upload/filters";
 
-const BSC_FETCH_TIMEOUT_MS = 30_000;
+// Per-attempt timeout for a single BSC marketplace fetch. The product owner
+// caps any one shot at 10s (30s in one blocking call was too long to attribute
+// a hang). We instead retry up to BSC_FETCH_MAX_ATTEMPTS within a ~30s ceiling.
+const BSC_FETCH_TIMEOUT_MS = 10_000;
+// Total attempts for the selector-filters fetch (1 initial + 2 retries).
+const BSC_FETCH_MAX_ATTEMPTS = 3;
+// Backoff between attempts: [attempt1→2, attempt2→3]. Length is
+// BSC_FETCH_MAX_ATTEMPTS - 1.
+const BSC_FETCH_BACKOFF_MS = [500, 1000];
+// The card-checklist bulk-upload fetch is a single large request (up to 5000
+// cards) that legitimately runs longer than a selector facet call, and it has
+// its own 401-refresh-and-retry path rather than the 10s×3 selector loop. Keep
+// its original 30s budget so this change doesn't regress large checklists.
+const BSC_CHECKLIST_FETCH_TIMEOUT_MS = 30_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Map our levels to BSC API aggregation keys. BSC does NOT expose a
 // NeonBinder → BSC facet mapping. NB's hierarchy differs from BSC's:
@@ -238,6 +255,7 @@ export const fetchBscSelectorOptions = action({
           duration_ms: Date.now() - start,
           token_ms: tokenMs,
           success: false,
+          stage: "adapter",
           error_class: "unsupported_level",
         });
         return {
@@ -247,45 +265,100 @@ export const fetchBscSelectorOptions = action({
         };
       }
 
-      let response: Response;
+      // Bounded retry loop for the selector-filters fetch. Per attempt we
+      // cap at BSC_FETCH_TIMEOUT_MS (10s). We retry on transient failures —
+      // a per-attempt timeout, a network throw, or a 5xx/429 status — and
+      // stop immediately on a 2xx (success) or a permanent 4xx (non-429),
+      // which won't improve on retry. Up to BSC_FETCH_MAX_ATTEMPTS total.
+      let response: Response | undefined;
+      let attempt = 0;
+      let lastErrorMsg = "";
       const filtersStart = Date.now();
-      try {
-        response = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
-          method: "POST",
-          headers: bscHeaders(tokenResult.token),
-          body: JSON.stringify({ filters }),
-          signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
-        });
-        filtersCallMs = Date.now() - filtersStart;
-        statusCode = response.status;
-      } catch (err) {
-        filtersCallMs = Date.now() - filtersStart;
-        const isTimeout = err instanceof Error && err.name === "TimeoutError";
-        const msg = isTimeout
-          ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
-          : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
-        console.error(`[fetchBscSelectorOptions] ${msg}`);
-        await recordAdapterCall(ctx, {
-          requestId,
-          operation: "fetchBscSelectorOptions",
-          platform: "bsc",
-          level: args.level,
-          parentSport: args.parentFilters.sport,
-          parentYear: args.parentFilters.year,
-          parentSetName: args.parentFilters.setName,
-          duration_ms: Date.now() - start,
-          token_ms: tokenMs,
-          filters_call_ms: filtersCallMs,
-          success: false,
-          error_class: classifyAdapterError(msg),
-        });
-        return { success: false, options: [], message: msg };
+      while (attempt < BSC_FETCH_MAX_ATTEMPTS) {
+        attempt += 1;
+        let attemptStatus: number | undefined;
+        try {
+          const resp = await fetch(`${BSC_API_BASE}${BSC_FILTERS_PATH}`, {
+            method: "POST",
+            headers: bscHeaders(tokenResult.token),
+            body: JSON.stringify({ filters }),
+            signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
+          });
+          attemptStatus = resp.status;
+          statusCode = resp.status;
+
+          if (resp.ok) {
+            // Success — keep this response and break out of the loop.
+            response = resp;
+            break;
+          }
+
+          // Non-ok: decide retry vs. permanent failure by status.
+          const retryableStatus = resp.status >= 500 || resp.status === 429;
+          if (!retryableStatus) {
+            // Permanent 4xx (non-429) — won't improve on retry. Keep the
+            // response and break so the non-ok handler below records it.
+            response = resp;
+            break;
+          }
+          // Retryable status: drain the body to free the socket, record the
+          // message, and fall through to backoff/retry.
+          const errText = await resp.text().catch(() => "");
+          lastErrorMsg = `BSC API ${resp.status}`;
+          console.error(
+            `[fetchBscSelectorOptions] BSC API ${resp.status} (attempt ${attempt}/${BSC_FETCH_MAX_ATTEMPTS}): ${errText.slice(0, 300)}`,
+          );
+        } catch (err) {
+          const isTimeout = err instanceof Error && err.name === "TimeoutError";
+          lastErrorMsg = isTimeout
+            ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+            : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
+          console.error(
+            `[fetchBscSelectorOptions] ${lastErrorMsg} (attempt ${attempt}/${BSC_FETCH_MAX_ATTEMPTS})`,
+          );
+          // Timeout or network throw — retryable. Fall through to backoff.
+        }
+
+        // Exhausted all attempts with a retryable failure — give up.
+        if (attempt >= BSC_FETCH_MAX_ATTEMPTS) {
+          filtersCallMs = Date.now() - filtersStart;
+          const msg = lastErrorMsg || "BSC API request failed";
+          const timedOut = msg.includes("timed out");
+          await recordAdapterCall(ctx, {
+            requestId,
+            operation: "fetchBscSelectorOptions",
+            platform: "bsc",
+            level: args.level,
+            parentSport: args.parentFilters.sport,
+            parentYear: args.parentFilters.year,
+            parentSetName: args.parentFilters.setName,
+            duration_ms: Date.now() - start,
+            token_ms: tokenMs,
+            filters_call_ms: filtersCallMs,
+            status_code: attemptStatus,
+            success: false,
+            stage: "marketplace_fetch",
+            attempt,
+            timed_out_platform: timedOut ? "bsc" : undefined,
+            error_class: classifyAdapterError(msg),
+          });
+          return { success: false, options: [], message: msg };
+        }
+
+        // Sleep the backoff between attempts (not after the last).
+        const backoff = BSC_FETCH_BACKOFF_MS[attempt - 1] ?? 0;
+        if (backoff > 0) await sleep(backoff);
       }
 
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
+      filtersCallMs = Date.now() - filtersStart;
+
+      // After the loop `response` is always set: either a 2xx (success) or a
+      // permanent non-retryable status that broke out early.
+      if (!response || !response.ok) {
+        const status = response?.status ?? statusCode;
+        const errText = response ? await response.text().catch(() => "") : "";
         console.error(
-          `[fetchBscSelectorOptions] BSC API ${response.status}: ${errText.slice(0, 300)}`,
+          `[fetchBscSelectorOptions] BSC API ${status} (attempt ${attempt}/${BSC_FETCH_MAX_ATTEMPTS}): ${errText.slice(0, 300)}`,
         );
         await recordAdapterCall(ctx, {
           requestId,
@@ -298,14 +371,16 @@ export const fetchBscSelectorOptions = action({
           duration_ms: Date.now() - start,
           token_ms: tokenMs,
           filters_call_ms: filtersCallMs,
-          status_code: statusCode,
+          status_code: status,
           success: false,
-          error_class: classifyAdapterError(`BSC API ${response.status}`),
+          stage: "marketplace_fetch",
+          attempt,
+          error_class: classifyAdapterError(`BSC API ${status}`),
         });
         return {
           success: false,
           options: [],
-          message: `BSC API error: ${response.status}`,
+          message: `BSC API error: ${status}`,
         };
       }
 
@@ -346,6 +421,8 @@ export const fetchBscSelectorOptions = action({
         filters_call_ms: filtersCallMs,
         status_code: statusCode,
         success: true,
+        stage: "marketplace_fetch",
+        attempt,
         result_count: options.length,
       });
 
@@ -582,7 +659,7 @@ export const fetchBscChecklist = action({
           method: "POST",
           headers: bscHeaders(token),
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(BSC_FETCH_TIMEOUT_MS),
+          signal: AbortSignal.timeout(BSC_CHECKLIST_FETCH_TIMEOUT_MS),
         });
       };
 
@@ -593,7 +670,7 @@ export const fetchBscChecklist = action({
       } catch (err) {
         const isTimeout = err instanceof Error && err.name === "TimeoutError";
         const msg = isTimeout
-          ? `BSC API request timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+          ? `BSC API request timed out after ${BSC_CHECKLIST_FETCH_TIMEOUT_MS / 1000}s`
           : `BSC API request failed: ${err instanceof Error ? err.message : String(err)}`;
         return { success: false, cards: [], message: msg };
       }
@@ -633,7 +710,7 @@ export const fetchBscChecklist = action({
         } catch (err) {
           const isTimeout = err instanceof Error && err.name === "TimeoutError";
           const msg = isTimeout
-            ? `BSC API retry timed out after ${BSC_FETCH_TIMEOUT_MS / 1000}s`
+            ? `BSC API retry timed out after ${BSC_CHECKLIST_FETCH_TIMEOUT_MS / 1000}s`
             : `BSC API retry failed: ${err instanceof Error ? err.message : String(err)}`;
           return { success: false, cards: [], message: msg };
         }
