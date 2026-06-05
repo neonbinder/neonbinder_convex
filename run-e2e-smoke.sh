@@ -129,6 +129,28 @@ if ! [[ "$PARALLELISM" =~ ^[0-9]+$ ]] || [ "$PARALLELISM" -lt 1 ]; then
   PARALLELISM=1
 fi
 
+# ─── Sharding (NEO-46) ──────────────────────────────────────────────────────
+# Scale the suite across multiple CI runners. Each "shard" is one runner that
+# runs PARALLELISM workers; SHARD_TOTAL shards together cover the whole suite.
+# Defaults (SHARD_INDEX=0, SHARD_TOTAL=1) reproduce single-runner behavior
+# byte-for-byte — every shard-aware branch below is gated on SHARD_TOTAL > 1.
+#
+#   - The serial backbone (isolated + marketplace + dep-graph cascade) runs ONLY
+#     on shard 0; other shards run a deterministic slice of the parallel-safe
+#     "independent" flows (see the shard partition after categorization).
+#   - Workers carry a GLOBAL index (local worker + WORKER_INDEX_BASE) so two
+#     shards never sign in as the same TEST_EMAIL_${N} Clerk user and clobber
+#     each other. Log / results / maestro-home dirs stay keyed by the LOCAL index.
+SHARD_INDEX="${SHARD_INDEX:-0}"
+SHARD_TOTAL="${SHARD_TOTAL:-1}"
+if ! [[ "$SHARD_TOTAL" =~ ^[0-9]+$ ]] || [ "$SHARD_TOTAL" -lt 1 ]; then
+  SHARD_TOTAL=1
+fi
+if ! [[ "$SHARD_INDEX" =~ ^[0-9]+$ ]] || [ "$SHARD_INDEX" -ge "$SHARD_TOTAL" ]; then
+  SHARD_INDEX=0
+fi
+WORKER_INDEX_BASE="${WORKER_INDEX_BASE:-$((SHARD_INDEX * PARALLELISM))}"
+
 # Rollback flag: if anything misbehaves with the dep-graph scheduler, set
 # MAESTRO_DISABLE_DEP_GRAPH=1 to fall back to static-lane behavior. The
 # dep-graph and isolated lanes both collapse into a single "serial" bucket.
@@ -384,6 +406,61 @@ for i in "${!SMOKE_FLOWS[@]}"; do
   esac
 done
 
+# ─── Shard partition (NEO-46) ───────────────────────────────────────────────
+# Trim the categorized buckets to this shard's slice. No-op when SHARD_TOTAL=1.
+#
+#   - Serial backbone (isolated / marketplace / dep-graph) is shard-0-only:
+#     non-zero shards empty those buckets so MAX_LEVEL stays -1 and they run no
+#     cascade or serial-lane work.
+#   - Independent flows are split across shards. Phase-A conservatism: only
+#     clearly global-free dirs (auth / dashboard / home / profile) are
+#     distributed; set-selector/ independents may implicitly read global
+#     selectorOptions mid-reset, so they stay pinned to shard 0 until the
+#     Phase-B audit reclassifies them. The distributable list is sorted-stable
+#     (SMOKE_FLOWS is `sort -u`), so a plain `i % SHARD_TOTAL` makes every shard
+#     agree on a disjoint, exhaustive partition.
+is_distributable_flow() {
+  case "$1" in
+    .maestro/flows/auth/*|.maestro/flows/dashboard/*|.maestro/flows/home/*|.maestro/flows/profile/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ "$SHARD_TOTAL" -gt 1 ]; then
+  if [ "$SHARD_INDEX" -ne 0 ]; then
+    ISOLATED_FLOWS=()
+    MARKETPLACE_FLOWS=()
+    DEPGRAPH_FLOWS=()
+  fi
+
+  shard_distributable=()
+  shard_pinned=()
+  for f in "${INDEPENDENT_FLOWS[@]}"; do
+    if is_distributable_flow "$f"; then
+      shard_distributable+=("$f")
+    else
+      shard_pinned+=("$f")
+    fi
+  done
+
+  new_independent=()
+  # Shard 0 also keeps the non-distributable independents (set-selector/, etc.).
+  if [ "$SHARD_INDEX" -eq 0 ] && [ ${#shard_pinned[@]} -gt 0 ]; then
+    new_independent+=("${shard_pinned[@]}")
+  fi
+  # Every shard takes its modulo slice of the distributable flows.
+  for di in "${!shard_distributable[@]}"; do
+    if [ $(( di % SHARD_TOTAL )) -eq "$SHARD_INDEX" ]; then
+      new_independent+=("${shard_distributable[$di]}")
+    fi
+  done
+
+  INDEPENDENT_FLOWS=()
+  if [ ${#new_independent[@]} -gt 0 ]; then
+    INDEPENDENT_FLOWS=("${new_independent[@]}")
+  fi
+fi
+
 # ─── Level computation for the dep-graph cascade ────────────────────────────
 # Iterative topological sort. For each pending flow, level = 1 + max(level of
 # every producer of every required state). Flows with no requires are level 0.
@@ -451,6 +528,9 @@ echo "  Marketplace: ${#MARKETPLACE_FLOWS[@]}"
 echo "  Independent: ${#INDEPENDENT_FLOWS[@]}"
 echo "  Dep-graph:   ${#DEPGRAPH_FLOWS[@]} (levels 0..$MAX_LEVEL)"
 echo "Parallelism: $PARALLELISM worker(s)${DISABLE_DEP_GRAPH:+ — DEP_GRAPH DISABLED}"
+if [ "$SHARD_TOTAL" -gt 1 ]; then
+  echo "Shard: $SHARD_INDEX of $SHARD_TOTAL (global worker base $WORKER_INDEX_BASE → TEST_EMAIL_$WORKER_INDEX_BASE..$((WORKER_INDEX_BASE + PARALLELISM - 1)))"
+fi
 if [ ${#ISOLATED_FLOWS[@]} -gt 0 ]; then
   echo "  Isolated lane:"
   for f in "${ISOLATED_FLOWS[@]}"; do echo "    $f"; done
@@ -501,7 +581,14 @@ run_flow_on_worker() {
   # No secrets are ever passed via -e (NEO-29) — marketplace creds are seeded
   # server-side through /testing/seed-credentials. Only the non-secret worker
   # index is passed here.
-  local worker_args=("${ARGS_BASE[@]}" -e "WORKER_INDEX=$worker_index")
+  #
+  # GLOBAL worker index (NEO-46): flows resolve TEST_EMAIL_${WORKER_INDEX} from
+  # this value, so it must be unique across shards or two runners sign in as the
+  # same Clerk user and clobber each other. WORKER_INDEX_BASE is 0 in
+  # single-shard mode, so global == local there. The local worker_index keeps
+  # keying this shard's log / results / maestro-home files below.
+  local global_worker=$(( worker_index + WORKER_INDEX_BASE ))
+  local worker_args=("${ARGS_BASE[@]}" -e "WORKER_INDEX=$global_worker")
 
   local slug
   slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
@@ -544,7 +631,7 @@ run_flow_on_worker() {
     # numbers + player names so attempt 2 doesn't collide with the
     # rows attempt 1 left behind (setup.yaml's resetSetBuilderData
     # only runs once per CI run, not between in-run retries).
-    local attempt_id="w${worker_index}-a${attempt}-${RANDOM}"
+    local attempt_id="w${global_worker}-a${attempt}-${RANDOM}"
     local attempt_args=("${worker_args[@]}" -e "ATTEMPT_ID=$attempt_id")
     if [ -n "$TIMEOUT_CMD" ]; then
       # --kill-after=30: after SIGTERM, give 30s, then SIGKILL — covers the
@@ -634,7 +721,16 @@ run_parallel_batch() {
 # its credentials saved; other workers' adapter calls hit NOT_FOUND, both
 # options arrays return empty, the ReconciliationModal silently never
 # opens, and tests time out.
-BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
+# Shard 0 warms BSC + SL marketplace tokens per worker (full bootstrap). Other
+# shards run only parallel-safe independent flows that never touch the
+# marketplace, so they use the LIGHT bootstrap (sign-in + reset + seed-creds,
+# NO marketplace login warm). N shards warming the shared dev BSC/SL accounts
+# concurrently would 503 the login endpoint (NEO-46 Trap 2).
+if [ "$SHARD_TOTAL" -gt 1 ] && [ "$SHARD_INDEX" -ne 0 ]; then
+  BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap-light.yaml"
+else
+  BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
+fi
 if [ -n "${MAESTRO_SKIP_BOOTSTRAP:-}" ]; then
   echo "Phase 0: SKIPPED (MAESTRO_SKIP_BOOTSTRAP) — assuming worker creds already seeded."
   echo ""
