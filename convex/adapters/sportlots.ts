@@ -20,20 +20,68 @@ const LISTCARDS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/listcards.tpl`;
 
 const SL_FETCH_TIMEOUT_MS = 30_000;
 
-async function slFetch(url: string, init: RequestInit): Promise<Response> {
+// Selector-option columns (sport / year / manufacturer) load on every drill and
+// must feel instant — SL answers the newinven dropdown query in ~1s. A slow or
+// hung SL response must NOT ride out the full 30s SL_FETCH_TIMEOUT_MS and freeze
+// the column. So the selector fetch uses a tight per-attempt budget and retries
+// a few times (logging each miss) before surfacing a fetch error. Heavier calls
+// (card checklists, set lists) keep the 30s default.
+const SL_SELECTOR_FETCH_TIMEOUT_MS = 3_000;
+const SL_SELECTOR_FETCH_MAX_ATTEMPTS = 3;
+
+async function slFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = SL_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   try {
     return await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(SL_FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
-        `SportLots request timed out after ${SL_FETCH_TIMEOUT_MS / 1000}s: ${url}`,
+        `SportLots request timed out after ${timeoutMs / 1000}s: ${url}`,
       );
     }
     throw err;
   }
+}
+
+// Fetch a selector-options page with a short per-attempt timeout and bounded
+// retries. SL occasionally stalls on these dropdown queries; rather than block
+// the column for 30s we abort at SL_SELECTOR_FETCH_TIMEOUT_MS, log what
+// happened, and retry. Throws the last error if every attempt fails so the
+// aggregator records a real fetch error (and the column can offer Retry).
+async function slSelectorFetchWithRetry(
+  url: string,
+  init: RequestInit,
+  meta: { requestId: string; level: string },
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= SL_SELECTOR_FETCH_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await slFetch(url, init, SL_SELECTOR_FETCH_TIMEOUT_MS);
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        JSON.stringify({
+          msg: "sl_selector_fetch_retry",
+          requestId: meta.requestId,
+          level: meta.level,
+          attempt,
+          maxAttempts: SL_SELECTOR_FETCH_MAX_ATTEMPTS,
+          timeoutMs: SL_SELECTOR_FETCH_TIMEOUT_MS,
+          url,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("SportLots selector fetch failed after retries");
 }
 
 // Map selector levels to SportLots form field names
@@ -249,14 +297,18 @@ export const fetchSportLotsSelectorOptions = action({
       }
 
       const filtersStart = Date.now();
-      const response = await slFetch(NEWINVEN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Cookie: sessionCookie,
+      const response = await slSelectorFetchWithRetry(
+        NEWINVEN_URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Cookie: sessionCookie,
+          },
+          body: formData.toString(),
         },
-        body: formData.toString(),
-      });
+        { requestId, level: args.level },
+      );
       filtersCallMs = Date.now() - filtersStart;
       statusCode = response.status;
 
