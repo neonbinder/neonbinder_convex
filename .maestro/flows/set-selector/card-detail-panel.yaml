@@ -27,7 +27,7 @@ tags:
 #  11. Cancel button always closes immediately (no dirty guard on Cancel).
 #
 # PER-WORKER DATA ISOLATION:
-#   Drills to Football → 2026 → Topps → cd-<WORKER_INDEX> (custom set, Insert VT,
+#   Drills to E2E Test Sport → 2026 → Topps → cd-<WORKER_INDEX> (custom set, Insert VT,
 #   "Base" insert). Each worker operates on its own custom checklist — no shared
 #   state with the cascade's Baseball/2024/Topps Chrome checklist. Concurrent
 #   workers never touch the same card rows.
@@ -62,7 +62,7 @@ tags:
 
 # ============================================================
 # DRILL TO PER-WORKER CUSTOM SET
-# Football → 2026 → Topps → cd-<WORKER_INDEX> → Insert → "Base" (custom insert)
+# E2E Test Sport → 2026 → Topps → cd-<WORKER_INDEX> → Insert → "Base" (custom insert)
 # util-drill-to-custom-set.yaml returns with the Inserts column visible and idle.
 # ============================================================
 

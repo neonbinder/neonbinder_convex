@@ -92,12 +92,31 @@ export default function EntityColumn({
   };
 
   const handleCustomSubmit = async () => {
-    if (!customValue.trim() || !level) return;
+    const trimmed = customValue.trim();
+    if (!trimmed || !level) return;
     setCustomError(null);
+
+    // Client-side violation guard (mirrors the server-side check in
+    // addCustomSelectorOption): a value already present as synced marketplace
+    // data cannot be added as custom. Custom is one-directional — a custom row
+    // makes every descendant custom (no marketplace sync under it), so
+    // shadowing a synced value with a custom duplicate is invalid. Caught here
+    // for instant feedback before the round-trip; the server enforces it too.
+    const normalized = trimmed.toLowerCase();
+    const syncedDuplicate = (items ?? []).find(
+      (o) => o.isCustom !== true && o.value.toLowerCase().trim() === normalized,
+    );
+    if (syncedDuplicate) {
+      setCustomError(
+        `"${trimmed}" already exists in the synced ${level} options — select it from the list instead of adding it as custom.`,
+      );
+      return;
+    }
+
     try {
       await addCustomOption({
         level,
-        value: customValue.trim(),
+        value: trimmed,
         parentId,
       });
       setCustomValue("");

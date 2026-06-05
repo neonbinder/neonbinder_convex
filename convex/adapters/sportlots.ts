@@ -224,6 +224,7 @@ export const fetchSportLotsSelectorOptions = action({
           duration_ms: Date.now() - start,
           token_ms: tokenMs,
           success: false,
+          stage: "auth",
           error_class: "no_credentials",
         });
         return {
@@ -248,6 +249,7 @@ export const fetchSportLotsSelectorOptions = action({
           token_ms: tokenMs,
           success: true,
           result_count: 0,
+          stage: "adapter",
           error_class: "unsupported_level",
         });
         return { success: true, options: [] };
@@ -269,6 +271,7 @@ export const fetchSportLotsSelectorOptions = action({
           token_ms: tokenMs,
           success: insertResult.success,
           result_count: insertResult.options.length,
+          stage: "marketplace_fetch",
           error_class: insertResult.success
             ? undefined
             : classifyAdapterError(insertResult.message),
@@ -326,6 +329,7 @@ export const fetchSportLotsSelectorOptions = action({
           filters_call_ms: filtersCallMs,
           status_code: statusCode,
           success: false,
+          stage: "marketplace_fetch",
           error_class: classifyAdapterError(
             `SportLots HTTP ${response.status}`,
           ),
@@ -362,6 +366,7 @@ export const fetchSportLotsSelectorOptions = action({
           filters_call_ms: filtersCallMs,
           status_code: statusCode,
           success: false,
+          stage: "adapter",
           error_class: "unsupported_level",
         });
         return {
@@ -498,6 +503,7 @@ export const fetchSportLotsSelectorOptions = action({
           filters_call_ms: filtersCallMs,
           status_code: statusCode,
           success: false,
+          stage: "marketplace_fetch",
           error_class: "session_expired",
         });
         return {
@@ -521,6 +527,7 @@ export const fetchSportLotsSelectorOptions = action({
         status_code: statusCode,
         success: parsedOptions.length > 0,
         result_count: parsedOptions.length,
+        stage: "marketplace_fetch",
       });
 
       return {
@@ -545,6 +552,7 @@ export const fetchSportLotsSelectorOptions = action({
         filters_call_ms: filtersCallMs,
         status_code: statusCode,
         success: false,
+        stage: "marketplace_fetch",
         error_class: classifyAdapterError(
           error instanceof Error ? error.message : String(error),
         ),

@@ -15,7 +15,7 @@ tags:
 #   the setup — drilling to a custom set with a card present — takes a few steps.
 #
 # PER-WORKER DATA ISOLATION:
-#   Drills to Football → 2026 → Topps → cfm-<WORKER_INDEX> (custom set, Insert VT,
+#   Drills to E2E Test Sport → 2026 → Topps → cfm-<WORKER_INDEX> (custom set, Insert VT,
 #   "Base" insert). Custom subtrees have no marketplace feature inheritance, so a
 #   new card added here has no feature values and the "Missing required feature"
 #   amber ⚠ is guaranteed to appear. Each worker has its own checklist.
@@ -37,7 +37,7 @@ tags:
 
 # ============================================================
 # DRILL TO PER-WORKER CUSTOM SET
-# Football → 2026 → Topps → cfm-<WORKER_INDEX> → Insert → "Base" (custom insert)
+# E2E Test Sport → 2026 → Topps → cfm-<WORKER_INDEX> → Insert → "Base" (custom insert)
 # util-drill-to-custom-set.yaml returns with the Inserts column visible and idle.
 # ============================================================
 

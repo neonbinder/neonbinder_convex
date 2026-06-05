@@ -35,7 +35,7 @@ tags:
     timeout: 45000
 
 # ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-cancel-<worker>
+# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport → 2026 → pg-cancel-<worker>
 # Isolated from Baseball → 2024 → Topps Chrome cascade path.
 # Returns with Inserts column visible and idle.
 # ============================================================

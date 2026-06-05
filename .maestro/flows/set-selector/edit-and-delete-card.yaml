@@ -15,7 +15,7 @@ tags:
 #   checklist — no concurrent checklist contention with the cascade's
 #   Topps Chrome path.
 #
-#   WHY Baseball/2024/Topps (not Football/2026):
+#   WHY Baseball/2024/Topps (not E2E Test Sport/2026):
 #     cascade/setup.yaml seeds New York Yankees + New York Mets teams for
 #     Baseball. The TeamPicker query is sport-scoped, so it only returns
 #     Baseball teams when the checklist is in a Baseball context. Keeping the

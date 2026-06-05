@@ -12,7 +12,7 @@ tags:
 # which depended on cascade/sets-move-parallels-of-inserts.yaml having run
 # first on the shared Baseball → 2024 → Topps Chrome path. That dependency
 # is now removed. This flow self-contains all the setup it needs under
-# Football → 2026 → pg-poi-<worker>.
+# E2E Test Sport → 2026 → pg-poi-<worker>.
 #
 # WHAT THIS TESTS:
 #   1. Add custom inserts "Stars", "Stars Gold" (Stars Red not needed here —
@@ -43,7 +43,7 @@ tags:
     timeout: 10000
 
 # ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-poi-<worker>
+# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport → 2026 → pg-poi-<worker>
 # Returns with Inserts column visible and idle.
 # ============================================================
 

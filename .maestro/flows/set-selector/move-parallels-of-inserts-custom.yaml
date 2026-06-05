@@ -11,7 +11,7 @@ tags:
 # Previously this was the cascade flow sets-move-parallels-of-inserts.yaml,
 # which ran against the shared Baseball → 2024 → Topps Chrome path and
 # contaminated the Inserts column for other flows. It is now self-contained
-# under Football → 2026 → pg-move-<worker>.
+# under E2E Test Sport → 2026 → pg-move-<worker>.
 #
 # WHAT THIS TESTS:
 #   - Three custom inserts can be added and grouped via the modal.
@@ -32,7 +32,7 @@ tags:
     timeout: 45000
 
 # ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-move-<worker>
+# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport → 2026 → pg-move-<worker>
 # Returns with Inserts column visible and idle.
 # ============================================================
 

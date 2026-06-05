@@ -1,16 +1,20 @@
 appId: com.neonbinder.web
-name: "Util — drill to Football → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
+name: "Util — drill to E2E Test Sport → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
 tags:
   - util
 ---
-# Creates and drills to a per-flow custom set under Football → 2026.
+# Creates and drills to a per-flow custom set under E2E Test Sport → 2026.
 #
-# WHY Football / 2026?
+# WHY E2E Test Sport / 2026?
 #   Flows that add custom data (Stars, Stars Gold, META-TEST, etc.) must NOT
 #   touch Baseball → 2024 → Topps Chrome — that path is owned by the cascade
-#   and uses real BSC/SL marketplace data. Football → 2026 is a fresh sport/year
-#   combination that no cascade flow touches, so custom-data flows are fully
-#   isolated and cannot interfere with the cascade's reconciliation behaviour.
+#   and uses real BSC/SL marketplace data. "E2E Test Sport" is a synthetic sport
+#   name that no marketplace (BSC/SportLots) will ever return as synced data, so
+#   the custom-add is always legitimate and the subtree is truly isolated. "2026"
+#   is a custom year that further separates this playground from any real data.
+#   Together they ensure custom-data flows cannot interfere with the cascade's
+#   reconciliation behaviour — and the custom-add guard never collides with a
+#   server-side "already exists as synced data" error.
 #
 # INPUTS:
 #   SET_NAME    (required) — basename of the flow, e.g. "parallel-grouping-suggestions-0"
@@ -19,7 +23,7 @@ tags:
 # CONTRACT:
 #   - Caller has called launchApp and the session is signed in.
 #   - Caller has BSC + SL credentials available (passed via env or already saved).
-#   - This util navigates to /set-selector, adds Football → 2026 → <SET_NAME>
+#   - This util navigates to /set-selector, adds E2E Test Sport → 2026 → <SET_NAME>
 #     if not already present, and returns with:
 #       * The custom set selected (Sets column)
 #       * Variant Types column visible
@@ -29,7 +33,7 @@ tags:
 #     available in the Variant Types column on return.
 #
 # IDEMPOTENCY:
-#   If Football, 2026, and SET_NAME already exist from a prior iteration in this
+#   If E2E Test Sport, 2026, and SET_NAME already exist from a prior iteration in this
 #   CI run (e.g. re-run), the drill taps through to the existing items.
 #   addCustomSelectorOption is idempotent on normalized value — no duplicates.
 
@@ -39,12 +43,13 @@ tags:
     timeout: 20000
 
 # ============================================================
-# LEVEL 1 — Football
-# Football is not seeded by the cascade setup, so the Sports column may not
-# list it until we add it as a custom entry. Use "Add custom Sports" to
-# ensure it exists, then tap it. The addCustomSelectorOption mutation is
-# idempotent — tapping "+ Custom" and typing "Football" twice in the same
-# run is safe: the second insert is deduplicated by normalized value.
+# LEVEL 1 — E2E Test Sport
+# "E2E Test Sport" is a synthetic name never returned by any marketplace sync,
+# so custom-adding it is always valid (no server-side "already exists as synced
+# data" error). Use "Add custom Sports" to create it if absent, then tap it.
+# The addCustomSelectorOption mutation is idempotent on normalized value —
+# typing "E2E Test Sport" twice in the same run is safe: the second insert is
+# deduplicated.
 # ============================================================
 
 - extendedWaitUntil:
@@ -58,12 +63,12 @@ tags:
     visible: "Baseball"
     timeout: 60000
 
-# Try to tap Football directly first (it may already exist from a prior run).
+# Try to tap E2E Test Sport directly first (it may already exist from a prior run).
 - runFlow:
     when:
-      notVisible: "Football"
+      notVisible: "E2E Test Sport"
     commands:
-      # Football is not yet in the list. Add it as a custom Sport entry.
+      # E2E Test Sport is not yet in the list. Add it as a custom Sport entry.
       - scrollUntilVisible:
           element:
             id: "Add custom Sports"
@@ -74,20 +79,20 @@ tags:
       - extendedWaitUntil:
           visible: "Add Custom Entry"
           timeout: 5000
-      - inputText: "Football"
+      - inputText: "E2E Test Sport"
       - pressKey: Enter
       - extendedWaitUntil:
           notVisible: "Add Custom Entry"
           timeout: 10000
 
 - extendedWaitUntil:
-    visible: "Football"
+    visible: "E2E Test Sport"
     timeout: 10000
 - scrollUntilVisible:
     element:
-      text: "Football"
+      text: "E2E Test Sport"
     timeout: 10000
-- tapOn: "Football"
+- tapOn: "E2E Test Sport"
 
 # ============================================================
 # LEVEL 2 — Year 2026
@@ -99,7 +104,7 @@ tags:
     visible: "Years"
     timeout: 20000
 
-# Wait for Years column to settle. For a fresh custom sport (Football) the
+# Wait for Years column to settle. For a fresh custom sport (E2E Test Sport) the
 # YearForm fires briefly and then short-circuits via the custom-subtree gate.
 # The settled state has the "+ Custom" button (aria-label "Add custom Years")
 # present. scrollUntilVisible waits for that element, tolerating in-flight
@@ -136,7 +141,7 @@ tags:
 
 # ============================================================
 # LEVEL 3 — Manufacturer: search for "Topps" and tap it
-# Football/2026 sport+year already provides isolation from the Baseball/2024
+# E2E Test Sport/2026 sport+year already provides isolation from the Baseball/2024
 # cascade path, and the per-flow unique SET_NAME at level 4 makes each
 # flow's data unique. No need to add a custom manufacturer here. Mirrors
 # the proven search-input pattern from util-drill-to-2024-topps-chrome.yaml.
