@@ -386,7 +386,114 @@ export const fetchSportLotsSelectorOptions = action({
         };
       }
 
-      const parsedOptions = parseSelectOptions(html, targetSelect);
+      let parsedOptions = parseSelectOptions(html, targetSelect);
+
+      // SL selector queries (sport / year / manufacturer) are flaky: SL
+      // intermittently returns a page whose target <select> is missing or
+      // empty for a query that DOES have data — the same Football/2026
+      // manufacturer drill returns brands on most runs and 0 on others, while
+      // sibling flows on the identical path succeed. These levels are always
+      // populated upstream, so 0 parsed options means a transient SL glitch,
+      // not "no data" — re-POST the same query a few times before giving up.
+      // Each empty attempt logs exactly what SL returned (sent params, HTTP
+      // status, which <select>s were present, whether the target select
+      // existed) so the failure is visible without shelling into the
+      // deployment.
+      let lastHtml = html;
+      let selectorAttempt = 1;
+      while (
+        parsedOptions.length === 0 &&
+        selectorAttempt < SL_SELECTOR_FETCH_MAX_ATTEMPTS
+      ) {
+        console.warn(
+          JSON.stringify({
+            msg: "sl_selector_empty_result",
+            requestId,
+            level: args.level,
+            attempt: selectorAttempt,
+            maxAttempts: SL_SELECTOR_FETCH_MAX_ATTEMPTS,
+            sprt: formData.get("sprt"),
+            yr: formData.get("yr"),
+            targetSelect,
+            status: statusCode,
+            htmlLen: lastHtml.length,
+            targetSelectPresent: new RegExp(
+              `<select[^>]*name=["']?${targetSelect}\\b`,
+              "i",
+            ).test(lastHtml),
+            presentSelects: [
+              ...lastHtml.matchAll(/<select[^>]*\bname=["']?([^"'\s>]+)/gi),
+            ]
+              .map((m) => m[1])
+              .slice(0, 25),
+          }),
+        );
+        selectorAttempt++;
+        // Brief backoff so a momentary SL glitch has time to clear before the
+        // re-POST (keeps the common path ~1s; degraded path stays a few sec).
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        try {
+          const retryResp = await slFetch(
+            NEWINVEN_URL,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: sessionCookie,
+              },
+              body: formData.toString(),
+            },
+            SL_SELECTOR_FETCH_TIMEOUT_MS,
+          );
+          statusCode = retryResp.status;
+          if (!retryResp.ok) break;
+          const retryHtml = await retryResp.text();
+          if (isSessionExpired(retryHtml)) break;
+          lastHtml = retryHtml;
+          parsedOptions = parseSelectOptions(retryHtml, targetSelect);
+        } catch (err) {
+          console.warn(
+            JSON.stringify({
+              msg: "sl_selector_fetch_retry",
+              requestId,
+              level: args.level,
+              attempt: selectorAttempt,
+              reason: "empty_result_retry_fetch_error",
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        }
+      }
+
+      // Still empty after retries — emit a queryable PostHog event capturing
+      // what SL actually returned, so the root cause can be diagnosed directly.
+      if (parsedOptions.length === 0) {
+        await ctx
+          .runAction(internal.posthog.captureEvent, {
+            distinctId: "sl-adapter-debug",
+            event: "selector_sync_empty",
+            properties: {
+              level: args.level,
+              requestId,
+              sprt: formData.get("sprt"),
+              yr: formData.get("yr"),
+              targetSelect,
+              status_code: statusCode,
+              html_len: lastHtml.length,
+              target_select_present: new RegExp(
+                `<select[^>]*name=["']?${targetSelect}\\b`,
+                "i",
+              ).test(lastHtml),
+              present_selects: [
+                ...lastHtml.matchAll(/<select[^>]*\bname=["']?([^"'\s>]+)/gi),
+              ]
+                .map((m) => m[1])
+                .slice(0, 25),
+              attempts: selectorAttempt,
+            },
+          })
+          .catch(() => {});
+      }
 
       await recordAdapterCall(ctx, {
         requestId,
