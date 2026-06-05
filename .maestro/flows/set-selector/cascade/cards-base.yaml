@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Cascade — fetch card checklist for Base variant, confirm entities dialog, verify saved cards"
 tags:
   - set-selector
@@ -40,9 +40,9 @@ tags:
 
 # ============================================================
 # TOKEN WARMING
-# Credentials were seeded server-side via /testing/seed-credentials in the
-# sign-in URL chain. Warm the marketplace tokens before the fast drill so
-# that the "Fetch from Marketplaces" BSC + SL call doesn't stall on a cold
+# Credentials were seeded ONCE per worker by the Phase-0 bootstrap.
+# Warm the marketplace tokens before the fast drill so that the
+# "Fetch from Marketplaces" BSC + SL call doesn't stall on a cold
 # Puppeteer login. Cost: ~0.5s when tokens are already cached (no-op).
 # ============================================================
 

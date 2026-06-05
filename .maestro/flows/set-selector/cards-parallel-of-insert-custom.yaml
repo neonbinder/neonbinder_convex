@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Card checklist — custom parallel-of-insert fetches from marketplaces and saves 0 cards"
 tags:
   - set-selector

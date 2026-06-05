@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: "Set Builder Gate — admin without SportLots credentials sees the warning banner"
 tags:
   - set-selector
@@ -71,3 +71,14 @@ tags:
 # 5. Cleanup — restore SL creds
 - runFlow:
     file: ../profile/clear-then-setup-sportlots-credentials.yaml
+
+# ============================================================
+# 6. Restore real credentials
+# clear-then-setup-sportlots above saved fake credentials (form-typing coverage).
+# Restore real credentials via seed-credentials so downstream flows on
+# this worker have a working marketplace token. No secret via Maestro -e.
+# ============================================================
+- openLink: ${APP_URL || "http://localhost:3000"}/testing/seed-credentials?redirect=/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 30000

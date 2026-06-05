@@ -1,5 +1,5 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Cascade Setup — reset DB, save credentials, drill to 2024 Topps Chrome, sync Variant Types"
 tags:
   - set-selector
@@ -28,10 +28,9 @@ tags:
 
 # ============================================================
 # LAUNCH + SIGN IN → /set-selector
-# seed-credentials redirects here after storing BSC + SL creds.
-# BSC and SportLots tokens were already warmed in worker-bootstrap
-# (Phase 0) — this flow reuses those cached sessions; no re-login
-# is triggered here.
+# Credentials were seeded ONCE per worker by the Phase-0 bootstrap
+# (worker-bootstrap.yaml). This flow reuses those cached sessions;
+# no re-login is triggered here.
 # ============================================================
 
 - launchApp
@@ -96,8 +95,8 @@ tags:
 
 # ============================================================
 # CREDENTIALS + SESSION WARMING
-# Credentials were seeded server-side via /testing/seed-credentials in the
-# sign-in URL chain. However, the marketplace token is cached PER USER
+# Credentials were seeded ONCE per worker by the Phase-0 bootstrap.
+# However, the marketplace token is cached PER USER
 # server-side: worker-bootstrap warms the bootstrap user's token, but
 # cascade/setup uses its own dedicated user (WORKER_INDEX-keyed). If that
 # user's token is COLD, the auto-sync that fires when the Years column opens

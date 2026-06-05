@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Set Selector Smoke Test
 # Demoted to regression tier (see PR description on the e2e-ci branch).
 # Writes real marketplace credentials via setup-bsc-credentials /
@@ -17,8 +17,8 @@ tags:
     timeout: 45000
 
 # --- Set up marketplace credentials for the test user ---
-# Credentials are already seeded server-side via /testing/seed-credentials
-# in the sign-in URL chain. The setup-* runFlows below are no-ops when
+# Credentials are seeded ONCE per worker by the Phase-0 bootstrap
+# (worker-bootstrap.yaml). The setup-* runFlows below are no-ops when
 # "Clear Credentials" is already visible (idempotent). They are kept here
 # so the flow's credential-gate smoke path still exercises the profile page.
 - runFlow:

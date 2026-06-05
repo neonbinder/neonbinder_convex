@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Full Hierarchy Drill-Down — Sport to Cards Column
 tags:
   - set-selector
