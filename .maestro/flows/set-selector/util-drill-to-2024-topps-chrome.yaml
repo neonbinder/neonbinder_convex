@@ -40,95 +40,63 @@ tags:
 # `Search sports` (added on EntitySelector.tsx).
 #
 # IMPORTANT: after typing in the search input, the input itself has
-# `text=${SPORT}` (its current value) and the same `resource-id=Search sports`
-# we just tapped. A bare `tapOn: ${SPORT}` would re-match the input
-# (DOM order: input first), not the filtered button below. Use
-# `index: 1` to skip the input and tap the actual button — same pattern
-# the Year/Manufacturer/Set drills below use for the same reason.
-- extendedWaitUntil:
-    visible: "Sports"
-    timeout: 30000
+# `text=${SPORT}` (its current value) and `resource-id=Search sports`. A bare
+# `tapOn: ${SPORT}` re-matches the input (DOM order: input first), not the row.
+# `index: 1` is NOT a reliable fix — the input/row order flips between a cold
+# sync and a re-drill of already-synced data, so index:1 can land on the input
+# (NEO-46: that silently broke the Insert/Parallel pre-sync — the year was never
+# selected, so the Manufacturers column never opened). Select by RELATIONSHIP
+# instead: the result row is the `${SPORT}` element BELOW the search input.
 - tapOn:
     id: "Search sports"
 - inputText: ${SPORT || "Baseball"}
-- extendedWaitUntil:
-    visible:
-      text: ${SPORT || "Baseball"}
-      index: 1
-    timeout: 10000
 - tapOn:
     text: ${SPORT || "Baseball"}
-    index: 1
+    below:
+      id: "Search sports"
 
 # Level 2 — Year. Wait for the Years column search input as the auto-sync
 # completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 180000
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
-    timeout: 10000
+    direction: right
+    centerElement: true
 - tapOn:
     text: ".*Search years.*"
 - inputText: ${YEAR || "2024"}
-- extendedWaitUntil:
-    visible:
-      text: ${YEAR || "2024"}
-      index: 1
-    timeout: 10000
 - tapOn:
     text: ${YEAR || "2024"}
-    index: 1
+    below:
+      id: "Search years"
 
 # Level 3 — Manufacturer. 90 s covers cold sync.
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 90000
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
-    timeout: 10000
+    direction: right
+    centerElement: true
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: ${MANUFACTURER || "Topps"}
-- extendedWaitUntil:
-    visible:
-      text: ${MANUFACTURER || "Topps"}
-      index: 1
-    timeout: 10000
 - tapOn:
     text: ${MANUFACTURER || "Topps"}
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Level 4 — Set. 120 s covers cold sync.
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 120000
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
-    timeout: 10000
+    direction: right
+    centerElement: true
 - tapOn:
     text: ".*Search sets.*"
 - inputText: ${SET || "Topps Chrome"}
-- extendedWaitUntil:
-    visible:
-      text: ${SET || "Topps Chrome"}
-      index: 1
-    timeout: 10000
 - tapOn:
     text: ${SET || "Topps Chrome"}
-    index: 1
+    below:
+      id: "Search sets"
 
 # Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
 # column first opens for a new set. Default path (Topps Chrome, pre-

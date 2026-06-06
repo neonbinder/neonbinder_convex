@@ -4,8 +4,5 @@ tags:
   - auth
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 15000
 - tapOn: "Sign out"
 - assertVisible: "Get Started"

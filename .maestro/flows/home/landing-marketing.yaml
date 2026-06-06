@@ -5,9 +5,7 @@ tags:
   - home
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 30000
+- assertVisible: "Neon Binder"
 
 # Free Tier section
 - scrollUntilVisible:

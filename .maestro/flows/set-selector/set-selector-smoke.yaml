@@ -37,10 +37,10 @@ tags:
 # ============================================================
 
 - runFlow:
-    file: util-login-to-bsc.yaml
+    file: ../util/util-login-to-bsc.yaml
 
 - runFlow:
-    file: util-login-to-sportlots.yaml
+    file: ../util/util-login-to-sportlots.yaml
 
 # Navigate to the Set Selector page
 - openLink: ${APP_URL || "https://localhost:3000"}/set-selector

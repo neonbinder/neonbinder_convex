@@ -39,10 +39,10 @@ tags:
 # ============================================================
 
 - runFlow:
-    file: ../util-login-to-bsc.yaml
+    file: ../../util/util-login-to-bsc.yaml
 
 - runFlow:
-    file: ../util-login-to-sportlots.yaml
+    file: ../../util/util-login-to-sportlots.yaml
 
 # ============================================================
 # FAST DRILL — Baseball → 2024 → Topps → Topps Chrome

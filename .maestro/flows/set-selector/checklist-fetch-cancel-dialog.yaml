@@ -47,10 +47,10 @@ tags:
 # ============================================================
 
 - runFlow:
-    file: util-login-to-bsc.yaml
+    file: ../util/util-login-to-bsc.yaml
 
 - runFlow:
-    file: util-login-to-sportlots.yaml
+    file: ../util/util-login-to-sportlots.yaml
 
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST

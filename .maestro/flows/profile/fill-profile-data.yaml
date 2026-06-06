@@ -9,9 +9,7 @@ tags:
 # owned the shared name.
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 45000
+- assertVisible: "Profile Settings"
 
 # Basic Info — tap label to focus, then type.
 # Skips eraseText: account=new-profile guarantees empty fields, saving ~13 erase
@@ -36,28 +34,24 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-ebay"
-    timeout: 10000
 - tapOn:
     id: "pub-ebay"
 - inputText: "https://www.ebay.com/str/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-bsc"
-    timeout: 10000
 - tapOn:
     id: "pub-bsc"
 - inputText: "https://www.buysportscards.com/Seller/1d8570d204/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-sportlots"
-    timeout: 10000
 - tapOn:
     id: "pub-sportlots"
 - inputText: "https://sportlots.com/dealers/?dealer=${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-myslabs"
-    timeout: 10000
 - tapOn:
     id: "pub-myslabs"
 - inputText: "http://myslabs.to/e8c447c0-5917-4326-be26-be2201e36d4a"
@@ -71,7 +65,6 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-paypal"
-    timeout: 10000
 - tapOn:
     id: "pub-paypal"
 - inputText: "${TEST_USERNAME}-pp"
@@ -79,7 +72,6 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-venmo"
-    timeout: 10000
 - tapOn:
     id: "pub-venmo"
 - inputText: "${TEST_USERNAME}-venmo"
@@ -87,7 +79,6 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-cashapp"
-    timeout: 10000
 - tapOn:
     id: "pub-cashapp"
 - inputText: "${TEST_USERNAME}-cashapp"
@@ -100,21 +91,18 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-twitter"
-    timeout: 10000
 - tapOn:
     id: "pub-twitter"
 - inputText: "https://x.com/${TEST_USERNAME}-twit"
 - scrollUntilVisible:
     element:
       id: "pub-instagram"
-    timeout: 10000
 - tapOn:
     id: "pub-instagram"
 - inputText: "https://instagram.com/${TEST_USERNAME}-ig"
 - scrollUntilVisible:
     element:
       id: "pub-tiktok"
-    timeout: 10000
 - tapOn:
     id: "pub-tiktok"
 - inputText: "https://tiktok.com/@${TEST_USERNAME}-tt"
@@ -124,17 +112,13 @@ tags:
     element:
       text: "Save Public Profile"
 - tapOn: "Save Public Profile"
-- extendedWaitUntil:
-    visible: "Profile saved.*"
-    timeout: 10000
+- assertVisible: "Profile saved.*"
 # Verify the profile link shows the correct URL path
 - assertVisible: "View your profile at /u/${TEST_USERNAME}"
 
 # Tap the profile link — navigates to /u/${TEST_USERNAME}
 - tapOn: "View your profile at /u/${TEST_USERNAME}"
-- extendedWaitUntil:
-    visible: "Buying and Selling all kinds of Sports Cards"
-    timeout: 15000
+- assertVisible: "Buying and Selling all kinds of Sports Cards"
 
 # Validate public profile content
 - assertVisible: "${TEST_USERNAME}"
@@ -157,12 +141,10 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*paypal.me/${TEST_USERNAME}-pp.*"
-    timeout: 5000
 - assertVisible: ".*paypal.me/${TEST_USERNAME}-pp.*"
 - scrollUntilVisible:
     element:
       text: ".*venmo.com/${TEST_USERNAME}-venmo.*"
-    timeout: 5000
 - assertVisible: ".*venmo.com/${TEST_USERNAME}-venmo.*"
 - scrollUntilVisible:
     element:

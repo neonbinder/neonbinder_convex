@@ -42,7 +42,7 @@ tags:
 # ============================================================
 
 - runFlow:
-    file: ../set-selector/util-login-to-bsc.yaml
+    file: ../util/util-login-to-bsc.yaml
 
 - runFlow:
-    file: ../set-selector/util-login-to-sportlots.yaml
+    file: ../util/util-login-to-sportlots.yaml
