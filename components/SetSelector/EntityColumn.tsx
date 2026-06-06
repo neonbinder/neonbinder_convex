@@ -20,6 +20,12 @@ type EntityColumnProps = {
   isVisible: boolean;
   level?: Level;
   parentId?: GenericId<"selectorOptions">;
+  // Called when the user types a value into "+ Custom" that already exists at
+  // this column (synced marketplace data OR a prior custom entry). Instead of
+  // minting a duplicate, we drive the parent's level-select handler so the
+  // cascade drills into the existing row — identical to searching for and
+  // selecting it. A genuinely-new value still creates a custom entry.
+  onSelectExisting?: (id: GenericId<"selectorOptions">) => void;
   // Extra buttons rendered alongside Sync / + Custom in idle mode. Used by
   // the Variants column to expose the "Group Parallels" trigger without
   // forcing every column to learn about that domain.
@@ -33,6 +39,7 @@ export default function EntityColumn({
   isVisible,
   level,
   parentId,
+  onSelectExisting,
   extraActions,
 }: EntityColumnProps) {
   const [mode, setMode] = useState<"idle" | "sync" | "custom">("idle");
@@ -96,23 +103,27 @@ export default function EntityColumn({
     if (!trimmed || !level) return;
     setCustomError(null);
 
-    // Client-side violation guard (mirrors the server-side check in
-    // addCustomSelectorOption): a value already present as synced marketplace
-    // data cannot be added as custom. Custom is one-directional — a custom row
-    // makes every descendant custom (no marketplace sync under it), so
-    // shadowing a synced value with a custom duplicate is invalid. Caught here
-    // for instant feedback before the round-trip; the server enforces it too.
+    // "Custom" is only for values the marketplaces don't have. If the typed
+    // value already exists at this column — whether it was synced from a
+    // marketplace OR added as a prior custom entry — treat it exactly like
+    // searching for and selecting it: drill into the existing row via the
+    // parent's level-select handler. No duplicate, no error. (The server's
+    // addCustomSelectorOption is idempotent and returns the existing _id on a
+    // match, but the FE drives the actual selection so the cascade advances.)
     const normalized = trimmed.toLowerCase();
-    const syncedDuplicate = (items ?? []).find(
-      (o) => o.isCustom !== true && o.value.toLowerCase().trim() === normalized,
+    const existing = (items ?? []).find(
+      (o) => o.value.toLowerCase().trim() === normalized,
     );
-    if (syncedDuplicate) {
-      setCustomError(
-        `"${trimmed}" already exists in the synced ${level} options — select it from the list instead of adding it as custom.`,
-      );
+    if (existing) {
+      setCustomValue("");
+      setMode("idle");
+      onSelectExisting?.(existing._id);
       return;
     }
 
+    // Genuinely-new value → create a custom entry. The new row appears in the
+    // list and the operator taps it to drill (unchanged behavior — existing
+    // custom-drill Maestro flows depend on it NOT auto-drilling here).
     try {
       await addCustomOption({
         level,

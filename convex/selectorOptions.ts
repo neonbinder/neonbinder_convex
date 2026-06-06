@@ -626,20 +626,16 @@ export const addCustomSelectorOption = mutation({
     );
 
     if (duplicate) {
-      // VIOLATION GUARD: a value that already exists as marketplace-SYNCED data
-      // cannot be re-added as custom. Custom is one-directional — the only
-      // reason to add a custom entry is that the marketplaces DON'T have it; a
-      // custom row also makes every descendant custom (no sync is possible
-      // under it). Silently aliasing a custom-add onto a synced row (or, when
-      // the sync hadn't landed yet, minting a duplicate custom row that shadows
-      // the synced one) is exactly how a real value like "Football" ended up as
-      // a stuck custom subtree. Re-adding the SAME custom entry stays idempotent.
-      if (duplicate.isCustom === true) {
-        return duplicate._id;
-      }
-      throw new Error(
-        `"${value}" already exists in the synced marketplace ${level} options — select it from the list instead of adding it as a custom entry.`,
-      );
+      // Typing a value that already exists — whether it came from a marketplace
+      // sync or a prior custom add — is treated exactly like selecting it from
+      // the list: we resolve to the existing row rather than minting a
+      // duplicate. This keeps the custom field forgiving (entering "Football"
+      // in the Sport custom box behaves like searching for Football) AND
+      // prevents a custom row from shadowing synced data — which is invalid,
+      // since a custom parent forces every descendant custom (no sync is
+      // possible under it). The FE drives the actual selection/drill; this is
+      // the idempotent + race-safe backstop.
+      return duplicate._id;
     }
 
     const id = await ctx.db.insert("selectorOptions", {
