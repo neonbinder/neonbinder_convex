@@ -65,10 +65,23 @@ tags:
     when:
       visible: "Reconcile Inserts"
     commands:
+      # ReconciliationModal STRUCTURE coverage — folded in from the retired
+      # insert-variant-flow / cascade/sets-inserts (which couldn't survive a
+      # pre-saved column). Verify the modal before saving the matched rows.
+      - assertVisible:
+          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+      - scrollUntilVisible:
+          element:
+            text: ".*Unmatched.*"
+      - assertVisible:
+          text: ".*Unmatched.*"
+      - assertVisible:
+          text: ".*BSC.*"
+      - assertVisible:
+          text: ".*SportLots.*"
       - scrollUntilVisible:
           element:
             text: ".*Save [0-9]+ matched.*"
-          timeout: 10000
       - tapOn:
           text: ".*Save [0-9]+ matched.*"
       - extendedWaitUntil:
