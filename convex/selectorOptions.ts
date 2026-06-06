@@ -2369,18 +2369,15 @@ export const fetchAggregatedOptions = action({
         );
 
         // Custom-subtree gate (NEO-22). Skip both adapters when any ancestor
-        // is user-created — only custom children can be added below this
-        // node, all the way down to custom cards.
-        //
-        // EXCEPTION: level=manufacturer is exempt. Manufacturer is a SL-only
-        // concept and SL returns the same static manufacturer list regardless
-        // of the (sport, year) you ask for. Syncing manufacturers under a
-        // custom Football/2026 subtree gives you the same Topps/Panini/etc.
-        // as syncing under Baseball/2024 — there's no per-parent data risk.
-        // Without this exemption, custom subtrees (used by e2e tests and
-        // user-created sets) have an empty Manufacturers column and can't
-        // make progress to the Sets/Variants levels below.
-        if (isCustomSubtree(chain) && level !== "manufacturer") {
+        // is user-created. "Once custom, always custom": a custom parent has
+        // no marketplace presence, so NO level below it — manufacturer
+        // included — can sync. (A previous exemption synced the static SL
+        // manufacturer list even under a custom subtree; that violated the
+        // rule and offered dead-end choices, since a custom sport has no
+        // marketplace data below any manufacturer you'd pick.) The user adds
+        // custom children and proceeds via the "+ Custom" button on each
+        // column, all the way down to custom cards.
+        if (isCustomSubtree(chain)) {
           console.log(
             `[fetchAggregatedOptions] custom subtree detected — skipping BSC/SL for level=${level}`,
           );

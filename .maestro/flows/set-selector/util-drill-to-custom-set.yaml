@@ -140,34 +140,57 @@ tags:
 - tapOn: "2026"
 
 # ============================================================
-# LEVEL 3 — Manufacturer: search for "Topps" and tap it
-# E2E Test Sport/2026 sport+year already provides isolation from the Baseball/2024
-# cascade path, and the per-flow unique SET_NAME at level 4 makes each
-# flow's data unique. No need to add a custom manufacturer here. Mirrors
-# the proven search-input pattern from util-drill-to-2024-topps-chrome.yaml.
+# LEVEL 3 — Manufacturer: add "Topps" as a custom entry and tap it
+# Under the E2E Test Sport → 2026 custom subtree, the manufacturer
+# "exemption" has been removed (once-custom-always-custom). The
+# Manufacturers column no longer syncs from marketplaces here — it
+# settles to idle showing "+ Custom" (aria-label "Add custom Manufacturers")
+# and "No manufacturers available", with NO "Search manufacturers" input.
+# So we add "Topps" as a custom value if absent, then tap it.
+# addCustomSelectorOption is idempotent on normalized value — concurrent
+# workers adding "Topps" simultaneously will converge with no duplicates.
+# centerElement: true is required — same 1024×629 footer-steal reason as
+# the Sets level below: a "+ Custom" button near y≈583+ gets its tap
+# registered but follow-up modal events get swallowed by the footer.
+# Centering puts the button mid-viewport (y≈315), clear of the footer.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
+
+# Wait for the Manufacturers column to reach custom-only idle: the
+# "+ Custom" button (aria-label "Add custom Manufacturers") is only
+# present when mode=idle. 60s ceiling mirrors the Sets level below.
 - scrollUntilVisible:
     element:
-      text: ".*Search manufacturers.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
+      id: "Add custom Manufacturers"
+    centerElement: true
+    timeout: 60000
+
+- runFlow:
+    when:
+      notVisible: "Topps"
+    commands:
+      - tapOn:
+          id: "Add custom Manufacturers"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Topps"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
 - extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
+    visible: "Topps"
     timeout: 10000
-- tapOn:
-    text: "Topps"
-    index: 1
+- scrollUntilVisible:
+    element:
+      text: "Topps"
+    timeout: 10000
+- tapOn: "Topps"
 
 # ============================================================
 # LEVEL 4 — Set (the per-flow unique SET_NAME)
