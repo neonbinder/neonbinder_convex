@@ -4,6 +4,8 @@ name: "Parallel Grouping — auto-suggestions render and Accept All clears them"
 tags:
   - parallel-grouping
   - regression
+  # Gated after the global "Reset Set Builder Data" so the custom subtree (E2E Test Sport N) isn't wiped mid-run.
+  - requires:setup-done
 ---
 # Feature test: auto-suggestion display and Accept All behaviour.
 #
