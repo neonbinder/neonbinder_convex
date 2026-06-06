@@ -47,9 +47,25 @@ tags:
 # (NEO-46: that silently broke the Insert/Parallel pre-sync — the year was never
 # selected, so the Manufacturers column never opened). Select by RELATIONSHIP
 # instead: the result row is the `${SPORT}` element BELOW the search input.
+# Center the Sports column first. On /set-selector the AdminTools panel pushes
+# the Sports column down to ~y=460+, so its rows land at y≈556 — inside the
+# 1024×629 footer-click-steal zone (the tap is found in the DOM but the footer
+# absorbs the click, so the column never drills). centerElement pulls it to
+# mid-viewport. Year/Manufacturer/Set already center their search inputs; Sports
+# was the one level missing it.
+- scrollUntilVisible:
+    element:
+      id: "Search sports"
+    centerElement: true
 - tapOn:
     id: "Search sports"
 - inputText: ${SPORT || "Baseball"}
+- scrollUntilVisible:
+    element:
+      text: ${SPORT || "Baseball"}
+      below:
+        id: "Search sports"
+    centerElement: true
 - tapOn:
     text: ${SPORT || "Baseball"}
     below:
