@@ -14,11 +14,11 @@ tags:
 # is never touched — that path is owned exclusively by topps-chrome-*.yaml
 # and topps-chrome-add-feature.yaml.
 #
-# WHY Baseball / 2024 (not E2E Test Sport / 2026)?
+# WHY Baseball / 2024 (not E2E Test Sport ${WORKER_INDEX} / 2026)?
 #   TeamPicker and features are sport-scoped. The cascade seeds Baseball
 #   teams/players so this flow runs against a correctly seeded sport scope.
-#   util-drill-to-custom-set.yaml uses E2E Test Sport/2026; for Baseball/2024 we
-#   inline the drill (same proven pattern as set-attributes-edit.yaml).
+#   util-drill-to-custom-set.yaml uses E2E Test Sport ${WORKER_INDEX}/2026; for
+#   Baseball/2024 we inline the drill (same proven pattern as set-attributes-edit.yaml).
 #
 # CARD CHECKLIST PATH:
 #   Custom sets reach CardChecklist via: Set → Insert (VT) → custom insert entry.
@@ -61,7 +61,7 @@ tags:
 # STEP 0 — DRILL TO PER-WORKER CUSTOM SET under Baseball/2024/Topps
 #
 # Inline drill (mirrors set-attributes-edit.yaml) — does NOT call
-# util-drill-to-custom-set.yaml because that util uses E2E Test Sport/2026.
+# util-drill-to-custom-set.yaml because that util uses E2E Test Sport ${WORKER_INDEX}/2026.
 # Baseball/2024/Topps are pre-seeded by cascade setup.yaml.
 # ============================================================
 

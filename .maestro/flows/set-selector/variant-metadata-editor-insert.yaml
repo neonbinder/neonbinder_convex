@@ -19,13 +19,13 @@ tags:
 #         making the Insert path the primary test case for the Insert + Parallel
 #         checkbox display.
 #
-# End-user story: user drills to a custom E2E Test Sport → 2026 set → Insert →
+# End-user story: user drills to a custom E2E Test Sport ${WORKER_INDEX} → 2026 set → Insert →
 # adds a custom Insert variant → taps it to select it → sees the Metadata
 # panel below the list (with Insert/Parallel flags and a Prefix field) →
 # types a prefix → saves it → confirms the Save button disappears.
 #
 # Why a custom set / variant?
-#   The custom E2E Test Sport → 2026 playground is isolated from the cascade's
+#   The custom E2E Test Sport ${WORKER_INDEX} → 2026 playground is isolated from the cascade's
 #   Baseball → 2024 → Topps Chrome path. No auto-sync fires for custom
 #   subtrees (the fetchAggregatedOptions gate short-circuits), so the Inserts
 #   column starts empty and ready for a custom variant without touching shared
@@ -51,7 +51,7 @@ tags:
     timeout: 10000
 
 # ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport → 2026 → variant-metadata-editor-insert-<worker>
+# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport ${WORKER_INDEX} → 2026 → variant-metadata-editor-insert-<worker>
 # Custom subtrees are isolated from the cascade's Baseball → 2024 → Topps Chrome
 # path, eliminating cross-flow contamination from custom variants added here.
 # Returns with Inserts column visible and idle (+ Custom button present).

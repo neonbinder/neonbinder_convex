@@ -10,7 +10,7 @@ tags:
 # with no marketplace set mapping.
 #
 # This test covers the same code path as cascade/cards-parallel.yaml but
-# runs in a fully custom playground (E2E Test Sport → 2026) so it cannot
+# runs in a fully custom playground (E2E Test Sport ${WORKER_INDEX} → 2026) so it cannot
 # contaminate the cascade's Baseball → 2024 → Topps Chrome Parallels column.
 #
 # EXPECTED RESULT:
@@ -27,7 +27,7 @@ tags:
     timeout: 10000
 
 # ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport → 2026 → cards-parallel-custom-<worker>
+# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport ${WORKER_INDEX} → 2026 → cards-parallel-custom-<worker>
 # Returns with Parallels column visible and idle.
 # ============================================================
 

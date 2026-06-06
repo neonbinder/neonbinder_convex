@@ -26,11 +26,11 @@ tags:
 #   checklist — no concurrent checklist contention with the cascade's
 #   Topps Chrome path.
 #
-#   WHY Baseball/2024/Topps (not E2E Test Sport/2026):
+#   WHY Baseball/2024/Topps (not E2E Test Sport ${WORKER_INDEX}/2026):
 #     cascade/setup.yaml seeds New York Yankees + New York Mets for Baseball.
-#     The TeamPicker query is sport-scoped — an E2E Test Sport checklist would return
-#     NFL teams, not Yankees/Mets. Baseball context makes the seeded teams
-#     available for typeahead search. The custom Set name (tp-<worker>) is
+#     The TeamPicker query is sport-scoped — an E2E Test Sport ${WORKER_INDEX} checklist
+#     would return no seeded teams, not Yankees/Mets. Baseball context makes the seeded
+#     teams available for typeahead search. The custom Set name (tp-<worker>) is
 #     unique and not a real marketplace set, so BSC/SL adapters short-circuit
 #     via the NEO-22 gate.
 #

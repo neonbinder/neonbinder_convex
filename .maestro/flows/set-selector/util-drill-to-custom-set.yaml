@@ -1,17 +1,20 @@
 appId: com.neonbinder.web
-name: "Util — drill to E2E Test Sport → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
+name: "Util — drill to E2E Test Sport ${WORKER_INDEX} → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
 tags:
   - util
 ---
-# Creates and drills to a per-flow custom set under E2E Test Sport → 2026.
+# Creates and drills to a per-flow custom set under E2E Test Sport ${WORKER_INDEX} → 2026.
 #
-# WHY E2E Test Sport / 2026?
+# WHY E2E Test Sport ${WORKER_INDEX} / 2026?
 #   Flows that add custom data (Stars, Stars Gold, META-TEST, etc.) must NOT
 #   touch Baseball → 2024 → Topps Chrome — that path is owned by the cascade
-#   and uses real BSC/SL marketplace data. "E2E Test Sport" is a synthetic sport
-#   name that no marketplace (BSC/SportLots) will ever return as synced data, so
-#   the custom-add is always legitimate and the subtree is truly isolated. "2026"
-#   is a custom year that further separates this playground from any real data.
+#   and uses real BSC/SL marketplace data. "E2E Test Sport ${WORKER_INDEX}" is a
+#   synthetic sport name that no marketplace (BSC/SportLots) will ever return as
+#   synced data, so the custom-add is always legitimate and the subtree is truly
+#   isolated. The WORKER_INDEX suffix makes the sport node PER-WORKER so that
+#   concurrent workers never share the same Sport → Year column: worker 0 owns
+#   "E2E Test Sport 0", worker 1 owns "E2E Test Sport 1", etc. "2026" is a custom
+#   year that further separates this playground from any real data.
 #   Together they ensure custom-data flows cannot interfere with the cascade's
 #   reconciliation behaviour — and the custom-add guard never collides with a
 #   server-side "already exists as synced data" error.
@@ -23,7 +26,7 @@ tags:
 # CONTRACT:
 #   - Caller has called launchApp and the session is signed in.
 #   - Caller has BSC + SL credentials available (passed via env or already saved).
-#   - This util navigates to /set-selector, adds E2E Test Sport → 2026 → <SET_NAME>
+#   - This util navigates to /set-selector, adds E2E Test Sport ${WORKER_INDEX} → 2026 → <SET_NAME>
 #     if not already present, and returns with:
 #       * The custom set selected (Sets column)
 #       * Variant Types column visible
@@ -33,8 +36,8 @@ tags:
 #     available in the Variant Types column on return.
 #
 # IDEMPOTENCY:
-#   If E2E Test Sport, 2026, and SET_NAME already exist from a prior iteration in this
-#   CI run (e.g. re-run), the drill taps through to the existing items.
+#   If E2E Test Sport ${WORKER_INDEX}, 2026, and SET_NAME already exist from a prior
+#   iteration in this CI run (e.g. re-run), the drill taps through to the existing items.
 #   addCustomSelectorOption is idempotent on normalized value — no duplicates.
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -43,13 +46,15 @@ tags:
     timeout: 20000
 
 # ============================================================
-# LEVEL 1 — E2E Test Sport
-# "E2E Test Sport" is a synthetic name never returned by any marketplace sync,
-# so custom-adding it is always valid (no server-side "already exists as synced
-# data" error). Use "Add custom Sports" to create it if absent, then tap it.
+# LEVEL 1 — E2E Test Sport ${WORKER_INDEX}
+# "E2E Test Sport ${WORKER_INDEX}" is a synthetic, per-worker name never returned
+# by any marketplace sync, so custom-adding it is always valid (no server-side
+# "already exists as synced data" error). Use "Add custom Sports" to create it
+# if absent, then tap it. The WORKER_INDEX suffix ensures each concurrent worker
+# builds its own isolated Sport subtree.
 # The addCustomSelectorOption mutation is idempotent on normalized value —
-# typing "E2E Test Sport" twice in the same run is safe: the second insert is
-# deduplicated.
+# typing "E2E Test Sport ${WORKER_INDEX}" twice in the same run is safe: the
+# second insert is deduplicated.
 # ============================================================
 
 - extendedWaitUntil:
@@ -63,12 +68,12 @@ tags:
     visible: "Baseball"
     timeout: 60000
 
-# Try to tap E2E Test Sport directly first (it may already exist from a prior run).
+# Try to tap E2E Test Sport ${WORKER_INDEX} directly first (it may already exist from a prior run).
 - runFlow:
     when:
-      notVisible: "E2E Test Sport"
+      notVisible: "E2E Test Sport ${WORKER_INDEX}"
     commands:
-      # E2E Test Sport is not yet in the list. Add it as a custom Sport entry.
+      # E2E Test Sport ${WORKER_INDEX} is not yet in the list. Add it as a custom Sport entry.
       - scrollUntilVisible:
           element:
             id: "Add custom Sports"
@@ -79,20 +84,20 @@ tags:
       - extendedWaitUntil:
           visible: "Add Custom Entry"
           timeout: 5000
-      - inputText: "E2E Test Sport"
+      - inputText: "E2E Test Sport ${WORKER_INDEX}"
       - pressKey: Enter
       - extendedWaitUntil:
           notVisible: "Add Custom Entry"
           timeout: 10000
 
 - extendedWaitUntil:
-    visible: "E2E Test Sport"
+    visible: "E2E Test Sport ${WORKER_INDEX}"
     timeout: 10000
 - scrollUntilVisible:
     element:
-      text: "E2E Test Sport"
+      text: "E2E Test Sport ${WORKER_INDEX}"
     timeout: 10000
-- tapOn: "E2E Test Sport"
+- tapOn: "E2E Test Sport ${WORKER_INDEX}"
 
 # ============================================================
 # LEVEL 2 — Year 2026
@@ -104,7 +109,7 @@ tags:
     visible: "Years"
     timeout: 20000
 
-# Wait for Years column to settle. For a fresh custom sport (E2E Test Sport) the
+# Wait for Years column to settle. For a fresh custom sport (E2E Test Sport ${WORKER_INDEX}) the
 # YearForm fires briefly and then short-circuits via the custom-subtree gate.
 # The settled state has the "+ Custom" button (aria-label "Add custom Years")
 # present. scrollUntilVisible waits for that element, tolerating in-flight
@@ -141,7 +146,7 @@ tags:
 
 # ============================================================
 # LEVEL 3 — Manufacturer: add "Topps" as a custom entry and tap it
-# Under the E2E Test Sport → 2026 custom subtree, the manufacturer
+# Under the E2E Test Sport ${WORKER_INDEX} → 2026 custom subtree, the manufacturer
 # "exemption" has been removed (once-custom-always-custom). The
 # Manufacturers column no longer syncs from marketplaces here — it
 # settles to idle showing "+ Custom" (aria-label "Add custom Manufacturers")
