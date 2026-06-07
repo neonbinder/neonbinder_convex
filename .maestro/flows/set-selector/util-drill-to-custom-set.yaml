@@ -277,14 +277,24 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: ${SET_NAME}
+      # Select the result ROW by relationship, not index. After typing, the
+      # "Search sets" input ITSELF has text=${SET_NAME} (its value), so a bare
+      # text match is ambiguous and `index:` is unreliable — the (input,row)
+      # DOM order flips between a cold sync and a re-drill, so index:1 can land
+      # on the input (NEO-46: this failed once >8 custom sets accumulated under
+      # the worker's playground and the search input appeared). The result row
+      # is the ${SET_NAME} element BELOW the search input. Same fix as
+      # util-drill-to-2024-topps-chrome.yaml; see feedback_search_input_index_pattern.
       - extendedWaitUntil:
           visible:
             text: ".*${SET_NAME}.*"
-            index: 1
+            below:
+              id: "Search sets"
           timeout: 10000
       - tapOn:
           text: ".*${SET_NAME}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       # Wait for Variant Types to render before returning from this branch.
       # Under shared-Convex contention the column can take up to ~11s to
