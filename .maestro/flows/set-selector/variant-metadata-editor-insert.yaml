@@ -4,171 +4,84 @@ name: "Variant metadata editor — edit Prefix on a custom Insert variant and ve
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
-# Tests the VariantMetadataEditor component on an Insert variantType variant row.
+# PRODUCT-FEATURE test: add a custom Insert variant, then edit its metadata
+# (the Prefix field) via VariantMetadataEditor and confirm it persists.
 #
 # Why Insert, not Base?
 #   VariantMetadataEditor renders only when selectedVariantId or
-#   selectedVariantOfVariantId is set (SetSelector.tsx). Under the new model,
-#   Base is a terminal variantType — it has no Variants column, so there is no
-#   variant row to tap, and VariantMetadataEditor never renders for Base.
-#   Insert is the correct home for this test because:
-#     (a) VariantMetadataEditor still renders for Insert variants, unchanged.
-#     (b) The isInsert flag on the metadata is derived from variantType="Insert",
-#         making the Insert path the primary test case for the Insert + Parallel
-#         checkbox display.
+#   selectedVariantOfVariantId is set (SetSelector.tsx). Base is a terminal
+#   variantType — no Variants column, no variant row to tap, so the editor never
+#   renders for Base. Insert is the correct home: the editor renders unchanged,
+#   and the isInsert flag (derived from variantType="Insert") makes it the
+#   primary case for the Insert + Parallel checkbox display.
 #
-# End-user story: user drills to a custom E2E Test Sport ${WORKER_INDEX} → 2026 set → Insert →
-# adds a custom Insert variant → taps it to select it → sees the Metadata
-# panel below the list (with Insert/Parallel flags and a Prefix field) →
-# types a prefix → saves it → confirms the Save button disappears.
+# End-user story: drill to a custom E2E Test Sport ${WORKER_INDEX} → 2026 set →
+# Insert → add a custom Insert variant → tap it → see the Metadata panel below
+# the list (Insert/Parallel flags + Prefix field) → type a prefix → save →
+# confirm the Save button disappears.
 #
-# Why a custom set / variant?
-#   The custom E2E Test Sport ${WORKER_INDEX} → 2026 playground is isolated from the cascade's
-#   Baseball → 2024 → Topps Chrome path. No auto-sync fires for custom
-#   subtrees (the fetchAggregatedOptions gate short-circuits), so the Inserts
-#   column starts empty and ready for a custom variant without touching shared
-#   marketplace data. A custom variant named "META-TEST" gives us a stable,
-#   known tap target regardless of marketplace data availability.
+# Fully custom subtree, so no live BSC/SL call fires. Every wait is the 7s
+# default; the util owns the cold custom-subtree drill.
 #
-# VariantMetadataEditor is rendered inline in the Level 6 EntityColumn's selector
-# slot, directly below the VariantSelector. It appears as soon as a variant row
-# is selected (selectedVariantId is set). The component renders:
-#   - "Metadata" heading (h4, small caps)
+# VariantMetadataEditor renders inline in the Level 6 EntityColumn's selector
+# slot, below the VariantSelector, as soon as a variant row is selected:
+#   - "Metadata" heading
 #   - "Insert" checkbox (read-only, checked because variantType = Insert)
 #   - "Parallel" checkbox (read-only, unchecked for a non-parallel variant)
 #   - "Prefix:" label + text input
-#   - "Save" button — appears only when the Prefix field has unsaved changes
-
-# ============================================================
-# LAUNCH + SIGN IN
-# ============================================================
+#   - "Save" button — only when the Prefix field has unsaved changes
 
 - launchApp
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 10000
+- assertVisible: "Set Selector"
 
-# ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — E2E Test Sport ${WORKER_INDEX} → 2026 → variant-metadata-editor-insert-<worker>
-# Custom subtrees are isolated from the cascade's Baseball → 2024 → Topps Chrome
-# path, eliminating cross-flow contamination from custom variants added here.
-# Returns with Inserts column visible and idle (+ Custom button present).
-# ============================================================
-
+# Drill to a per-flow custom set; returns on the Inserts column (idle).
 - runFlow:
     file: util-drill-to-custom-set.yaml
     env:
       SET_NAME: "vme-insert-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
 
-# ============================================================
-# ADD A CUSTOM INSERT VARIANT
-# util-drill-to-custom-set.yaml leaves the Inserts column visible and idle
-# (the "+ Custom" button for the Inserts column is scrolled into view).
-# We add a custom variant named "META-TEST" to have a stable tap target.
-# On a re-run the column may already have inserts, but we still add a
-# fresh custom entry to ensure the metadata test gets a clean prefix field.
-# The "+ Custom" button opens the Add Custom Entry form inline in the column.
-# ============================================================
-
-# Use the Inserts column's aria-label-derived accessible name.
-# The aria-label "Add custom Inserts" is unique to the Inserts column.
+# ── ADD A CUSTOM INSERT VARIANT "META-TEST" ─────────────────────────────────
+# aria-label "Add custom Inserts" is unique to the Inserts column.
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
     centerElement: true
-    timeout: 10000
 - tapOn:
     id: "Add custom Inserts"
-
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
-
-# Type the custom variant name directly into the form (the input is autofocused
-# when the Add Custom Entry form opens) and press Enter to submit. The input's
-# `onKeyDown` handler (EntityColumn.tsx:129) calls handleCustomSubmit on Enter,
-# so we skip the "Add" button tap — `text: "Add"` is ambiguous (it also
-# matches the "Add Custom Entry" heading and "Add Card" button) and Index: 0
-# resolves to a non-tappable element on some renders.
+- assertVisible: "Add Custom Entry"
+# Type into the autofocused input and press Enter — EntityColumn.tsx:129's
+# onKeyDown calls handleCustomSubmit, so we skip the ambiguous "Add" button.
 - tapOn: "Enter custom value..."
 - inputText: "META-TEST"
 - pressKey: Enter
+- assertNotVisible: "Add Custom Entry"
 
-# The form closes when the entry is saved — use this as the save-confirmed signal
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
-    timeout: 10000
-
-# ============================================================
-# LOCATE AND TAP "META-TEST" IN THE VARIANTS COLUMN
-# After the custom entry is saved, the VariantSelector re-renders and
-# "META-TEST" appears as the only item in the column.
-# There is no search box when the column has only one item (search input
-# only renders when there are many items). Wait for the item directly.
-# ============================================================
-
-- extendedWaitUntil:
-    visible: "META-TEST"
-    timeout: 10000
-
+# ── SELECT "META-TEST" → VariantMetadataEditor panel renders ────────────────
+- assertVisible: "META-TEST"
 - scrollUntilVisible:
     element:
       text: "META-TEST"
-    timeout: 10000
 - tapOn: "META-TEST"
 
-# ============================================================
-# VERIFY VariantMetadataEditor panel appears below the Variants list
-# After tapping a variant row, SetSelector sets selectedVariantId and
-# VariantMetadataEditor renders inside the Level 6 EntityColumn.
-# ============================================================
-
-# The "Metadata" heading (h4) confirms the panel has rendered
+# The Metadata panel renders below the Variants list (off-fold) — scroll to it.
 - scrollUntilVisible:
     element:
       text: "Metadata"
-    timeout: 10000
 - assertVisible: "Metadata"
-
-# "Insert" checkbox label — read-only, checked because variantType is "Insert"
+# Insert checkbox (read-only, checked); Parallel checkbox (read-only, unchecked).
 - assertVisible: "Insert"
-
-# "Parallel" checkbox label — read-only, unchecked for a non-parallel row
 - assertVisible: "Parallel"
-
-# The "Prefix:" label is visible above the text input
 - assertVisible: "Prefix:"
 
-# ============================================================
-# EDIT THE PREFIX FIELD — "Save" button should appear
-# Tap the "Prefix:" label to focus the associated input.
-# Fresh Convex preview per PR (vercel.json buildCommand) guarantees the
-# field starts empty, so no eraseText is needed.
-# ============================================================
-
+# ── EDIT THE PREFIX → "Save" appears (field starts empty on a fresh variant) ─
 - tapOn: "Prefix:"
 - inputText: "TEST-"
-
-# The Save button only appears when the field has unsaved changes (dirty=true)
-- extendedWaitUntil:
-    visible: "Save"
-    timeout: 5000
 - assertVisible: "Save"
 
-# ============================================================
-# SAVE — the "Save" button should disappear after the mutation completes
-# ============================================================
-
+# ── SAVE → button disappears once the mutation commits; panel stays ─────────
 - tapOn: "Save"
-
-# After the Convex mutation completes, dirty=false and the Save button disappears
-- extendedWaitUntil:
-    notVisible: "Save"
-    timeout: 10000
-
-# The Metadata panel and Prefix label remain visible after saving
+- assertNotVisible: "Save"
 - assertVisible: "Metadata"
 - assertVisible: "Prefix:"
