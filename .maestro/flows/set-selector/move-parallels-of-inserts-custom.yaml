@@ -1,27 +1,31 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Move parallels-of-inserts — custom set; add Stars/Stars Gold/Stars Red, group, save"
+name: "Move parallels-of-inserts — suggestions pre-placed on open, Accept All clears badges, Save persists nesting"
 tags:
+  - parallel-grouping
   - set-selector
   - regression
 ---
-# PRODUCT-FEATURE test: NEST parallels under an insert. Add three custom inserts
-# to a per-flow playground, open the Group Parallels modal, accept the
-# auto-suggestions, and save the groupings.
+# PRODUCT-FEATURE test: the full happy-path lifecycle of the Group Parallels modal.
+# Covers:
+#   1. Auto-suggestion pre-placement: Stars Gold + Stars Red appear in the
+#      "Parallels of "Stars"" zone (not "Top-level inserts") on modal open,
+#      badged "Suggested".
+#   2. Accept All clears the "Suggested" badges (reducer-only, no persist) while
+#      keeping the placement and enabling Save.
+#   3. Save (applyParallelGroupings mutation) persists the nesting: modal closes,
+#      Stars Gold + Stars Red disappear from the Inserts column (they are now
+#      level=parallel), and selecting Stars in the Inserts column reveals a
+#      "Parallels" column containing Stars Gold and Stars Red.
 #
 # Self-contained under E2E Test Sport ${WORKER_INDEX} → 2026 → pg-move-<worker>
 # (a fully custom subtree — every column's sync short-circuits, no live BSC/SL).
 # Every wait is the 7s default; the util owns the cold custom-subtree drill.
-#
-# WHAT THIS TESTS:
-#   - Three custom inserts can be added and grouped via the modal.
-#   - Accept All + Save works end-to-end and closes the modal.
-#   - "Stars" remains the top-level insert; Stars Gold / Stars Red nest under it.
 
 - launchApp
 - assertVisible: "Set Selector"
 
-# Drill to a per-flow custom set; returns on the Inserts column (idle).
+# Drill to a per-flow custom set; returns with the Inserts column at idle.
 - runFlow:
     file: util-drill-to-custom-set.yaml
     env:
@@ -29,7 +33,8 @@ tags:
       VARIANT_TYPE: "Insert"
 
 # ── ADD THREE CUSTOM INSERTS (Stars / Stars Gold / Stars Red) ───────────────
-# aria-label id targeting ("Add custom Inserts" maps to resource-id in web).
+# aria-label "Add custom Inserts" maps to resource-id (id:); centerElement on
+# the first add to clear the footer-steal zone (1024×629 headless viewport).
 # --- Stars ---
 - scrollUntilVisible:
     element:
@@ -66,26 +71,85 @@ tags:
 - pressKey: Enter
 - assertNotVisible: "Add Custom Entry"
 
-# ── OPEN GROUP PARALLELS MODAL ──────────────────────────────────────────────
+# ── OPEN MODAL: assert initial suggestion pre-placement ─────────────────────
+# On open, Stars sits in "Top-level inserts"; Stars Gold and Stars Red are
+# pre-placed in "Parallels of "Stars"" (prefix-match auto-detection) with
+# "Suggested" badges. These zone-relative assertions confirm initial state.
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
 - tapOn: "Group Parallels"
 - assertVisible: ".*Drag inserts under a parent.*"
-- assertVisible: "Top-level inserts"
 
-# Auto-suggestions: Stars Gold + Stars Red suggested as parallels of Stars.
+# Stars is in the "Top-level inserts" zone (ungrouped).
+- assertVisible:
+    text: "Stars"
+    below: "Top-level inserts"
+
+# Stars Gold and Stars Red are pre-placed in the "Parallels of "Stars"" zone.
+- scrollUntilVisible:
+    element:
+      text: "Parallels of \"Stars\""
+    visibilityPercentage: 50
+- assertVisible: "Parallels of \"Stars\""
+- assertVisible:
+    text: "Stars Gold"
+    below: "Parallels of \"Stars\""
+- assertVisible:
+    text: "Stars Red"
+    below: "Parallels of \"Stars\""
+# Both Gold and Red carry the "Suggested" badge (auto-detected, not yet accepted).
 - assertVisible: "Suggested"
-- assertVisible: ".*Accept all suggestions.*"
 
-# ── ACCEPT ALL + SAVE ───────────────────────────────────────────────────────
-- tapOn: ".*Accept all suggestions.*"
+# Accept All button text: "Accept all suggestions (N)" where N = suggestion count.
+- assertVisible: ".*Accept all suggestions.*"
+# Footer shows promotions count because changes are pending.
+- assertVisible: ".*[0-9]+ promotion.*"
+# Save is enabled because there are pending changes.
 - assertVisible: ".*Save [0-9]+ change.*"
+
+# ── ACCEPT ALL → badges clear; placement unchanged; Save still enabled ───────
+# Dispatches ACCEPT_ALL_SUGGESTIONS reducer action — clears the suggested set
+# without moving rows. Gold + Red remain under "Parallels of "Stars"".
+- tapOn: ".*Accept all suggestions.*"
+# Badges gone — this is the unique assertion Accept All owns.
+- assertNotVisible: "Suggested"
+# Promotion count unchanged — Accept All is purely a UI state, not a data action.
+- assertVisible: ".*[0-9]+ promotion.*"
+# Save button still enabled (changes are still pending).
+- assertVisible: ".*Save [0-9]+ change.*"
+
+# ── SAVE → modal closes, DB mutation fires ───────────────────────────────────
 - tapOn: ".*Save [0-9]+ change.*"
 
-# Modal closes on save ("Drag inserts under a parent" disappears).
+# applyParallelGroupings mutation runs; modal closes on success.
 - assertNotVisible: ".*Drag inserts under a parent.*"
 
-# ── VERIFY POST-SAVE STATE: Stars remains the top-level insert ──────────────
+# ── VERIFY POST-SAVE STATE IN THE REAL COLUMNS ──────────────────────────────
+# The Inserts column (level=insert) now shows only Stars — Stars Gold and
+# Stars Red were promoted to level=parallel under Stars and no longer appear
+# at the insert level.
 - assertVisible: "Inserts"
-- assertVisible: "Stars"
+- scrollUntilVisible:
+    element:
+      text: "^Stars$"
+    visibilityPercentage: 50
+- assertVisible:
+    text: "^Stars$"
+# Stars Gold and Stars Red are no longer top-level inserts.
+- assertNotVisible: "Stars Gold"
+- assertNotVisible: "Stars Red"
+
+# Tap Stars to reveal the Parallels column for that insert.
+- tapOn:
+    text: "^Stars$"
+
+# The Parallels column (level=parallel, parentId=Stars) should appear.
+- assertVisible: "Parallels"
+# Both Gold and Red appear as parallels of Stars — the saved nesting is live.
+- scrollUntilVisible:
+    element:
+      text: "Stars Gold"
+    visibilityPercentage: 50
+- assertVisible: "Stars Gold"
+- assertVisible: "Stars Red"

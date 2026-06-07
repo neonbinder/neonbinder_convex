@@ -20,7 +20,7 @@ tags:
 #   server-side "already exists as synced data" error.
 #
 # INPUTS:
-#   SET_NAME    (required) — basename of the flow, e.g. "parallel-grouping-suggestions-0"
+#   SET_NAME    (required) — basename of the flow, e.g. "pg-move-0" or "pg-cancel-0"
 #   VARIANT_TYPE (optional, defaults to "Insert") — variant type to select after landing
 #
 # CONTRACT:

@@ -80,6 +80,46 @@ tags:
 - tapOn: "Cancel"
 - assertNotVisible: ".*Drag inserts under a parent.*"
 
+# ── EXACT DATA CHECK: all three inserts still top-level after Cancel ─────────
+# Cancel (button close) returns the Inserts column to idle. In first-run state
+# the column is expanded (no selection) and shows all three rows directly.
+# On retries the flow re-adds Stars Red via + Custom — but Stars Red already
+# exists, so EntityColumn's handleCustomSubmit finds it via onSelectExisting,
+# calls handleVariantSelect, and leaves the column in collapsed-pill mode
+# (selectedVariantId != null, variantExpanded = false).
+#
+# Strategy: scroll the "+ Custom" button into view (it is always present in
+# idle mode regardless of expanded/collapsed state), then detect whether the
+# "Inserts" h2 header is visible. The h2 only appears in expanded state; its
+# absence means the column is showing a collapsed pill. When collapsed, tap
+# the pill (any .*Stars.* element above the "+ Custom" button) to call
+# setExpanded(true). After expansion, assert all three rows are top-level.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    direction: UP
+    centerElement: true
+- runFlow:
+    when:
+      notVisible:
+        text: "^Inserts$"
+    commands:
+      # Column is collapsed — a selected insert is shown as a pill above
+      # the action buttons. Tap it (any .*Stars.* above the + Custom button)
+      # to call setExpanded(true) and reveal the full list.
+      - tapOn:
+          text: ".*Stars.*"
+          above:
+            id: "Add custom Inserts"
+      - extendedWaitUntil:
+          visible:
+            text: "^Inserts$"
+          timeout: 5000
+- assertVisible:
+    text: "^Stars$"
+- assertVisible: "Stars Gold"
+- assertVisible: "Stars Red"
+
 # ── RE-OPEN → original state: items are SUGGESTIONS again, not persisted ────
 - scrollUntilVisible:
     element:
@@ -101,4 +141,21 @@ tags:
 - tapOn:
     point: "2%, 50%"
 - assertNotVisible: ".*Drag inserts under a parent.*"
-- assertVisible: "Inserts"
+
+# ── VERIFY BACKDROP CLOSE LEFT THE COLUMNS INTACT (no persist) ──────────────
+# The proof that Cancel/backdrop discarded the grouping is already established
+# above: re-opening the modal showed "Suggested" badges again — which only
+# appear when the items are NOT persisted as parallels. Here we just confirm
+# the backdrop-close left the session in a clean state: the Inserts column
+# action buttons are still present (Insert variant type still selected) and
+# the modal is gone. The column rows (Stars/Gold/Red) are inside the
+# EntitySelector's internal overflow scroll which is collapsed after the modal
+# interaction; we assert the action-button row instead, which is always in the
+# lower viewport after close.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
+- assertVisible:
+    id: "Add custom Inserts"
+- assertVisible: "Group Parallels"
