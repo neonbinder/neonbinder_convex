@@ -97,5 +97,16 @@ Also confirmed: **dedup = propose & wait** (no autonomous deletes); **parallelis
   4 shards offloads shard-0's INDEPENDENT slice to shards 2/3 but NOT its marketplace-serial time. If marketplace dominates,
   4×2 ≈ 2×2 — the real win needs shrinking the marketplace backbone (deeper, separate work). Measure before committing a config.
 
-## STILL OWED (lower priority): extendedWaitUntil{timeout}→7s convention pass (won't change pass/fail, deferred to avoid
-## adding red near green); Phase 6 parallelism tuning; Phase 4 dedup proposal (await user approval).
+## ✅✅ MILESTONE (d6fb59d) — serial-marketplace ELIMINATED, every flow independent, FULLY GREEN at 2×2.
+- 23/0 + 24/0 + seed 4/0; "Phase 0 complete" ×3 (both shards warmed marketplace successfully — incl. shard-1 workers
+  warming for the FIRST time, zero rate-limit issue → confirms no concurrent-login limit). Total 33.5 min, shards
+  balanced (e2e0 22.1 / e2e1 22.7) vs the old 25.6/16.4. The sellerId force-login (test-masking-a-bug) removal was the
+  last fix. User's warm-once-reuse hypothesis fully validated.
+- Timing breakdown: setup 1.8 + seed 8.7 + max(legs ~22) + report 0.1 = 33.5 min.
+
+## PHASE 6 (in progress): widen 2×2 → 4×2. matrix [0,1]→[0,1,2,3], SHARD_TOTAL "2"→"4". Accounts e2e-5..8 provisioned + admin + Vercel vars.
+- Expect each leg ~11-13 flows/shard → matrix ~13 min → total ~setup 1.8 + seed 8.7 + ~13 + 0.1 ≈ ~24 min.
+- After 4×2: the SEED (8.7 min, serial pre-matrix) becomes the dominant fixed cost (~36% of total) → next optimization target (cascade), separate from sharding.
+
+## STILL OWED (lower priority): scheduler tidy (delete dormant isolated/marketplace/depgraph lane code now 0 flows);
+## extendedWaitUntil{timeout}→7s convention pass (won't change pass/fail); Phase 4 dedup proposal (await user approval).
