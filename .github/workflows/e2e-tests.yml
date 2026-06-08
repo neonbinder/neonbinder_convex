@@ -19,39 +19,39 @@ permissions:
   checks: write
   pull-requests: write
 
-# ─── Sharded matrix (NEO-46) ──────────────────────────────────────────────────
-# We deploy main to prod on every merge, so the FULL smoke+regression suite is
-# the merge-blocking gate. Running it on one free 4-core runner starves the CPU
-# (3 browsers/4 vCPUs) — the p=2 stopgap is safe but slow (~50 min). Instead we
-# shard the suite across multiple FREE ubuntu-latest runners (public repos get
-# ~20 concurrent free jobs), each running MAESTRO_PARALLELISM=2 = no starvation,
-# $0 compute.
+# ─── Dynamic work-queue (NEO-49) ──────────────────────────────────────────────
+# main deploys to prod on every merge, so the FULL suite is the merge-blocking
+# gate. We run it across many FREE ubuntu-latest runners (public repos get ~20
+# concurrent free jobs), each one isolated (PARALLELISM=1 = one Chrome/VM — web
+# can't parallelize within a VM, the NEO-46 contention). Instead of pre-assigning
+# a static slice per runner, a homogeneous runner pool DRAINS A SHARED QUEUE
+# (work-stealing) so the legs balance themselves and the suite scales by changing
+# only the matrix length — no flow-count re-tuning.
 #
-#   setup  → resolve the PR's Vercel preview URL once (shared by all shards)
-#   seed   → run the setup track ONCE (worker 0) to seed the shared per-PR Convex
-#            preview's global baseline (selectorOptions / cardChecklist / players
-#            / teams + warmed worker-0 marketplace sessions) BEFORE the matrix
-#            fans out. Every flow is then independent and reads this baseline, so
-#            baseline-dependent flows distribute across all shards (NEO-46).
-#   e2e    → strategy.matrix.shard: each runner runs run-e2e-smoke.sh with its
-#            SHARD_INDEX / SHARD_TOTAL. Shard 0 owns the serial marketplace
-#            backbone; other shards run a disjoint slice of the parallel-safe
-#            independent flows. The legs' own exit codes are the gate (a shard
-#            with any FAIL exits 1 → red).
-#   report → merge every shard's JUnit into ONE "Maestro E2E" check and ONE
-#            sticky comment (if: always, so it runs even when a shard fails).
+#   setup  → resolve the PR's Vercel preview URL AND the preview Convex .convex.site
+#            URL (where the queue's HTTP endpoints live).
+#   seed   → seed the shared per-PR Convex preview's global baseline ONCE (setup
+#            track, worker 0), THEN enqueue the runnable flow list into the queue.
+#   runner → strategy.matrix.runner: identical runners, each bootstraps its account
+#            (runner N → TEST_EMAIL_N) then loops claim→run→report until the queue
+#            drains. A flow failure is recorded in the queue, not the job exit code.
+#   e2e    → the single ruleset-required gate: reads QUEUE status; green iff every
+#            queued flow passed and the queue fully drained.
+#   report → merge every runner's JUnit into ONE "Maestro E2E" check + sticky comment.
 #
-# Runner prep (bypass proxy + pinned Java/Chrome/Xvfb/Maestro) is shared by `seed`
-# and `e2e` via the local composite action .github/actions/maestro-runner.
+# Runner prep (bypass proxy + pinned Java/Chrome/Xvfb/Maestro) is the local
+# composite action .github/actions/maestro-runner.
 #
-# To widen (e.g. 2×2 → 4×2): extend matrix.shard to [0,1,2,3], bump SHARD_TOTAL
-# to "4", and provision TEST_EMAIL_4..7 / NEW_PROFILE_TEST_EMAIL_4..7. That's it.
+# To scale: extend matrix.runner (e.g. add 8..11) and provision TEST_EMAIL_8.. —
+# the queue auto-distributes; nothing else changes. Requires the E2E_QUEUE_SECRET
+# GitHub secret + the same value set on the Convex preview env.
 jobs:
   setup:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       url: ${{ steps.vercel-preview.outputs.url }}
+      convex_site: ${{ steps.convex.outputs.convex_site }}
     steps:
       - name: Resolve Vercel preview URL
         id: vercel-preview
@@ -111,6 +111,27 @@ jobs:
           echo "Preview never returned 200."
           exit 1
 
+      - name: Resolve preview Convex URL (.convex.site)
+        id: convex
+        env:
+          PREVIEW_URL: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          # The preview's index.html carries
+          #   <meta name="x-convex-url" content="https://<deployment>.convex.cloud">
+          # (Vite substitutes VITE_CONVEX_URL at build). Extract it and swap the
+          # .convex.cloud API host for the .convex.site HTTP-actions host, where
+          # the E2E work-queue endpoints live. The queue runners hit this directly.
+          html=$(curl -sS -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" "$PREVIEW_URL/")
+          cloud=$(printf '%s' "$html" | grep -oE 'name="x-convex-url" content="[^"]*"' | grep -oE 'https://[a-z0-9-]+\.convex\.cloud' | head -1)
+          if [ -z "$cloud" ]; then
+            echo "::error::Could not resolve Convex URL from preview index.html (x-convex-url meta missing)"
+            exit 1
+          fi
+          site="${cloud/.convex.cloud/.convex.site}"
+          echo "Convex site URL: $site"
+          echo "convex_site=$site" >> "$GITHUB_OUTPUT"
+
   seed:
     # Seed the shared per-PR Convex preview's global baseline ONCE, before the
     # matrix fans out. Runs the setup track (setup → insert → parallel) as worker
@@ -138,6 +159,16 @@ jobs:
           REPORT_DIR: maestro-report
         run: npm run test:e2e -- setup
 
+      - name: Enqueue flows into the work-queue
+        # After the baseline exists, populate the shared queue with the runnable
+        # flow list (non-util/wip/setup). Idempotent per runId. The homogeneous
+        # runner pool then drains it. Just curl + find + python3 — no Maestro/Chrome.
+        env:
+          CONVEX_SITE_URL: ${{ needs.setup.outputs.convex_site }}
+          E2E_QUEUE_SECRET: ${{ secrets.E2E_QUEUE_SECRET }}
+          E2E_RUN_ID: ${{ github.run_id }}
+        run: ./run-e2e-queue.sh enqueue
+
       - name: Upload seed report
         if: always()
         uses: actions/upload-artifact@v4
@@ -150,32 +181,24 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  e2e-shard:
-    # The sharded matrix. Each leg emits an "e2e-shard (N)" check; the single
-    # required-by-ruleset "e2e" gate job below aggregates them into one stable
-    # check that doesn't change name as the shard count changes.
-    # Needs both: the preview URL (setup) AND a seeded baseline (seed). If seeding
-    # fails, the matrix must not run against an empty baseline.
+  runner:
+    # Homogeneous runner pool (NEO-49 dynamic queue). Every runner is identical —
+    # it drains the SHARED Convex work-queue (work-stealing) instead of a static
+    # shard slice, so the legs balance themselves (no slow-shard tail) and the
+    # suite scales by changing the matrix length alone — no SHARD_TOTAL re-tuning.
+    # Each runner is its own VM = ONE maestro/Chrome (web can't parallelize within
+    # a VM — that was the NEO-46 p=2 Chrome contention). runner N → global worker
+    # N → TEST_EMAIL_N (0..7 provisioned). Needs the preview URL (setup), the
+    # seeded baseline AND the enqueued queue (seed).
     needs: [setup, seed]
     runs-on: ubuntu-latest
-    # With the baseline pre-seeded, shard 0 no longer runs the ~15-min cascade —
-    # it runs the marketplace backbone + its independent slice. Keep a generous
-    # ceiling; Phase 6 parallelism tuning will tighten this.
-    timeout-minutes: 60
+    timeout-minutes: 45
     strategy:
-      # One shard failing must NOT cancel the others — we want every shard's
-      # results in the merged report.
+      # One runner failing must NOT cancel the others — the queue + gate decide
+      # the verdict, and we want every runner's report.
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
-    env:
-      # SHARD_TOTAL must equal the length of matrix.shard above. Change both
-      # together when widening the matrix.
-      # NOTE: at 2x2 the per-worker marketplace warm is stable; 4x2's higher
-      # concurrency intermittently trips the Maestro CDP-scroll flake during the
-      # profile-page warm (NEO-46 follow-up: warm marketplace server-side instead
-      # of driving the below-the-fold profile UI).
-      SHARD_TOTAL: "8"
+        runner: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v4
 
@@ -184,36 +207,28 @@ jobs:
           preview-url: ${{ needs.setup.outputs.url }}
           bypass-secret: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
-      - name: Run Maestro E2E suite — shard ${{ matrix.shard }}/${{ env.SHARD_TOTAL }}
+      - name: Drain the work-queue (runner ${{ matrix.runner }})
         env:
           APP_URL: http://localhost:3000
-          # NO secrets are passed to Maestro (NEO-29). Maestro serializes the
-          # full -e env map into its uploaded debug artifacts, so any secret
-          # there leaks into the public CI artifact. Marketplace creds + per-user
-          # reset are handled browser-side: flows route their sign-in through
-          # /testing/reset (resetMyTestState) and /testing/seed-credentials
-          # (seedMyTestCredentials), both auth-scoped Convex functions that read
-          # the dev creds from Convex server env vars — never via -e.
-          #
-          # Sharding (NEO-46): this shard runs run-e2e-smoke.sh with its index.
-          # Shard 0 owns the isolated + marketplace + dep-graph backbone; other
-          # shards run a disjoint slice of independent flows at GLOBAL worker
-          # indices SHARD_INDEX*PARALLELISM .. +PARALLELISM-1 (distinct
-          # TEST_EMAIL_${N} per shard, no cross-runner collision).
-          SHARD_INDEX: ${{ matrix.shard }}
-          # PARALLELISM=2 → 2 headless Chrome on a 4-vCPU runner = no CPU
-          # starvation (the failure mode p=3 hit on PR #50).
-          MAESTRO_PARALLELISM: "1"
+          # NO secrets to Maestro -e (NEO-29). The queue secret is sent ONLY as an
+          # HTTP header inside run-e2e-queue.sh and never reaches Maestro / its
+          # uploaded debug artifacts.
+          RUNNER_INDEX: ${{ matrix.runner }}
+          CONVEX_SITE_URL: ${{ needs.setup.outputs.convex_site }}
+          E2E_QUEUE_SECRET: ${{ secrets.E2E_QUEUE_SECRET }}
+          E2E_RUN_ID: ${{ github.run_id }}
           REPORT_DIR: maestro-report
-        # The legs' own exit codes are the gate: npm run test:e2e exits 1 if any
-        # flow fails, turning this matrix leg red.
-        run: npm run test:e2e
+        # Exits 0 once the queue is drained — a FLOW failure is recorded in the
+        # queue (not a job failure), so the single `e2e` gate reads queue status
+        # for the real verdict. A HARD error (bootstrap fail / crash) still fails
+        # this job, which the gate also checks.
+        run: ./run-e2e-queue.sh
 
-      - name: Upload Maestro report — shard ${{ matrix.shard }}
+      - name: Upload Maestro report — runner ${{ matrix.runner }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maestro-report-shard-${{ matrix.shard }}
+          name: maestro-report-runner-${{ matrix.runner }}
           # Keep junit + failure screenshots + summary, but exclude the files
           # that serialize Maestro's `-e` env map (NEO-29 defense-in-depth) and
           # the verbose per-worker home dirs.
@@ -224,41 +239,64 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Single stable gate required by the `production` ruleset. A matrix job emits
-  # per-leg checks ("e2e-shard (N)") whose names change with the shard count, so
-  # they can't be the required check. This job aggregates them into ONE "e2e"
-  # check that is green iff seed AND every shard leg succeeded — the exact name
-  # the ruleset requires, stable regardless of shard/runner count.
+  # Single stable gate required by the `production` ruleset. The runner matrix
+  # emits "runner (N)" checks whose names change with the matrix length, so they
+  # can't be the required check. This ONE "e2e" check is the real verdict: it
+  # reads the QUEUE status (a flow failure is recorded there, not in a runner's
+  # exit code) and is green iff setup + seed succeeded AND every queued flow
+  # passed (failed==0) AND the queue fully drained (pending==0, running==0 — a
+  # nonzero running means a runner died holding a claimed flow). Stable name
+  # regardless of how many runners.
   e2e:
-    needs: [setup, seed, e2e-shard]
+    needs: [setup, seed, runner]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: Gate — seed and every shard leg must succeed
+      - name: Gate — queue fully drained with zero failures
+        env:
+          CONVEX_SITE_URL: ${{ needs.setup.outputs.convex_site }}
+          E2E_QUEUE_SECRET: ${{ secrets.E2E_QUEUE_SECRET }}
+          E2E_RUN_ID: ${{ github.run_id }}
         run: |
-          echo "setup=${{ needs.setup.result }} seed=${{ needs.seed.result }} e2e-shard=${{ needs.e2e-shard.result }}"
-          if [ "${{ needs.setup.result }}" != "success" ] \
-            || [ "${{ needs.seed.result }}" != "success" ] \
-            || [ "${{ needs.e2e-shard.result }}" != "success" ]; then
-            echo "::error::E2E gate failed — seed or a shard leg did not succeed"
-            exit 1
+          echo "jobs: setup=${{ needs.setup.result }} seed=${{ needs.seed.result }} runner=${{ needs.runner.result }}"
+          if [ "${{ needs.setup.result }}" != "success" ] || [ "${{ needs.seed.result }}" != "success" ]; then
+            echo "::error::setup or seed did not succeed"; exit 1
           fi
-          echo "All shards + seed passed."
+          status=$(curl -fsS -X POST "$CONVEX_SITE_URL/e2e/status" \
+            -H "x-e2e-queue-secret: $E2E_QUEUE_SECRET" -H "Content-Type: application/json" \
+            -d "{\"runId\":\"$E2E_RUN_ID\"}")
+          echo "queue status: $status"
+          echo "$status" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print('passed=%s failed=%s pending=%s running=%s total=%s' % (
+              d.get('passed'), d.get('failed'), d.get('pending'), d.get('running'), d.get('total')))
+          if d.get('total', 0) == 0:
+              print('::error::work-queue is empty — enqueue step failed?'); sys.exit(1)
+          if d.get('failed', 0) > 0 or d.get('pending', 0) > 0 or d.get('running', 0) > 0:
+              print('::error::E2E gate failed — flow failures or undrained queue'); sys.exit(1)
+          print('All queued flows passed.')
+          "
+          # Also fail if a runner job itself hard-failed (bootstrap/crash) even
+          # when the queue otherwise looks clean.
+          if [ "${{ needs.runner.result }}" != "success" ]; then
+            echo "::error::a runner job hard-failed (bootstrap or crash)"; exit 1
+          fi
 
   report:
-    needs: [e2e-shard]
-    # Run even when a shard fails so the merged report always publishes.
+    needs: [runner]
+    # Run even when a runner fails so the merged report always publishes.
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all shard reports
+      - name: Download all runner reports
         uses: actions/download-artifact@v4
         with:
-          pattern: maestro-report-shard-*
+          pattern: maestro-report-runner-*
           path: all-shards
 
       - name: Publish Maestro JUnit report (merged)
