@@ -32,17 +32,13 @@ tags:
 # seedMyTestCredentials to keep the redirect snappy). Each util
 # navigates to /profile, taps "Test Credentials", and waits up to
 # 30s for the "...authenticated successfully..." message — a cold
-# Puppeteer/SSO round-trip measures ~22s; 30s gives margin.
+# Puppeteer/SSO round-trip measures ~22s; 30s gives margin. The
+# success banner renders below the button fold, so each util uses
+# scrollUntilVisible (not extendedWaitUntil) to both scroll and wait.
 # Both utils leave the browser on /profile when they return.
 #
 # Token warming happens ONCE here (Phase 0) per worker. All later
 # flows for this worker reuse the cached session — no re-login needed.
-#
-# NEO-46: each util now uses extendedWaitUntil (settle gate) followed by
-# scrollUntilVisible+centerElement (scroll only against a settled DOM),
-# rather than scrollUntilVisible alone as a combined wait+scroll. This
-# decoupling eliminates the CDP MismatchedInputException scroll flake that
-# caused 2/8 worker failures under 4-shard concurrency.
 # ============================================================
 
 - runFlow:

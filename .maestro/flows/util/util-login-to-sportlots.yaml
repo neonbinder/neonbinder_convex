@@ -16,17 +16,6 @@ tags:
 #   - Credentials are already seeded server-side by worker-bootstrap; no
 #     credential env vars need to be passed.
 #   - This util leaves the browser on /profile (same as util-login-to-bsc).
-#
-# CDP-SCROLL FLAKE MITIGATION (NEO-46):
-#   Identical strategy to util-login-to-bsc. At 1024×629 ALL three elements
-#   (Sportlots tab, Test Credentials button, success message) are below the
-#   fold — the Credentials section starts at ~y=516. Scrolling is required but
-#   must be decoupled from waiting: extendedWaitUntil first (element must exist
-#   in DOM before we scroll), then ONE scrollUntilVisible with centerElement:true
-#   + waitToSettleTimeoutMs. This avoids the MismatchedInputException thrown
-#   when scroll JS fires against a mid-render page.
-#   Total scrollUntilVisible calls: 3 (Sportlots tab + Test Credentials + success
-#   message), each preceded by an extendedWaitUntil settle gate.
 
 # ============================================================
 # NAVIGATE TO PROFILE
@@ -41,59 +30,47 @@ tags:
 # FORCE A FRESH SPORTLOTS LOGIN — tap "Test Credentials"
 # ============================================================
 
-# Wait for the stable page heading. The DOM is fully settled once
-# "Profile Settings" is visible — starting a scroll during mid-reflow
-# widens the CDP empty-response window that causes the flake.
+# Wait for the stable page heading before scrolling. The DOM is fully settled
+# once "Profile Settings" is visible — starting a scroll during mid-reflow
+# widens the CDP empty-response window that causes the NEO-8 flake.
 - extendedWaitUntil:
     visible: "Profile Settings"
     timeout: 10000
 
-# STEP 1 — wait for the "Sportlots" tab to exist in the DOM (no CDP scroll),
-# then scroll it to center. The tab row sits below the fold at ~y=540–580 in
-# the 1024×629 headless viewport. Decoupling the wait from the scroll ensures
-# the scrollUntilVisible runs against a settled DOM.
-- extendedWaitUntil:
-    visible: "Sportlots"
-    timeout: 10000
+# Center the "Sportlots" tab itself rather than the "Select Platform" heading.
+# The tab row sits at y≈612–650, which falls at or below the 1024×629 headless
+# viewport fold. Scrolling to the heading leaves the tab at the very bottom edge,
+# causing tapOn to invoke Maestro's scrollToPoint which trips the CDP
+# empty-response flake. Centering the tab puts it near y≈315 so the subsequent
+# tapOn needs no implicit scroll.
+# waitToSettleTimeoutMs: Maestro waits for the view hierarchy to quiesce between
+# scroll steps, reducing CDP "end-of-input"/empty-hierarchy errors on dynamic pages.
 - scrollUntilVisible:
     element:
       text: "Sportlots"
     centerElement: true
-    timeout: 10000
+    timeout: 20000
     waitToSettleTimeoutMs: 1000
 
-# Switch to SportLots in the platform tablist (role="tab" buttons; tap the visible label).
+# Switch to SportLots in the platform tablist (was a native <select> —
+# now role="tab" buttons; tap the visible label).
 - tapOn: "Sportlots"
 
-# STEP 2 — wait for "Test Credentials" to exist, then scroll + tap.
-# After switching tabs the credentials panel re-renders; waiting first
-# ensures the DOM has settled before the scroll JS runs.
-- extendedWaitUntil:
-    visible: "Test Credentials"
-    timeout: 10000
 - scrollUntilVisible:
     element:
       text: "Test Credentials"
-    centerElement: true
     timeout: 10000
     waitToSettleTimeoutMs: 1000
 - tapOn: "Test Credentials"
 
-# STEP 3 — wait for the success message to exist first (no CDP scroll),
-# then scroll it into view before asserting. The message renders below the
-# button, just off the fold after tapping.
-# 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO
-# round-trip (cached is <1s). This is the ONE sanctioned >10s wait — do
-# NOT copy this ceiling elsewhere.
-- extendedWaitUntil:
-    visible:
-      text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
-    timeout: 30000
+# 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO round-trip (cached is <1s).
+# This is the ONE sanctioned >10s wait (the standing rule is 10s) — do NOT copy this ceiling elsewhere.
+# scrollUntilVisible both waits for the element AND scrolls it into the viewport, so the
+# assertVisible that follows is guaranteed to see it without a separate extendedWaitUntil.
 - scrollUntilVisible:
     element:
       text: ".*Sportlots account authenticated successfully.*|.*Credentials saved successfully.*"
-    centerElement: true
-    timeout: 10000
+    timeout: 30000
     waitToSettleTimeoutMs: 1000
 
 - assertVisible:

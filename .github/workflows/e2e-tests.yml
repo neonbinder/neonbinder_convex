@@ -167,11 +167,15 @@ jobs:
       # results in the merged report.
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1]
     env:
       # SHARD_TOTAL must equal the length of matrix.shard above. Change both
       # together when widening the matrix.
-      SHARD_TOTAL: "4"
+      # NOTE: at 2x2 the per-worker marketplace warm is stable; 4x2's higher
+      # concurrency intermittently trips the Maestro CDP-scroll flake during the
+      # profile-page warm (NEO-46 follow-up: warm marketplace server-side instead
+      # of driving the below-the-fold profile UI).
+      SHARD_TOTAL: "2"
     steps:
       - uses: actions/checkout@v4
 

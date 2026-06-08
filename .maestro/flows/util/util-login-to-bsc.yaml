@@ -24,18 +24,6 @@ tags:
 #     credential env vars need to be passed.
 #   - Caller is expected to call util-drill-to-base-variant after this util returns.
 #   - This util leaves the browser on /profile (the drill util will navigate from there).
-#
-# CDP-SCROLL FLAKE MITIGATION (NEO-46):
-#   At 1024×629 the Credentials section starts at ~y=516 (below the fold), so
-#   scrolling IS required. However, scrollUntilVisible used as a combined
-#   wait+scroll is the documented CDP flake point: if the page is mid-render
-#   when the scroll JS fires, Chrome returns an empty payload and Maestro throws
-#   MismatchedInputException. The fix: always wait for the element to exist first
-#   with extendedWaitUntil (no CDP scroll), then issue ONE scrollUntilVisible with
-#   centerElement: true + waitToSettleTimeoutMs to move it into the viewport.
-#   This decouples "wait" from "scroll", so the scroll only runs against a settled
-#   DOM. Total scrollUntilVisible calls in this file: 2 (down from 2, but now
-#   each is preceded by an extendedWaitUntil settle gate).
 
 # ============================================================
 # NAVIGATE TO PROFILE
@@ -55,44 +43,30 @@ tags:
 # Cloud Run cold-starts can add 20–30 s to the login round-trip.
 # ============================================================
 
-# Wait for the stable page heading. The DOM is fully settled once
-# "Profile Settings" is visible — starting a scroll during mid-reflow
-# widens the CDP empty-response window that causes the flake.
+# Wait for the stable page heading before scrolling. The DOM is fully settled
+# once "Profile Settings" is visible — starting a scroll during mid-reflow
+# widens the CDP empty-response window that causes the NEO-8 flake.
 - extendedWaitUntil:
     visible: "Profile Settings"
     timeout: 10000
 
-# STEP 1 — wait for "Test Credentials" to exist in the DOM (no CDP scroll),
-# then scroll it to center. The Credentials section is below the fold at
-# ~y=516 in the 1024×629 headless viewport. Decoupling the wait from the
-# scroll means the scrollUntilVisible runs on a settled DOM, not a
-# mid-render one, avoiding the MismatchedInputException CDP flake.
-- extendedWaitUntil:
-    visible: "Test Credentials"
-    timeout: 10000
+# waitToSettleTimeoutMs: Maestro waits for the view hierarchy to quiesce between
+# scroll steps, reducing CDP "end-of-input"/empty-hierarchy errors on dynamic pages.
 - scrollUntilVisible:
     element:
       text: "Test Credentials"
-    centerElement: true
-    timeout: 10000
+    timeout: 20000
     waitToSettleTimeoutMs: 1000
 - tapOn: "Test Credentials"
 
-# STEP 2 — wait for the success message to exist first (no CDP scroll),
-# then scroll it into view before asserting. The message renders below the
-# button, just off the fold after tapping.
-# 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO
-# round-trip (cached is <1s). This is the ONE sanctioned >10s wait — do
-# NOT copy this ceiling elsewhere.
-- extendedWaitUntil:
-    visible:
-      text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
-    timeout: 30000
+# 30s exception: a COLD marketplace login is a real ~22s Puppeteer/SSO round-trip (cached is <1s).
+# This is the ONE sanctioned >10s wait (the standing rule is 10s) — do NOT copy this ceiling elsewhere.
+# scrollUntilVisible both waits for the element AND scrolls it into the viewport, so the
+# assertVisible that follows is guaranteed to see it without a separate extendedWaitUntil.
 - scrollUntilVisible:
     element:
       text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
-    centerElement: true
-    timeout: 10000
+    timeout: 30000
     waitToSettleTimeoutMs: 1000
 
 # ============================================================
