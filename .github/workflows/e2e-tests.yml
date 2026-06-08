@@ -150,7 +150,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  e2e:
+  e2e-shard:
+    # The sharded matrix. Each leg emits an "e2e-shard (N)" check; the single
+    # required-by-ruleset "e2e" gate job below aggregates them into one stable
+    # check that doesn't change name as the shard count changes.
     # Needs both: the preview URL (setup) AND a seeded baseline (seed). If seeding
     # fails, the matrix must not run against an empty baseline.
     needs: [setup, seed]
@@ -217,8 +220,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Single stable gate required by the `production` ruleset. A matrix job emits
+  # per-leg checks ("e2e-shard (N)") whose names change with the shard count, so
+  # they can't be the required check. This job aggregates them into ONE "e2e"
+  # check that is green iff seed AND every shard leg succeeded — the exact name
+  # the ruleset requires, stable regardless of shard/runner count.
+  e2e:
+    needs: [setup, seed, e2e-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Gate — seed and every shard leg must succeed
+        run: |
+          echo "setup=${{ needs.setup.result }} seed=${{ needs.seed.result }} e2e-shard=${{ needs.e2e-shard.result }}"
+          if [ "${{ needs.setup.result }}" != "success" ] \
+            || [ "${{ needs.seed.result }}" != "success" ] \
+            || [ "${{ needs.e2e-shard.result }}" != "success" ]; then
+            echo "::error::E2E gate failed — seed or a shard leg did not succeed"
+            exit 1
+          fi
+          echo "All shards + seed passed."
+
   report:
-    needs: [e2e]
+    needs: [e2e-shard]
     # Run even when a shard fails so the merged report always publishes.
     if: always()
     runs-on: ubuntu-latest
