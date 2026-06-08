@@ -4,7 +4,6 @@ name: "TeamPicker — chip add, remove, keyboard Enter, 'No matches' state, canc
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # Full feature test for the NEO-26 TeamPicker chip-list component.
 #

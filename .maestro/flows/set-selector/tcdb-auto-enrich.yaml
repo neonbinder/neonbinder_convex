@@ -4,7 +4,6 @@ name: "TCDB enrichment — setMetadata chips appear in SetAttributesPanel after 
 tags:
   - set-selector
   - regression
-  - requires:cards-loaded
 ---
 # Tests that NEO-24's TCDB auto-enrichment side-effect runs after the card
 # checklist is fetched and the results surface in the SetAttributesPanel's

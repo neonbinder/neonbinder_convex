@@ -4,7 +4,6 @@ name: "SetAttributesPanel — breadcrumb scope, metadata editing, collapse/expan
 tags:
   - regression
   - set-selector
-  - requires:setup-done
 ---
 # NEO-38 / NEO-39 acceptance test for the SetAttributesPanel redesign.
 #

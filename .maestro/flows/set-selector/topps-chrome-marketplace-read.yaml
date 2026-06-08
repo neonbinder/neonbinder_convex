@@ -2,7 +2,6 @@ appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Topps Chrome — read-only verify marketplace-derived set attributes are present (isolated)"
 tags:
-  - isolated
   - regression
 ---
 # Read-only smoke of the SetAttributesPanel on the REAL 2024 Topps Chrome set.

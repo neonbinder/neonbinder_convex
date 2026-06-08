@@ -2,7 +2,7 @@ appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Topps Chrome — write a feature value via SetAttributesPanel and verify propagation toast + persistence (isolated)"
 tags:
-  - isolated
+  - serial-marketplace
   - regression
 ---
 # Writes a feature value on the REAL 2024 Topps Chrome set and verifies:

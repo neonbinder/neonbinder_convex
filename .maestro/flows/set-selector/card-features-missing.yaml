@@ -4,7 +4,6 @@ name: "Regression — card with no features shows amber missing-feature highligh
 tags:
   - regression
   - set-selector
-  - requires:setup-done
 ---
 # Regression test: a freshly-added custom card has no feature values. Opening the
 # CardFeaturesEditor and expanding it should show the amber "Missing required

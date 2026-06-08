@@ -9,7 +9,7 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
-  - serial-global
+  - serial-marketplace
 ---
 - launchApp
 - extendedWaitUntil:

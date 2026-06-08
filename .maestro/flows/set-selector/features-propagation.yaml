@@ -4,7 +4,6 @@ name: "Features propagate from set to cards via SetAttributesPanel, per-card ove
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # Full propagation lifecycle test for NEO-24.
 #

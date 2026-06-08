@@ -5,7 +5,6 @@ tags:
   - regression
   - set-selector
   - neo-6
-  - requires:setup-done
 ---
 # NEO-6 phase 1 smoke test.
 #

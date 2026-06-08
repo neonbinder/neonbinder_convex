@@ -4,7 +4,6 @@ name: "Card detail drawer — edit name, toggle RC, set title & description, sav
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # NEO-25 acceptance test for the right-anchored CardDetailPanel drawer.
 #

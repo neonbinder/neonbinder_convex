@@ -4,7 +4,6 @@ name: "Custom field — typing a known synced value selects it instead of creati
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # Regression test for the "forgiving + Custom field" behaviour introduced in NEO-46.
 #

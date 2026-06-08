@@ -3,7 +3,7 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selecto
 name: "Checklist — fetch dialog; user unchecks one player; remaining entities still save"
 tags:
   - set-selector
-  - requires:setup-done
+  - serial-marketplace
 ---
 # Feature test: a user can uncheck individual unknown players or teams
 # before confirming. Skipped names are NOT created as entities but cards
