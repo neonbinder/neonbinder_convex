@@ -68,3 +68,54 @@ Branch HEAD: 4aee996 (reverted the broken CDP "fix", matrix back to 2×2 — see
   either (i) a warm flake now correctly DOWNGRADED to a warning (bootstrap passes, shard proceeds) = success,
   or (ii) a marketplace flow failing on lazy re-auth = a real getSiteToken issue to fix (not re-mask).
 - Fallback always available: 4aee996 (2×2) is green if a stable merge is needed urgently.
+
+## D6 — 9f2eb2e (D4+4×2) result: D4 WORKED, but the CDP flake is NOT the warm
+- No shard aborted (D4 best-effort warm did its job). 2 shards reded on ONE flow each: sets-base (shard 0),
+  set-attributes-edit (shard 2) — both the SAME CDP-scroll flake (MismatchedInputException), failing both retries.
+- So the flake is general, not warm-specific. D4 is still correct (de-fangs the bootstrap blast radius) but
+  isn't the root fix.
+
+## D7 — ROOT CAUSE FOUND (user reframe: "Maestro IS usable, it's our setup"): p=2 within-VM Chrome contention
+- DECISIVE EVIDENCE: the SEED job runs PARALLELISM=1 (one maestro process, one Chrome) on its own VM and is
+  ROCK-STABLE across all runs — running the SAME scroll-heavy setup flows. The matrix legs run PARALLELISM=2
+  (TWO separate `maestro test --platform web` processes per VM) and that is the ONLY place the CDP flake fires.
+- Our per-worker isolation is ONLY `MAESTRO_OPTS=-Duser.home=<worker_home>` (Maestro's LOG dir) — NOTHING
+  isolates the Chrome instance. The install bakes in `9222` (the default Chrome remote-debug port).
+- INFERENCE: two concurrent maestro-web processes on one VM contend on a shared Chrome resource (the fixed CDP
+  debug port / default user-data-dir) → CdpWebDriver.detectWindowChange latches the wrong window handle →
+  subsequent CDP JS calls return empty (MismatchedInputException) and never recover → the flake. PostHog +
+  Sentry are BOTH gated off in tests (VITE_CLERK_TESTING_ENABLED), so they are NOT the source here.
+- This is the SAME class the team already documented in PostHogProvider (NEO-13, Maestro #3176/#3271/#3289:
+  "detectWindowChange latches onto transient handles and never switches back") — but the transient handle here
+  is the OTHER worker's Chrome window, not an analytics iframe.
+
+## D8 (PENDING — user suggested --shard-split): fix the within-VM concurrency. Options:
+  (A) Maestro-native `--shard-split N` (user's idea): one maestro process manages N isolated shards/browsers
+      within a VM. RIGHT instinct. OPEN QUESTIONS: does Maestro 2.6.0 web spawn N ISOLATED browsers (vs one /
+      serial)? is there a shard-index env flows can read for TEST_EMAIL_N? how to integrate Phase-0 bootstrap?
+      No shard-index env found in the install grep. Needs a quick local validation.
+  (B) PARALLELISM=1 + more GH-matrix shards (e.g. 8×1, we have 8 accounts): ZERO within-VM concurrency — each
+      VM = exactly one maestro/Chrome (like the stable seed). Config-only (matrix [0..7], SHARD_TOTAL 8,
+      PARALLELISM 1), uses existing infra + provisioned accounts. GUARANTEED to dodge the contention.
+  → Recommend: validate (A) locally (cleaner if it works); ship (B) if (A) doesn't pan out. (B) is the
+    confident fix that directly targets the evidenced root cause.
+
+## D8 RESOLVED — `--shard-split` is NOT usable for web (LOCAL SPIKE):
+  `maestro test --platform web --headless --shard-split 2` → "Not enough devices connected (1) to run the
+  requested number of shards (2)." Maestro's native sharding is DEVICE-based (N connected Android/iOS
+  emulators); web has exactly 1 device, so it can't spawn N browsers on one machine. So (A) is OUT — and we
+  cannot eliminate run-e2e-smoke.sh via native sharding. (The script launches N separate `maestro test`
+  processes BECAUSE that's the only way to parallelize web on one machine — and that multi-process Chrome
+  sharing is the contention.)
+
+## D9 — DECISION: web parallelizes ACROSS machines, not within one → PARALLELISM=1 + more GH-matrix shards
+  - Each GH-matrix shard is its own VM = its own single maestro/Chrome (exactly like the stable p=1 seed).
+    Zero within-VM concurrency → zero Chrome contention → no CDP flake. This is the natural model for web E2E.
+  - Implementation = workflow config ONLY: matrix [0..7], SHARD_TOTAL "8", MAESTRO_PARALLELISM "1". run-e2e-
+    smoke.sh already supports p=1 (serial worker-0 path). At p=1, shard N → worker N → TEST_EMAIL_N (we have
+    0..7 provisioned). Keeps D4 (best-effort warm) as defense in depth.
+  - On "eliminate run-e2e-smoke.sh": can't fully (still need per-shard flow partition + Phase-0 bootstrap +
+    WORKER_INDEX→TEST_EMAIL mapping that Maestro doesn't do). BUT at p=1 it's much simpler (no lane scheduling),
+    and the planned QUEUE turns each VM into a thin "claim flow → maestro test → repeat" loop = the closest we
+    get to "run maestro directly". So: p=1+shards now for green; queue later for the simplification.
+  - Implementing D9 now; pushing for a green run.

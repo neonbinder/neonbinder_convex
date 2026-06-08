@@ -167,7 +167,7 @@ jobs:
       # results in the merged report.
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     env:
       # SHARD_TOTAL must equal the length of matrix.shard above. Change both
       # together when widening the matrix.
@@ -175,7 +175,7 @@ jobs:
       # concurrency intermittently trips the Maestro CDP-scroll flake during the
       # profile-page warm (NEO-46 follow-up: warm marketplace server-side instead
       # of driving the below-the-fold profile UI).
-      SHARD_TOTAL: "4"
+      SHARD_TOTAL: "8"
     steps:
       - uses: actions/checkout@v4
 
@@ -203,7 +203,7 @@ jobs:
           SHARD_INDEX: ${{ matrix.shard }}
           # PARALLELISM=2 → 2 headless Chrome on a 4-vCPU runner = no CPU
           # starvation (the failure mode p=3 hit on PR #50).
-          MAESTRO_PARALLELISM: "2"
+          MAESTRO_PARALLELISM: "1"
           REPORT_DIR: maestro-report
         # The legs' own exit codes are the gate: npm run test:e2e exits 1 if any
         # flow fails, turning this matrix leg red.
