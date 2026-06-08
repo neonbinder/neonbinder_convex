@@ -70,10 +70,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -87,10 +89,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Sets column — wait for idle (scrollUntilVisible waits for + Custom to appear).
 # centerElement: true required to avoid footer click-steal at y≥489 on 1024×629.
@@ -129,10 +133,12 @@ tags:
       - inputText: "tp-${WORKER_INDEX || 0}"
       - assertVisible:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       - assertVisible: "Variant Types"
 - runFlow:
@@ -404,10 +410,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -421,10 +429,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Sets column — tap our custom set (already exists).
 - assertVisible: "Sets"
@@ -449,10 +459,12 @@ tags:
       - inputText: "tp-${WORKER_INDEX || 0}"
       - assertVisible:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       - assertVisible: "Variant Types"
 - runFlow:

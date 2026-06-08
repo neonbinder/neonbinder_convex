@@ -54,11 +54,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "Baseball"
-      index: 1
+      below:
+        id: "Search sports"
     timeout: 10000
 - tapOn:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 
 # Level 2 — 2024
 - extendedWaitUntil:
@@ -73,11 +75,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "2024"
-      index: 1
+      below:
+        id: "Search years"
     timeout: 10000
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 # Level 3 — Topps (manufacturer)
 - extendedWaitUntil:
@@ -92,11 +96,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "Topps"
-      index: 1
+      below:
+        id: "Search manufacturers"
     timeout: 10000
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Level 4 — Topps Chrome (the real marketplace-synced set)
 - extendedWaitUntil:
@@ -111,11 +117,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "Topps Chrome"
-      index: 1
+      below:
+        id: "Search sets"
     timeout: 10000
 - tapOn:
     text: "Topps Chrome"
-    index: 1
+    below:
+      id: "Search sets"
 
 # Wait for the Variant Types column — confirms the setName row is selected
 # and the SetAttributesPanel renders below.

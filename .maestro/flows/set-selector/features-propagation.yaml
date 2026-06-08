@@ -74,10 +74,12 @@ tags:
 - inputText: "Baseball"
 - assertVisible:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 - tapOn:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 
 # Level 2 — Year 2024
 - assertVisible: "Years"
@@ -89,10 +91,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 # Level 3 — Topps (manufacturer)
 - assertVisible: "Manufacturers"
@@ -104,10 +108,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Level 4 — Custom set "fp-{WORKER_INDEX}"
 # One set per worker — never collides with other workers or with Topps Chrome.
@@ -145,10 +151,12 @@ tags:
       - inputText: "fp-${WORKER_INDEX || 0}"
       - assertVisible:
           text: ".*fp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*fp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       - assertVisible: "Variant Types"
 
@@ -420,10 +428,12 @@ tags:
 - inputText: "Baseball"
 - assertVisible:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 - tapOn:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 
 - extendedWaitUntil:
     visible: ".*Search years.*"
@@ -433,10 +443,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -446,10 +458,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Search for the custom set by name to avoid footer-zone clip failures.
 - extendedWaitUntil:
@@ -460,10 +474,12 @@ tags:
 - inputText: "fp-${WORKER_INDEX || 0}"
 - assertVisible:
     text: ".*fp-${WORKER_INDEX || 0}.*"
-    index: 1
+    below:
+      id: "Search sets"
 - tapOn:
     text: ".*fp-${WORKER_INDEX || 0}.*"
-    index: 1
+    below:
+      id: "Search sets"
     waitToSettleTimeoutMs: 2000
 - assertVisible: "Variant Types"
 

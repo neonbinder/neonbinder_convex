@@ -70,11 +70,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "2024"
-      index: 1
+      below:
+        id: "Search years"
     timeout: 10000
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 # Level 3 — Topps
 - extendedWaitUntil:
@@ -93,11 +95,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "Topps"
-      index: 1
+      below:
+        id: "Search manufacturers"
     timeout: 10000
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Level 4 — Topps Chrome
 - extendedWaitUntil:
@@ -116,11 +120,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "Topps Chrome"
-      index: 1
+      below:
+        id: "Search sets"
     timeout: 10000
 - tapOn:
     text: "Topps Chrome"
-    index: 1
+    below:
+      id: "Search sets"
 
 # ============================================================
 # LEVEL 5 — Select Base variant type

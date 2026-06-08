@@ -63,10 +63,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -76,10 +78,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 - extendedWaitUntil:
     visible: ".*Search sets.*"
@@ -89,10 +93,12 @@ tags:
 - inputText: "Topps Chrome"
 - assertVisible:
     text: "Topps Chrome"
-    index: 1
+    below:
+      id: "Search sets"
 - tapOn:
     text: "Topps Chrome"
-    index: 1
+    below:
+      id: "Search sets"
 
 # The SetAttributesPanel renders below MultiSourcePanel.
 # At the setName level (no card checklist on screen) the panel defaults EXPANDED.

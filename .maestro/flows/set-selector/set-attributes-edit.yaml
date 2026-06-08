@@ -65,10 +65,12 @@ tags:
 - inputText: "Baseball"
 - assertVisible:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 - tapOn:
     text: "Baseball"
-    index: 1
+    below:
+      id: "Search sports"
 
 # ============================================================
 # LEVEL 2 — Year 2024
@@ -83,10 +85,12 @@ tags:
 - inputText: "2024"
 - assertVisible:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 # ============================================================
 # LEVEL 3 — Topps (manufacturer)
@@ -101,10 +105,12 @@ tags:
 - inputText: "Topps"
 - assertVisible:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # ============================================================
 # LEVEL 4 — Custom set "attr-edit-{WORKER_INDEX}"
@@ -154,10 +160,12 @@ tags:
       - inputText: "attr-edit-${WORKER_INDEX || 0}"
       - assertVisible:
           text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       - assertVisible: "Variant Types"
 
