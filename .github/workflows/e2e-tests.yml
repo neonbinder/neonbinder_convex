@@ -28,13 +28,21 @@ permissions:
 # $0 compute.
 #
 #   setup  → resolve the PR's Vercel preview URL once (shared by all shards)
+#   seed   → run the setup track ONCE (worker 0) to seed the shared per-PR Convex
+#            preview's global baseline (selectorOptions / cardChecklist / players
+#            / teams + warmed worker-0 marketplace sessions) BEFORE the matrix
+#            fans out. Every flow is then independent and reads this baseline, so
+#            baseline-dependent flows distribute across all shards (NEO-46).
 #   e2e    → strategy.matrix.shard: each runner runs run-e2e-smoke.sh with its
-#            SHARD_INDEX / SHARD_TOTAL. Shard 0 owns the serial backbone
-#            (isolated + marketplace + dep-graph cascade); other shards run a
-#            disjoint slice of the parallel-safe independent flows. The legs'
-#            own exit codes are the gate (a shard with any FAIL exits 1 → red).
+#            SHARD_INDEX / SHARD_TOTAL. Shard 0 owns the serial marketplace
+#            backbone; other shards run a disjoint slice of the parallel-safe
+#            independent flows. The legs' own exit codes are the gate (a shard
+#            with any FAIL exits 1 → red).
 #   report → merge every shard's JUnit into ONE "Maestro E2E" check and ONE
 #            sticky comment (if: always, so it runs even when a shard fails).
+#
+# Runner prep (bypass proxy + pinned Java/Chrome/Xvfb/Maestro) is shared by `seed`
+# and `e2e` via the local composite action .github/actions/maestro-runner.
 #
 # To widen (e.g. 2×2 → 4×2): extend matrix.shard to [0,1,2,3], bump SHARD_TOTAL
 # to "4", and provision TEST_EMAIL_4..7 / NEW_PROFILE_TEST_EMAIL_4..7. That's it.
@@ -103,13 +111,53 @@ jobs:
           echo "Preview never returned 200."
           exit 1
 
-  e2e:
+  seed:
+    # Seed the shared per-PR Convex preview's global baseline ONCE, before the
+    # matrix fans out. Runs the setup track (setup → insert → parallel) as worker
+    # 0 at parallelism 1; `run-e2e-smoke.sh setup` is the only entry point that
+    # runs setup-tagged flows. Because resetMyTestState (the per-shard Phase-0
+    # bootstrap) is auth-scoped per user, it never wipes this global baseline.
     needs: setup
     runs-on: ubuntu-latest
-    # Shard 0 still runs the full serial backbone in Phase A (it only offloads a
-    # handful of trivial independent flows), so its wall-clock stays ~50 min —
-    # keep the 60-min ceiling. Phase B (fixture-seeding) shrinks the backbone and
-    # this can drop. Shards 1+ finish in a few minutes.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/maestro-runner
+        with:
+          preview-url: ${{ needs.setup.outputs.url }}
+          bypass-secret: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+      - name: Seed global baseline (setup track, worker 0)
+        env:
+          APP_URL: http://localhost:3000
+          # Single ordered writer: setup.yaml does the global reset + Base, then
+          # insert, then parallel. Forced serial in the scheduler too (SELECT_MODE
+          # setup), but pin it here for clarity. No SHARD_* → single-shard, worker 0.
+          MAESTRO_PARALLELISM: "1"
+          REPORT_DIR: maestro-report
+        run: npm run test:e2e -- setup
+
+      - name: Upload seed report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report-seed
+          path: |
+            maestro-report/
+            !maestro-report/**/commands-*.json
+            !maestro-report/maestro-home/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e:
+    # Needs both: the preview URL (setup) AND a seeded baseline (seed). If seeding
+    # fails, the matrix must not run against an empty baseline.
+    needs: [setup, seed]
+    runs-on: ubuntu-latest
+    # With the baseline pre-seeded, shard 0 no longer runs the ~15-min cascade —
+    # it runs the marketplace backbone + its independent slice. Keep a generous
+    # ceiling; Phase 6 parallelism tuning will tighten this.
     timeout-minutes: 60
     strategy:
       # One shard failing must NOT cancel the others — we want every shard's
@@ -124,123 +172,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start bypass-injecting proxy
-        env:
-          PREVIEW_URL: ${{ needs.setup.outputs.url }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: |
-          # Tiny Node proxy: forwards localhost:3000 → Vercel preview with the
-          # x-vercel-protection-bypass header injected on every request. Lets
-          # Maestro flows use APP_URL=http://localhost:3000 without any flow
-          # rewrites (which would hurt PO readability). Each shard runs on its
-          # own runner, so each needs its own localhost:3000 proxy.
-          if [ -z "$PREVIEW_URL" ]; then
-            echo "No preview URL from setup job."
-            exit 1
-          fi
-          cat > /tmp/vercel-proxy.js <<'EOF'
-          const http = require('http');
-          const https = require('https');
-          const { URL } = require('url');
-
-          const upstream = new URL(process.env.PREVIEW_URL);
-          const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-          const PORT = 3000;
-
-          const server = http.createServer((req, res) => {
-            const opts = {
-              hostname: upstream.hostname,
-              port: 443,
-              path: req.url,
-              method: req.method,
-              headers: {
-                ...req.headers,
-                host: upstream.hostname,
-                'x-vercel-protection-bypass': bypass,
-              },
-            };
-            const upstreamReq = https.request(opts, upstreamRes => {
-              res.writeHead(upstreamRes.statusCode || 500, upstreamRes.headers);
-              upstreamRes.pipe(res);
-            });
-            upstreamReq.on('error', err => {
-              console.error('proxy error:', err.message);
-              res.statusCode = 502;
-              res.end('proxy error');
-            });
-            req.pipe(upstreamReq);
-          });
-
-          server.listen(PORT, () => {
-            console.log(`Bypass proxy listening on http://localhost:${PORT} -> ${upstream.origin}`);
-          });
-          EOF
-          node /tmp/vercel-proxy.js &
-          echo "PROXY_PID=$!" >> $GITHUB_ENV
-          # Wait for proxy to be reachable
-          for i in $(seq 1 20); do
-            if curl -sS -o /dev/null "http://localhost:3000/" ; then
-              echo "Proxy ready."
-              break
-            fi
-            sleep 0.5
-          done
-
-      - name: Read pinned versions
-        id: pins
-        run: |
-          # Single source of truth for Maestro + Java versions. Local devs
-          # read the same files via setup-maestro.sh.
-          maestro_version="$(tr -d '[:space:]' < .maestro/version)"
-          java_version="$(tr -d '[:space:]' < .java-version)"
-          echo "maestro=${maestro_version}" >> "$GITHUB_OUTPUT"
-          echo "java=${java_version}" >> "$GITHUB_OUTPUT"
-          echo "Pinned Maestro: ${maestro_version}"
-          echo "Pinned Java:    ${java_version}"
-
-      - uses: actions/setup-java@v4
+      - uses: ./.github/actions/maestro-runner
         with:
-          distribution: temurin
-          java-version: ${{ steps.pins.outputs.java }}
-
-      - uses: browser-actions/setup-chrome@v1
-
-      - name: Start Xvfb
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-          Xvfb :99 -screen 0 1280x1024x24 &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-
-      - name: Install Maestro CLI
-        env:
-          MAESTRO_VERSION: ${{ steps.pins.outputs.maestro }}
-          # Suppress the first-run analytics opt-in banner so `maestro --version`
-          # returns just the version string. Without this, the version-match
-          # check below sees multi-line output and fails even when the version
-          # is correct. Also propagate to downstream steps via GITHUB_ENV.
-          MAESTRO_CLI_NO_ANALYTICS: "1"
-        run: |
-          # Pin Maestro to .maestro/version. The installer reads MAESTRO_VERSION
-          # to grab a specific tag instead of latest — without this, CI drifts
-          # away from local boxes as upstream releases land.
-          # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
-          # as a non-zero exit — the install script prints the error but exits 0.
-          set -o pipefail
-          curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
-            "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-          echo "MAESTRO_CLI_NO_ANALYTICS=1" >> $GITHUB_ENV
-          # Verify the binary is actually installed AND matches the pin before
-          # we spend 30 min in downstream steps discovering it doesn't. Extract
-          # just the semver line with grep — defensive against any leftover
-          # banner output if MAESTRO_CLI_NO_ANALYTICS isn't honored.
-          installed="$("$HOME/.maestro/bin/maestro" --version | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)"
-          if [ "$installed" != "$MAESTRO_VERSION" ]; then
-            echo "::error::Maestro installer returned '${installed}' but pin is '${MAESTRO_VERSION}'"
-            exit 1
-          fi
-          echo "Maestro ${installed} ready (pinned)"
+          preview-url: ${{ needs.setup.outputs.url }}
+          bypass-secret: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
       - name: Run Maestro E2E suite — shard ${{ matrix.shard }}/${{ env.SHARD_TOTAL }}
         env:

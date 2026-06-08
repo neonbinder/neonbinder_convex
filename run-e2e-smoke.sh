@@ -224,6 +224,7 @@ SELECT_MODE="all"      # all | tag | name | grep
 PATTERNS=()            # name substrings (OR) or a single regex
 case "$SELECTOR" in
   "")      SELECT_MODE="all" ;;
+  setup)   SELECT_MODE="setup" ;;   # pre-matrix seed: the global setup track only
   tag:*)   SELECT_MODE="tag";  TAG="${SELECTOR#tag:}" ;;
   name:*)  SELECT_MODE="name"; IFS=',' read -ra PATTERNS <<< "${SELECTOR#name:}" ;;
   grep:*)  SELECT_MODE="grep"; PATTERNS=("${SELECTOR#grep:}") ;;
@@ -238,11 +239,14 @@ case "$SELECT_MODE" in
     while IFS= read -r f; do
       flow_has_tag "$f" util && continue
       flow_has_tag "$f" wip && continue
+      flow_has_tag "$f" setup && continue   # NEO-46: setup runs in the pre-matrix CI job, never as a thread
       SELECTED_FLOWS+=("$f")
     done < <(find .maestro/flows/ -name "*.yaml" | sort)
     ;;
   tag)
     while IFS= read -r f; do
+      flow_has_tag "$f" util && continue
+      flow_has_tag "$f" setup && continue   # NEO-46: setup is seeded pre-matrix, not run as a thread
       SELECTED_FLOWS+=("$f")
     done < <(grep -rlE "^[[:space:]]*-[[:space:]]+${TAG}$" .maestro/flows/ --include="*.yaml" | sort)
     ;;
@@ -259,10 +263,38 @@ case "$SELECT_MODE" in
     while IFS= read -r f; do
       flow_has_tag "$f" util && continue
       flow_has_tag "$f" wip && continue
+      flow_has_tag "$f" setup && continue   # NEO-46: setup runs pre-matrix, not as a thread
       SELECTED_FLOWS+=("$f")
     done < <(find .maestro/flows/ -name "*.yaml" | grep -iE "${PATTERNS[0]}" | sort)
     ;;
+  setup)
+    # NEO-46 pre-matrix seed: this is the ONLY entry point that runs the
+    # setup-tagged flows (every other mode excludes them — they are seeded once,
+    # before the shard matrix fans out, never as a thread). The CI `seed` job
+    # invokes this against the shared per-PR Convex preview so the global
+    # baseline (selectorOptions / cardChecklist / players / teams) is present
+    # before any shard's flows run. Order is EXPLICIT and load-bearing:
+    #   setup.yaml         → global reset + warm + Baseball/2024/Topps Chrome + Base cards
+    #   setup-insert.yaml  → Insert variants saved + checklist
+    #   setup-parallel.yaml→ Parallel variants saved + checklist
+    # Alphabetical sort would run setup.yaml LAST — so we hard-code the order and
+    # skip the sort -u below. Add any new setup-track flow here, in dependency order.
+    for f in \
+      .maestro/flows/setup.yaml \
+      .maestro/flows/setup-insert.yaml \
+      .maestro/flows/setup-parallel.yaml; do
+      [ -f "$f" ] && SELECTED_FLOWS+=("$f")
+    done
+    ;;
 esac
+
+# The setup track is a strictly-ordered, single-writer seed (global reset →
+# base → insert → parallel). Force serial worker-0 regardless of caller
+# parallelism so the three flows never race or sign in as different Clerk users
+# (which would each re-run the global reset and clobber the others).
+if [ "$SELECT_MODE" = "setup" ]; then
+  PARALLELISM=1
+fi
 
 if [ ${#SELECTED_FLOWS[@]} -eq 0 ]; then
   echo "No flows matched selector \"${SELECTOR}\" in .maestro/flows/"
@@ -320,12 +352,18 @@ if [ -z "$NO_DEPS" ]; then
   done
 fi
 
-# Final SMOKE_FLOWS = sorted-unique selected set.
+# Final SMOKE_FLOWS = sorted-unique selected set — EXCEPT the setup track, whose
+# explicit dependency order (setup → insert → parallel) must survive (sort -u
+# would put setup.yaml last and break the seed).
 SMOKE_FLOWS=()
-while IFS= read -r f; do
-  [ -z "$f" ] && continue
-  SMOKE_FLOWS+=("$f")
-done < <(printf '%s\n' "${SELECTED_FLOWS[@]}" | sort -u)
+if [ "$SELECT_MODE" = "setup" ]; then
+  SMOKE_FLOWS=("${SELECTED_FLOWS[@]}")
+else
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    SMOKE_FLOWS+=("$f")
+  done < <(printf '%s\n' "${SELECTED_FLOWS[@]}" | sort -u)
+fi
 
 # ─── Tag parsing & categorization ───────────────────────────────────────────
 
@@ -420,10 +458,12 @@ done
 #     (SMOKE_FLOWS is `sort -u`), so a plain `i % SHARD_TOTAL` makes every shard
 #     agree on a disjoint, exhaustive partition.
 is_distributable_flow() {
-  case "$1" in
-    .maestro/flows/auth/*|.maestro/flows/dashboard/*|.maestro/flows/home/*|.maestro/flows/profile/*) return 0 ;;
-    *) return 1 ;;
-  esac
+  # NEO-46 flat model: every INDEPENDENT flow is parallel-safe by construction
+  # (per-worker custom subtrees, or read-only on the pre-seeded baseline), so the
+  # whole independent set splits across shards by `i % SHARD_TOTAL`. The only
+  # serial backbone left is the marketplace lane (shard-0-only), and those flows
+  # are category=marketplace, not independent — they never reach this function.
+  return 0
 }
 
 if [ "$SHARD_TOTAL" -gt 1 ]; then
@@ -513,10 +553,11 @@ fi
 
 # ─── Plan summary ───────────────────────────────────────────────────────────
 case "$SELECT_MODE" in
-  all)  sel_label="all flows" ;;
-  tag)  sel_label="tag \"$TAG\"" ;;
-  name) sel_label="name ~ ${PATTERNS[*]}" ;;
-  grep) sel_label="grep /${PATTERNS[0]}/" ;;
+  all)   sel_label="all flows" ;;
+  setup) sel_label="setup track (pre-matrix seed)" ;;
+  tag)   sel_label="tag \"$TAG\"" ;;
+  name)  sel_label="name ~ ${PATTERNS[*]}" ;;
+  grep)  sel_label="grep /${PATTERNS[0]}/" ;;
 esac
 if [ -n "$NO_DEPS" ]; then dep_label=" — NO prerequisites (requires: treated as pre-seeded)"
 elif [ -n "$MINIMAL_DEPS" ]; then dep_label=" — minimal prerequisites (1 producer/state)"
