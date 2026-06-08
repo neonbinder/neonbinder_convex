@@ -26,23 +26,40 @@ tags:
     timeout: 45000
 
 # ============================================================
-# WARM MARKETPLACE TOKENS — BSC then SportLots
+# WARM MARKETPLACE TOKENS — BSC then SportLots (BEST-EFFORT)
+#
 # seed-credentials stored real creds in Secret Manager but does NOT
 # warm the Puppeteer sessions (eager auth was removed from
 # seedMyTestCredentials to keep the redirect snappy). Each util
 # navigates to /profile, taps "Test Credentials", and waits up to
 # 30s for the "...authenticated successfully..." message — a cold
-# Puppeteer/SSO round-trip measures ~22s; 30s gives margin. The
-# success banner renders below the button fold, so each util uses
-# scrollUntilVisible (not extendedWaitUntil) to both scroll and wait.
-# Both utils leave the browser on /profile when they return.
+# Puppeteer/SSO round-trip measures ~22s; 30s gives margin.
 #
-# Token warming happens ONCE here (Phase 0) per worker. All later
-# flows for this worker reuse the cached session — no re-login needed.
+# WHY optional: true?
+#   The warm is an OPTIMIZATION, not a correctness requirement.
+#   getSiteToken performs lazy re-auth on cache-miss (production-correct),
+#   so a worker with seeded creds but an unwarmed token simply warms on
+#   its first marketplace fetch. A transient CDP scroll flake
+#   (MismatchedInputException) during this warm step previously aborted
+#   the entire shard via run-e2e-smoke.sh's set -e. With optional: true,
+#   Maestro downgrades the sub-flow failure to a CommandWarned (logged,
+#   non-fatal) and the bootstrap continues. The sign-in / reset /
+#   seed-credentials steps above remain mandatory and will still abort
+#   the shard on failure.
+#
+# Maestro 2.6.0 evidence:
+#   YamlRunFlow.optional (boolean field) is read by YamlFluentCommand
+#   and passed as the 6th arg to RunFlowCommand.<init>. Orchestra's
+#   executeCommand catches MaestroException and, when Command.getOptional()
+#   is true, throws CommandWarned (logged + skipped) instead of rethrowing.
+#   Verified by decompiling maestro-orchestra-models.jar and
+#   maestro-orchestra.jar at ~/.maestro/lib/.
 # ============================================================
 
 - runFlow:
-    file: ../set-selector/util-login-to-bsc.yaml
+    file: ../util/util-login-to-bsc.yaml
+    optional: true
 
 - runFlow:
-    file: ../set-selector/util-login-to-sportlots.yaml
+    file: ../util/util-login-to-sportlots.yaml
+    optional: true

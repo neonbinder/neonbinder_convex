@@ -1,9 +1,8 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — fetch dialog; user unchecks one player; remaining entities still save"
 tags:
   - set-selector
-  - requires:setup-done
 ---
 # Feature test: a user can uncheck individual unknown players or teams
 # before confirming. Skipped names are NOT created as entities but cards
@@ -59,6 +58,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    centerElement: true
     timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
@@ -79,6 +79,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Player(s) — comma separated, optional"
+    centerElement: true
     timeout: 5000
 - tapOn:
     id: "Players"
@@ -100,6 +101,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add"
+    centerElement: true
     timeout: 5000
 - tapOn:
     text: "Add"

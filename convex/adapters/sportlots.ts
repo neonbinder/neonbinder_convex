@@ -20,20 +20,68 @@ const LISTCARDS_URL = `${SPORTLOTS_BASE_URL}/inven/dealbin/listcards.tpl`;
 
 const SL_FETCH_TIMEOUT_MS = 30_000;
 
-async function slFetch(url: string, init: RequestInit): Promise<Response> {
+// Selector-option columns (sport / year / manufacturer) load on every drill and
+// must feel instant — SL answers the newinven dropdown query in ~1s. A slow or
+// hung SL response must NOT ride out the full 30s SL_FETCH_TIMEOUT_MS and freeze
+// the column. So the selector fetch uses a tight per-attempt budget and retries
+// a few times (logging each miss) before surfacing a fetch error. Heavier calls
+// (card checklists, set lists) keep the 30s default.
+const SL_SELECTOR_FETCH_TIMEOUT_MS = 3_000;
+const SL_SELECTOR_FETCH_MAX_ATTEMPTS = 3;
+
+async function slFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = SL_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   try {
     return await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(SL_FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new Error(
-        `SportLots request timed out after ${SL_FETCH_TIMEOUT_MS / 1000}s: ${url}`,
+        `SportLots request timed out after ${timeoutMs / 1000}s: ${url}`,
       );
     }
     throw err;
   }
+}
+
+// Fetch a selector-options page with a short per-attempt timeout and bounded
+// retries. SL occasionally stalls on these dropdown queries; rather than block
+// the column for 30s we abort at SL_SELECTOR_FETCH_TIMEOUT_MS, log what
+// happened, and retry. Throws the last error if every attempt fails so the
+// aggregator records a real fetch error (and the column can offer Retry).
+async function slSelectorFetchWithRetry(
+  url: string,
+  init: RequestInit,
+  meta: { requestId: string; level: string },
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= SL_SELECTOR_FETCH_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await slFetch(url, init, SL_SELECTOR_FETCH_TIMEOUT_MS);
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        JSON.stringify({
+          msg: "sl_selector_fetch_retry",
+          requestId: meta.requestId,
+          level: meta.level,
+          attempt,
+          maxAttempts: SL_SELECTOR_FETCH_MAX_ATTEMPTS,
+          timeoutMs: SL_SELECTOR_FETCH_TIMEOUT_MS,
+          url,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("SportLots selector fetch failed after retries");
 }
 
 // Map selector levels to SportLots form field names
@@ -162,7 +210,7 @@ export const fetchSportLotsSelectorOptions = action({
     let statusCode: number | undefined;
     try {
       const tokenStart = Date.now();
-      const sessionCookie = await getSportLotsCookie(ctx);
+      let sessionCookie = await getSportLotsCookie(ctx);
       tokenMs = Date.now() - tokenStart;
       if (!sessionCookie) {
         await recordAdapterCall(ctx, {
@@ -176,6 +224,7 @@ export const fetchSportLotsSelectorOptions = action({
           duration_ms: Date.now() - start,
           token_ms: tokenMs,
           success: false,
+          stage: "auth",
           error_class: "no_credentials",
         });
         return {
@@ -200,6 +249,7 @@ export const fetchSportLotsSelectorOptions = action({
           token_ms: tokenMs,
           success: true,
           result_count: 0,
+          stage: "adapter",
           error_class: "unsupported_level",
         });
         return { success: true, options: [] };
@@ -221,6 +271,7 @@ export const fetchSportLotsSelectorOptions = action({
           token_ms: tokenMs,
           success: insertResult.success,
           result_count: insertResult.options.length,
+          stage: "marketplace_fetch",
           error_class: insertResult.success
             ? undefined
             : classifyAdapterError(insertResult.message),
@@ -249,14 +300,18 @@ export const fetchSportLotsSelectorOptions = action({
       }
 
       const filtersStart = Date.now();
-      const response = await slFetch(NEWINVEN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Cookie: sessionCookie,
+      const response = await slSelectorFetchWithRetry(
+        NEWINVEN_URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Cookie: sessionCookie,
+          },
+          body: formData.toString(),
         },
-        body: formData.toString(),
-      });
+        { requestId, level: args.level },
+      );
       filtersCallMs = Date.now() - filtersStart;
       statusCode = response.status;
 
@@ -274,6 +329,7 @@ export const fetchSportLotsSelectorOptions = action({
           filters_call_ms: filtersCallMs,
           status_code: statusCode,
           success: false,
+          stage: "marketplace_fetch",
           error_class: classifyAdapterError(
             `SportLots HTTP ${response.status}`,
           ),
@@ -287,28 +343,13 @@ export const fetchSportLotsSelectorOptions = action({
 
       const html = await response.text();
 
-      if (isSessionExpired(html)) {
-        await recordAdapterCall(ctx, {
-          requestId,
-          operation: "fetchSportLotsSelectorOptions",
-          platform: "sportlots",
-          level: args.level,
-          parentSport: args.parentFilters.sport,
-          parentYear: args.parentFilters.year,
-          parentSetName: args.parentFilters.setName,
-          duration_ms: Date.now() - start,
-          token_ms: tokenMs,
-          filters_call_ms: filtersCallMs,
-          status_code: statusCode,
-          success: false,
-          error_class: "session_expired",
-        });
-        return {
-          success: false,
-          options: [],
-          message: "SportLots session expired. Re-authenticate from Profile.",
-        };
-      }
+      // A session rejection here is SL's tiny login.tpl redirect stub (it has
+      // NO <select>), so it parses to 0 options below and is recovered by the
+      // re-auth retry loop. We deliberately do NOT bail with a dead "session
+      // expired" error: with a valid session SL reliably returns the options,
+      // so an empty/stub response means the (shared) session cookie was
+      // invalidated and we re-authenticate + retry — the recovery the
+      // getSiteToken architecture intends but only performs on expiresAt.
 
       const targetSelect = LEVEL_TO_TARGET_SELECT[args.level];
       if (!targetSelect) {
@@ -325,6 +366,7 @@ export const fetchSportLotsSelectorOptions = action({
           filters_call_ms: filtersCallMs,
           status_code: statusCode,
           success: false,
+          stage: "adapter",
           error_class: "unsupported_level",
         });
         return {
@@ -334,7 +376,142 @@ export const fetchSportLotsSelectorOptions = action({
         };
       }
 
-      const parsedOptions = parseSelectOptions(html, targetSelect);
+      let parsedOptions = parseSelectOptions(html, targetSelect);
+
+      // 0 parsed options means SL returned a session-rejection / login.tpl stub
+      // (no <select>) — with a valid session these levels are ALWAYS populated
+      // (confirmed: SL reliably returns the full option list for a valid
+      // cookie). The shared dev SL session gets invalidated intermittently and
+      // the cached token's expiresAt still reads fresh, so re-POSTing the same
+      // cookie can't recover. Force a re-auth (fresh session), refresh the
+      // cookie, and retry. Each attempt logs what SL returned (params, status,
+      // which <select>s were present) for diagnosis — never the cookie.
+      let lastHtml = html;
+      let selectorAttempt = 1;
+      while (
+        parsedOptions.length === 0 &&
+        selectorAttempt < SL_SELECTOR_FETCH_MAX_ATTEMPTS
+      ) {
+        console.warn(
+          JSON.stringify({
+            msg: "sl_selector_empty_result",
+            requestId,
+            level: args.level,
+            attempt: selectorAttempt,
+            maxAttempts: SL_SELECTOR_FETCH_MAX_ATTEMPTS,
+            sprt: formData.get("sprt"),
+            yr: formData.get("yr"),
+            targetSelect,
+            status: statusCode,
+            htmlLen: lastHtml.length,
+            targetSelectPresent: new RegExp(
+              `<select[^>]*name=["']?${targetSelect}\\b`,
+              "i",
+            ).test(lastHtml),
+            presentSelects: [
+              ...lastHtml.matchAll(/<select[^>]*\bname=["']?([^"'\s>]+)/gi),
+            ]
+              .map((m) => m[1])
+              .slice(0, 25),
+          }),
+        );
+        selectorAttempt++;
+        // Re-authenticate to recover a fresh shared SL session, then refresh
+        // the cookie — re-POSTing the same invalidated cookie can't help.
+        await ctx
+          .runAction(internal.credentials.authenticateSportlots, {})
+          .catch(() => {});
+        sessionCookie = (await getSportLotsCookie(ctx)) ?? sessionCookie;
+        // Brief backoff so the fresh session settles before the re-POST.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        try {
+          const retryResp = await slFetch(
+            NEWINVEN_URL,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: sessionCookie,
+              },
+              body: formData.toString(),
+            },
+            SL_SELECTOR_FETCH_TIMEOUT_MS,
+          );
+          statusCode = retryResp.status;
+          if (!retryResp.ok) break;
+          const retryHtml = await retryResp.text();
+          lastHtml = retryHtml;
+          parsedOptions = parseSelectOptions(retryHtml, targetSelect);
+        } catch (err) {
+          console.warn(
+            JSON.stringify({
+              msg: "sl_selector_fetch_retry",
+              requestId,
+              level: args.level,
+              attempt: selectorAttempt,
+              reason: "empty_result_retry_fetch_error",
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        }
+      }
+
+      // Still empty after retries — emit a queryable PostHog event capturing
+      // what SL actually returned, so the root cause can be diagnosed directly.
+      if (parsedOptions.length === 0) {
+        await ctx
+          .runAction(internal.posthog.captureEvent, {
+            distinctId: "sl-adapter-debug",
+            event: "selector_sync_empty",
+            properties: {
+              level: args.level,
+              requestId,
+              sprt: formData.get("sprt"),
+              yr: formData.get("yr"),
+              targetSelect,
+              status_code: statusCode,
+              html_len: lastHtml.length,
+              target_select_present: new RegExp(
+                `<select[^>]*name=["']?${targetSelect}\\b`,
+                "i",
+              ).test(lastHtml),
+              present_selects: [
+                ...lastHtml.matchAll(/<select[^>]*\bname=["']?([^"'\s>]+)/gi),
+              ]
+                .map((m) => m[1])
+                .slice(0, 25),
+              attempts: selectorAttempt,
+            },
+          })
+          .catch(() => {});
+      }
+
+      // Exhausted re-auth retries and SL is still returning the session-reject
+      // stub — surface a clear, actionable error instead of a silently empty
+      // column. (With a healthy session this branch is never reached.)
+      if (parsedOptions.length === 0 && isSessionExpired(lastHtml)) {
+        await recordAdapterCall(ctx, {
+          requestId,
+          operation: "fetchSportLotsSelectorOptions",
+          platform: "sportlots",
+          level: args.level,
+          parentSport: args.parentFilters.sport,
+          parentYear: args.parentFilters.year,
+          parentSetName: args.parentFilters.setName,
+          duration_ms: Date.now() - start,
+          token_ms: tokenMs,
+          filters_call_ms: filtersCallMs,
+          status_code: statusCode,
+          success: false,
+          stage: "marketplace_fetch",
+          error_class: "session_expired",
+        });
+        return {
+          success: false,
+          options: [],
+          message: "SportLots session expired. Re-authenticate from Profile.",
+        };
+      }
 
       await recordAdapterCall(ctx, {
         requestId,
@@ -348,8 +525,9 @@ export const fetchSportLotsSelectorOptions = action({
         token_ms: tokenMs,
         filters_call_ms: filtersCallMs,
         status_code: statusCode,
-        success: true,
+        success: parsedOptions.length > 0,
         result_count: parsedOptions.length,
+        stage: "marketplace_fetch",
       });
 
       return {
@@ -374,6 +552,7 @@ export const fetchSportLotsSelectorOptions = action({
         filters_call_ms: filtersCallMs,
         status_code: statusCode,
         success: false,
+        stage: "marketplace_fetch",
         error_class: classifyAdapterError(
           error instanceof Error ? error.message : String(error),
         ),

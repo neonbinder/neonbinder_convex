@@ -1,4 +1,4 @@
-url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Set Selector Smoke Test
 # Demoted to regression tier (see PR description on the e2e-ci branch).
 # Writes real marketplace credentials via setup-bsc-credentials /
@@ -9,7 +9,6 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
-  - serial-global
 ---
 - launchApp
 - extendedWaitUntil:
@@ -17,8 +16,8 @@ tags:
     timeout: 45000
 
 # --- Set up marketplace credentials for the test user ---
-# Credentials are already seeded server-side via /testing/seed-credentials
-# in the sign-in URL chain. The setup-* runFlows below are no-ops when
+# Credentials are seeded ONCE per worker by the Phase-0 bootstrap
+# (worker-bootstrap.yaml). The setup-* runFlows below are no-ops when
 # "Clear Credentials" is already visible (idempotent). They are kept here
 # so the flow's credential-gate smoke path still exercises the profile page.
 - runFlow:
@@ -26,21 +25,6 @@ tags:
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
-
-# ============================================================
-# CREDENTIAL WARMING
-# seed-credentials already saved real BSC + SL credentials server-side.
-# Warm the Puppeteer session tokens so the "Sync Sports" marketplace fetch
-# uses a live session and doesn't trigger a fresh ~20s login mid-flow,
-# which would cause the "Sync Sports" wait to time out.
-# Both warm utils cost ~0.5s when the token is already cached.
-# ============================================================
-
-- runFlow:
-    file: util-login-to-bsc.yaml
-
-- runFlow:
-    file: util-login-to-sportlots.yaml
 
 # Navigate to the Set Selector page
 - openLink: ${APP_URL || "https://localhost:3000"}/set-selector

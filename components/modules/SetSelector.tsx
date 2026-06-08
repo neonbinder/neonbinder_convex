@@ -247,6 +247,7 @@ export default function SetSelector() {
           addButtonText="Sync Sports"
           isVisible={true}
           level="sport"
+          onSelectExisting={handleSportSelect}
         />
 
         {/* 2. Year (SL & BSC) */}
@@ -267,6 +268,7 @@ export default function SetSelector() {
           isVisible={!!selectedSportId}
           level="year"
           parentId={selectedSportId || undefined}
+          onSelectExisting={handleYearSelect}
         />
 
         {/* 3. Manufacturer (SL only) */}
@@ -287,6 +289,7 @@ export default function SetSelector() {
           isVisible={!!selectedYearId}
           level="manufacturer"
           parentId={selectedYearId || undefined}
+          onSelectExisting={handleManufacturerSelect}
         />
 
         {/* 4. Set (BSC only) */}
@@ -310,6 +313,7 @@ export default function SetSelector() {
           isVisible={!!selectedManufacturerId}
           level="setName"
           parentId={selectedManufacturerId || undefined}
+          onSelectExisting={handleSetSelect}
         />
 
         {/* 5. Variant Type (BSC only: Base, Insert, Parallel, Promo) */}
@@ -330,6 +334,7 @@ export default function SetSelector() {
           isVisible={!!selectedSetId}
           level="variantType"
           parentId={selectedSetId || undefined}
+          onSelectExisting={handleVariantTypeSelect}
         />
 
         {/* 6. Variant (reconciled BSC variantName + SL set list) — hidden
@@ -361,6 +366,7 @@ export default function SetSelector() {
             isVisible={!!selectedVariantTypeId}
             level="insert"
             parentId={selectedVariantTypeId || undefined}
+            onSelectExisting={handleVariantSelect}
             extraActions={
               selectedVariantTypeId ? (
                 <NeonButton
@@ -398,6 +404,7 @@ export default function SetSelector() {
             isVisible={true}
             level="parallel"
             parentId={selectedVariantId || undefined}
+            onSelectExisting={handleVariantOfVariantSelect}
           />
         )}
 

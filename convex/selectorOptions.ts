@@ -626,6 +626,15 @@ export const addCustomSelectorOption = mutation({
     );
 
     if (duplicate) {
+      // Typing a value that already exists — whether it came from a marketplace
+      // sync or a prior custom add — is treated exactly like selecting it from
+      // the list: we resolve to the existing row rather than minting a
+      // duplicate. This keeps the custom field forgiving (entering "Football"
+      // in the Sport custom box behaves like searching for Football) AND
+      // prevents a custom row from shadowing synced data — which is invalid,
+      // since a custom parent forces every descendant custom (no sync is
+      // possible under it). The FE drives the actual selection/drill; this is
+      // the idempotent + race-safe backstop.
       return duplicate._id;
     }
 
@@ -2268,6 +2277,41 @@ export const wipeLegacyBaseChildren = mutation({
 
 // ===== ACTIONS (Orchestrators) =====
 
+// Per-child hard deadlines for the aggregator. The child adapters bound their
+// own marketplace fetches (SL: 3s × 3; BSC: 10s × 3), but if a child hangs
+// *upstream* of the fetch — e.g. a stuck cold-login in getSiteToken — its
+// promise can never settle, and a bare Promise.allSettled would wait forever,
+// so fetchAggregatedOptions would never reach recordAdapterCall and the FE
+// column would spin "Syncing…" with NOTHING logged. These deadlines guarantee
+// each branch resolves; whichever blows its budget is attributed via
+// timed_out_platform on the aggregator's adapter_sync_call. Budgets = the
+// child's own retry ceiling + margin (SL ≈ 9s, BSC ≈ 30s).
+const SL_CHILD_DEADLINE_MS = 12_000;
+const BSC_CHILD_DEADLINE_MS = 35_000;
+
+type ChildOutcome<T> =
+  | { kind: "settled"; value: T }
+  | { kind: "rejected"; reason: unknown }
+  | { kind: "timeout"; ms: number };
+
+// Race a child action against a hard deadline. NEVER rejects — a late
+// rejection from the orphaned child (after the deadline already won) is
+// swallowed so it can't surface as an unhandledRejection.
+function withChildDeadline<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<ChildOutcome<T>> {
+  return Promise.race<ChildOutcome<T>>([
+    promise.then(
+      (value): ChildOutcome<T> => ({ kind: "settled", value }),
+      (reason): ChildOutcome<T> => ({ kind: "rejected", reason }),
+    ),
+    new Promise<ChildOutcome<T>>((resolve) =>
+      setTimeout(() => resolve({ kind: "timeout", ms }), ms),
+    ),
+  ]);
+}
+
 export const fetchAggregatedOptions = action({
   args: {
     level: levelValidator,
@@ -2325,18 +2369,15 @@ export const fetchAggregatedOptions = action({
         );
 
         // Custom-subtree gate (NEO-22). Skip both adapters when any ancestor
-        // is user-created — only custom children can be added below this
-        // node, all the way down to custom cards.
-        //
-        // EXCEPTION: level=manufacturer is exempt. Manufacturer is a SL-only
-        // concept and SL returns the same static manufacturer list regardless
-        // of the (sport, year) you ask for. Syncing manufacturers under a
-        // custom Football/2026 subtree gives you the same Topps/Panini/etc.
-        // as syncing under Baseball/2024 — there's no per-parent data risk.
-        // Without this exemption, custom subtrees (used by e2e tests and
-        // user-created sets) have an empty Manufacturers column and can't
-        // make progress to the Sets/Variants levels below.
-        if (isCustomSubtree(chain) && level !== "manufacturer") {
+        // is user-created. "Once custom, always custom": a custom parent has
+        // no marketplace presence, so NO level below it — manufacturer
+        // included — can sync. (A previous exemption synced the static SL
+        // manufacturer list even under a custom subtree; that violated the
+        // rule and offered dead-end choices, since a custom sport has no
+        // marketplace data below any manufacturer you'd pick.) The user adds
+        // custom children and proceeds via the "+ Custom" button on each
+        // column, all the way down to custom cards.
+        if (isCustomSubtree(chain)) {
           console.log(
             `[fetchAggregatedOptions] custom subtree detected — skipping BSC/SL for level=${level}`,
           );
@@ -2442,28 +2483,43 @@ export const fetchAggregatedOptions = action({
       // what tells us how the two compose under Promise.allSettled.
       const slStart = Date.now();
       const bscStart = Date.now();
-      const [slSettled, bscSettled] = await Promise.allSettled([
-        ctx.runAction(api.adapters.sportlots.fetchSportLotsSelectorOptions, {
-          level,
-          parentFilters: parentFilters || {},
-          ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
-          requestId,
-        }),
-        ctx.runAction(api.adapters.buysportscards.fetchBscSelectorOptions, {
-          level,
-          parentFilters: parentFilters || {},
-          ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
-          requestId,
-        }),
+      // Each child is raced against a hard deadline (withChildDeadline) so a
+      // hang upstream of the marketplace fetch (e.g. a stuck cold-login) can
+      // never wedge the aggregator — Promise.all here always resolves within
+      // max(SL, BSC) deadline, guaranteeing we reach recordAdapterCall.
+      const [slOutcome, bscOutcome] = await Promise.all([
+        withChildDeadline(
+          ctx.runAction(api.adapters.sportlots.fetchSportLotsSelectorOptions, {
+            level,
+            parentFilters: parentFilters || {},
+            ...(slPlatformFilters ? { platformFilters: slPlatformFilters } : {}),
+            requestId,
+          }),
+          SL_CHILD_DEADLINE_MS,
+        ),
+        withChildDeadline(
+          ctx.runAction(api.adapters.buysportscards.fetchBscSelectorOptions, {
+            level,
+            parentFilters: parentFilters || {},
+            ...(bscPlatformFilters ? { platformFilters: bscPlatformFilters } : {}),
+            requestId,
+          }),
+          BSC_CHILD_DEADLINE_MS,
+        ),
       ]);
       const slDurationMs = Date.now() - slStart;
       const bscDurationMs = Date.now() - bscStart;
 
       let slSuccess = false;
       let bscSuccess = false;
+      // When a child blows its aggregator deadline (rather than returning an
+      // error), we tag the record with which platform stalled so PostHog can
+      // distinguish "the marketplace answered with an error" from "the adapter
+      // never came back at all". Set to "both" if both stalled.
+      let timedOutPlatform: string | undefined;
 
-      if (slSettled.status === "fulfilled") {
-        const sportlotsOptions = slSettled.value;
+      if (slOutcome.kind === "settled") {
+        const sportlotsOptions = slOutcome.value;
         if (sportlotsOptions.success && sportlotsOptions.options) {
           slSuccess = true;
           allOptions.push(
@@ -2475,14 +2531,18 @@ export const fetchAggregatedOptions = action({
         } else if (!sportlotsOptions.success) {
           platformErrors.sportlots = sportlotsOptions.message || "Unknown error";
         }
+      } else if (slOutcome.kind === "timeout") {
+        timedOutPlatform = "sportlots";
+        platformErrors.sportlots = `SportLots adapter exceeded ${slOutcome.ms / 1000}s deadline (no response — stalled before/within the marketplace fetch)`;
+        console.error(`[fetchAggregatedOptions] SportLots child exceeded ${slOutcome.ms}ms deadline`);
       } else {
-        const msg = slSettled.reason instanceof Error ? slSettled.reason.message : "Unknown error";
+        const msg = slOutcome.reason instanceof Error ? slOutcome.reason.message : "Unknown error";
         platformErrors.sportlots = msg;
-        console.error(`[fetchAggregatedOptions] SportLots error:`, slSettled.reason);
+        console.error(`[fetchAggregatedOptions] SportLots error:`, slOutcome.reason);
       }
 
-      if (bscSettled.status === "fulfilled") {
-        const bscOptions = bscSettled.value;
+      if (bscOutcome.kind === "settled") {
+        const bscOptions = bscOutcome.value;
         if (bscOptions.success && bscOptions.options) {
           bscSuccess = true;
           allOptions.push(
@@ -2494,10 +2554,14 @@ export const fetchAggregatedOptions = action({
         } else if (!bscOptions.success) {
           platformErrors.bsc = bscOptions.message || "Unknown error";
         }
+      } else if (bscOutcome.kind === "timeout") {
+        timedOutPlatform = timedOutPlatform ? "both" : "bsc";
+        platformErrors.bsc = `BSC adapter exceeded ${bscOutcome.ms / 1000}s deadline (no response — stalled before/within the marketplace fetch)`;
+        console.error(`[fetchAggregatedOptions] BSC child exceeded ${bscOutcome.ms}ms deadline`);
       } else {
-        const msg = bscSettled.reason instanceof Error ? bscSettled.reason.message : "Unknown error";
+        const msg = bscOutcome.reason instanceof Error ? bscOutcome.reason.message : "Unknown error";
         platformErrors.bsc = msg;
-        console.error(`[fetchAggregatedOptions] BSC error:`, bscSettled.reason);
+        console.error(`[fetchAggregatedOptions] BSC error:`, bscOutcome.reason);
       }
 
       // Debug: log platform errors and result counts
@@ -2575,6 +2639,8 @@ export const fetchAggregatedOptions = action({
           sl_success: slSuccess,
           bsc_success: bscSuccess,
           result_count: 0,
+          stage: "aggregator",
+          timed_out_platform: timedOutPlatform,
           error_class: classifyAdapterError(
             platformErrors.bsc || platformErrors.sportlots,
           ),
@@ -2622,6 +2688,8 @@ export const fetchAggregatedOptions = action({
         sl_success: slSuccess,
         bsc_success: bscSuccess,
         result_count: result.optionsCount,
+        stage: "aggregator",
+        timed_out_platform: timedOutPlatform,
         error_class:
           Object.keys(platformErrors).length > 0
             ? classifyAdapterError(
@@ -2648,6 +2716,7 @@ export const fetchAggregatedOptions = action({
         duration_ms: Date.now() - aggregatorStart,
         success: false,
         result_count: 0,
+        stage: "aggregator",
         error_class: classifyAdapterError(
           error instanceof Error ? error.message : String(error),
         ),

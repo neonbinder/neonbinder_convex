@@ -1,9 +1,8 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
   - regression
-  - requires:setup-done
   # WIP: After adding a custom entry via "+ Custom" form, the new entry
   # is buried below the column's `max-h-[400px] overflow-y-auto` fold
   # because synced sports sort alphabetically before the custom entry.
@@ -37,9 +36,7 @@ tags:
 # Wait for the profile page to render. setup-bsc-credentials now scrolls to
 # "BuySportsCards Credentials" (the section <h2>) which is always in the DOM,
 # so no pre-scroll is needed here — just confirm the page has loaded.
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 
 - runFlow:
     file: ../profile/setup-bsc-credentials.yaml
@@ -49,17 +46,13 @@ tags:
 # openLink reloads /profile at top so setup-sportlots-credentials can scroll
 # down to "BuySportsCards Credentials" reliably.
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+- assertVisible: "Set Selector"
 
 # ============================================================
 # STEP 1 — Add a custom sport entry
@@ -72,9 +65,7 @@ tags:
       text: "+ Custom"
     timeout: 10000
 - tapOn: "+ Custom"
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
+- assertVisible: "Add Custom Entry"
 
 # Type a unique custom sport name that will be easy to find after re-sync
 - tapOn: "Enter custom value..."
@@ -89,9 +80,7 @@ tags:
 
 # Wait for the "Add Custom Entry" form to close before checking the list.
 # The form disappearing confirms the entry was saved to the database.
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
-    timeout: 10000
+- assertNotVisible: "Add Custom Entry"
 
 # Reload /set-selector to reset the page scroll before tapping the
 # Sports column's search input. The earlier `scrollUntilVisible "+ Custom"`
@@ -106,9 +95,7 @@ tags:
 # entry already in `items` and the input rendered cleanly below the
 # navbar where Maestro can hit it.
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+- assertVisible: "Set Selector"
 
 # Find TestCustomSport-${TEST_USERNAME} via the Sports column's search
 # input. The Sports column has an internal `max-h-[400px] overflow-y-auto`
@@ -119,9 +106,6 @@ tags:
 - tapOn:
     id: "Search sports"
 - inputText: "TestCustomSport-${TEST_USERNAME}"
-- extendedWaitUntil:
-    visible: "TestCustomSport-${TEST_USERNAME}"
-    timeout: 5000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # Verify the "Custom" badge is shown next to the entry
@@ -135,9 +119,7 @@ tags:
 # This is the cleanest way to ensure "Sync Sports" is visible below the full list
 # before Step 2, without needing to interact with the search input state.
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+- assertVisible: "Set Selector"
 
 # Trigger a marketplace sync for sports.
 # The form auto-fires on open — no "Sync from Marketplaces" button.
@@ -173,18 +155,13 @@ tags:
 # left the page scrolled to the bottom of the column, putting the
 # search input behind the sticky navbar (see comment in STEP 1).
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+- assertVisible: "Set Selector"
 
 # Find TestCustomSport-${TEST_USERNAME} again after the re-sync. Same
 # search-input approach as STEP 1.
 - tapOn:
     id: "Search sports"
 - inputText: "TestCustomSport-${TEST_USERNAME}"
-- extendedWaitUntil:
-    visible: "TestCustomSport-${TEST_USERNAME}"
-    timeout: 5000
 - assertVisible: "TestCustomSport-${TEST_USERNAME}"
 
 # The "Custom" badge must still be shown on the entry
@@ -195,9 +172,7 @@ tags:
 # This confirms the re-sync did not destroy the custom entry AND also wrote
 # marketplace data for the standard sports entries.
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 15000
+- assertVisible: "Set Selector"
 
 # Marketplace-synced entries should be visible in the unfiltered list.
 # SL/BSC pills now appear only on terminal items — non-terminal levels like

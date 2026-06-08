@@ -1,0 +1,129 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Setup (3/3) — pre-sync Parallel variants + Gold Wave Refractors cards (2024 Topps Chrome)"
+tags:
+  - setup
+  - regression
+---
+# ════════════════════════════════════════════════════════════════════════════
+# GLOBAL SETUP TRACK — flow 3 of 3. Runs AFTER setup.yaml (+ setup-insert.yaml),
+# as worker 0.
+#
+# Pre-syncs the Parallel variant data so the Parallel feature tests read warm
+# data:
+#   - selects "Parallel" → the Parallels column auto-syncs → ReconciliationModal
+#     opens → SAVE all matched rows
+#   - fetches the "Gold Wave Refractors" checklist (~300 cards)
+#
+# Same shape and rationale as setup-insert.yaml (fresh flow = clean slate; see
+# that file's header). 240s sync wait is warm-track-only.
+# ════════════════════════════════════════════════════════════════════════════
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 30000
+
+- runFlow:
+    file: util/util-login-to-bsc.yaml
+- runFlow:
+    file: util/util-login-to-sportlots.yaml
+
+- runFlow:
+    file: set-selector/util-drill-to-2024-topps-chrome.yaml
+
+# ── SELECT PARALLEL — auto-sync fires on the empty Parallels column ──────────
+- extendedWaitUntil:
+    visible: "Parallel"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Parallel"
+    timeout: 10000
+- tapOn: "Parallel"
+- extendedWaitUntil:
+    visible: "Parallels"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Reconcile Parallels.*|.*Search parallels.*"
+    timeout: 240000
+- runFlow:
+    when:
+      visible: "Reconcile Parallels"
+    commands:
+      # ReconciliationModal STRUCTURE coverage — folded in from the retired
+      # cascade/sets-parallels (which couldn't survive a pre-saved column).
+      # Verify the modal before saving the matched rows.
+      - assertVisible:
+          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+      - scrollUntilVisible:
+          element:
+            text: ".*Unmatched.*"
+      - assertVisible:
+          text: ".*Unmatched.*"
+      - assertVisible:
+          text: ".*BSC.*"
+      - assertVisible:
+          text: ".*SportLots.*"
+      - scrollUntilVisible:
+          element:
+            text: ".*Save [0-9]+ matched.*"
+      - tapOn:
+          text: ".*Save [0-9]+ matched.*"
+      - extendedWaitUntil:
+          notVisible: "Reconcile Parallels"
+          timeout: 30000
+
+# ── PICK "Gold Wave Refractors" (index 1 skips the search input's value) ─────
+- extendedWaitUntil:
+    visible: ".*Search parallels.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: ".*Search parallels.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search parallels.*"
+- inputText: "Gold Wave Refractors"
+- extendedWaitUntil:
+    visible:
+      text: "^Gold Wave Refractors$"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "^Gold Wave Refractors$"
+    index: 1
+
+# ── FETCH THE CHECKLIST ─────────────────────────────────────────────────────
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    visibilityPercentage: 50
+    timeout: 15000
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|^Refresh$"
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 90000
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+          timeout: 10000
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+# Strict count — checklists are immutable once produced, so "Saved 300 cards" is
+# a fixed fact. A wrong number is a real fetch/save regression, not drift.
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved 300 cards.*"
+    timeout: 30000

@@ -5,7 +5,5 @@ tags:
   - auth
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 45000
+- assertVisible: "Neon Binder"
 - assertVisible: "Sign out"

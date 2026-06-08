@@ -1,0 +1,313 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/reset?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Setup — global reset + warm + sync 2024 Topps Chrome Baseball (sets + cards)"
+tags:
+  - setup
+  - regression
+---
+# ════════════════════════════════════════════════════════════════════════════
+# THE GLOBAL SETUP TRACK — flow 1 of 3.  Runs ONCE, before every other flow,
+# as worker 0. The track is THREE flows the runner runs in sequence:
+#     setup.yaml          → reset + warm + drill + variant types + Base cards  (this file)
+#     setup-insert.yaml   → Insert variants saved + "Future Stars" cards
+#     setup-parallel.yaml → Parallel variants saved + "Gold Wave Refractors" cards
+# Why 3 flows, not 1: switching variant types in-place after a card fetch is
+# unreliable, and a 2nd in-session openLink restores the SPA's prior (deep)
+# selection so a fresh fast-drill breaks. Each variant gets its OWN flow (fresh
+# browser context = clean slate) — the proven cascade pattern. /testing/reset
+# only clears the caller's profiles, NOT global selectorOptions, so the synced
+# data survives the sibling flows' re-launches.
+#
+# ── CANONICAL PRE-SYNCED DATA (the contract every other flow relies on) ──────
+# After this flow completes, the shared Convex deployment holds exactly this —
+# any flow may fast-drill to it and read it WITHOUT syncing. If you need data
+# NOT listed here, your flow must sync it itself (and accept the cost), or this
+# inventory must be extended. Keep this list in sync with the agent memory:
+# .claude/agent-memory/maestro-e2e-author/reference_presynced_setup_data.md
+#
+#   - selectorOptions / cardChecklist / players / teams cleared, then rebuilt
+#   - Worker 0's BSC + SportLots sessions warmed (creds seeded by the
+#     /testing/seed-credentials redirect in the url above)
+#   - Seeded teams: New York Yankees, New York Mets
+#   - Hierarchy: Baseball → 2024 → Topps → Topps Chrome
+#   - Variant Types synced: Base, Insert, Parallel
+#   - Base   → card checklist fetched + saved                                    [this flow]
+#   - Insert → matched variants saved; "Future Stars" checklist (~20 cards)       [setup-insert.yaml]
+#   - Parallel → matched variants saved; "Gold Wave Refractors" checklist (~300)  [setup-parallel.yaml]
+#
+# NOT pre-synced (sync lazily if you need them): any other year / manufacturer /
+# set (e.g. Topps Update, Topps Pro Debut, Topps Wonderland), any other sport,
+# and any non-Topps-Chrome variant rows beyond the matched sets saved above.
+#
+# WHERE THE LOGGED-IN USER COMES FROM:
+#   The `url:` above signs this flow in as TEST_EMAIL_${WORKER_INDEX} (worker 0
+#   by default) and seeds that user's marketplace creds server-side. The reset
+#   and the whole sync run as that one user. No prior flow is required.
+#
+# CREDS FOR *ALL* WORKER THREADS:
+#   This flow only warms worker 0. Every parallel worker needs its own warmed
+#   Clerk user (TEST_EMAIL_N) so sessions don't clobber each other — that is the
+#   runner's job: it loops worker-bootstrap.yaml once per worker (driven by
+#   MAESTRO_PARALLELISM, so "3 workers" is config, not a hardcoded list) BEFORE
+#   running this setup. A single Maestro flow can't loop a varying &worker=N URL.
+#
+# TIMEOUT POLICY — READ THIS BEFORE COPYING A WAIT ELSEWHERE:
+#   This is the ONE flow allowed to wait longer than Maestro's default. It pays
+#   the cold-start cost ONCE — Cloud Run spin-up, first marketplace login, the
+#   first selectorOptions write — so that EVERY other flow reads warm data and
+#   responds in <7s. Do NOT copy these long waits into feature flows. If a
+#   feature flow needs >7s for a UI response, that is a bug to fix, not a
+#   timeout to raise.
+# ════════════════════════════════════════════════════════════════════════════
+
+- launchApp
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 30000
+
+# ── GLOBAL RESET ────────────────────────────────────────────────────────────
+# Wipe selectorOptions + cardChecklist + players + teams on the shared
+# deployment. Gated by ALLOW_RESET_SET_BUILDER_DATA (dev/preview only).
+- scrollUntilVisible:
+    element:
+      text: "Reset Set Builder Data"
+    timeout: 10000
+- tapOn: "Reset Set Builder Data"
+- extendedWaitUntil:
+    visible: "Delete Everything"
+    timeout: 10000
+# Confirm input is autofocused; erase any stray chars, then type the keyword.
+# NEVER tapOn the placeholder first — it injects a stray character.
+- eraseText: 10
+- inputText: "RESET"
+- tapOn: "Delete Everything"
+# Reset deletes can be large; "Reset failed: ..." surfaces clearly if it errors.
+- extendedWaitUntil:
+    visible:
+      text: ".*Deleted [0-9]+ selector options.*"
+    timeout: 60000
+
+# ── SEED TEST TEAMS ─────────────────────────────────────────────────────────
+# The reset wiped `teams`. Seed New York Yankees + Mets so TeamPicker-style
+# flows get a deterministic typeahead match without depending on card commits.
+- scrollUntilVisible:
+    element:
+      text: "Seed Test Teams"
+    timeout: 10000
+- tapOn: "Seed Test Teams"
+- extendedWaitUntil:
+    visible:
+      text: ".*Seed complete.*"
+    timeout: 15000
+
+# ── WARM WORKER 0's MARKETPLACE SESSIONS ────────────────────────────────────
+# seed-credentials (in the url above) stored real BSC + SL creds but does NOT
+# warm the Puppeteer sessions. Force a fresh login for each so the syncs below
+# hit live marketplace data instead of stalling on a cold login mid-drill.
+# Each util taps "Test Credentials" on /profile (a cold login is a real ~22s
+# round-trip — the sanctioned long wait lives inside these utils, not here).
+# They also navigate to /profile, which sets up the fresh re-mount below.
+- runFlow:
+    file: util/util-login-to-bsc.yaml
+- runFlow:
+    file: util/util-login-to-sportlots.yaml
+
+# ── FRESH MOUNT OF THE SET SELECTOR ─────────────────────────────────────────
+# The reset wiped selectorOptions IN PLACE; the Sports column only auto-syncs
+# when it first mounts empty. Re-navigate so the now-empty column re-triggers
+# the sync — without this, "Baseball" never appears and the drill below fails.
+- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+- extendedWaitUntil:
+    visible: "Set Selector"
+    timeout: 20000
+
+# ════════════════════════════════════════════════════════════════════════════
+# SYNC 2024 TOPPS CHROME BASEBALL — full drill.
+# Each column auto-syncs when it opens empty (post-reset). We wait on each
+# column's search input appearing, which is the "sync finished, list populated"
+# signal. These are the warm waits — they absorb the first marketplace fetch.
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── SPORT: Baseball ─────────────────────────────────────────────────────────
+- runFlow:
+    when:
+      notVisible: "Baseball"
+    commands:
+      - extendedWaitUntil:
+          visible: "Baseball"
+          timeout: 60000
+- scrollUntilVisible:
+    element:
+      text: "Baseball"
+    timeout: 10000
+- tapOn: "Baseball"
+
+# ── YEAR: 2024 ──────────────────────────────────────────────────────────────
+# First marketplace data fetch after the reset — also covers the Convex action
+# cold start, so this is the single longest warm wait in the flow.
+- extendedWaitUntil:
+    visible: "Years"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search years.*"
+    timeout: 90000
+# Columns lay out horizontally — bring this column's search input into the
+# viewport before tapping (10s is the tight ceiling; the sync wait above is the
+# warm cost, this scroll is pure layout).
+- scrollUntilVisible:
+    element:
+      text: ".*Search years.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search years.*"
+- inputText: "2024"
+- extendedWaitUntil:
+    visible:
+      text: "2024"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "2024"
+    index: 1
+
+# ── MANUFACTURER: Topps ─────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Manufacturers"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: ".*Search manufacturers.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search manufacturers.*"
+- inputText: "Topps"
+- extendedWaitUntil:
+    visible:
+      text: "Topps"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps"
+    index: 1
+
+# ── SET: Topps Chrome ───────────────────────────────────────────────────────
+# Opening the Sets column syncs the full set list for Topps / 2024 — this is
+# where "all sets" land in selectorOptions.
+- extendedWaitUntil:
+    visible: "Sets"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: ".*Search sets.*"
+    timeout: 10000
+- tapOn:
+    text: ".*Search sets.*"
+- inputText: "Topps Chrome"
+- extendedWaitUntil:
+    visible:
+      text: "Topps Chrome"
+      index: 1
+    timeout: 10000
+- tapOn:
+    text: "Topps Chrome"
+    index: 1
+
+# ── VARIANT TYPES: Base / Insert / Parallel ─────────────────────────────────
+- extendedWaitUntil:
+    visible: "Variant Types"
+    timeout: 20000
+- runFlow:
+    when:
+      notVisible: "Base"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Sync Variant Types"
+          timeout: 10000
+      - tapOn: "Sync Variant Types"
+      - extendedWaitUntil:
+          notVisible: "Syncing Variant Types"
+          timeout: 45000
+      - runFlow:
+          when:
+            visible: "Close"
+          commands:
+            - tapOn: "Close"
+            - extendedWaitUntil:
+                visible: "Sync Variant Types"
+                timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    timeout: 10000
+- assertVisible: "Base"
+- assertVisible: "Insert"
+- assertVisible: "Parallel"
+
+# ════════════════════════════════════════════════════════════════════════════
+# LOAD CARDS — Base variant of 2024 Topps Chrome.
+# Base is terminal (no Variants column); selecting it opens BaseMappingForm,
+# then the CardChecklist. Fetch the checklist and confirm the first-run
+# UnknownEntitiesDialog so players/teams persist and cards save.
+# ════════════════════════════════════════════════════════════════════════════
+
+- tapOn: "Base"
+# Path A: BaseSetPicker stays open (SL data present) → confirm.
+# Path B: it auto-closes (BSC fallback) → "Re-map Base" appears. Handle both.
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - extendedWaitUntil:
+          visible: "Confirm Base Set"
+          timeout: 45000
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# CardChecklist action row renders below the columns; scroll it into view.
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    visibilityPercentage: 50
+    timeout: 15000
+- tapOn:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+
+# First fetch: all players/teams are new → UnknownEntitiesDialog opens.
+- extendedWaitUntil:
+    visible:
+      text: ".*Confirm New Players.*|.*Saved [0-9]+.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Confirm New Players & Teams"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+          timeout: 10000
+      - tapOn:
+          text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      - extendedWaitUntil:
+          notVisible: "Confirm New Players & Teams"
+          timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved [0-9]+ cards.*"
+    timeout: 30000
+# A "#NNN" card row confirms the fetch + save pipeline ran end-to-end.
+- assertVisible:
+    text: ".*#[0-9].*"

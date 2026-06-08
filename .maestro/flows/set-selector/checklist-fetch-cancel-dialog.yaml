@@ -1,9 +1,8 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
 name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
 tags:
   - set-selector
-  - requires:setup-done
 ---
 # Feature test: pressing Cancel on the UnknownEntitiesDialog aborts the
 # commit. No cards are written to the checklist and no entities are created.
@@ -38,21 +37,6 @@ tags:
     timeout: 10000
 
 # ============================================================
-# CREDENTIAL WARMING
-# seed-credentials already saved real BSC + SL credentials server-side via
-# the sign-in URL chain. Warm the Puppeteer session tokens so that the
-# marketplace fetch triggered by "Fetch from Marketplaces" (the core action
-# in this test) uses a live session and doesn't trigger a fresh ~20s login
-# mid-flow that causes the UnknownEntitiesDialog to appear too late.
-# ============================================================
-
-- runFlow:
-    file: util-login-to-bsc.yaml
-
-- runFlow:
-    file: util-login-to-sportlots.yaml
-
-# ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
 # ============================================================
 
@@ -73,6 +57,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    centerElement: true
     timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
@@ -82,32 +67,35 @@ tags:
     visible: "Player name"
     timeout: 5000
 # The card number input is auto-focused on form open.
-- inputText: "9001"
+# Card number includes ATTEMPT_ID so a retry doesn't add a duplicate row
+# (run-e2e-smoke.sh seeds ATTEMPT_ID=w<worker>-a<attempt>-<RANDOM>).
+- inputText: "9001-${ATTEMPT_ID}"
 # Address inputs by aria-label (via Maestro's `id:` selector, which matches
 # the accessibility-tree identifier). Placeholders overlap ("Player name",
 # "Player(s) — comma separated, optional") and Maestro's text matcher cannot
 # disambiguate them reliably — see NEO-13 root cause.
 - tapOn:
     id: "Card name"
-- inputText: "Cancel Dialog Test ${TEST_USERNAME}"
+- inputText: "Cancel Dialog Test ${ATTEMPT_ID}"
 # The Players input is the 4th row of the form — below the fold on the
 # default 1024x629 headless viewport. Scroll anchor uses the visible
 # placeholder; tap target uses the aria-label via `id:`.
 - scrollUntilVisible:
     element:
       text: "Player(s) — comma separated, optional"
+    centerElement: true
     timeout: 5000
 - tapOn:
     id: "Players"
-- inputText: "CDPlayer-${TEST_USERNAME}"
+- inputText: "CDPlayer-${ATTEMPT_ID}"
 # Defensive: confirm the typed player name landed on the form before
 # submitting. Fails fast if input targeting regresses.
-- assertVisible: "CDPlayer-${TEST_USERNAME}"
+- assertVisible: "CDPlayer-${ATTEMPT_ID}"
 - tapOn: "Add"
-# Card #9001 sorts to the bottom of a populated checklist — scroll to find it.
+# Card #9001-${ATTEMPT_ID} sorts to the bottom of a populated checklist — scroll to find it.
 - scrollUntilVisible:
     element:
-      text: "Cancel Dialog Test ${TEST_USERNAME}"
+      text: "Cancel Dialog Test ${ATTEMPT_ID}"
     timeout: 15000
 
 # ============================================================
@@ -174,9 +162,21 @@ tags:
 # Scroll to find it — the Re-map Base scroll above pushed it off-screen.
 - scrollUntilVisible:
     element:
-      text: "Cancel Dialog Test ${TEST_USERNAME}"
+      text: "Cancel Dialog Test ${ATTEMPT_ID}"
+    centerElement: true
     timeout: 15000
 
-# Fetch/Refresh button still available.
-- assertVisible:
-    text: ".*Fetch from Marketplaces.*|Refresh"
+# Fetch/Refresh button still available. The button lives at the TOP of the
+# CardChecklist (next to the "Sync card checklist" heading) and is off-screen
+# after scrolling down to the custom card. Scroll UP to bring it into view
+# before asserting — a plain assertVisible cannot find off-screen elements.
+- scrollUntilVisible:
+    element:
+      id: "Sync card checklist"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: "Sync card checklist"
+    timeout: 5000

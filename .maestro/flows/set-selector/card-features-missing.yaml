@@ -4,7 +4,6 @@ name: "Regression — card with no features shows amber missing-feature highligh
 tags:
   - regression
   - set-selector
-  - requires:setup-done
 ---
 # Regression test: a freshly-added custom card has no feature values. Opening the
 # CardFeaturesEditor and expanding it should show the amber "Missing required
@@ -15,7 +14,7 @@ tags:
 #   the setup — drilling to a custom set with a card present — takes a few steps.
 #
 # PER-WORKER DATA ISOLATION:
-#   Drills to Football → 2026 → Topps → cfm-<WORKER_INDEX> (custom set, Insert VT,
+#   Drills to E2E Test Sport ${WORKER_INDEX} → 2026 → Topps → cfm-<WORKER_INDEX> (custom set, Insert VT,
 #   "Base" insert). Custom subtrees have no marketplace feature inheritance, so a
 #   new card added here has no feature values and the "Missing required feature"
 #   amber ⚠ is guaranteed to appear. Each worker has its own checklist.
@@ -37,7 +36,7 @@ tags:
 
 # ============================================================
 # DRILL TO PER-WORKER CUSTOM SET
-# Football → 2026 → Topps → cfm-<WORKER_INDEX> → Insert → "Base" (custom insert)
+# E2E Test Sport ${WORKER_INDEX} → 2026 → Topps → cfm-<WORKER_INDEX> → Insert → "Base" (custom insert)
 # util-drill-to-custom-set.yaml returns with the Inserts column visible and idle.
 # ============================================================
 
@@ -60,18 +59,12 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Inserts"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "Base"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 10000
+- assertVisible: "Base"
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -93,10 +86,8 @@ tags:
 # Add a fresh card with no features.
 - tapOn:
     id: "Open add card form"
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 - inputText: "991-${ATTEMPT_ID}"
 - tapOn: "Player name"
 - inputText: "Missing Features Player ${ATTEMPT_ID}"
@@ -113,9 +104,7 @@ tags:
       text: "Missing Features Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Missing Features Player ${ATTEMPT_ID}"
-    timeout: 5000
+- assertVisible: "Missing Features Player ${ATTEMPT_ID}"
 
 # Now scroll the Edit button into view. With the row already centered by
 # the preceding scroll, this is a small adjustment that keeps bounds non-null.
@@ -128,10 +117,8 @@ tags:
 
 # Assert visibility before tapping — surfaces a failed scroll as a clear
 # assertion error rather than the null kotlin.Int bounds crash.
-- extendedWaitUntil:
-    visible:
-      id: "Edit card 991-${ATTEMPT_ID}"
-    timeout: 5000
+- assertVisible:
+    id: "Edit card 991-${ATTEMPT_ID}"
 
 # Open the edit form. `waitToSettleTimeoutMs` mitigates the
 # virtualisation race — parallel workers' live-query refetches can
@@ -139,10 +126,8 @@ tags:
 - tapOn:
     id: "Edit card 991-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 10000
+- assertVisible:
+    id: "Card name"
 
 # The "Show features" button is visible (collapsed by default).
 - assertVisible:
@@ -153,10 +138,8 @@ tags:
     id: "Show features editor"
 
 # The "Card features editor" section appears.
-- extendedWaitUntil:
-    visible:
-      id: "Card features editor"
-    timeout: 5000
+- assertVisible:
+    id: "Card features editor"
 
 # At least one feature row shows the amber missing-feature indicator.
 # The ⚠ icon has aria-label "Missing required feature".
@@ -166,10 +149,8 @@ tags:
 # The "Hide ▴" button collapses the editor.
 - tapOn:
     id: "Hide features editor"
-- extendedWaitUntil:
-    notVisible:
-      id: "Card features editor"
-    timeout: 5000
+- assertNotVisible:
+    id: "Card features editor"
 
 # Verify the "Show features ▾" button reappears.
 - assertVisible:
@@ -178,13 +159,19 @@ tags:
 # Cleanup: cancel edit and delete this attempt's test card.
 - tapOn:
     id: "Cancel card edit"
+# Scroll the delete button into view — the Cancel above collapses the edit
+# form, resetting the Virtuoso scroll position. The card row may not be
+# in the viewport when the form closes. centerElement: true keeps it well
+# clear of the sticky header and footer before the tap.
+- scrollUntilVisible:
+    element:
+      id: "Delete card 991-${ATTEMPT_ID}"
+    centerElement: true
+    visibilityPercentage: 50
+    timeout: 10000
 - tapOn:
     id: "Delete card 991-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    visible: "Confirm?"
-    timeout: 5000
+- assertVisible: "Confirm?"
 - tapOn:
     id: "Confirm delete card 991-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    notVisible: "Missing Features Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertNotVisible: "Missing Features Player ${ATTEMPT_ID}"

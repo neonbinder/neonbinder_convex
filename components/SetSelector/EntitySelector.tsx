@@ -124,7 +124,16 @@ export default function EntitySelector({
           type="text"
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          className="w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm"
+          // Unique per-column class (mb-search-<slug>) so Maestro web's
+          // inputText targets THIS column's box. When two columns are open
+          // and both have >8 items (e.g. Sports + Sets), every search box
+          // otherwise shares one className; Maestro's createXPathFromElement
+          // builds a non-unique class XPath and types into the FIRST box on
+          // the page instead of the tapped one (NEO-46: pg-suggestions-0 was
+          // typed into Sports → "No matches found"; Sets never filtered).
+          // Same fix class as the mb-field-<slug> inputs. aria-label alone
+          // doesn't help — inputText keys off className, not aria-label.
+          className={`mb-search-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")} w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm`}
           placeholder={`Search ${title.toLowerCase()}...`}
           aria-label={`Search ${title.toLowerCase()}`}
         />

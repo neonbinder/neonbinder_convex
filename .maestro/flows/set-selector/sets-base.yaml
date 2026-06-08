@@ -1,0 +1,76 @@
+appId: com.neonbinder.web
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "BaseSetPicker — confirm SportLots base-set mapping for 2024 Topps Heritage"
+tags:
+  - set-selector
+  - regression
+---
+# Independent BaseSetPicker test (was cascade/sets-base). Uses 2024 Topps HERITAGE
+# — a DIFFERENT set from the setup track's Topps Chrome — so it exercises the
+# BaseSetPicker on a set whose base mapping is NOT pre-confirmed by setup.
+# (Heritage is a clean single-base set: one 1–500 base, no Series-1/2/Update
+# split, so SportLots returns one unambiguous "likely match". Flagship "Topps"
+# was rejected for exactly that split; "Topps Fire" doesn't exist in 2024.)
+#
+# Topps Heritage's variant types + base mapping are not pre-synced, so the drill
+# does a cold variant-type sync and the picker does a LIVE SportLots base-set
+# fetch. The 60s waits on the picker are that live marketplace fetch (the
+# BaseSetPicker's real latency), not padding — every other wait uses the 7s default.
+#
+# Needs Phase-0 bootstrap: drilling a cold set + the live SL fetch require a warm
+# marketplace token. See feedback_set_selector_conversion_rules.
+
+- launchApp
+- assertVisible: "Set Selector"
+
+# Warm (live SL fetch needs a warm token) + /profile detour so util-drill's
+# openLink /set-selector is a fresh cross-page mount.
+- runFlow:
+    file: ../util/util-login-to-bsc.yaml
+- runFlow:
+    file: ../util/util-login-to-sportlots.yaml
+
+# Drill Baseball → 2024 → Topps → Topps Heritage (cold variant-type sync inside util).
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
+    env:
+      SET: "Topps Heritage"
+
+# ── SELECT BASE → BaseSetPicker ─────────────────────────────────────────────
+# Path A: picker stays open (SL data) → confirm. Path B: auto-closes → Re-map Base.
+- tapOn: "Base"
+- extendedWaitUntil:
+    visible:
+      text: ".*Select Base Set.*|.*Re-map Base.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Select Base Set"
+    commands:
+      - extendedWaitUntil:
+          visible: "Confirm Base Set"
+          timeout: 60000
+      # BaseSetPicker modal STRUCTURE — the unique coverage this flow owns.
+      - assertVisible:
+          text: ".*Choose the base set for.*"
+      - assertVisible:
+          text: ".*SportLots base.*"
+      - assertVisible: "likely match"
+      - tapOn: "Confirm Base Set"
+      - extendedWaitUntil:
+          notVisible: "Select Base Set"
+          timeout: 30000
+
+# ── CardChecklist renders after the mapping is confirmed ────────────────────
+- scrollUntilVisible:
+    element:
+      text: ".*Fetch from Marketplaces.*|Refresh"
+    visibilityPercentage: 50
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
+- scrollUntilVisible:
+    element:
+      text: "Re-map Base"
+    direction: UP
+    visibilityPercentage: 50
+- assertVisible: "Re-map Base"

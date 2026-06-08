@@ -1,25 +1,32 @@
 appId: com.neonbinder.web
-name: "Util — drill to Football → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
+name: "Util — drill to E2E Test Sport ${WORKER_INDEX} → 2026 → <SET_NAME> (custom set) and land at Variant Types column"
 tags:
   - util
 ---
-# Creates and drills to a per-flow custom set under Football → 2026.
+# Creates and drills to a per-flow custom set under E2E Test Sport ${WORKER_INDEX} → 2026.
 #
-# WHY Football / 2026?
+# WHY E2E Test Sport ${WORKER_INDEX} / 2026?
 #   Flows that add custom data (Stars, Stars Gold, META-TEST, etc.) must NOT
 #   touch Baseball → 2024 → Topps Chrome — that path is owned by the cascade
-#   and uses real BSC/SL marketplace data. Football → 2026 is a fresh sport/year
-#   combination that no cascade flow touches, so custom-data flows are fully
-#   isolated and cannot interfere with the cascade's reconciliation behaviour.
+#   and uses real BSC/SL marketplace data. "E2E Test Sport ${WORKER_INDEX}" is a
+#   synthetic sport name that no marketplace (BSC/SportLots) will ever return as
+#   synced data, so the custom-add is always legitimate and the subtree is truly
+#   isolated. The WORKER_INDEX suffix makes the sport node PER-WORKER so that
+#   concurrent workers never share the same Sport → Year column: worker 0 owns
+#   "E2E Test Sport 0", worker 1 owns "E2E Test Sport 1", etc. "2026" is a custom
+#   year that further separates this playground from any real data.
+#   Together they ensure custom-data flows cannot interfere with the cascade's
+#   reconciliation behaviour — and the custom-add guard never collides with a
+#   server-side "already exists as synced data" error.
 #
 # INPUTS:
-#   SET_NAME    (required) — basename of the flow, e.g. "parallel-grouping-suggestions-0"
+#   SET_NAME    (required) — basename of the flow, e.g. "pg-move-0" or "pg-cancel-0"
 #   VARIANT_TYPE (optional, defaults to "Insert") — variant type to select after landing
 #
 # CONTRACT:
 #   - Caller has called launchApp and the session is signed in.
 #   - Caller has BSC + SL credentials available (passed via env or already saved).
-#   - This util navigates to /set-selector, adds Football → 2026 → <SET_NAME>
+#   - This util navigates to /set-selector, adds E2E Test Sport ${WORKER_INDEX} → 2026 → <SET_NAME>
 #     if not already present, and returns with:
 #       * The custom set selected (Sets column)
 #       * Variant Types column visible
@@ -29,8 +36,8 @@ tags:
 #     available in the Variant Types column on return.
 #
 # IDEMPOTENCY:
-#   If Football, 2026, and SET_NAME already exist from a prior iteration in this
-#   CI run (e.g. re-run), the drill taps through to the existing items.
+#   If E2E Test Sport ${WORKER_INDEX}, 2026, and SET_NAME already exist from a prior
+#   iteration in this CI run (e.g. re-run), the drill taps through to the existing items.
 #   addCustomSelectorOption is idempotent on normalized value — no duplicates.
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
@@ -39,12 +46,15 @@ tags:
     timeout: 20000
 
 # ============================================================
-# LEVEL 1 — Football
-# Football is not seeded by the cascade setup, so the Sports column may not
-# list it until we add it as a custom entry. Use "Add custom Sports" to
-# ensure it exists, then tap it. The addCustomSelectorOption mutation is
-# idempotent — tapping "+ Custom" and typing "Football" twice in the same
-# run is safe: the second insert is deduplicated by normalized value.
+# LEVEL 1 — E2E Test Sport ${WORKER_INDEX}
+# "E2E Test Sport ${WORKER_INDEX}" is a synthetic, per-worker name never returned
+# by any marketplace sync, so custom-adding it is always valid (no server-side
+# "already exists as synced data" error). Use "Add custom Sports" to create it
+# if absent, then tap it. The WORKER_INDEX suffix ensures each concurrent worker
+# builds its own isolated Sport subtree.
+# The addCustomSelectorOption mutation is idempotent on normalized value —
+# typing "E2E Test Sport ${WORKER_INDEX}" twice in the same run is safe: the
+# second insert is deduplicated.
 # ============================================================
 
 - extendedWaitUntil:
@@ -58,12 +68,12 @@ tags:
     visible: "Baseball"
     timeout: 60000
 
-# Try to tap Football directly first (it may already exist from a prior run).
+# Try to tap E2E Test Sport ${WORKER_INDEX} directly first (it may already exist from a prior run).
 - runFlow:
     when:
-      notVisible: "Football"
+      notVisible: "E2E Test Sport ${WORKER_INDEX}"
     commands:
-      # Football is not yet in the list. Add it as a custom Sport entry.
+      # E2E Test Sport ${WORKER_INDEX} is not yet in the list. Add it as a custom Sport entry.
       - scrollUntilVisible:
           element:
             id: "Add custom Sports"
@@ -74,20 +84,20 @@ tags:
       - extendedWaitUntil:
           visible: "Add Custom Entry"
           timeout: 5000
-      - inputText: "Football"
+      - inputText: "E2E Test Sport ${WORKER_INDEX}"
       - pressKey: Enter
       - extendedWaitUntil:
           notVisible: "Add Custom Entry"
           timeout: 10000
 
 - extendedWaitUntil:
-    visible: "Football"
+    visible: "E2E Test Sport ${WORKER_INDEX}"
     timeout: 10000
 - scrollUntilVisible:
     element:
-      text: "Football"
+      text: "E2E Test Sport ${WORKER_INDEX}"
     timeout: 10000
-- tapOn: "Football"
+- tapOn: "E2E Test Sport ${WORKER_INDEX}"
 
 # ============================================================
 # LEVEL 2 — Year 2026
@@ -99,7 +109,7 @@ tags:
     visible: "Years"
     timeout: 20000
 
-# Wait for Years column to settle. For a fresh custom sport (Football) the
+# Wait for Years column to settle. For a fresh custom sport (E2E Test Sport ${WORKER_INDEX}) the
 # YearForm fires briefly and then short-circuits via the custom-subtree gate.
 # The settled state has the "+ Custom" button (aria-label "Add custom Years")
 # present. scrollUntilVisible waits for that element, tolerating in-flight
@@ -135,34 +145,57 @@ tags:
 - tapOn: "2026"
 
 # ============================================================
-# LEVEL 3 — Manufacturer: search for "Topps" and tap it
-# Football/2026 sport+year already provides isolation from the Baseball/2024
-# cascade path, and the per-flow unique SET_NAME at level 4 makes each
-# flow's data unique. No need to add a custom manufacturer here. Mirrors
-# the proven search-input pattern from util-drill-to-2024-topps-chrome.yaml.
+# LEVEL 3 — Manufacturer: add "Topps" as a custom entry and tap it
+# Under the E2E Test Sport ${WORKER_INDEX} → 2026 custom subtree, the manufacturer
+# "exemption" has been removed (once-custom-always-custom). The
+# Manufacturers column no longer syncs from marketplaces here — it
+# settles to idle showing "+ Custom" (aria-label "Add custom Manufacturers")
+# and "No manufacturers available", with NO "Search manufacturers" input.
+# So we add "Topps" as a custom value if absent, then tap it.
+# addCustomSelectorOption is idempotent on normalized value — concurrent
+# workers adding "Topps" simultaneously will converge with no duplicates.
+# centerElement: true is required — same 1024×629 footer-steal reason as
+# the Sets level below: a "+ Custom" button near y≈583+ gets its tap
+# registered but follow-up modal events get swallowed by the footer.
+# Centering puts the button mid-viewport (y≈315), clear of the footer.
 # ============================================================
 
 - extendedWaitUntil:
     visible: "Manufacturers"
     timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
+
+# Wait for the Manufacturers column to reach custom-only idle: the
+# "+ Custom" button (aria-label "Add custom Manufacturers") is only
+# present when mode=idle. 60s ceiling mirrors the Sets level below.
 - scrollUntilVisible:
     element:
-      text: ".*Search manufacturers.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
+      id: "Add custom Manufacturers"
+    centerElement: true
+    timeout: 60000
+
+- runFlow:
+    when:
+      notVisible: "Topps"
+    commands:
+      - tapOn:
+          id: "Add custom Manufacturers"
+      - extendedWaitUntil:
+          visible: "Add Custom Entry"
+          timeout: 5000
+      - inputText: "Topps"
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible: "Add Custom Entry"
+          timeout: 10000
+
 - extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
+    visible: "Topps"
     timeout: 10000
-- tapOn:
-    text: "Topps"
-    index: 1
+- scrollUntilVisible:
+    element:
+      text: "Topps"
+    timeout: 10000
+- tapOn: "Topps"
 
 # ============================================================
 # LEVEL 4 — Set (the per-flow unique SET_NAME)
@@ -244,14 +277,24 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: ${SET_NAME}
+      # Select the result ROW by relationship, not index. After typing, the
+      # "Search sets" input ITSELF has text=${SET_NAME} (its value), so a bare
+      # text match is ambiguous and `index:` is unreliable — the (input,row)
+      # DOM order flips between a cold sync and a re-drill, so index:1 can land
+      # on the input (NEO-46: this failed once >8 custom sets accumulated under
+      # the worker's playground and the search input appeared). The result row
+      # is the ${SET_NAME} element BELOW the search input. Same fix as
+      # util-drill-to-2024-topps-chrome.yaml; see feedback_search_input_index_pattern.
       - extendedWaitUntil:
           visible:
             text: ".*${SET_NAME}.*"
-            index: 1
+            below:
+              id: "Search sets"
           timeout: 10000
       - tapOn:
           text: ".*${SET_NAME}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
       # Wait for Variant Types to render before returning from this branch.
       # Under shared-Convex contention the column can take up to ~11s to
@@ -305,18 +348,26 @@ tags:
     visible: "Variant Types"
     timeout: 30000
 
-# Short-circuit makes idle mode arrive quickly (<5s).
-# NOTE (PR #31): previously used centerElement: true. CI fb5c2b6 showed
-# Maestro CDP didn't reliably center this button — it landed at y=179
-# and the subsequent tap missed (modal never opened). Use plain
-# visibilityPercentage scroll instead; the Variant Types column has at
-# most 4 items (Base/Insert/Parallel/Promo) so the "+ Custom" button
-# is naturally close to the column header, not pushed near the
-# footer/scrollbar zone the centerElement workaround was guarding.
-- scrollUntilVisible:
-    element:
+# Idle-mode signal: wait for the "+ Custom" button WITHOUT scrolling.
+#
+# History: centerElement was unreliable (PR #31, CI fb5c2b6 — button landed at
+# y=179, tap missed); switching to `visibilityPercentage: 100` scroll then hit
+# a WORSE failure (NEO-46, cards-parallel-custom attempt-1): every scroll retry
+# threw `MismatchedInputException: No content to map due to end-of-input` at
+# CdpWebDriver.scroll for the full 30s. The button was actually rendered and
+# in-viewport (~y=429 at 1024×629) — Maestro's *scroll* mechanic was throwing
+# because the page was still re-rendering right after the fresh set was created
+# + selected. The SAME step passed on attempt-2 when the set pre-existed (page
+# settled, no re-render).
+#
+# Fix: don't scroll at all. For a custom set the Variant Types column is short
+# (0 marketplace types — the gate short-circuits), so the button renders in
+# the viewport. A non-scrolling visibility wait both signals idle mode AND
+# sidesteps the CDP scroll bug. The subsequent tapOn taps the already-visible
+# button directly.
+- extendedWaitUntil:
+    visible:
       id: "Add custom Variant Types"
-    visibilityPercentage: 100
     timeout: 30000
 
 # Insert: add if absent, then tap. waitToSettleTimeoutMs on the tap

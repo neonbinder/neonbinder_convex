@@ -5,9 +5,6 @@ tags:
   - home
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 30000
 
 # Header: logo text and Sign In button
 - assertVisible: "Neon Binder"

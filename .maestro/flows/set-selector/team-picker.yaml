@@ -4,7 +4,6 @@ name: "TeamPicker — chip add, remove, keyboard Enter, 'No matches' state, canc
 tags:
   - set-selector
   - regression
-  - requires:setup-done
 ---
 # Full feature test for the NEO-26 TeamPicker chip-list component.
 #
@@ -26,11 +25,11 @@ tags:
 #   checklist — no concurrent checklist contention with the cascade's
 #   Topps Chrome path.
 #
-#   WHY Baseball/2024/Topps (not Football/2026):
+#   WHY Baseball/2024/Topps (not E2E Test Sport ${WORKER_INDEX}/2026):
 #     cascade/setup.yaml seeds New York Yankees + New York Mets for Baseball.
-#     The TeamPicker query is sport-scoped — a Football checklist would return
-#     NFL teams, not Yankees/Mets. Baseball context makes the seeded teams
-#     available for typeahead search. The custom Set name (tp-<worker>) is
+#     The TeamPicker query is sport-scoped — an E2E Test Sport ${WORKER_INDEX} checklist
+#     would return no seeded teams, not Yankees/Mets. Baseball context makes the seeded
+#     teams available for typeahead search. The custom Set name (tp-<worker>) is
 #     unique and not a real marketplace set, so BSC/SL adapters short-circuit
 #     via the NEO-22 gate.
 #
@@ -51,12 +50,8 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Set Selector"
+- assertVisible: "Baseball"
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -73,14 +68,14 @@ tags:
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -92,20 +87,18 @@ tags:
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Sets column — wait for idle (scrollUntilVisible waits for + Custom to appear).
 # centerElement: true required to avoid footer click-steal at y≥489 on 1024×629.
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
+- assertVisible: "Sets"
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
@@ -119,14 +112,10 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Sets"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "tp-${WORKER_INDEX || 0}"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
 # Tap the custom Set. Use search box if list is large (>8 items).
 - runFlow:
@@ -142,18 +131,16 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: "tp-${WORKER_INDEX || 0}"
-      - extendedWaitUntil:
-          visible:
-            text: ".*tp-${WORKER_INDEX || 0}.*"
-            index: 1
-          timeout: 10000
+      - assertVisible:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 - runFlow:
     when:
       notVisible: "Variant Types"
@@ -166,14 +153,10 @@ tags:
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
 # Variant Types column — wait for idle (+ Custom button).
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 30000
+- assertVisible: "Variant Types"
 - scrollUntilVisible:
     element:
       id: "Add custom Variant Types"
@@ -188,15 +171,11 @@ tags:
       - tapOn:
           id: "Add custom Variant Types"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 10000
+      - assertVisible: "Add Custom Entry"
       - inputText: "Insert"
       - pressKey: Enter
-      - extendedWaitUntil:
-          visible:
-            text: ".*Insert.*"
-          timeout: 5000
+      - assertVisible:
+          text: ".*Insert.*"
 
 - scrollUntilVisible:
     element:
@@ -205,10 +184,8 @@ tags:
 - tapOn: "Insert"
 
 # Inserts column — wait for idle.
-- extendedWaitUntil:
-    visible:
-      text: ".*Inserts.*"
-    timeout: 15000
+- assertVisible:
+    text: ".*Inserts.*"
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
@@ -222,18 +199,12 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Inserts"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "Base"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 10000
+- assertVisible: "Base"
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -259,18 +230,14 @@ tags:
 
 - tapOn:
     id: "Open add card form"
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 - inputText: "889-${ATTEMPT_ID}"
 - tapOn: "Player name"
 - inputText: "Team Feature Player ${ATTEMPT_ID}"
 - tapOn:
     id: "Submit new card"
-- extendedWaitUntil:
-    visible: "Team Feature Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertVisible: "Team Feature Player ${ATTEMPT_ID}"
 
 # Scroll the just-added card into view before tapping its Edit button.
 - scrollUntilVisible:
@@ -287,10 +254,8 @@ tags:
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 10000
+- assertVisible:
+    id: "Card name"
 
 # The TeamPicker container has aria-label "Team picker".
 - assertVisible:
@@ -306,18 +271,14 @@ tags:
 
 - tapOn:
     id: "Add team"
-- extendedWaitUntil:
-    visible:
-      id: "Search teams"
-    timeout: 5000
+- assertVisible:
+    id: "Search teams"
 
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
-- extendedWaitUntil:
-    visible:
-      id: "Add New York Yankees"
-    timeout: 10000
+- assertVisible:
+    id: "Add New York Yankees"
 
 - tapOn:
     id: "Add New York Yankees"
@@ -334,10 +295,8 @@ tags:
 
 - tapOn:
     id: "Remove team New York Yankees"
-- extendedWaitUntil:
-    notVisible:
-      id: "Remove team New York Yankees"
-    timeout: 5000
+- assertNotVisible:
+    id: "Remove team New York Yankees"
 
 # ============================================================
 # TEST 4 — "No matches." state when search finds nothing
@@ -345,16 +304,11 @@ tags:
 
 - tapOn:
     id: "Add team"
-- extendedWaitUntil:
-    visible:
-      id: "Search teams"
-    timeout: 5000
+- assertVisible:
+    id: "Search teams"
 - tapOn:
     id: "Search teams"
 - inputText: "ZZZZNOTATEAM"
-- extendedWaitUntil:
-    visible: "No matches."
-    timeout: 10000
 - assertVisible: "No matches."
 
 # Close popover.
@@ -367,18 +321,14 @@ tags:
 
 - tapOn:
     id: "Add team"
-- extendedWaitUntil:
-    visible:
-      id: "Search teams"
-    timeout: 5000
+- assertVisible:
+    id: "Search teams"
 - tapOn:
     id: "Search teams"
 - eraseText: 20
 - inputText: "Mets"
-- extendedWaitUntil:
-    visible:
-      id: "Add New York Mets"
-    timeout: 10000
+- assertVisible:
+    id: "Add New York Mets"
 
 # Press Enter to confirm the highlighted first match.
 - pressKey: Enter
@@ -396,18 +346,14 @@ tags:
 # Cancel — chip should disappear.
 - tapOn:
     id: "Cancel card edit"
-- extendedWaitUntil:
-    notVisible: "Card name"
-    timeout: 5000
+- assertNotVisible: "Card name"
 
 # Re-open edit — no chip (we never saved).
 - tapOn:
     id: "Edit card 889-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 10000
+- assertVisible:
+    id: "Card name"
 
 # Only the "+ Add team" trigger — no chip.
 - assertVisible:
@@ -420,26 +366,20 @@ tags:
 # Add Yankees and save.
 - tapOn:
     id: "Add team"
-- extendedWaitUntil:
-    visible:
-      id: "Search teams"
-    timeout: 5000
+- assertVisible:
+    id: "Search teams"
 - tapOn:
     id: "Search teams"
 - inputText: "Yankees"
-- extendedWaitUntil:
-    visible:
-      id: "Add New York Yankees"
-    timeout: 10000
+- assertVisible:
+    id: "Add New York Yankees"
 - tapOn:
     id: "Add New York Yankees"
 - tapOn:
     id: "Card name"
 - tapOn:
     id: "Save card edit"
-- extendedWaitUntil:
-    visible: "Team Feature Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertVisible: "Team Feature Player ${ATTEMPT_ID}"
 
 - assertVisible:
     text: ".*Yankees.*"
@@ -450,12 +390,8 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Set Selector"
+- assertVisible: "Baseball"
 - scrollUntilVisible:
     element:
       text: "Baseball"
@@ -472,14 +408,14 @@ tags:
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    below:
+      id: "Search years"
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
@@ -491,19 +427,17 @@ tags:
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    below:
+      id: "Search manufacturers"
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # Sets column — tap our custom set (already exists).
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
+- assertVisible: "Sets"
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
@@ -523,18 +457,16 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: "tp-${WORKER_INDEX || 0}"
-      - extendedWaitUntil:
-          visible:
-            text: ".*tp-${WORKER_INDEX || 0}.*"
-            index: 1
-          timeout: 10000
+      - assertVisible:
+          text: ".*tp-${WORKER_INDEX || 0}.*"
+          below:
+            id: "Search sets"
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
-          index: 1
+          below:
+            id: "Search sets"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 - runFlow:
     when:
       notVisible: "Variant Types"
@@ -547,14 +479,10 @@ tags:
       - tapOn:
           text: ".*tp-${WORKER_INDEX || 0}.*"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
 # Tap Insert variant type.
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 30000
+- assertVisible: "Variant Types"
 - scrollUntilVisible:
     element:
       text: "Insert"
@@ -562,13 +490,9 @@ tags:
 - tapOn: "Insert"
 
 # Tap "Base" insert variant.
-- extendedWaitUntil:
-    visible:
-      text: ".*Inserts.*"
-    timeout: 15000
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 10000
+- assertVisible:
+    text: ".*Inserts.*"
+- assertVisible: "Base"
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -590,11 +514,7 @@ tags:
 
 - tapOn:
     id: "Delete card 889-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    visible: "Confirm?"
-    timeout: 5000
+- assertVisible: "Confirm?"
 - tapOn:
     id: "Confirm delete card 889-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    notVisible: "Team Feature Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertNotVisible: "Team Feature Player ${ATTEMPT_ID}"

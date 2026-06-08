@@ -1,44 +1,23 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Parallel Grouping — cancel discards changes; re-open modal shows original state"
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Parallel Grouping — Cancel discards changes (reopen shows original); also closes via backdrop"
 tags:
   - parallel-grouping
   - regression
 ---
-# Feature test: Cancel discards pending changes and does not persist to the DB.
+# PRODUCT-FEATURE test: Cancel discards pending groupings and does NOT persist.
+# Also covers the modal's two close mechanisms (Cancel button + backdrop tap).
 #
-# SCENARIO:
-#   1. Open the modal. Tap an insert row to select it (click-to-place mode).
-#   2. Tap a "Parallels of X" drop zone to place the selected row there.
-#   3. Verify the footer shows a change (e.g. "1 promotion").
-#   4. Tap Cancel.
-#   5. Re-open the modal.
-#   6. Verify the row is back in "Top-level inserts" (original state).
+# KEY PROOF: after Accept All → Cancel → reopen, the items show "Suggested"
+# badges again (live auto-suggestions, not saved placements). If Cancel had
+# written to the DB, the reopen would show them as persisted parallels with no
+# Suggested badge. So "Suggested" on reopen == Cancel correctly discarded.
 #
-# WHY THIS MATTERS:
-#   The reducer resets to emptyState when isOpen becomes false, then
-#   re-initialises from the live DB tree on the next open. If Cancel
-#   accidentally saved to the DB (it should not), the re-open would
-#   show the change persisted. This flow catches that regression.
-#
-# SETUP:
-#   Same three custom inserts — "Stars", "Stars Gold", "Stars Red".
-#   We use "Stars Gold" as the row we place then cancel.
-
-# ============================================================
-# LAUNCH + SIGN IN
-# ============================================================
+# Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → pg-cancel-<worker>),
+# every wait is the 7s default; the util owns the cold custom-subtree drill.
 
 - launchApp
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 45000
-
-# ============================================================
-# DRILL TO PER-FLOW CUSTOM SET — Football → 2026 → pg-cancel-<worker>
-# Isolated from Baseball → 2024 → Topps Chrome cascade path.
-# Returns with Inserts column visible and idle.
-# ============================================================
+- assertVisible: "Set Selector"
 
 - runFlow:
     file: util-drill-to-custom-set.yaml
@@ -46,177 +25,137 @@ tags:
       SET_NAME: "pg-cancel-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
 
-# ============================================================
-# ADD CONTROLLED CUSTOM INSERTS
-# ============================================================
-
-# --- Add "Stars" ---
-# The Inserts column "+ Custom" button has aria-label="Add custom Inserts".
-# Maestro web maps aria-label to resource-id, so we use id: with the aria-label value.
-# Plain text "Add custom Inserts" does NOT work — Maestro text matchers only see
-# the visible DOM text ("+ Custom"), not the aria-label.
-# centerElement: true — util-drill-to-custom-set.yaml returns with the Inserts
-# column visible but the "+ Custom" button near the bottom of the 1024×629
-# headless viewport. visibilityPercentage: 50 leaves the button in the
-# footer/scrollbar zone (y≥589) where subsequent taps are silently absorbed.
-# Centering puts the button at y≈315 before the tap.
+# ── ADD THREE CUSTOM INSERTS (Stars / Stars Gold / Stars Red) ───────────────
+# aria-label "Add custom Inserts" maps to resource-id (id:); visible text is
+# "+ Custom". centerElement on the first add to clear the footer-steal zone.
+# --- Stars ---
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
     centerElement: true
-    timeout: 10000
 - tapOn:
     id: "Add custom Inserts"
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
+- assertVisible: "Add Custom Entry"
 - inputText: "Stars"
-# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
-# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
-# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
 - pressKey: Enter
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
-    timeout: 10000
+- assertNotVisible: "Add Custom Entry"
 
-# --- Add "Stars Gold" ---
+# --- Stars Gold ---
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
     visibilityPercentage: 50
-    timeout: 10000
 - tapOn:
     id: "Add custom Inserts"
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
+- assertVisible: "Add Custom Entry"
 - inputText: "Stars Gold"
-# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
-# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
-# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
 - pressKey: Enter
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
-    timeout: 10000
+- assertNotVisible: "Add Custom Entry"
 
-# --- Add "Stars Red" (ensures the EntitySelector renders with 3 items,
-# matching the layout state where the Group Parallels button tap reliably works) ---
+# --- Stars Red (third entry keeps the Group Parallels button layout stable) ---
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
     visibilityPercentage: 50
-    timeout: 10000
 - tapOn:
     id: "Add custom Inserts"
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
+- assertVisible: "Add Custom Entry"
 - inputText: "Stars Red"
-# Submit via Enter — the input's onKeyDown handler (EntityColumn.tsx:129)
-# calls handleCustomSubmit on Enter. Avoids `tapOn: "Add"` ambiguity
-# (text "Add" also matches "Add Custom Entry" heading + "Add Card" button).
 - pressKey: Enter
-- extendedWaitUntil:
-    notVisible: "Add Custom Entry"
-    timeout: 10000
-# After the Variants column accumulates Stars + Stars Gold + Stars Red,
-# the newly added entry can render below the visible fold. Use scroll
-# instead of plain assertVisible so the test doesn't fail when the new
-# row is rendered but off-viewport — the user can still scroll to it.
-- scrollUntilVisible:
-    element:
-      text: "Stars Red"
-    visibilityPercentage: 50
-    timeout: 10000
+- assertNotVisible: "Add Custom Entry"
 
-# ============================================================
-# OPEN MODAL — ACCEPT ALL SUGGESTIONS to move "Stars Gold" under "Stars"
-# Using Accept All is the most reliable way to place a row without drag.
-# ============================================================
-
+# ── OPEN MODAL → ACCEPT ALL (places Stars Gold + Stars Red under Stars) ─────
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
 - tapOn: "Group Parallels"
-- extendedWaitUntil:
-    visible:
-      text: ".*Drag inserts under a parent.*"
-    timeout: 10000
-- extendedWaitUntil:
-    visible: "Top-level inserts"
-    timeout: 15000
+- assertVisible: ".*Drag inserts under a parent.*"
+- assertVisible: "Top-level inserts"
+- assertVisible: ".*Accept all suggestions.*"
+- tapOn: ".*Accept all suggestions.*"
+- assertVisible: ".*[0-9]+ promotion.*"
+- assertVisible: ".*Parallels of.*Stars.*"
 
-# Wait for auto-suggestions to appear — "Stars Gold" should be suggested
-- extendedWaitUntil:
-    visible:
-      text: ".*Accept all suggestions.*"
-    timeout: 10000
-
-- tapOn:
-    text: ".*Accept all suggestions.*"
-
-# With 3 inserts (Stars, Stars Gold, Stars Red) and Accept All:
-# both Stars Gold and Stars Red are promoted → 2 promotions in the footer
-- extendedWaitUntil:
-    visible:
-      text: ".*[0-9]+ promotion.*"
-    timeout: 5000
-
-# Verify the "Parallels of Stars" card is visible with promoted entries
-- assertVisible:
-    text: ".*Parallels of.*Stars.*"
-
-# ============================================================
-# CANCEL — discard the pending promotion
-# ============================================================
-
+# ── CANCEL (close #1, via the Cancel button) discards the pending promotion ─
 - tapOn: "Cancel"
-- extendedWaitUntil:
-    notVisible:
-      text: ".*Drag inserts under a parent.*"
-    timeout: 10000
+- assertNotVisible: ".*Drag inserts under a parent.*"
 
-# ============================================================
-# RE-OPEN MODAL — verify state reset to original
-# Stars Gold should be back in "Top-level inserts", not under "Parallels of Stars".
-# The modal re-fetches the tree from the DB, which was never written to.
-# ============================================================
+# ── EXACT DATA CHECK: all three inserts still top-level after Cancel ─────────
+# Cancel (button close) returns the Inserts column to idle. In first-run state
+# the column is expanded (no selection) and shows all three rows directly.
+# On retries the flow re-adds Stars Red via + Custom — but Stars Red already
+# exists, so EntityColumn's handleCustomSubmit finds it via onSelectExisting,
+# calls handleVariantSelect, and leaves the column in collapsed-pill mode
+# (selectedVariantId != null, variantExpanded = false).
+#
+# Strategy: scroll the "+ Custom" button into view (it is always present in
+# idle mode regardless of expanded/collapsed state), then detect whether the
+# "Inserts" h2 header is visible. The h2 only appears in expanded state; its
+# absence means the column is showing a collapsed pill. When collapsed, tap
+# the pill (any .*Stars.* element above the "+ Custom" button) to call
+# setExpanded(true). After expansion, assert all three rows are top-level.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    direction: UP
+    centerElement: true
+- runFlow:
+    when:
+      notVisible:
+        text: "^Inserts$"
+    commands:
+      # Column is collapsed — a selected insert is shown as a pill above
+      # the action buttons. Tap it (any .*Stars.* above the + Custom button)
+      # to call setExpanded(true) and reveal the full list.
+      - tapOn:
+          text: ".*Stars.*"
+          above:
+            id: "Add custom Inserts"
+      - extendedWaitUntil:
+          visible:
+            text: "^Inserts$"
+          timeout: 5000
+- assertVisible:
+    text: "^Stars$"
+- assertVisible: "Stars Gold"
+- assertVisible: "Stars Red"
 
+# ── RE-OPEN → original state: items are SUGGESTIONS again, not persisted ────
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
 - tapOn: "Group Parallels"
-- extendedWaitUntil:
-    visible:
-      text: ".*Drag inserts under a parent.*"
-    timeout: 10000
-- extendedWaitUntil:
-    visible: "Top-level inserts"
-    timeout: 15000
-
-# Footer shows 2 promotions because both suggested rows are pre-placed in
-# the Parallels zone — same state as on the initial open before Cancel.
-# (Footer is fixed at the modal bottom, always in viewport.)
-- assertVisible:
-    text: ".*[0-9]+ promotion.*"
-
-# Both Stars Gold and Stars Red appear with "Suggested" badges in the
-# "Parallels of Stars" zone — that zone is below the fold in the modal's
-# internal scroll. Scroll until at least one Suggested badge is visible.
+- assertVisible: ".*Drag inserts under a parent.*"
+- assertVisible: "Top-level inserts"
+# Footer re-shows promotions (auto-suggested), and the rows carry "Suggested"
+# badges — the proof that Cancel never wrote to the DB.
+- assertVisible: ".*[0-9]+ promotion.*"
 - scrollUntilVisible:
     element:
       text: "Suggested"
     visibilityPercentage: 50
-    timeout: 10000
 - assertVisible: "Suggested"
+- assertVisible: ".*Save [0-9]+ change.*"
 
-# Save button is enabled from the start (suggestions count as changes)
+# ── CLOSE #2: via BACKDROP tap (far-left edge, outside the modal panel) ─────
+- tapOn:
+    point: "2%, 50%"
+- assertNotVisible: ".*Drag inserts under a parent.*"
+
+# ── VERIFY BACKDROP CLOSE LEFT THE COLUMNS INTACT (no persist) ──────────────
+# The proof that Cancel/backdrop discarded the grouping is already established
+# above: re-opening the modal showed "Suggested" badges again — which only
+# appear when the items are NOT persisted as parallels. Here we just confirm
+# the backdrop-close left the session in a clean state: the Inserts column
+# action buttons are still present (Insert variant type still selected) and
+# the modal is gone. The column rows (Stars/Gold/Red) are inside the
+# EntitySelector's internal overflow scroll which is collapsed after the modal
+# interaction; we assert the action-button row instead, which is always in the
+# lower viewport after close.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    visibilityPercentage: 50
 - assertVisible:
-    text: ".*Save [0-9]+ change.*"
-
-# Close cleanly
-- tapOn: "Cancel"
-- extendedWaitUntil:
-    notVisible:
-      text: ".*Drag inserts under a parent.*"
-    timeout: 10000
+    id: "Add custom Inserts"
+- assertVisible: "Group Parallels"

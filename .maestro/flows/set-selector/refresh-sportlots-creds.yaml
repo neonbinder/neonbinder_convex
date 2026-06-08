@@ -1,9 +1,7 @@
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/testing/seed-credentials?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
 name: Refresh SportLots credentials
 tags:
   - set-selector
-  - wip
-  - serial-global
 ---
 # Refreshes the SportLots session for the test user. Bypasses the native
 # <select> dropdown by setting its value via JS, then dispatching a change
@@ -39,10 +37,13 @@ tags:
     visible: ".*Sportlots Credentials.*"
     timeout: 10000
 
-# If creds already exist, clear them first (force fresh login)
+# If creds already exist, clear them first (force fresh login).
+# centerElement: true keeps the button near y≈315 so the confirm dialog
+# can open without the viewport footer (y≥490 on 1024×629) swallowing the tap.
 - scrollUntilVisible:
     element:
       text: "Clear Credentials"
+    centerElement: true
     timeout: 5000
     optional: true
 - runFlow:

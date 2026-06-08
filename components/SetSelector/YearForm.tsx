@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
+import { useSelectorSync } from "./useSelectorSync";
 
 export default function YearForm({
   sportId,
@@ -17,48 +18,37 @@ export default function YearForm({
   const sportOption = useQuery(api.selectorOptions.getSelectorOptionById, {
     id: sportId,
   });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const triggered = useRef(false);
 
-  const doSync = async () => {
-    if (!sportOption) return;
-    setLoading(true);
-    setMessage(null);
-    try {
-      const result = await fetchAggregatedOptions({
-        level: "year",
-        parentId: sportId,
-        parentFilters: {
-          sport: sportOption.value,
-        },
-      });
-      setMessage(result.message);
-      // NEO-47: also go idle on an empty result (optionsCount === 0), not only
-      // on success — a custom subtree / no-marketplace-data case must not
-      // hard-block the column. Returning to idle lets the operator add a custom
-      // entry via "+ Custom"; EntityColumn's autoSyncedRef prevents a re-sync
-      // loop. Only a thrown exception (caught below) keeps the dialog + Retry.
-      // Fixes the custom-set drill e2e flake AND the matching UX bug (custom-set
-      // creators saw a misleading "check credentials" error on an empty sync).
-      if (result.success || result.optionsCount === 0) {
-        onDone?.();
-      }
-    } catch (error) {
-      setMessage(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const run = useCallback(async () => {
+    if (!sportOption) return undefined;
+    return fetchAggregatedOptions({
+      level: "year",
+      parentId: sportId,
+      parentFilters: {
+        sport: sportOption.value,
+      },
+    });
+  }, [fetchAggregatedOptions, sportOption, sportId]);
+
+  const { loading, hasError, message, retry, start } = useSelectorSync({
+    level: "year",
+    onDone,
+    run,
+  });
+
+  // Autofocus the Retry control so a keyboard user can recover with Enter.
+  const retryRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (hasError) retryRef.current?.focus();
+  }, [hasError]);
 
   useEffect(() => {
     if (sportOption && !triggered.current) {
       triggered.current = true;
-      doSync();
+      start();
     }
-  }, [sportOption]);
+  }, [sportOption, start]);
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
@@ -72,19 +62,26 @@ export default function YearForm({
         </p>
       )}
 
-      {message && (
-        <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
-          {message}
-        </div>
-      )}
+      {message &&
+        (hasError ? (
+          <div className="p-3 mb-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
+            {message}
+          </div>
+        ) : (
+          <div className="p-3 mb-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-md text-blue-800 dark:text-blue-200 text-sm">
+            {message}
+          </div>
+        ))}
 
       {!loading && (
         <div className="flex gap-2">
-          {message?.startsWith("Error") && (
-            <NeonButton onClick={doSync}>Retry</NeonButton>
+          {hasError && (
+            <NeonButton ref={retryRef} onClick={retry}>
+              Retry
+            </NeonButton>
           )}
           <NeonButton cancel onClick={onDone}>
-            {message?.startsWith("Error") ? "Cancel" : "Close"}
+            {hasError ? "Cancel" : "Close"}
           </NeonButton>
         </div>
       )}

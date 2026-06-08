@@ -4,9 +4,7 @@ tags:
   - profile
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 15000
+- assertVisible: "Profile Settings"
 - assertVisible: "Public Profile"
 - assertVisible: "Basic Info"
 - scrollUntilVisible:

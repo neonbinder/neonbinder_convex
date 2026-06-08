@@ -5,9 +5,7 @@ tags:
   - home
 ---
 - launchApp
-- extendedWaitUntil:
-    visible: "Neon Binder"
-    timeout: 30000
+- assertVisible: "Neon Binder"
 
 # Scroll to and tap the AI card to navigate
 - scrollUntilVisible:
@@ -15,9 +13,6 @@ tags:
       text: ".*AI-Based.*"
 - tapOn:
     text: ".*AI-Based.*"
-- extendedWaitUntil:
-    visible: "Instant Recognition"
-    timeout: 15000
 
 # Four feature sections
 - assertVisible: "Instant Recognition"
@@ -51,21 +46,14 @@ tags:
     commands:
       - assertVisible: "Get Started"
       - tapOn: "Get Started"
-      - extendedWaitUntil:
-          visible: "Create your account"
-          timeout: 10000
       - assertVisible: "Create your account"
 
       # Dismiss dialog and navigate back to home
       - tapOn:
           point: "5%, 50%"
-      - extendedWaitUntil:
-          notVisible: "Create your account"
-          timeout: 5000
+      - assertNotVisible: "Create your account"
 
 # Always verify the Back button works (signed-in OR signed-out users see it)
 - tapOn: "Back"
-- extendedWaitUntil:
-    visible:
-      text: ".*Sign In.*|.*Dashboard.*"
-    timeout: 10000
+- assertVisible:
+    text: ".*Sign In.*|.*Dashboard.*"

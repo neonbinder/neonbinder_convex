@@ -74,6 +74,17 @@ export type AdapterCallProperties = {
   sl_success?: boolean;
   bsc_success?: boolean;
   error_class?: string;
+  // Which stage of the sync chain this record describes / failed at, so a hang
+  // or timeout is attributable end-to-end: "marketplace_fetch" (the SL/BSC HTTP
+  // call), "auth" (token mint / cold login), "aggregator" (fetchAggregatedOptions
+  // composing the two), or "fe" (the front-end give-up). Lets PostHog answer
+  // "what timed out — the marketplace, the adapter, or the FE?".
+  stage?: string;
+  // 1-based attempt number when the record is the result of a bounded retry
+  // loop (e.g. BSC 10s × 3). Lets us see whether a failure exhausted retries.
+  attempt?: number;
+  // When stage="aggregator" and a child platform blew its deadline, which one.
+  timed_out_platform?: string;
 };
 
 /**
