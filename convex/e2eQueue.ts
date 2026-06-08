@@ -54,7 +54,11 @@ export const seedQueue = mutation({
       throw new Error(`Too many flows (${args.flows.length} > ${MAX_SEED_FLOWS})`);
     }
     for (const flowPath of args.flows) {
-      if (!FLOW_PATH_RE.test(flowPath)) {
+      // Reject `..` explicitly: FLOW_PATH_RE's char class allows '.' and '/', so
+      // it alone would match `.maestro/flows/../../etc/x.yaml`. flowPath is later
+      // echoed by claimNext and reaches `maestro test "$flow"` on a secret-holding
+      // runner, so it must not escape .maestro/flows/ (NEO-49 security re-audit).
+      if (!FLOW_PATH_RE.test(flowPath) || flowPath.includes("..")) {
         throw new Error(`Invalid flow path: ${flowPath}`);
       }
     }
@@ -138,6 +142,10 @@ export const markResult = mutation({
         q.eq("runId", args.runId).eq("flowPath", args.flowPath),
       )
       .first();
+    // Intentional no-op when no row matches: markResult can only UPDATE the
+    // status of an already-seeded flow, never INSERT — so a spurious/duplicate
+    // call can't conjure a flow row or flip a non-existent one green. Do not
+    // "fix" this into an upsert (it would open a gate-integrity hole).
     if (row) {
       await ctx.db.patch(row._id, { status: args.status, finishedAt: Date.now() });
     }
