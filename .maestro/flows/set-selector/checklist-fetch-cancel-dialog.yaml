@@ -73,6 +73,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Add Card"
+    centerElement: true
     timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
@@ -96,6 +97,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Player(s) — comma separated, optional"
+    centerElement: true
     timeout: 5000
 - tapOn:
     id: "Players"
@@ -175,6 +177,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Cancel Dialog Test ${TEST_USERNAME}"
+    centerElement: true
     timeout: 15000
 
 # Fetch/Refresh button still available.

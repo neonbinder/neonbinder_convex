@@ -52,12 +52,8 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Set Selector"
+- assertVisible: "Baseball"
 - tapOn: "Baseball"
 
 - extendedWaitUntil:
@@ -66,11 +62,9 @@ tags:
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    index: 1
 - tapOn:
     text: "2024"
     index: 1
@@ -81,11 +75,9 @@ tags:
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    index: 1
 - tapOn:
     text: "Topps"
     index: 1
@@ -96,20 +88,16 @@ tags:
 - tapOn:
     text: ".*Search sets.*"
 - inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps Chrome"
+    index: 1
 - tapOn:
     text: "Topps Chrome"
     index: 1
 
 # The SetAttributesPanel renders below MultiSourcePanel.
 # At the setName level (no card checklist on screen) the panel defaults EXPANDED.
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- assertVisible: "Variant Types"
 
 # Scroll to the "Edit attributes" toggle to locate the panel area.
 # Using the small button (not the large panel wrapper) avoids the fragile
@@ -129,10 +117,8 @@ tags:
     commands:
       - tapOn:
           id: "Edit attributes"
-      - extendedWaitUntil:
-          visible:
-            id: "Hide attributes"
-          timeout: 5000
+      - assertVisible:
+          id: "Hide attributes"
 
 # "Hide attributes" is the reliable expanded-state signal.
 - assertVisible:

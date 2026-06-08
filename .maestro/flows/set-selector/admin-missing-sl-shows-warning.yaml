@@ -4,9 +4,12 @@ name: "Set Builder Gate — admin without SportLots credentials sees the warning
 tags:
   - set-selector
   - regression
-  - isolated:true
 ---
 # Mirror of admin-missing-bsc-shows-warning.yaml for the SportLots side.
+#
+# Safe to run in parallel: credentials are per-user (Clerk userId). Each
+# worker signs in as its own dev+e2e-N account, so clearing/restoring SL
+# creds on this worker does not affect any other worker's session.
 
 - launchApp
 - extendedWaitUntil:
@@ -19,9 +22,7 @@ tags:
 
 # 2. Clear SL creds only
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 # Center the "Sportlots" tab rather than stopping at "BuySportsCards Credentials".
 # The tab row sits just below the h2 heading; scrolling only to the heading leaves
 # the Sportlots tab at the 629px viewport bottom edge, causing tapOn to trigger
@@ -41,11 +42,13 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Clear Credentials"
+    centerElement: true
     timeout: 10000
 - tapOn: "Clear Credentials"
 - scrollUntilVisible:
     element:
       text: "Yes, Clear"
+    centerElement: true
     timeout: 15000
 - tapOn: "Yes, Clear"
 - extendedWaitUntil:
@@ -54,19 +57,20 @@ tags:
 
 # 3. Visit Set Builder — gate fires
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Builder requires marketplace credentials"
-    timeout: 20000
+- assertVisible: "Set Builder requires marketplace credentials"
 - assertVisible: "SportLots"
 - assertNotVisible: "Set Selector"
 - assertNotVisible: "Sync Sports"
 
 # 4. Link works
+- scrollUntilVisible:
+    element:
+      id: "Configure credentials in Profile"
+    centerElement: true
+    timeout: 10000
 - tapOn:
     id: "Configure credentials in Profile"
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 
 # 5. Cleanup — restore SL creds
 - runFlow:

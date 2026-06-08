@@ -87,18 +87,12 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Inserts"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "Base"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 10000
+- assertVisible: "Base"
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -122,10 +116,8 @@ tags:
 
 - tapOn:
     id: "Open add card form"
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 
 # Card number input has autoFocus — type directly.
 - inputText: "888-${ATTEMPT_ID}"
@@ -166,10 +158,8 @@ tags:
 
 # The drawer opens. The header shows "Card #888-<ATTEMPT_ID}".
 # Card name input appears with autofocus.
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 
 # Assert the new drawer title (NEO-25 delta 3: was "Edit card #", now "Card #").
 - assertVisible:
@@ -201,18 +191,14 @@ tags:
 # so we never have to scroll back UP to reach them.
 # ============================================================
 
-- extendedWaitUntil:
-    visible:
-      id: "Card title"
-    timeout: 5000
+- assertVisible:
+    id: "Card title"
 - tapOn:
     id: "Card title"
 - inputText: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
 
-- extendedWaitUntil:
-    visible:
-      id: "Card description"
-    timeout: 5000
+- assertVisible:
+    id: "Card description"
 - tapOn:
     id: "Card description"
 - inputText: "NEO-25 description body for ${ATTEMPT_ID}"
@@ -231,10 +217,8 @@ tags:
     centerElement: true
     visibilityPercentage: 50
     timeout: 10000
-- extendedWaitUntil:
-    visible:
-      id: "Toggle RC"
-    timeout: 5000
+- assertVisible:
+    id: "Toggle RC"
 - tapOn:
     id: "Toggle RC"
 
@@ -259,18 +243,14 @@ tags:
     point: "5%, 50%"
 
 # The dirty confirm bar should appear.
-- extendedWaitUntil:
-    visible: "Discard unsaved changes?"
-    timeout: 5000
+- assertVisible: "Discard unsaved changes?"
 - assertVisible: "Keep editing"
 - assertVisible: "Discard changes"
 
 # "Keep editing" dismisses the bar — drawer stays open with edits intact.
 - tapOn:
     id: "Keep editing"
-- extendedWaitUntil:
-    notVisible: "Discard unsaved changes?"
-    timeout: 5000
+- assertNotVisible: "Discard unsaved changes?"
 
 # Card name input is still visible (drawer is still open).
 - assertVisible:
@@ -283,16 +263,12 @@ tags:
 - tapOn:
     id: "Close card detail"
 
-- extendedWaitUntil:
-    visible: "Discard unsaved changes?"
-    timeout: 5000
+- assertVisible: "Discard unsaved changes?"
 
 # Dismiss with "Keep editing" again so our edits survive.
 - tapOn:
     id: "Keep editing"
-- extendedWaitUntil:
-    notVisible: "Discard unsaved changes?"
-    timeout: 5000
+- assertNotVisible: "Discard unsaved changes?"
 
 # ============================================================
 # SAVE
@@ -303,10 +279,8 @@ tags:
 # of the CI run 2 failure). Use a plain extendedWaitUntil + tapOn instead.
 # ============================================================
 
-- extendedWaitUntil:
-    visible:
-      id: "Save card edit"
-    timeout: 5000
+- assertVisible:
+    id: "Save card edit"
 - tapOn:
     id: "Save card edit"
 
@@ -316,10 +290,8 @@ tags:
 # in the narrow card-number column and Maestro may not find it as a single
 # text node. The persistence check below (re-open) is the authoritative
 # assertion that the save worked.
-- extendedWaitUntil:
-    notVisible:
-      id: "Card name"
-    timeout: 10000
+- assertNotVisible:
+    id: "Card name"
 
 # ============================================================
 # VERIFY PERSISTENCE — reopen and confirm saved values
@@ -343,10 +315,8 @@ tags:
     waitToSettleTimeoutMs: 2000
 
 # Drawer reopens — wait for Card name input.
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 
 # The card name input should reflect the saved name (Renamed Detail Player ...).
 # Use a ".*" suffix regex because Maestro web's eraseText leaves the last
@@ -359,10 +329,8 @@ tags:
 
 # Card title is at position 4 in the drawer body — near the top, above the
 # attribute chips. Assert it without scrolling (it's visible from mount).
-- extendedWaitUntil:
-    visible:
-      id: "Card title"
-    timeout: 5000
+- assertVisible:
+    id: "Card title"
 - assertVisible: "2024 Topps Chrome NEO-25 Test Title ${ATTEMPT_ID}"
 
 # The RC chip should be active (aria-pressed="true"). Attributes are at
@@ -382,15 +350,11 @@ tags:
 # container. Same fix: extendedWaitUntil + tapOn, no scrollUntilVisible.
 # ============================================================
 
-- extendedWaitUntil:
-    visible:
-      id: "Cancel card edit"
-    timeout: 5000
+- assertVisible:
+    id: "Cancel card edit"
 - tapOn:
     id: "Cancel card edit"
-- extendedWaitUntil:
-    notVisible: "Card name"
-    timeout: 5000
+- assertNotVisible: "Card name"
 
 # ============================================================
 # CLEANUP — delete this attempt's test card
@@ -404,11 +368,7 @@ tags:
     timeout: 10000
 - tapOn:
     id: "Delete card 888-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    visible: "Confirm?"
-    timeout: 5000
+- assertVisible: "Confirm?"
 - tapOn:
     id: "Confirm delete card 888-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    notVisible: "Renamed Detail Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertNotVisible: "Renamed Detail Player ${ATTEMPT_ID}"

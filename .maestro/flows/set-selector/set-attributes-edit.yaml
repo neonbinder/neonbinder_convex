@@ -54,12 +54,8 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Set Selector"
+- assertVisible: "Baseball"
 
 # ============================================================
 # LEVEL 1 — Tap Baseball (pre-synced by cascade setup.yaml)
@@ -68,11 +64,9 @@ tags:
 - tapOn:
     id: "Search sports"
 - inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Baseball"
+    index: 1
 - tapOn:
     text: "Baseball"
     index: 1
@@ -81,20 +75,16 @@ tags:
 # LEVEL 2 — Year 2024
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
+- assertVisible: "Years"
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    index: 1
 - tapOn:
     text: "2024"
     index: 1
@@ -103,20 +93,16 @@ tags:
 # LEVEL 3 — Topps (manufacturer)
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
+- assertVisible: "Manufacturers"
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    index: 1
 - tapOn:
     text: "Topps"
     index: 1
@@ -127,9 +113,7 @@ tags:
 # same entity. addCustomSelectorOption is idempotent — safe to add twice.
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
+- assertVisible: "Sets"
 
 # Wait for Sets column to settle (the BSC/SL sync for Topps/2024 may be in
 # flight briefly). scrollUntilVisible on "Add custom Sets" doubles as a
@@ -148,14 +132,10 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Sets"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "attr-edit-${WORKER_INDEX || 0}"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
 # Tap the custom set row. When the list has grown past 8 items (multi-run CI),
 # a search input appears; use it to surface the row at index 1 to avoid
@@ -173,18 +153,14 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: "attr-edit-${WORKER_INDEX || 0}"
-      - extendedWaitUntil:
-          visible:
-            text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-            index: 1
-          timeout: 10000
+      - assertVisible:
+          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
+          index: 1
       - tapOn:
           text: ".*attr-edit-${WORKER_INDEX || 0}.*"
           index: 1
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
 - runFlow:
     when:
@@ -198,15 +174,11 @@ tags:
       - tapOn:
           text: ".*attr-edit-${WORKER_INDEX || 0}.*"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
 # Confirm Variant Types column is visible — setName row is now selected and
 # the SetAttributesPanel will render below.
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- assertVisible: "Variant Types"
 
 # ============================================================
 # PART B — ASSERT BREADCRUMB SCOPE TEXT
@@ -234,10 +206,8 @@ tags:
     commands:
       - tapOn:
           id: "Edit attributes"
-      - extendedWaitUntil:
-          visible:
-            id: "Hide attributes"
-          timeout: 5000
+      - assertVisible:
+          id: "Hide attributes"
 
 # Panel is expanded: "Hide attributes" button must be visible.
 - assertVisible:
@@ -272,10 +242,8 @@ tags:
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
     timeout: 15000
-- extendedWaitUntil:
-    visible:
-      id: "Value for Release Date"
-    timeout: 5000
+- assertVisible:
+    id: "Value for Release Date"
 
 # Step 1: clearing sentinel — guarantees the DB value changes.
 - tapOn:
@@ -325,10 +293,6 @@ tags:
     id: "Hide attributes"
 
 # After collapsing: "Edit attributes" appears in the summary bar.
-- extendedWaitUntil:
-    visible:
-      id: "Edit attributes"
-    timeout: 5000
 - assertVisible:
     id: "Edit attributes"
 
@@ -344,10 +308,6 @@ tags:
 - tapOn:
     id: "Edit attributes"
 
-- extendedWaitUntil:
-    visible:
-      id: "Hide attributes"
-    timeout: 5000
 - assertVisible:
     id: "Hide attributes"
 
@@ -375,15 +335,11 @@ tags:
       - tapOn:
           id: "Add custom Variant Types"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 10000
+      - assertVisible: "Add Custom Entry"
       - inputText: "BaseAttr-${WORKER_INDEX || 0}"
       - pressKey: Enter
-      - extendedWaitUntil:
-          visible:
-            text: ".*BaseAttr-${WORKER_INDEX || 0}.*"
-          timeout: 5000
+      - assertVisible:
+          text: ".*BaseAttr-${WORKER_INDEX || 0}.*"
 
 - scrollUntilVisible:
     element:
@@ -393,10 +349,8 @@ tags:
 
 # Wait for the next column (pluralized variant type name) to appear,
 # confirming the selection registered.
-- extendedWaitUntil:
-    visible:
-      text: ".*BaseAttr-${WORKER_INDEX || 0}s.*"
-    timeout: 15000
+- assertVisible:
+    text: ".*BaseAttr-${WORKER_INDEX || 0}s.*"
 
 # The SetAttributesPanel breadcrumb now shows the child scope. The panel
 # either stays expanded (custom set — no card checklist) or the toggle is
@@ -420,10 +374,8 @@ tags:
     commands:
       - tapOn:
           id: "Edit attributes"
-      - extendedWaitUntil:
-          visible:
-            id: "Hide attributes"
-          timeout: 5000
+      - assertVisible:
+          id: "Hide attributes"
 
 # The breadcrumb now includes "BaseAttr-{N}" as the leaf, confirming the
 # panel context has advanced to the child level.

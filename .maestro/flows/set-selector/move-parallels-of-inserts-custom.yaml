@@ -33,8 +33,9 @@ tags:
       VARIANT_TYPE: "Insert"
 
 # ── ADD THREE CUSTOM INSERTS (Stars / Stars Gold / Stars Red) ───────────────
-# aria-label "Add custom Inserts" maps to resource-id (id:); centerElement on
-# the first add to clear the footer-steal zone (1024×629 headless viewport).
+# aria-label "Add custom Inserts" maps to resource-id (id:). Maestro best
+# practice: centerElement: true on every scroll whose target we then tap — it
+# also clears the 1024×629 headless footer-steal zone.
 # --- Stars ---
 - scrollUntilVisible:
     element:
@@ -51,7 +52,7 @@ tags:
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
-    visibilityPercentage: 50
+    centerElement: true
 - tapOn:
     id: "Add custom Inserts"
 - assertVisible: "Add Custom Entry"
@@ -63,7 +64,7 @@ tags:
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
-    visibilityPercentage: 50
+    centerElement: true
 - tapOn:
     id: "Add custom Inserts"
 - assertVisible: "Add Custom Entry"
@@ -78,6 +79,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
+    centerElement: true
 - tapOn: "Group Parallels"
 - assertVisible: ".*Drag inserts under a parent.*"
 
@@ -133,7 +135,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "^Stars$"
-    visibilityPercentage: 50
+    centerElement: true
 - assertVisible:
     text: "^Stars$"
 # Stars Gold and Stars Red are no longer top-level inserts.

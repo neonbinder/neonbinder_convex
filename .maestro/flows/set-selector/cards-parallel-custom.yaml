@@ -18,7 +18,7 @@ tags:
 # you invented has no marketplace counterpart, so it imports 0 cards via the
 # isCustomSubtree gate. That gate is exercised incidentally elsewhere and is not
 # this flow's concern. Putting cards INTO a custom variant is the separate
-# "Add Card" path (add-custom-card-to-checklist.yaml).
+# "Add Card" path (custom-card-crud.yaml).
 #
 # Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → custom set), so
 # no live BSC/SL call happens anywhere — every column's sync short-circuits.

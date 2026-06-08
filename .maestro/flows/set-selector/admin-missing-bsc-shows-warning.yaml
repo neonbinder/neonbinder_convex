@@ -4,7 +4,6 @@ name: "Set Builder Gate — admin without BSC credentials sees the warning banne
 tags:
   - set-selector
   - regression
-  - isolated:true
 ---
 # Verifies the credentials gate on /set-selector:
 #   - Admin user, BSC creds cleared, SL creds saved.
@@ -12,20 +11,9 @@ tags:
 #     instead of the Set Selector UI.
 #   - The "Configure credentials in Profile" link points to /profile.
 #
-# Why isolated:true:
-#   Clearing BSC credentials mutates per-user Secret Manager state. If this
-#   flow ran in parallel with a cascade flow on the same worker, the cascade
-#   would see no BSC creds and break. isolated:true serializes this flow on
-#   the dedicated isolated lane (lane I), which finishes before Phase 2
-#   (cascade) starts — so any cascade flow that lands on this worker sees
-#   credentials restored at the end of this flow.
-#
-# Safety:
-#   The bootstrap (Phase 0) saved both creds. We re-run the idempotent
-#   setup-bsc-credentials helper at the start anyway, so the flow is correct
-#   even if a prior isolated flow on this worker left BSC missing. At the
-#   end we re-save BSC via clear-then-setup (destructive) so the next flow
-#   has guaranteed-fresh creds.
+# Safe to run in parallel: credentials are per-user (Clerk userId). Each
+# worker signs in as its own dev+e2e-N account, so clearing/restoring BSC
+# creds on this worker does not affect any other worker's session.
 
 - launchApp
 - extendedWaitUntil:
@@ -40,23 +28,26 @@ tags:
 
 # ============================================================
 # 2. Clear BSC creds only
+# BSC is the default tab. The section scroll also serves as the wait for
+# Convex to populate the credential state after the page reload.
 # ============================================================
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 - scrollUntilVisible:
     element:
       text: "BuySportsCards Credentials"
+    centerElement: true
     timeout: 20000
 - scrollUntilVisible:
     element:
       text: "Clear Credentials"
+    centerElement: true
     timeout: 10000
 - tapOn: "Clear Credentials"
 - scrollUntilVisible:
     element:
       text: "Yes, Clear"
+    centerElement: true
     timeout: 15000
 - tapOn: "Yes, Clear"
 - extendedWaitUntil:
@@ -67,9 +58,7 @@ tags:
 # 3. Visit Set Builder — the gate must fire
 # ============================================================
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Builder requires marketplace credentials"
-    timeout: 20000
+- assertVisible: "Set Builder requires marketplace credentials"
 # The banner body names the missing platform inside a <strong>; Maestro's
 # text matching doesn't span element boundaries reliably, so assert the
 # platform name on its own — the title above already confirms we're on the
@@ -81,11 +70,14 @@ tags:
 # ============================================================
 # 4. Link target — tapping the CTA lands on /profile
 # ============================================================
+- scrollUntilVisible:
+    element:
+      id: "Configure credentials in Profile"
+    centerElement: true
+    timeout: 10000
 - tapOn:
     id: "Configure credentials in Profile"
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 20000
+- assertVisible: "Profile Settings"
 
 # ============================================================
 # 5. Cleanup — restore BSC creds so the rest of the suite is unaffected

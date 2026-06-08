@@ -66,69 +66,53 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Set Selector"
+- assertVisible: "Baseball"
 
 # Level 1 — Baseball (use search input for reliable tap)
 - tapOn:
     id: "Search sports"
 - inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Baseball"
+    index: 1
 - tapOn:
     text: "Baseball"
     index: 1
 
 # Level 2 — Year 2024
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
+- assertVisible: "Years"
 - extendedWaitUntil:
     visible: ".*Search years.*"
     timeout: 60000
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    index: 1
 - tapOn:
     text: "2024"
     index: 1
 
 # Level 3 — Topps (manufacturer)
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
+- assertVisible: "Manufacturers"
 - extendedWaitUntil:
     visible: ".*Search manufacturers.*"
     timeout: 30000
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    index: 1
 - tapOn:
     text: "Topps"
     index: 1
 
 # Level 4 — Custom set "fp-{WORKER_INDEX}"
 # One set per worker — never collides with other workers or with Topps Chrome.
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
+- assertVisible: "Sets"
 - scrollUntilVisible:
     element:
       id: "Add custom Sets"
@@ -141,14 +125,10 @@ tags:
     commands:
       - tapOn:
           id: "Add custom Sets"
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 5000
+      - assertVisible: "Add Custom Entry"
       - inputText: "fp-${WORKER_INDEX || 0}"
       - pressKey: Enter
-      - extendedWaitUntil:
-          notVisible: "Add Custom Entry"
-          timeout: 10000
+      - assertNotVisible: "Add Custom Entry"
 
 # Tap the custom set row (search-input path if list has grown, fallback otherwise).
 - runFlow:
@@ -164,18 +144,14 @@ tags:
       - tapOn:
           text: ".*Search sets.*"
       - inputText: "fp-${WORKER_INDEX || 0}"
-      - extendedWaitUntil:
-          visible:
-            text: ".*fp-${WORKER_INDEX || 0}.*"
-            index: 1
-          timeout: 10000
+      - assertVisible:
+          text: ".*fp-${WORKER_INDEX || 0}.*"
+          index: 1
       - tapOn:
           text: ".*fp-${WORKER_INDEX || 0}.*"
           index: 1
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
 - runFlow:
     when:
@@ -189,13 +165,9 @@ tags:
       - tapOn:
           text: ".*fp-${WORKER_INDEX || 0}.*"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Variant Types"
-          timeout: 30000
+      - assertVisible: "Variant Types"
 
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- assertVisible: "Variant Types"
 
 # ============================================================
 # STEP A — Set League = "PropTest-MLB" at the set (setName) level
@@ -226,10 +198,8 @@ tags:
     commands:
       - tapOn:
           id: "Edit attributes"
-      - extendedWaitUntil:
-          visible:
-            id: "Hide attributes"
-          timeout: 5000
+      - assertVisible:
+          id: "Hide attributes"
 
 - assertVisible:
     id: "Hide attributes"
@@ -292,15 +262,11 @@ tags:
       - tapOn:
           id: "Add custom Variant Types"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 10000
+      - assertVisible: "Add Custom Entry"
       - inputText: "Insert"
       - pressKey: Enter
-      - extendedWaitUntil:
-          visible:
-            text: "Insert"
-          timeout: 5000
+      - assertVisible:
+          text: "Insert"
 
 - scrollUntilVisible:
     element:
@@ -309,9 +275,7 @@ tags:
 - tapOn: "Insert"
 
 # Wait for the Inserts column header to confirm selection.
-- extendedWaitUntil:
-    visible: "Inserts"
-    timeout: 15000
+- assertVisible: "Inserts"
 
 # Add a custom insert entry "fp-insert-{WORKER_INDEX}" if absent.
 # This is the variant that will hold the card checklist.
@@ -328,15 +292,11 @@ tags:
       - tapOn:
           id: "Add custom Inserts"
           waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          visible: "Add Custom Entry"
-          timeout: 10000
+      - assertVisible: "Add Custom Entry"
       - inputText: "fp-insert-${WORKER_INDEX || 0}"
       - pressKey: Enter
-      - extendedWaitUntil:
-          visible:
-            text: ".*fp-insert-${WORKER_INDEX || 0}.*"
-          timeout: 5000
+      - assertVisible:
+          text: ".*fp-insert-${WORKER_INDEX || 0}.*"
 
 - scrollUntilVisible:
     element:
@@ -359,10 +319,8 @@ tags:
 
 - tapOn:
     id: "Open add card form"
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 5000
+- assertVisible:
+    id: "Card name"
 - inputText: "992-${ATTEMPT_ID}"
 - tapOn: "Player name"
 - inputText: "Propagation Test Player ${ATTEMPT_ID}"
@@ -375,9 +333,7 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 5000
+- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # Open the edit form for our card.
 - scrollUntilVisible:
@@ -389,18 +345,14 @@ tags:
 - tapOn:
     id: "Edit card 992-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 10000
+- assertVisible:
+    id: "Card name"
 
 # Expand CardFeaturesEditor.
 - tapOn:
     id: "Show features editor"
-- extendedWaitUntil:
-    visible:
-      id: "Card features editor"
-    timeout: 5000
+- assertVisible:
+    id: "Card features editor"
 
 # The card inherits the set-level League value. The "Inherited: PropTest-MLB"
 # label appears below the input when the card has no override.
@@ -451,9 +403,7 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 5000
+- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # ============================================================
 # STEP D — Re-propagate at set level: League → "PropTest-AL"
@@ -463,19 +413,15 @@ tags:
 # ============================================================
 
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
+- assertVisible: "Baseball"
 
 # Re-drill to the custom set (items pre-exist from Step 0).
 - tapOn:
     id: "Search sports"
 - inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Baseball"
+    index: 1
 - tapOn:
     text: "Baseball"
     index: 1
@@ -486,11 +432,9 @@ tags:
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "2024"
+    index: 1
 - tapOn:
     text: "2024"
     index: 1
@@ -501,11 +445,9 @@ tags:
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: "Topps"
+    index: 1
 - tapOn:
     text: "Topps"
     index: 1
@@ -517,18 +459,14 @@ tags:
 - tapOn:
     text: ".*Search sets.*"
 - inputText: "fp-${WORKER_INDEX || 0}"
-- extendedWaitUntil:
-    visible:
-      text: ".*fp-${WORKER_INDEX || 0}.*"
-      index: 1
-    timeout: 10000
+- assertVisible:
+    text: ".*fp-${WORKER_INDEX || 0}.*"
+    index: 1
 - tapOn:
     text: ".*fp-${WORKER_INDEX || 0}.*"
     index: 1
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 30000
+- assertVisible: "Variant Types"
 
 # SetAttributesPanel renders at setName level. Panel defaults EXPANDED for
 # custom sets. Scroll to the toggle to locate the panel area.
@@ -548,10 +486,8 @@ tags:
     commands:
       - tapOn:
           id: "Edit attributes"
-      - extendedWaitUntil:
-          visible:
-            id: "Hide attributes"
-          timeout: 5000
+      - assertVisible:
+          id: "Hide attributes"
 
 - scrollUntilVisible:
     element:
@@ -588,9 +524,7 @@ tags:
 - tapOn: "Insert"
 
 # Wait for the Inserts column header to confirm selection.
-- extendedWaitUntil:
-    visible: "Inserts"
-    timeout: 15000
+- assertVisible: "Inserts"
 
 - scrollUntilVisible:
     element:
@@ -616,17 +550,13 @@ tags:
 - tapOn:
     id: "Edit card 992-${ATTEMPT_ID}"
     waitToSettleTimeoutMs: 2000
-- extendedWaitUntil:
-    visible:
-      id: "Card name"
-    timeout: 10000
+- assertVisible:
+    id: "Card name"
 
 - tapOn:
     id: "Show features editor"
-- extendedWaitUntil:
-    visible:
-      id: "Card features editor"
-    timeout: 5000
+- assertVisible:
+    id: "Card features editor"
 
 # The override card should show "PropTest-NL" in the League input, NOT "PropTest-AL".
 # The card has an override so no "Inherited:" label shows — just "PropTest-NL".
@@ -638,9 +568,7 @@ tags:
     id: "Revert League to inherited"
 
 # No "Inherited: PropTest-AL" should be visible (override is active).
-- extendedWaitUntil:
-    notVisible: ".*Inherited: PropTest-AL.*"
-    timeout: 5000
+- assertNotVisible: ".*Inherited: PropTest-AL.*"
 
 # ============================================================
 # STEP F — Revert the override; card should now inherit "PropTest-AL"
@@ -655,10 +583,8 @@ tags:
     timeout: 10000
 
 # The "Revert" button disappears (no more override on League).
-- extendedWaitUntil:
-    notVisible:
-      id: "Revert League to inherited"
-    timeout: 5000
+- assertNotVisible:
+    id: "Revert League to inherited"
 
 # Save and close.
 - scrollUntilVisible:
@@ -676,9 +602,7 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- extendedWaitUntil:
-    visible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 5000
+- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # ============================================================
 # CLEANUP — delete this attempt's test card
@@ -686,11 +610,7 @@ tags:
 
 - tapOn:
     id: "Delete card 992-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    visible: "Confirm?"
-    timeout: 5000
+- assertVisible: "Confirm?"
 - tapOn:
     id: "Confirm delete card 992-${ATTEMPT_ID}"
-- extendedWaitUntil:
-    notVisible: "Propagation Test Player ${ATTEMPT_ID}"
-    timeout: 10000
+- assertNotVisible: "Propagation Test Player ${ATTEMPT_ID}"

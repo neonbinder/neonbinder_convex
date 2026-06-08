@@ -1,0 +1,115 @@
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
+name: "Custom card lifecycle — add (Custom badge), rename, delete"
+tags:
+  - set-selector
+  - regression
+---
+# PRODUCT-FEATURE test: the lifecycle of a manually-added (custom) card in a
+# checklist — add via the Add Card form, confirm it renders with #num + name + a
+# "Custom" badge (card.isCustom), rename it and confirm the new name sticks, then
+# delete it (Del → Confirm?). TeamPicker is NOT exercised here — team-picker.yaml
+# owns that feature. Fully isolated per-worker custom subtree (E2E Test Sport N →
+# 2026): no marketplace call fires, nothing shared is read or wiped, so this runs
+# independent of the cascade and survives concurrent workers.
+#
+# Card number + name carry ${ATTEMPT_ID} (w<worker>-a<attempt>-<RANDOM>) so a
+# retry can't collide with a row attempt 1 left behind.
+
+- launchApp
+- assertVisible: "Set Selector"
+
+# Per-worker custom subtree → lands on the Inserts column (idle).
+- runFlow:
+    file: util-drill-to-custom-set.yaml
+    env:
+      SET_NAME: "ccrud-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
+
+# ── Add + select a custom Insert variant "Base" → opens the CardChecklist ────
+# centerElement: true — a "+ Custom" button near the 1024×629 footer gets its
+# tap registered but the modal's follow-up events swallowed; centering clears it.
+- scrollUntilVisible:
+    element:
+      id: "Add custom Inserts"
+    centerElement: true
+- tapOn:
+    id: "Add custom Inserts"
+- assertVisible: "Add Custom Entry"
+- tapOn: "Enter custom value..."
+- inputText: "Base"
+- pressKey: Enter
+- assertNotVisible: "Add Custom Entry"
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    centerElement: true
+- tapOn: "Base"
+
+# ════════════════════════════════════════════════════════════════════════════
+# ADD a custom card via the Add Card form
+# ════════════════════════════════════════════════════════════════════════════
+- scrollUntilVisible:
+    element:
+      id: "Open add card form"
+    centerElement: true
+- tapOn:
+    id: "Open add card form"
+# The card NUMBER input (aria-label "Card number") has autoFocus, so we type the
+# number directly; "Card name" is the second field.
+- assertVisible:
+    id: "Card name"
+- inputText: "999-${ATTEMPT_ID}"
+- tapOn:
+    id: "Card name"
+- inputText: "Test Player ${ATTEMPT_ID}"
+- tapOn:
+    id: "Submit new card"
+
+# ── Verify the new row: #num + name + Custom badge + edit affordance ─────────
+- scrollUntilVisible:
+    element:
+      text: "Test Player ${ATTEMPT_ID}"
+    centerElement: true
+- assertVisible: "#999-${ATTEMPT_ID}"
+- assertVisible: "Test Player ${ATTEMPT_ID}"
+- assertVisible:
+    id: "Edit card 999-${ATTEMPT_ID}"
+# The manually-added card carries a "Custom" badge (card.isCustom). Exact-match
+# "^Custom$" so it can't match the columns' "+ Custom" buttons.
+- assertVisible:
+    text: "^Custom$"
+
+# ════════════════════════════════════════════════════════════════════════════
+# EDIT: rename the card; the new name sticks and the old name is gone
+# ════════════════════════════════════════════════════════════════════════════
+- tapOn:
+    id: "Edit card 999-${ATTEMPT_ID}"
+    waitToSettleTimeoutMs: 2000
+- assertVisible:
+    id: "Card name"
+- tapOn:
+    id: "Card name"
+- eraseText: 40
+- inputText: "Renamed ${ATTEMPT_ID}"
+- tapOn:
+    id: "Save card edit"
+- scrollUntilVisible:
+    element:
+      text: "Renamed ${ATTEMPT_ID}"
+    centerElement: true
+- assertVisible: "Renamed ${ATTEMPT_ID}"
+- assertNotVisible: "Test Player ${ATTEMPT_ID}"
+
+# ════════════════════════════════════════════════════════════════════════════
+# DELETE: two-step Del → Confirm? → row removed
+# ════════════════════════════════════════════════════════════════════════════
+- scrollUntilVisible:
+    element:
+      id: "Delete card 999-${ATTEMPT_ID}"
+    centerElement: true
+- tapOn:
+    id: "Delete card 999-${ATTEMPT_ID}"
+- assertVisible: "Confirm?"
+- tapOn:
+    id: "Confirm delete card 999-${ATTEMPT_ID}"
+- assertNotVisible: "Renamed ${ATTEMPT_ID}"
