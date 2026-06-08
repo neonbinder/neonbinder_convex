@@ -3,7 +3,6 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selecto
 name: "Checklist — card rows render card number, sub-line, attribute badges, and platform badges"
 tags:
   - set-selector
-  - serial-marketplace
 ---
 # Feature test: after a successful fetch, each card row renders its full
 # set of structured fields — not just a name.

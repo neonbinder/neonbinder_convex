@@ -57,5 +57,45 @@ Also confirmed: **dedup = propose & wait** (no autonomous deletes); **parallelis
   Plus extendedWaitUntil{timeout} → 7s default where not marketplace/cold-sync. Delegate to maestro-e2e-author.
 
 ## Commits this session
-- Pushing infra + tag-sweep NOW (before Phase 3) to validate the SEED job (keystone) early in CI.
-  Matrix legs expected to fail on unconverted flows — that's OK (user: parallel-fail OK until Phase 5).
+- fba3603 ci: pre-matrix seed job + setup-only scheduler entry + composite action
+- cf18661 test: finish flat-model tag migration
+- 00b43e0 test: index: → below:{id:} in 7 flows (PUSHED — validated seed job)
+- 3c8dce8 test: 2 shard-0 marketplace flow fixes (NOT pushed — batching with admin grant)
+
+## ✅ KEYSTONE VALIDATED IN CI (run on cf18661, repeated on 00b43e0)
+- setup ✓ → **seed SUCCESS (~9 min)** → e2e legs correctly waited (needs:[setup,seed]) → report ✓.
+- Suite went from 28/14 (broken) → **40 passed / 7 failed**. The seed-then-matrix architecture WORKS.
+
+## ✅ PHASE 3 (index: conversions) — done, pushed (00b43e0). 7 flows: index: → below:{id:}.
+
+## 🔬 PHASE 5 forensics — the 7 failures on 00b43e0, ALL root-caused (no flaky excuses):
+### (5 of 7) dev+e2e-4 is NOT a Clerk admin  ← user's hypothesis, CONFIRMED
+- Clean 100% split by user on shard 1: TEST_EMAIL_2 (dev+e2e-3) = 5/5 set-selector PASS;
+  TEST_EMAIL_3 (dev+e2e-4) = 5/5 FAIL. Read-only Clerk API: dev+e2e-1/2/3 role='admin',
+  **dev+e2e-4 role=None**. AdminLayout (src/layouts/AdminLayout.tsx) bounces non-admins from
+  /set-selector → /dashboard (screenshot proof: failing flows land on the Dashboard).
+- FIX: set publicMetadata.role='admin' on dev+e2e-4 (user_3EhKp3oAWBR9rVblBUsP0n1gq6z), Clerk dev sk_test.
+  Agent PATCH was sandbox-blocked (privilege elevation) → AWAITING user to run it (Option A `!` command) or re-authorize.
+- Phase 6 NOTE: TEST_EMAIL_4..7 (dev+e2e-5..8) will also need admin when the matrix widens.
+### (2 of 7) real shard-0 flow bugs — FIXED in 3c8dce8
+- refresh-sportlots-creds: footer-steal on "Clear Credentials" (y=557) → added centerElement: true.
+- checklist-fetch-cancel-dialog: final Fetch/Refresh assert off-screen after scroll-down → scrollUntilVisible UP to
+  id "Sync card checklist"; + made custom card ATTEMPT_ID-unique (retry was duplicating #9001).
+
+## ✅ ADMIN GRANT APPLIED + 3c8dce8 PUSHED (full validation run in flight, pr-watcher armed).
+- dev+e2e-4 → role=admin (verified). 3c8dce8 = the 2 shard-0 fixes. Expect a clean/near-clean run.
+
+## ✅ PROVISIONED 8-WORKER CAPACITY (user: "provision all clerk users, needed for sure") — for Phase 6.
+- Clerk: created dev+e2e-5..8 (mains, role=admin) + dev+e2e-5..8-profile. Verified ALL 8 mains (e2e-1..8) = admin.
+  New ids: e2e-5 user_3ErKn1C2BTc8aQX6zdTj6l624Lh, e2e-6 user_3ErKnFWUYxAVmbRZQORM6nmP1n0,
+  e2e-7 user_3ErKnTxxqKvpjNyZpjTyV1EsAY5, e2e-8 user_3ErKnNqrxRzpVIDnXV5ihH7b4xT (+ profiles).
+- Vercel Preview: added TEST_EMAIL_4..7 + NEW_PROFILE_TEST_EMAIL_4..7 (→ dev+e2e-5..8 / -profile). Take effect next preview build.
+- Ready for up to 8 workers (4×2). reference_e2e_test_account_provisioning memory updated with the MANDATORY admin-grant step.
+
+## PHASE 6 plan (after 2×2 confirmed green): widen matrix [0,1]→[0,1,2,3], SHARD_TOTAL "2"→"4", measure wall-clock.
+- CAVEAT to measure: shard 0 owns the serial-marketplace backbone (12 flows, shard-0-only) = likely the wall-clock FLOOR.
+  4 shards offloads shard-0's INDEPENDENT slice to shards 2/3 but NOT its marketplace-serial time. If marketplace dominates,
+  4×2 ≈ 2×2 — the real win needs shrinking the marketplace backbone (deeper, separate work). Measure before committing a config.
+
+## STILL OWED (lower priority): extendedWaitUntil{timeout}→7s convention pass (won't change pass/fail, deferred to avoid
+## adding red near green); Phase 6 parallelism tuning; Phase 4 dedup proposal (await user approval).

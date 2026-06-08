@@ -762,16 +762,19 @@ run_parallel_batch() {
 # its credentials saved; other workers' adapter calls hit NOT_FOUND, both
 # options arrays return empty, the ReconciliationModal silently never
 # opens, and tests time out.
-# Shard 0 warms BSC + SL marketplace tokens per worker (full bootstrap). Other
-# shards run only parallel-safe independent flows that never touch the
-# marketplace, so they use the LIGHT bootstrap (sign-in + reset + seed-creds,
-# NO marketplace login warm). N shards warming the shared dev BSC/SL accounts
-# concurrently would 503 the login endpoint (NEO-46 Trap 2).
-if [ "$SHARD_TOTAL" -gt 1 ] && [ "$SHARD_INDEX" -ne 0 ]; then
-  BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap-light.yaml"
-else
-  BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
-fi
+# EVERY worker on EVERY shard warms its own BSC + SL marketplace token ONCE here
+# (full bootstrap), then every downstream flow just READS the cached token. This
+# is what makes flows shard-independent: a marketplace-touching flow can land on
+# any shard because that shard's worker is already warm.
+#
+# There is NO concurrent-login rate limit on the shared dev BSC/SL accounts
+# (confirmed with BSC) — the earlier "light bootstrap on shards 1+" existed only
+# to avoid an imaginary "login storm". Each worker logs in exactly once (~N total,
+# one per worker); transient/random BSC/SL login failures are covered by the
+# adapter retry. If a warm here fails, diagnose it from Cloud Run + Convex +
+# PostHog logs (NOT by assuming rate-limiting), because a real login bug must be
+# fixed at the source, not masked by a per-flow re-login.
+BOOTSTRAP_FLOW=".maestro/flows/profile/worker-bootstrap.yaml"
 if [ -n "${MAESTRO_SKIP_BOOTSTRAP:-}" ]; then
   echo "Phase 0: SKIPPED (MAESTRO_SKIP_BOOTSTRAP) — assuming worker creds already seeded."
   echo ""

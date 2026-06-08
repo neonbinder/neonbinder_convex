@@ -9,7 +9,6 @@ name: Set Selector Smoke Test
 tags:
   - regression
   - set-selector
-  - serial-marketplace
 ---
 - launchApp
 - extendedWaitUntil:
@@ -26,21 +25,6 @@ tags:
 
 - runFlow:
     file: ../profile/setup-sportlots-credentials.yaml
-
-# ============================================================
-# CREDENTIAL WARMING
-# seed-credentials already saved real BSC + SL credentials server-side.
-# Warm the Puppeteer session tokens so the "Sync Sports" marketplace fetch
-# uses a live session and doesn't trigger a fresh ~20s login mid-flow,
-# which would cause the "Sync Sports" wait to time out.
-# Both warm utils cost ~0.5s when the token is already cached.
-# ============================================================
-
-- runFlow:
-    file: ../util/util-login-to-bsc.yaml
-
-- runFlow:
-    file: ../util/util-login-to-sportlots.yaml
 
 # Navigate to the Set Selector page
 - openLink: ${APP_URL || "https://localhost:3000"}/set-selector

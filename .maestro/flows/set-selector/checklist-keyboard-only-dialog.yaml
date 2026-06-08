@@ -3,7 +3,6 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selecto
 name: "Checklist — confirm dialog using keyboard Enter on auto-focused button"
 tags:
   - set-selector
-  - serial-marketplace
 ---
 # Feature test: the UnknownEntitiesDialog confirm button is auto-focused on open
 # and responds to the Enter key, allowing keyboard-only confirmation.

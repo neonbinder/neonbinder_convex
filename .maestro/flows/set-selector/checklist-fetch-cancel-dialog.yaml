@@ -3,7 +3,6 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selecto
 name: "Checklist — cancel the unknown-entities dialog; no cards are saved"
 tags:
   - set-selector
-  - serial-marketplace
 ---
 # Feature test: pressing Cancel on the UnknownEntitiesDialog aborts the
 # commit. No cards are written to the checklist and no entities are created.
@@ -36,21 +35,6 @@ tags:
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 10000
-
-# ============================================================
-# CREDENTIAL WARMING
-# seed-credentials already saved real BSC + SL credentials server-side via
-# the sign-in URL chain. Warm the Puppeteer session tokens so that the
-# marketplace fetch triggered by "Fetch from Marketplaces" (the core action
-# in this test) uses a live session and doesn't trigger a fresh ~20s login
-# mid-flow that causes the UnknownEntitiesDialog to appear too late.
-# ============================================================
-
-- runFlow:
-    file: ../util/util-login-to-bsc.yaml
-
-- runFlow:
-    file: ../util/util-login-to-sportlots.yaml
 
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST

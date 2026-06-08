@@ -2,7 +2,6 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&wor
 name: Refresh SportLots credentials
 tags:
   - set-selector
-  - serial-marketplace
 ---
 # Refreshes the SportLots session for the test user. Bypasses the native
 # <select> dropdown by setting its value via JS, then dispatching a change

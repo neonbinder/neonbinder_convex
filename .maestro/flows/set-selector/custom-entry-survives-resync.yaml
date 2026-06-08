@@ -2,7 +2,6 @@ url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selecto
 name: Custom Entry Survives Re-Sync
 tags:
   - set-selector
-  - serial-marketplace
   - regression
   # WIP: After adding a custom entry via "+ Custom" form, the new entry
   # is buried below the column's `max-h-[400px] overflow-y-auto` fold
