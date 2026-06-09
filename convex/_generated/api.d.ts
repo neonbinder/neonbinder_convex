@@ -8,6 +8,11 @@
  * @module
  */
 
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
 import type * as adapters_base from "../adapters/base.js";
 import type * as adapters_buysportscards from "../adapters/buysportscards.js";
 import type * as adapters_ebay from "../adapters/ebay.js";
@@ -24,10 +29,13 @@ import type * as auth from "../auth.js";
 import type * as backfillCardFeatures from "../backfillCardFeatures.js";
 import type * as cardChecklist from "../cardChecklist.js";
 import type * as credentials from "../credentials.js";
+import type * as e2eQueue from "../e2eQueue.js";
 import type * as features_deriveCardFeatures from "../features/deriveCardFeatures.js";
 import type * as features_expectedFeatures from "../features/expectedFeatures.js";
+import type * as features_tcdbMapping from "../features/tcdbMapping.js";
 import type * as http from "../http.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as observability from "../observability.js";
 import type * as players from "../players.js";
 import type * as posthog from "../posthog.js";
 import type * as publicProfile from "../publicProfile.js";
@@ -38,12 +46,14 @@ import type * as teams from "../teams.js";
 import type * as testing from "../testing.js";
 import type * as userProfile from "../userProfile.js";
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
-
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 declare const fullApi: ApiFromModules<{
   "adapters/base": typeof adapters_base;
   "adapters/buysportscards": typeof adapters_buysportscards;
@@ -61,10 +71,13 @@ declare const fullApi: ApiFromModules<{
   backfillCardFeatures: typeof backfillCardFeatures;
   cardChecklist: typeof cardChecklist;
   credentials: typeof credentials;
+  e2eQueue: typeof e2eQueue;
   "features/deriveCardFeatures": typeof features_deriveCardFeatures;
   "features/expectedFeatures": typeof features_expectedFeatures;
+  "features/tcdbMapping": typeof features_tcdbMapping;
   http: typeof http;
   myFunctions: typeof myFunctions;
+  observability: typeof observability;
   players: typeof players;
   posthog: typeof posthog;
   publicProfile: typeof publicProfile;
@@ -75,31 +88,11 @@ declare const fullApi: ApiFromModules<{
   testing: typeof testing;
   userProfile: typeof userProfile;
 }>;
-
-/**
- * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
-
-/**
- * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
- */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
-
-export declare const components: {};

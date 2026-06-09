@@ -21,5 +21,13 @@
     "noEmit": true
   },
   "include": ["./**/*"],
-  "exclude": ["./_generated"]
+  /* Exclude *.test.ts from the convex DEPLOY typecheck. `convex deploy` runs tsc
+   * over this config; the unit tests are already typechecked + run by vitest
+   * (with convex-test types) in CI, and they aren't deployed as functions. Their
+   * convex-test generic-DataModel typing intermittently degrades under the deploy
+   * tsc (e.g. selectorOptions.addCustom.test.ts: a real index resolves to
+   * `keyof SystemIndexes`), which was FAILING the deploy typecheck repo-wide and
+   * silently triggering the `|| npm run build` fallback in vercel.json — so the
+   * per-PR Convex preview never deployed its functions (incl. NEO-49 http.ts). */
+  "exclude": ["./_generated", "./**/*.test.ts"]
 }
