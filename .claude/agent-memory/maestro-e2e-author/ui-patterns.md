@@ -354,8 +354,9 @@ Rule: if a button has BOTH visible text and an aria-label, tap by the visible te
 - Modal footer — with changes: `".*N promotion.*"`, `".*Save N change.*"`
 - Accept all button: `".*Accept all suggestions.*"`
 - Suggested badge text: `"Suggested"` (appears inside suggested rows)
-- Parallels zone heading: `".*Parallels of.*Stars.*"` regex
-- Top-level inserts zone: `"Top-level inserts"`
+- Parallels zone heading EXACT: `Parallels of "Stars"` (double-quotes around the insert name are part of the title). YAML: `Parallels of \"Stars\"`. Zone-relative assert: `assertVisible: text: "Stars Gold" below: "Parallels of \"Stars\""`.
+- Top-level inserts zone: `"Top-level inserts"`. Zone-relative: `assertVisible: text: "Stars" below: "Top-level inserts"`.
+- CRITICAL: After modal Close/Cancel/backdrop, EntitySelector columns collapse to selected-pill state — list rows are NOT in the DOM. Never `assertVisible`/`scrollUntilVisible` for row text (Stars/Gold/Red) after modal close. Assert action-button row instead: `id: "Add custom Inserts"` + `"Group Parallels"`. The cancel-discards proof of no-persist is established by the reopen→Suggested cycle, not a post-close row assertion.
 
 ## CardDetailPanel (NEO-25) — right-anchored drawer
 
