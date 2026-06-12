@@ -552,7 +552,7 @@ export const storeReconciledOptions = mutation({
         }),
         metadata: metadataValidator,
         // NEO-24: reconciler may seed set-level marketplace metadata
-        // (release date, TCDB SID, etc) when the data source provides it.
+        // (release date, etc) when the data source provides it.
         // Merge-patched onto existing rows; features are NOT touched here
         // — those go through `setSelectorOptionFeature` so propagation
         // semantics stay centralized.

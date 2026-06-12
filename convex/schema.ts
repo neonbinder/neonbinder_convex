@@ -89,16 +89,17 @@ export default defineSchema({
       isInsert: v.optional(v.boolean()),
       isParallel: v.optional(v.boolean()),
     })),
-    // NEO-24: marketplace-listing metadata at the set level. Populated by
-    // TCDB enrichment (Stage 3) and admin edits. Set-level only — does NOT
-    // propagate to descendant cardChecklist rows (those use `features`).
+    // Set-level metadata, entered MANUALLY in the Set Builder (admin edits via
+    // `setSetMetadata`). Set-level only — does NOT propagate to descendant
+    // cardChecklist rows (those use `features`). (Previously auto-populated by
+    // TCDB enrichment; that scraping was removed — automation tracked separately.)
     setMetadata: v.optional(v.object({
       releaseDate: v.optional(v.string()),       // ISO date string when known
       totalCardCount: v.optional(v.number()),    // declared set size
       block: v.optional(v.string()),             // e.g. "Series 1", "Update"
-      tcdbSetId: v.optional(v.string()),         // canonical TCDB SID for re-sync
-      sourceUrl: v.optional(v.string()),         // last-fetched audit trail
-      lastSyncedAt: v.optional(v.number()),      // ms epoch of last enrichment
+      tcdbSetId: v.optional(v.string()),         // TCDB SID (manually entered)
+      sourceUrl: v.optional(v.string()),         // reference URL (manually entered)
+      lastSyncedAt: v.optional(v.number()),      // legacy: last auto-sync epoch (no longer written)
     })),
     // NEO-24: marketplace-agnostic feature map. Keys come from
     // `convex/features/expectedFeatures.ts` (e.g. "league", "era",
