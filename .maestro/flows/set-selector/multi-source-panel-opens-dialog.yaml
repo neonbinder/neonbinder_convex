@@ -20,113 +20,30 @@ tags:
 #   4. Cancelling dismisses the dialog without side effects.
 #   5. The panel is still visible after cancel.
 #
-# Mutation (attach + confirm) is intentionally excluded — a regression-tagged
-# flow covers the full attach → filter chip → per-card badge cycle.
+# Mutation (attach + confirm) is intentionally excluded — the full
+# attach → filter chip → per-card badge mutation cycle is NOT YET
+# COVERED by any flow and remains a coverage gap.
 
 # ============================================================
 # LAUNCH + SIGN IN
 # ============================================================
 
 - launchApp
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 45000
+# Wait for sign-in redirect to complete and the Set Selector page to load.
+# Without this guard, execution proceeds before the Clerk session is
+# established, and util-drill's openLink: /set-selector is intercepted by
+# Clerk and bounced back to the sign-in page.
+- assertVisible: "Set Selector"
 
 # ============================================================
 # FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
-# Data is already in Convex from setup.yaml; these taps hit
-# the cached column lists with no marketplace sync waits.
+# Delegated to util-drill-to-2024-topps-chrome.yaml.
+# Navigates to /set-selector internally; return contract is
+# Variant Types column visible with "Base" listed.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-
-# Level 1 — Baseball
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: "Baseball"
-    timeout: 10000
-- tapOn: "Baseball"
-
-# Level 2 — 2024
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ".*Search years.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      below:
-        id: "Search years"
-    timeout: 10000
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# Level 3 — Topps
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ".*Search manufacturers.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      below:
-        id: "Search manufacturers"
-    timeout: 10000
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Level 4 — Topps Chrome
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ".*Search sets.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      below:
-        id: "Search sets"
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    below:
-      id: "Search sets"
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
 
 # ============================================================
 # LEVEL 5 — Select Base variant type
@@ -135,12 +52,6 @@ tags:
 # CardChecklist is already visible from the prior confirmed mapping).
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Base"
-    timeout: 30000
 - scrollUntilVisible:
     element:
       text: "Base"
@@ -155,13 +66,19 @@ tags:
     timeout: 60000
 
 # If the picker is open, confirm the pre-selected set.
+# SANCTIONED idempotent shared-set touch: every worker confirms the same
+# canonical Base mapping on the real Topps Chrome set — the write is
+# idempotent (same value, no divergence). Kept because the BSC
+# multi-source panel only renders on this real marketplace-backed set, and
+# the work-queue does not guarantee sets-base.yaml ran first (cold-set
+# self-heal).
 - runFlow:
     when:
       visible: "Select Base Set"
     commands:
       - extendedWaitUntil:
           visible: "Confirm Base Set"
-          timeout: 60000
+          timeout: 7000
       - tapOn: "Confirm Base Set"
       - extendedWaitUntil:
           notVisible: "Select Base Set"
@@ -228,6 +145,8 @@ tags:
 # ============================================================
 # TYPE INTO THE BSC SEARCH INPUT AND VERIFY LIST NARROWS
 # The input has aria-label "Search BSC sets".
+# The BSC candidate list is loaded when the dialog opens and typing
+# filters client-side, so the 7s default is sufficient here.
 # ============================================================
 
 - tapOn:
@@ -239,7 +158,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Chrome.*"
-    timeout: 10000
+    timeout: 7000
 
 # ============================================================
 # CANCEL OUT OF THE DIALOG

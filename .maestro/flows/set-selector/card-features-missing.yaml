@@ -32,88 +32,28 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
 
 # ============================================================
-# DRILL TO PER-WORKER CUSTOM SET
-# E2E Test Sport ${WORKER_INDEX} → 2026 → Topps → cfm-<WORKER_INDEX> → Insert → "Base" (custom insert)
-# util-drill-to-custom-set.yaml returns with the Inserts column visible and idle.
+# DRILL TO PER-WORKER CUSTOM SET + ADD A CUSTOM CARD
+# E2E Test Sport ${WORKER_INDEX} -> 2026 -> Topps -> cfm-<WORKER_INDEX> ->
+# Insert -> "Base" (custom insert).
+# util-add-custom-card drills the hierarchy, adds "Base" idempotently,
+# opens the CardChecklist, submits card 991-${ATTEMPT_ID}, and returns
+# with the "Edit card 991-${ATTEMPT_ID}" button scrolled into view.
 # ============================================================
+
+# Per-attempt-unique card number + player name. ATTEMPT_ID is injected
+# as "w<worker>-a<attempt>-<RANDOM>" so attempt-2 never collides with a
+# row left behind by attempt-1 in the per-worker cardChecklist.
 
 - runFlow:
-    file: util-drill-to-custom-set.yaml
+    file: util-add-custom-card.yaml
     env:
       SET_NAME: "cfm-${WORKER_INDEX || 0}"
       VARIANT_TYPE: "Insert"
-
-# Add a custom insert named "Base" if absent, then select it to open the
-# CardChecklist panel for this per-worker custom subtree.
-- scrollUntilVisible:
-    element:
-      id: "Add custom Inserts"
-    centerElement: true
-    timeout: 10000
-- runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - tapOn:
-          id: "Add custom Inserts"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "Base"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-- assertVisible: "Base"
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    centerElement: true
-    timeout: 10000
-- tapOn: "Base"
-
-# Per-attempt-unique card number + player name. The runner injects
-# ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>" so attempt-2 doesn't
-# collide with the row attempt-1 left in the per-worker cardChecklist
-# (no idempotent cleanup loop needed when names are unique per attempt).
-- scrollUntilVisible:
-    element:
-      id: "Open add card form"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 15000
-
-# Add a fresh card with no features.
-- tapOn:
-    id: "Open add card form"
-- assertVisible:
-    id: "Card name"
-- inputText: "991-${ATTEMPT_ID}"
-- tapOn: "Player name"
-- inputText: "Missing Features Player ${ATTEMPT_ID}"
-- tapOn:
-    id: "Submit new card"
-
-# Virtuoso only renders rows near the viewport; the new card may be
-# off-screen until scrollToIndex fires. Drive the scroll directly with
-# scrollUntilVisible (does NOT depend on scrollToIndex having fired yet),
-# then confirm the row is in the DOM before proceeding. This replaces the
-# previous bare extendedWaitUntil that raced Virtuoso's scroll animation.
-- scrollUntilVisible:
-    element:
-      text: "Missing Features Player ${ATTEMPT_ID}"
-    centerElement: true
-    timeout: 15000
-- assertVisible: "Missing Features Player ${ATTEMPT_ID}"
-
-# Now scroll the Edit button into view. With the row already centered by
-# the preceding scroll, this is a small adjustment that keeps bounds non-null.
-- scrollUntilVisible:
-    element:
-      id: "Edit card 991-${ATTEMPT_ID}"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+      INSERT_NAME: "Base"
+      CARD_NUMBER: "991-${ATTEMPT_ID}"
+      PLAYER_NAME: "Missing Features Player ${ATTEMPT_ID}"
 
 # Assert visibility before tapping — surfaces a failed scroll as a clear
 # assertion error rather than the null kotlin.Int bounds crash.
@@ -157,6 +97,10 @@ tags:
     id: "Show features editor"
 
 # Cleanup: cancel edit and delete this attempt's test card.
+# Assert the Cancel button is visible before tapping — sticky footer
+# button is always in viewport (not scrollable), so assertVisible is safe.
+- assertVisible:
+    id: "Cancel card edit"
 - tapOn:
     id: "Cancel card edit"
 # Scroll the delete button into view — the Cancel above collapses the edit

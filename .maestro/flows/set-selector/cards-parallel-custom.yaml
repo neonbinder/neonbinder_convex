@@ -66,11 +66,13 @@ tags:
 # scroll it into view. The page is settled by now (the entry+badge asserts above
 # already passed without scrolling), so this scroll is clear of the fresh-render
 # CDP scroll bug that bit the drill.
+- scrollUntilVisible:
+    element:
+      text: ".*Prizm Gold.*"
+    centerElement: true
 - tapOn: ".*Prizm Gold.*"
 - scrollUntilVisible:
     element:
       text: ".*Fetch from Marketplaces.*|Refresh"
     centerElement: true
-- assertVisible:
-    text: ".*Fetch from Marketplaces.*|Refresh"
 - assertVisible: "No cards in this checklist yet."

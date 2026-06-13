@@ -47,172 +47,24 @@ tags:
 # ============================================================
 # DRILL TO PER-WORKER CUSTOM SET
 # Baseball → 2024 → Topps → tp-<WORKER_INDEX> → Insert VT → "Base" insert
+# Delegated to util-drill-to-custom.yaml which handles real-synced levels
+# (Baseball/2024/Topps exist as marketplace data) and the custom Set + VT +
+# Variant uniformly and idempotently.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Set Selector"
-- assertVisible: "Baseball"
-- scrollUntilVisible:
-    element:
-      text: "Baseball"
-    timeout: 10000
-- tapOn: "Baseball"
-
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- scrollUntilVisible:
-    element:
-      text: ".*Search years.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ".*Search manufacturers.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Sets column — wait for idle (scrollUntilVisible waits for + Custom to appear).
-# centerElement: true required to avoid footer click-steal at y≥489 on 1024×629.
-- assertVisible: "Sets"
-- scrollUntilVisible:
-    element:
-      id: "Add custom Sets"
-    centerElement: true
-    timeout: 120000
-
-# Add per-worker custom Set if absent, then tap it.
 - runFlow:
-    when:
-      notVisible: "tp-${WORKER_INDEX || 0}"
-    commands:
-      - tapOn:
-          id: "Add custom Sets"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "tp-${WORKER_INDEX || 0}"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-# Tap the custom Set. Use search box if list is large (>8 items).
-- runFlow:
-    when:
-      visible: ".*Search sets.*"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "^Sets$"
-          direction: UP
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*Search sets.*"
-      - inputText: "tp-${WORKER_INDEX || 0}"
-      - assertVisible:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-      - tapOn:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-- runFlow:
-    when:
-      notVisible: "Variant Types"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: ".*tp-${WORKER_INDEX || 0}.*"
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-# Variant Types column — wait for idle (+ Custom button).
-- assertVisible: "Variant Types"
-- scrollUntilVisible:
-    element:
-      id: "Add custom Variant Types"
-    visibilityPercentage: 100
-    timeout: 30000
-
-# Add custom Insert VT if absent, then tap it.
-- runFlow:
-    when:
-      notVisible: "Insert"
-    commands:
-      - tapOn:
-          id: "Add custom Variant Types"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Add Custom Entry"
-      - inputText: "Insert"
-      - pressKey: Enter
-      - assertVisible:
-          text: ".*Insert.*"
-
-- scrollUntilVisible:
-    element:
-      text: "Insert"
-    timeout: 10000
-- tapOn: "Insert"
-
-# Inserts column — wait for idle.
-- assertVisible:
-    text: ".*Inserts.*"
-- scrollUntilVisible:
-    element:
-      id: "Add custom Inserts"
-    centerElement: true
-    timeout: 30000
-
-# Add a "Base" insert variant if absent, then tap it to open CardChecklist.
-- runFlow:
-    when:
-      notVisible: "Base"
-    commands:
-      - tapOn:
-          id: "Add custom Inserts"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "Base"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-- assertVisible: "Base"
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    centerElement: true
-    timeout: 10000
-- tapOn: "Base"
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "tp-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
+      VARIANT: "Base"
 
 # Wait for the CardChecklist panel to appear.
+# (util-drill-to-custom scrolls "Open add card form" into view on return,
+# but an explicit scroll here is the canonical entry point before card ops.)
 - scrollUntilVisible:
     element:
       id: "Open add card form"
@@ -267,6 +119,8 @@ tags:
 
 # ============================================================
 # TEST 2 — Open popover, search, and pick a team by clicking
+# (In-place form-field taps use direct tapOn by aria-label — the form
+# is already in-viewport after the Edit tap above; no scroll needed.)
 # ============================================================
 
 - tapOn:
@@ -387,118 +241,20 @@ tags:
 # ============================================================
 # Reload and re-drill to the SAME per-worker custom set to confirm
 # persistence. Baseball/2024/Topps/tp-<worker>/Insert/Base.
+# All real-synced levels (Baseball/2024/Topps) are already warm in
+# selectorOptions; the custom Set/VT/Variant already exist from the
+# first drill — util-drill-to-custom handles both idempotently.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Set Selector"
-- assertVisible: "Baseball"
-- scrollUntilVisible:
-    element:
-      text: "Baseball"
-    timeout: 10000
-- tapOn: "Baseball"
-
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- scrollUntilVisible:
-    element:
-      text: ".*Search years.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: ".*Search manufacturers.*"
-    timeout: 10000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Sets column — tap our custom set (already exists).
-- assertVisible: "Sets"
-- scrollUntilVisible:
-    element:
-      id: "Add custom Sets"
-    centerElement: true
-    timeout: 120000
-
 - runFlow:
-    when:
-      visible: ".*Search sets.*"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "^Sets$"
-          direction: UP
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*Search sets.*"
-      - inputText: "tp-${WORKER_INDEX || 0}"
-      - assertVisible:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-      - tapOn:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-- runFlow:
-    when:
-      notVisible: "Variant Types"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: ".*tp-${WORKER_INDEX || 0}.*"
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*tp-${WORKER_INDEX || 0}.*"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-# Tap Insert variant type.
-- assertVisible: "Variant Types"
-- scrollUntilVisible:
-    element:
-      text: "Insert"
-    timeout: 10000
-- tapOn: "Insert"
-
-# Tap "Base" insert variant.
-- assertVisible:
-    text: ".*Inserts.*"
-- assertVisible: "Base"
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    centerElement: true
-    timeout: 10000
-- tapOn: "Base"
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "tp-${WORKER_INDEX || 0}"
+      VARIANT_TYPE: "Insert"
+      VARIANT: "Base"
 
 # After reload, find our card and confirm the team name is in the sub-line.
 - scrollUntilVisible:

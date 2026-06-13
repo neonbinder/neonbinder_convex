@@ -45,10 +45,10 @@ tags:
 # ── SELECT INSERT — auto-sync fires on the empty Inserts column ──────────────
 - extendedWaitUntil:
     visible: "Insert"
-    timeout: 30000
 - scrollUntilVisible:
     element:
       text: "Insert"
+    centerElement: true
     timeout: 10000
 - tapOn: "Insert"
 - extendedWaitUntil:
@@ -69,12 +69,14 @@ tags:
       # insert-variant-flow / cascade/sets-inserts (which couldn't survive a
       # pre-saved column). Verify the modal before saving the matched rows.
       - assertVisible:
-          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+          text: ".*[0-9]+ matched.*"
+      - assertVisible:
+          text: ".*BSC-only.*"
+      - assertVisible:
+          text: ".*SL-only.*"
       - scrollUntilVisible:
           element:
             text: ".*Unmatched.*"
-      - assertVisible:
-          text: ".*Unmatched.*"
       - assertVisible:
           text: ".*BSC.*"
       - assertVisible:
@@ -88,7 +90,7 @@ tags:
           notVisible: "Reconcile Inserts"
           timeout: 30000
 
-# ── PICK "Future Stars" (index 1 skips the search input's own value) ─────────
+# ── PICK "Future Stars" (below:{id} targets the result row, not the input) ───
 - extendedWaitUntil:
     visible: ".*Search inserts.*"
     timeout: 15000
@@ -102,11 +104,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "^Future Stars$"
-      index: 1
+      below:
+        id: "Search inserts"
     timeout: 10000
 - tapOn:
     text: "^Future Stars$"
-    index: 1
+    below:
+      id: "Search inserts"
 
 # ── FETCH THE CHECKLIST ─────────────────────────────────────────────────────
 - scrollUntilVisible:

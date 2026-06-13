@@ -66,8 +66,9 @@ tags:
     timeout: 30000
 
 # ── GLOBAL RESET ────────────────────────────────────────────────────────────
-# Wipe selectorOptions + cardChecklist + players + teams on the shared
-# deployment. Gated by ALLOW_RESET_SET_BUILDER_DATA (dev/preview only).
+# DESTRUCTIVE — sanctioned global wipe; gated by ALLOW_RESET_SET_BUILDER_DATA,
+# dev/preview only. This is the ONE authorised destructive step in the whole
+# E2E suite — every other flow reads from the clean state it creates.
 - scrollUntilVisible:
     element:
       text: "Reset Set Builder Data"
@@ -75,7 +76,7 @@ tags:
 - tapOn: "Reset Set Builder Data"
 - extendedWaitUntil:
     visible: "Delete Everything"
-    timeout: 10000
+    timeout: 20000
 # Confirm input is autofocused; erase any stray chars, then type the keyword.
 # NEVER tapOn the placeholder first — it injects a stray character.
 - eraseText: 10
@@ -139,6 +140,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Baseball"
+    centerElement: true
     timeout: 10000
 - tapOn: "Baseball"
 
@@ -161,14 +163,10 @@ tags:
 - tapOn:
     text: ".*Search years.*"
 - inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      index: 1
-    timeout: 10000
 - tapOn:
     text: "2024"
-    index: 1
+    below:
+      id: "Search years"
 
 # ── MANUFACTURER: Topps ─────────────────────────────────────────────────────
 - extendedWaitUntil:
@@ -184,14 +182,10 @@ tags:
 - tapOn:
     text: ".*Search manufacturers.*"
 - inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      index: 1
-    timeout: 10000
 - tapOn:
     text: "Topps"
-    index: 1
+    below:
+      id: "Search manufacturers"
 
 # ── SET: Topps Chrome ───────────────────────────────────────────────────────
 # Opening the Sets column syncs the full set list for Topps / 2024 — this is
@@ -209,14 +203,10 @@ tags:
 - tapOn:
     text: ".*Search sets.*"
 - inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      index: 1
-    timeout: 10000
 - tapOn:
     text: "Topps Chrome"
-    index: 1
+    below:
+      id: "Search sets"
 
 # ── VARIANT TYPES: Base / Insert / Parallel ─────────────────────────────────
 - extendedWaitUntil:
@@ -245,6 +235,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Base"
+    centerElement: true
     timeout: 10000
 - assertVisible: "Base"
 - assertVisible: "Insert"
@@ -276,12 +267,28 @@ tags:
           notVisible: "Select Base Set"
           timeout: 30000
 
-# CardChecklist action row renders below the columns; scroll it into view.
+# CardChecklist renders below the columns — it is BELOW the fold in the
+# 1024×629 headless viewport. "Fetch from Marketplaces" is NOT reachable by
+# extendedWaitUntil visible because it is scroll-clipped.
+#
+# Correct pattern (mirrors util-drill-to-base-variant.yaml):
+#   1. Wait for "Re-map Base" (in-viewport settle anchor — proves baseHasMapping
+#      became true and CardChecklist has mounted after the Convex write).
+#   2. scrollUntilVisible "Add Card" (centerElement + vis:50) — brings the
+#      CardChecklist header row into viewport before tapping.
+#   3. assertVisible "Fetch from Marketplaces|Refresh" — confirm it's in-view.
+#   4. tapOn it.
+- extendedWaitUntil:
+    visible: "Re-map Base"
+    timeout: 30000
 - scrollUntilVisible:
     element:
-      text: ".*Fetch from Marketplaces.*|Refresh"
+      text: "Add Card"
+    centerElement: true
     visibilityPercentage: 50
-    timeout: 15000
+    timeout: 30000
+- assertVisible:
+    text: ".*Fetch from Marketplaces.*|Refresh"
 - tapOn:
     text: ".*Fetch from Marketplaces.*|Refresh"
 
