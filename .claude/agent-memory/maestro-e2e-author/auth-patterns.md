@@ -25,8 +25,12 @@ tags:
     timeout: 45000
 ```
 
-The `extendedWaitUntil: visible: "Neon Binder"` is the standard guard for
-confirming the app has loaded and the user is authenticated.
+The `extendedWaitUntil: visible: "Profile Settings"` is the correct guard for
+confirming the profile page has loaded and the user is authenticated.
+
+DEPRECATED: `extendedWaitUntil: visible: "Neon Binder" timeout: 45000` — removed
+from all flows; it is a pure UI text with no relation to credential section readiness.
+Profile page load anchor is `"Profile Settings"` (h1).
 
 ## Reusable credential setup flows
 Located in `neonbinder_web/.maestro/flows/profile/`:
@@ -103,6 +107,81 @@ Then `openLink` takes the user to the feature page.
 - `SPORTLOTS_USERNAME`, `SPORTLOTS_PASSWORD` — SportLots credentials
 - `TEST_EMAIL`, `TEST_PASSWORD` — Clerk test user (used by the testing sign-in endpoint)
 - `APP_URL` — base URL, defaults to `http://localhost:3000`
+
+## Credential page — scroll timeouts
+
+The profile page has a long public-profile section ABOVE the credential area.
+Scrolling from the top to "BuySportsCards Credentials" takes 15-22s. Always add
+explicit `timeout: 30000` to ALL `scrollUntilVisible "BuySportsCards Credentials"` steps.
+Similarly use `timeout: 20000` for `scrollUntilVisible ".*Sportlots Credentials.*"` steps.
+
+Maestro's default scrollUntilVisible timeout is insufficient for this page.
+
+## Auth-failed banner viewport positioning
+
+The auth-failed banner (`".*Credentials were saved.*authentication failed.*"`) renders
+ABOVE the "Save Credentials" button in the DOM. If you scroll "Save Credentials" to
+center (y≈315) THEN tap it, the viewport is positioned mid-page. After the tap Maestro
+has no natural scroll direction to find the banner above.
+
+CORRECT PATTERN:
+1. Scroll "Save Credentials" WITHOUT `centerElement` — places button near y≈500, leaving
+   form header + banner area visible ABOVE it in the viewport.
+2. Tap "Save Credentials".
+3. Use `extendedWaitUntil: visible: ".*Credentials were saved.*authentication failed.*"
+   timeout: 120000` — NOT scrollUntilVisible. The banner is in the viewport already.
+   120s timeout required: BSC fake-credential Puppeteer login + Cloud Run round-trip takes
+   45-60s (not 30s).
+
+WRONG PATTERN: `scrollUntilVisible ".*Credentials were saved.*authentication failed.*"`
+after tapOn Save Credentials — scroll goes DOWN, away from the banner which rendered UP.
+
+## Radix Button tapOn NPE — fix by centering, NOT by index
+
+`tapOn: "Yes, Clear"` can fail with `null cannot be cast to non-null type kotlin.Int`
+(Kotlin NPE): Radix `<Button>` wraps its label in an inner `<span class="rt-Text">`, and
+while the button is still animating in / clipped, Maestro's text selector resolves to that
+span — whose `getBoundingClientRect()` is null in CDP. The outer `<button>` has valid bounds.
+
+FIX (NO index — our hard rule): scroll the button to center + let it settle, THEN plain
+`tapOn` so the match lands on a fully-painted button with valid bounds:
+```yaml
+- scrollUntilVisible:
+    element: { text: "Yes, Clear" }
+    centerElement: true
+    timeout: 15000
+    waitToSettleTimeoutMs: 1000
+- tapOn: "Yes, Clear"
+```
+This is the proven pattern in the `admin-missing-*` flows (which pass). **Do NOT use
+`index: 0`** — index selection violates our no-index rule (NEO-46) and masks the real cause
+(the mid-animation span match); it was reverted from `credentials-lifecycle.yaml` on
+2026-06-09. If a Radix button STILL NPEs after centering + settle, give it a stable
+`id:` (aria-label) and tap by `id:`. Index is never the answer.
+
+## "Credentials cleared" wait timeout
+
+`extendedWaitUntil: visible: ".*Credentials cleared.*"` — use `timeout: 30000`.
+The BSC credential deletion backend operation takes >7s. Maestro's default 7s timeout
+will fail. All four `extendedWaitUntil ".*Credentials cleared.*"` steps in lifecycle
+flows need `timeout: 30000`.
+
+## Reactive storm fix after cold login
+
+After a cold Puppeteer login (~22s) for BSC or SportLots, the Convex reactive
+subscription receives a flood of update events. This causes a React reconciliation
+storm where CDP `getBoundingClientRect()` returns null for elements (even visible ones).
+Even `extendedWaitUntil` may fail to register a visible element during this storm.
+
+FIX: Before using `tapOn: "Clear Credentials"` or any tap immediately after cold login
+completes, insert a full page reload:
+```yaml
+- openLink: ${APP_URL || "http://localhost:3000"}/profile
+- extendedWaitUntil:
+    visible: "Profile Settings"
+    timeout: 30000
+```
+This discards React's in-flight state and gives a clean render from which to proceed.
 
 ## Tags convention
 - `smoke` — runs on every PR; fast; happy path only

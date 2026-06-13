@@ -13,7 +13,7 @@ tags:
 #   - NO Level 6 Variants column (Base is a terminal variant type)
 #
 # CALLER NOTES:
-#   - Assumes cascade `setup.yaml` (level 0) has populated the shared
+#   - Assumes `setup.yaml` (the setup track) has populated the shared
 #     hierarchy and saved BSC/SL credentials for the running worker's user.
 #     setup.yaml only saves credentials for the worker that ran it (level 0
 #     picks one worker), so callers running on other workers must save
@@ -37,12 +37,14 @@ tags:
 #   - Caller must have called launchApp and waited for sign-in redirect.
 #   - Credentials are already seeded server-side by worker-bootstrap; no
 #     credential env vars need to be passed.
-#   - Do NOT reset the DB again in the parent flow — this util does it.
+#   - This util does NOT reset the DB or save credentials — `setup.yaml` and
+#     `worker-bootstrap` do that. Don't rely on this util for either.
 
 # ============================================================
 # DRILL TO 2024 TOPPS CHROME + SYNC VARIANT TYPES
-# util-drill-to-2024-topps-chrome handles: DB reset, credentials,
-# navigation, and all levels 1–5 leaving Base visible in the list.
+# util-drill-to-2024-topps-chrome (now a thin wrapper over util-drill-to-custom)
+# handles navigation + levels 1–5, leaving Base visible in the list. DB reset and
+# credentials come from setup.yaml / worker-bootstrap — NOT from the drill util.
 # ============================================================
 
 - runFlow:

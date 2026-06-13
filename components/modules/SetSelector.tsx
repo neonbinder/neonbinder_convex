@@ -180,7 +180,7 @@ export default function SetSelector() {
   // (e.g. Football → custom year 2026) scroll DOWN to reach the column's
   // "Add custom" button, which then pushed the year dropdown's top (2026)
   // out of view → "2026 not visible" e2e failures (NEO-38). Those levels are
-  // auto-seeded by the heuristic/TCDB at commit anyway; manual editing there
+  // auto-seeded by the heuristic at commit anyway; manual editing there
   // (rare) is a follow-up needing a non-drill-disrupting placement.
   const deepestSelectedId =
     selectedVariantOfVariantId ||

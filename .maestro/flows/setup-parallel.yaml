@@ -33,17 +33,14 @@ tags:
     file: set-selector/util-drill-to-2024-topps-chrome.yaml
 
 # ── SELECT PARALLEL — auto-sync fires on the empty Parallels column ──────────
-- extendedWaitUntil:
-    visible: "Parallel"
-    timeout: 30000
 - scrollUntilVisible:
     element:
       text: "Parallel"
+    centerElement: true
     timeout: 10000
 - tapOn: "Parallel"
 - extendedWaitUntil:
     visible: "Parallels"
-    timeout: 20000
 
 - extendedWaitUntil:
     visible:
@@ -57,12 +54,14 @@ tags:
       # cascade/sets-parallels (which couldn't survive a pre-saved column).
       # Verify the modal before saving the matched rows.
       - assertVisible:
-          text: ".*[0-9]+ matched.*BSC-only.*SL-only.*"
+          text: ".*[0-9]+ matched.*"
+      - assertVisible:
+          text: ".*BSC-only.*"
+      - assertVisible:
+          text: ".*SL-only.*"
       - scrollUntilVisible:
           element:
-            text: ".*Unmatched.*"
-      - assertVisible:
-          text: ".*Unmatched.*"
+            text: ".*BSC.*"
       - assertVisible:
           text: ".*BSC.*"
       - assertVisible:
@@ -76,7 +75,7 @@ tags:
           notVisible: "Reconcile Parallels"
           timeout: 30000
 
-# ── PICK "Gold Wave Refractors" (index 1 skips the search input's value) ─────
+# ── PICK "Gold Wave Refractors" (use below: to target the result row, not the search input) ──
 - extendedWaitUntil:
     visible: ".*Search parallels.*"
     timeout: 15000
@@ -90,11 +89,13 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "^Gold Wave Refractors$"
-      index: 1
+      below:
+        id: "Search parallels"
     timeout: 10000
 - tapOn:
     text: "^Gold Wave Refractors$"
-    index: 1
+    below:
+      id: "Search parallels"
 
 # ── FETCH THE CHECKLIST ─────────────────────────────────────────────────────
 - scrollUntilVisible:

@@ -20,9 +20,13 @@ tags:
 #      confirming the panel identifies which node it is editing and its ancestry.
 #
 #   2. METADATA EDIT AT SETNAME LEVEL
-#      The editable metadata fields (Release Date, Block) are visible because
-#      the panel defaults EXPANDED at the setName level. Write a value in
-#      "Value for Release Date" and confirm the "Saved Release Date" toast.
+#      The editable metadata fields (Release Date, Block, TCDB Set ID, Source URL)
+#      are visible because the panel defaults EXPANDED at the setName level.
+#      Write a value in each field and confirm the corresponding save toast.
+#        - "Value for Release Date" → "Saved Release Date"
+#        - "Value for Block"       → "Saved Block"
+#        - "Value for TCDB Set ID" → "Saved TCDB Set ID"
+#        - "Value for Source URL"  → "Saved Source URL"
 #
 #   3. COLLAPSED STATE / EXPAND / INHERITED VALUES AT CHILD LEVEL
 #      a. Tap "Hide attributes" to collapse the panel manually. Verify "Edit
@@ -38,154 +42,31 @@ tags:
 #   A. Sign in → navigate to /set-selector
 #   B. Drill Baseball → 2024 → Topps → custom set (add if absent)
 #   C. Assert breadcrumb scope text at setName level
-#   D. Edit "Value for Release Date" → assert "Saved Release Date" toast
-#   E. Manually collapse panel → assert "Edit attributes" visible
-#   F. Re-expand panel → assert "Hide attributes" visible
-#   G. Drill into custom variant type → assert breadcrumb updates to child scope
+#   C.  Edit "Value for Release Date" → assert "Saved Release Date" toast
+#   C2. Edit "Value for Block"        → assert "Saved Block" toast
+#   C3. Edit "Value for TCDB Set ID"  → assert "Saved TCDB Set ID" toast
+#   C4. Edit "Value for Source URL"   → assert "Saved Source URL" toast
+#   D. Manually collapse panel → assert "Edit attributes" visible
+#   E. Re-expand panel → assert "Hide attributes" visible
+#   F. Drill into custom variant type → assert breadcrumb updates to child scope
 
 - launchApp
+# Wait for the async testing-sign-in (Clerk auth + rate-limit retry backoff on
+# the Nth concurrent sign-in) to finish and auto-redirect to /set-selector
+# BEFORE drilling. Without this guard, util-drill's openLink: /set-selector
+# races the in-flight sign-in and is bounced to /signin — which failed this
+# flow deterministically at parallelism>1 (3rd rapid sign-in per account →
+# rate-limit backoff). 45s covers the full backoff; matches team-picker's gate.
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
-
-# ============================================================
-# PART A — NAVIGATE TO SET SELECTOR
-# ============================================================
-
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Set Selector"
-- assertVisible: "Baseball"
-
-# ============================================================
-# LEVEL 1 — Tap Baseball (pre-synced by cascade setup.yaml)
-# ============================================================
-
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- assertVisible:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-# ============================================================
-# LEVEL 2 — Year 2024
-# ============================================================
-
-- assertVisible: "Years"
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# ============================================================
-# LEVEL 3 — Topps (manufacturer)
-# ============================================================
-
-- assertVisible: "Manufacturers"
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# ============================================================
-# LEVEL 4 — Custom set "attr-edit-{WORKER_INDEX}"
-# This per-worker set name guarantees 3 concurrent workers never touch the
-# same entity. addCustomSelectorOption is idempotent — safe to add twice.
-# ============================================================
-
-- assertVisible: "Sets"
-
-# Wait for Sets column to settle (the BSC/SL sync for Topps/2024 may be in
-# flight briefly). scrollUntilVisible on "Add custom Sets" doubles as a
-# settle-wait: it polls until the button appears in idle mode.
-# centerElement: true keeps the button mid-viewport (clear of footer zone)
-# for the following tap — same pattern as util-drill-to-custom-set.yaml.
-- scrollUntilVisible:
-    element:
-      id: "Add custom Sets"
-    centerElement: true
-    timeout: 60000
-
 - runFlow:
-    when:
-      notVisible: "attr-edit-${WORKER_INDEX || 0}"
-    commands:
-      - tapOn:
-          id: "Add custom Sets"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "attr-edit-${WORKER_INDEX || 0}"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-# Tap the custom set row. When the list has grown past 8 items (multi-run CI),
-# a search input appears; use it to surface the row at index 1 to avoid
-# footer-zone clip failures (PR #31 pattern). Fallback for short lists below.
-- runFlow:
-    when:
-      visible: ".*Search sets.*"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "^Sets$"
-          direction: UP
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*Search sets.*"
-      - inputText: "attr-edit-${WORKER_INDEX || 0}"
-      - assertVisible:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-      - tapOn:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-- runFlow:
-    when:
-      notVisible: "Variant Types"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-# Confirm Variant Types column is visible — setName row is now selected and
-# the SetAttributesPanel will render below.
-- assertVisible: "Variant Types"
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "attr-edit-${WORKER_INDEX || 0}"
 
 # ============================================================
 # PART B — ASSERT BREADCRUMB SCOPE TEXT
@@ -275,17 +156,98 @@ tags:
     timeout: 15000
 
 # ============================================================
+# PART C2 — EDIT "Value for Block" (metadata field rendered below Release Date)
+# Block is already in view from the Part C scroll. Apply the same two-step
+# write pattern: sentinel clear → test value.
+# ============================================================
+
+- tapOn:
+    id: "Value for Block"
+- eraseText: 30
+- inputText: "Flagship"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved Block.*"
+    timeout: 15000
+
+# ============================================================
+# PART C3 — EDIT "Value for TCDB Set ID"
+# TCDB Set ID and Source URL are the two newly-editable rows added in this
+# sprint. They render directly below Block in the same metadata grid.
+# Scroll to "Value for Source URL" (the field below TCDB Set ID) to lift
+# TCDB Set ID fully into the 1024×629 viewport — same technique used for
+# Release Date / Block above.
+# ============================================================
+
+- scrollUntilVisible:
+    element:
+      id: "Value for Source URL"
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 1000
+    timeout: 15000
+- assertVisible:
+    id: "Value for TCDB Set ID"
+
+# Step 1: clearing sentinel.
+- tapOn:
+    id: "Value for TCDB Set ID"
+- eraseText: 30
+- inputText: "00000"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved TCDB Set ID.*"
+    timeout: 15000
+
+# Step 2: the test sentinel value.
+- tapOn:
+    id: "Value for TCDB Set ID"
+- eraseText: 30
+- inputText: "12345"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved TCDB Set ID.*"
+    timeout: 15000
+
+# ============================================================
+# PART C4 — EDIT "Value for Source URL"
+# Source URL is now in view from the Part C3 scroll.
+# Apply the same two-step write pattern.
+# ============================================================
+
+- tapOn:
+    id: "Value for Source URL"
+- eraseText: 100
+- inputText: "https://sentinel.example.com"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved Source URL.*"
+    timeout: 15000
+
+- tapOn:
+    id: "Value for Source URL"
+- eraseText: 100
+- inputText: "https://example.com/set"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      text: ".*Saved Source URL.*"
+    timeout: 15000
+
+# ============================================================
 # PART D — COLLAPSE THE PANEL VIA "Hide attributes"
 # On a custom set (no card checklist) the panel stays expanded; we test the
 # explicit collapse path so that "Edit attributes" / "Hide attributes"
 # toggle behaviour is validated independently of card-checklist presence.
 #
-# After Part C the page is scrolled DOWN (we scrolled to "Value for Block"
-# to lift Release Date into view). The "Hide attributes" toggle is at the
-# TOP of the SetAttributesPanel which is now ABOVE the current viewport
-# position. direction: UP (swipe-down gesture) pulls content from above
-# back into view — same technique as features-propagation.yaml uses to
-# scroll back up to "Base" after writing to the SetAttributesPanel.
+# After Parts C–C4 the page is scrolled DOWN past Source URL. The
+# "Hide attributes" toggle is at the TOP of the SetAttributesPanel which
+# is now ABOVE the current viewport position. direction: UP (swipe-down
+# gesture) pulls content from above back into view — same technique as
+# features-propagation.yaml uses to scroll back up to "Base".
 # ============================================================
 
 - scrollUntilVisible:

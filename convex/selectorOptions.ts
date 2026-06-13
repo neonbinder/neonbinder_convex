@@ -3,7 +3,6 @@ import {
   mutation,
   action,
   internalMutation,
-  internalQuery,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
@@ -327,10 +326,10 @@ export const getAncestorChain = query({
         sportlotsDisplay: v.optional(v.string()),
       }),
       metadata: metadataValidator,
-      // NEO-38: surface ancestor setMetadata so callers (the in-band TCDB
-      // apply in commitCardChecklist, SetFeaturesPanel) can read the
-      // setName-level release date / tcdbSetId etc. without a second
-      // round-trip. Shape mirrors the `setMetadata` column on schema.ts.
+      // NEO-38: surface ancestor setMetadata so callers (SetAttributesPanel)
+      // can read the setName-level release date / tcdbSetId etc. without a
+      // second round-trip. These fields are manually edited (no auto-sync).
+      // Shape mirrors the `setMetadata` column on schema.ts.
       setMetadata: setMetadataValidator,
       // NEO-24: surface ancestor features so callers (commitCardChecklist
       // inheritance merge, SetFeaturesPanel) can resolve effective values
@@ -1174,7 +1173,7 @@ export const addCustomCard = mutation({
     // NEO-38: precedence = materialized ancestor node features < card-observed
     // facts. The set-level heuristic now lives on the nodes (no per-card
     // deriveSetLevelFeatures merge), which fixes the bug where a per-card
-    // heuristic shadowed authoritative TCDB values written at the node.
+    // heuristic shadowed authoritative values written at the node.
     const mergedFeatures: Record<string, string> = {
       ...inheritedFeatures,
       ...deriveCardObservedFeatures({ attributes: args.attributes }),
@@ -1375,7 +1374,7 @@ export const getDescendantCardCount = query({
 
 /**
  * NEO-38: core materialization routine shared by the public
- * `setSelectorOptionFeature` mutation AND the in-mutation heuristic/TCDB seed
+ * `setSelectorOptionFeature` mutation AND the in-mutation heuristic seed
  * inside `commitCardChecklist`. Convex mutations can't call other mutations
  * (no ctx.runMutation in a mutation), so the propagation logic lives here as a
  * plain helper that takes a mutation `ctx`.
@@ -1486,63 +1485,6 @@ export async function materializeSelectorOptionFeature(
     propagatedToNodeCount,
     skippedAsOverridden,
   };
-}
-
-/**
- * NEO-38: apply an in-band TCDB preview at the setName node. Called from inside
- * `commitCardChecklist` (a mutation) AFTER the heuristic node-seed, so TCDB's
- * authoritative value overrides the heuristic via the materialization rule:
- * the heuristic value we wrote a moment ago becomes the node's "old value",
- * which TCDB's write matches-and-overwrites all the way down the subtree (a
- * descendant that still carries the heuristic value follows TCDB; a descendant
- * that an operator overrode keeps its own value).
- *
- * No-op when there's no setName node, no TCDB data, or TCDB was unavailable.
- * setMetadata is merge-patched (same semantics as `setSetMetadata`); features
- * are written through `materializeSelectorOptionFeature`.
- */
-async function applyTcdbToSetNameNode(
-  ctx: { db: { get: any; patch: any; query: any } },
-  setNameNodeId: Id<"selectorOptions"> | undefined,
-  tcdb:
-    | {
-        tcdbUnavailable: boolean;
-        setMetadata?: {
-          releaseDate?: string;
-          totalCardCount?: number;
-          block?: string;
-          tcdbSetId?: string;
-          sourceUrl?: string;
-          lastSyncedAt?: number;
-        };
-        features?: Record<string, string>;
-      }
-    | undefined,
-): Promise<void> {
-  if (!setNameNodeId) return;
-  if (!tcdb || tcdb.tcdbUnavailable) return;
-
-  // 1. Merge-patch setMetadata onto the setName node (preserve existing keys).
-  if (tcdb.setMetadata && Object.keys(tcdb.setMetadata).length > 0) {
-    const node = await ctx.db.get(setNameNodeId);
-    if (node) {
-      await ctx.db.patch(setNameNodeId, {
-        setMetadata: { ...(node.setMetadata ?? {}), ...tcdb.setMetadata },
-        lastUpdated: Date.now(),
-      });
-    }
-  }
-
-  // 2. Materialize each TCDB feature at the setName node. Because this runs
-  //    after the heuristic seed, the node's current value for these keys is the
-  //    heuristic value (or an operator override) — materialize overwrites the
-  //    heuristic and cascades down; operator overrides on descendants persist.
-  if (tcdb.features) {
-    for (const [key, value] of Object.entries(tcdb.features)) {
-      if (typeof value !== "string" || value.trim() === "") continue;
-      await materializeSelectorOptionFeature(ctx, setNameNodeId, key, value);
-    }
-  }
 }
 
 export const setSelectorOptionFeature = mutation({
@@ -3045,17 +2987,6 @@ const previewCardValidator = v.object({
   unmatched: v.optional(v.union(v.literal("bsc"), v.literal("sl"))),
 });
 
-// NEO-38: in-band TCDB result attached to the checklist preview. The same shape
-// is accepted back by `commitCardChecklist` so the operator-reviewed TCDB data
-// is applied at the setName node (and overrides the heuristic seed there).
-const tcdbPreviewValidator = v.object({
-  // false when TCDB returned usable data; true on Cloudflare/unavailable/error/
-  // no-confident-match. When true, setMetadata/features are absent.
-  tcdbUnavailable: v.boolean(),
-  setMetadata: v.optional(setMetadataObjectValidator),
-  features: v.optional(v.record(v.string(), v.string())),
-});
-
 /**
  * Action — fetch reconciled checklist preview without persisting.
  *
@@ -3084,10 +3015,6 @@ export const fetchCardChecklist = action({
     cards: v.array(previewCardValidator),
     unknownPlayers: v.array(v.string()),
     unknownTeams: v.array(v.string()),
-    // NEO-38: in-band TCDB preview (run concurrently with BSC/SL). Absent when
-    // the chain has no setName ancestor (e.g. fetching at a level above
-    // setName) or when sport/year couldn't be resolved.
-    tcdb: v.optional(tcdbPreviewValidator),
   }),
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -3111,18 +3038,6 @@ export const fetchCardChecklist = action({
     }>;
     unknownPlayers: string[];
     unknownTeams: string[];
-    tcdb?: {
-      tcdbUnavailable: boolean;
-      setMetadata?: {
-        releaseDate?: string;
-        totalCardCount?: number;
-        block?: string;
-        tcdbSetId?: string;
-        sourceUrl?: string;
-        lastSyncedAt?: number;
-      };
-      features?: Record<string, string>;
-    };
   }> => {
     try {
       // Resolve ancestor chain → filter map + sport + cardNumberPrefix
@@ -3297,9 +3212,9 @@ export const fetchCardChecklist = action({
         }));
       };
 
-      // NEO-38: SL, BSC, and TCDB are independent network fetches. Run all
-      // three concurrently with Promise.allSettled so TCDB overlaps the
-      // marketplace fetches and a TCDB outage can never reject the others.
+      // SL and BSC are independent network fetches. Run both concurrently
+      // with Promise.allSettled so one marketplace's outage can never reject
+      // the other.
 
       const fetchSl = async (): Promise<SlCard[]> => {
         // Adapter signature is record<string,string>; flatten single-ID
@@ -3364,44 +3279,9 @@ export const fetchCardChecklist = action({
         });
       };
 
-      type TcdbActionResult = {
-        success: boolean;
-        tcdbUnavailable: boolean;
-        message?: string;
-        setMetadata?: {
-          releaseDate?: string;
-          totalCardCount?: number;
-          block?: string;
-          tcdbSetId?: string;
-          sourceUrl?: string;
-          lastSyncedAt?: number;
-        };
-        features?: Record<string, string>;
-      };
-      const fetchTcdb = async (): Promise<TcdbActionResult | null> => {
-        // TCDB keys off the canonical set name + sport + year. Only attempt
-        // when the chain actually carries a setName (fetching at a level above
-        // setName has no canonical set to look up). sport/year come from the
-        // chain `filters`.
-        if (!filters.setName || !sport || !filters.year) return null;
-        return await ctx.runAction(internal.adapters.tcdb.fetchTcdbSetData, {
-          sport: filters.sport ?? sport,
-          year: filters.year,
-          setName: filters.setName,
-        }).catch((err) => {
-          console.error(`[fetchCardChecklist] TCDB error:`, err);
-          return {
-            success: false as const,
-            tcdbUnavailable: true as const,
-            message: String(err),
-          };
-        });
-      };
-
-      const [slSettled, bscSettled, tcdbSettled] = await Promise.allSettled([
+      const [slSettled, bscSettled] = await Promise.allSettled([
         fetchSl(),
         fetchBsc(),
-        fetchTcdb(),
       ]);
 
       const slCards: SlCard[] =
@@ -3410,27 +3290,7 @@ export const fetchCardChecklist = action({
         bscSettled.status === "fulfilled"
           ? bscSettled.value
           : { success: false, cards: [] };
-      const tcdbActionResult: TcdbActionResult | null =
-        tcdbSettled.status === "fulfilled" ? tcdbSettled.value : null;
 
-      // Normalize TCDB into the preview shape. When the fetch was skipped
-      // (no setName/sport/year) we leave `tcdb` undefined; otherwise we always
-      // surface a tcdb object (tcdbUnavailable flag tells the UI what happened).
-      const tcdbPreview:
-        | {
-            tcdbUnavailable: boolean;
-            setMetadata?: TcdbActionResult["setMetadata"];
-            features?: Record<string, string>;
-          }
-        | undefined = tcdbActionResult
-        ? tcdbActionResult.success
-          ? {
-              tcdbUnavailable: false,
-              setMetadata: tcdbActionResult.setMetadata,
-              features: tcdbActionResult.features,
-            }
-          : { tcdbUnavailable: true }
-        : undefined;
       const bscCards = (bscResult.success ? bscResult.cards : []) as Array<{
         cardNumber: string;
         cardName: string;
@@ -3603,7 +3463,6 @@ export const fetchCardChecklist = action({
         cards: out,
         unknownPlayers,
         unknownTeams,
-        ...(tcdbPreview ? { tcdb: tcdbPreview } : {}),
       };
     } catch (error) {
       console.error(`[fetchCardChecklist] Error:`, error);
@@ -3635,12 +3494,6 @@ export const commitCardChecklist = mutation({
     cards: v.array(previewCardValidator),
     confirmedNewPlayers: v.array(v.string()),
     confirmedNewTeams: v.array(v.string()),
-    // NEO-38: the in-band TCDB preview the operator reviewed. Applied at the
-    // setName node AFTER the heuristic seed so the real TCDB value overrides
-    // the heuristic via the materialization rule. Optional — older callers and
-    // custom-subtree commits omit it; tcdbUnavailable commits pass it but with
-    // no setMetadata/features to apply.
-    tcdb: v.optional(tcdbPreviewValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -3805,7 +3658,7 @@ export const commitCardChecklist = mutation({
     // level. We need these ids to seed the heuristic at its natural ORIGINATING
     // level (sport/year/manufacturer/setName/variant) so it materializes down
     // to descendant nodes + cards, rather than deriving it per-card. This fixes
-    // the bug where a per-card heuristic shadowed authoritative TCDB values.
+    // the bug where a per-card heuristic shadowed authoritative node values.
     const ancestorNodeIdByLevel: Partial<Record<Level, Id<"selectorOptions">>> =
       {};
     // Snapshot each ancestor node's `features` map BEFORE we seed, keyed by
@@ -3868,21 +3721,10 @@ export const commitCardChecklist = mutation({
       }
     }
 
-    // NEO-38 TCDB-APPLY-ANCHOR: in-band TCDB values are applied at the setName
-    // node AFTER the heuristic seed (see below), so the real value overwrites
-    // the heuristic via the materialization override rule (the heuristic value
-    // we just wrote becomes the node's "old value", and TCDB's write matches-or-
-    // overwrites it down the subtree).
-    await applyTcdbToSetNameNode(
-      ctx,
-      ancestorNodeIdByLevel.setName,
-      args.tcdb,
-    );
-
     // NEO-38: rebuild the inherited feature map for NEW cards by RE-READING the
-    // ancestor node `features` (post heuristic-seed + post TCDB-apply). Merge
-    // top-down (deeper ancestors override shallower). Existing rows are owned by
-    // the materialization pass above; we don't re-merge onto them here.
+    // ancestor node `features` (post heuristic-seed). Merge top-down (deeper
+    // ancestors override shallower). Existing rows are owned by the
+    // materialization pass above; we don't re-merge onto them here.
     const inheritedFeatures: Record<string, string> = {};
     {
       let cursorId: Id<"selectorOptions"> | undefined = args.selectorOptionId;
@@ -3957,9 +3799,9 @@ export const commitCardChecklist = mutation({
         });
       } else {
         // NEO-38: precedence = materialized ancestor node features (which now
-        // include the heuristic seed + any in-band TCDB values) < card-observed
-        // facts. A fact seen on THIS card (e.g. it's a rookie) beats the
-        // inherited values. No per-card set-level derivation anymore.
+        // include the heuristic seed) < card-observed facts. A fact seen on
+        // THIS card (e.g. it's a rookie) beats the inherited values. No
+        // per-card set-level derivation anymore.
         const mergedFeatures: Record<string, string> = {
           ...(inheritedFeaturesOrUndefined ?? {}),
           ...deriveCardObservedFeatures(card),
@@ -4055,13 +3897,14 @@ export const commitCardChecklist = mutation({
       );
     }
 
-    // NEO-24/38: harvest the locally-observable card-count onto the setName
-    // ancestor. releaseDate / block / sourceUrl / tcdbSetId already landed
-    // in-band via `applyTcdbToSetNameNode` above (no scheduled enrichment
-    // anymore — the in-band path replaces it). Patching the setName row keeps
-    // metadata centralized at the canonical level (variantType / insert /
-    // parallel rows are version-of-a-set; metadata lives one level up). We
-    // reuse the setName id captured during the ancestor walk.
+    // NEO-24/38: harvest the locally-observable card-count from the BSC/SL
+    // checklist fetch onto the setName ancestor, and stamp lastSyncedAt with
+    // the time of this checklist sync. Other metadata (releaseDate / block /
+    // sourceUrl / tcdbSetId) is manually edited via `setSetMetadata` and left
+    // untouched here. Patching the setName row keeps metadata centralized at
+    // the canonical level (variantType / insert / parallel rows are
+    // version-of-a-set; metadata lives one level up). We reuse the setName id
+    // captured during the ancestor walk.
     const setNameAncestorId: Id<"selectorOptions"> | undefined =
       ancestorNodeIdByLevel.setName;
     if (setNameAncestorId) {
@@ -4092,71 +3935,6 @@ export const commitCardChecklist = mutation({
       count: richCards.length,
       createdPlayerIds,
       createdTeamIds,
-    };
-  },
-});
-
-// ===========================================================================
-// NEO-24 Stage 3b — TCDB enrichment support
-// ===========================================================================
-
-/**
- * Internal query consumed by `adapters/tcdb.enrichSetFromTcdb`.
- *
- * Lives here (not in adapters/tcdb.ts) because `adapters/tcdb.ts` is a
- * "use node" action file — Convex requires queries to run in the
- * isolate, not Node. Same split pattern as wikidata → players.getInternal.
- *
- * Returns the pieces the enrichment action needs:
- *   - level + value (must be `setName` for enrichment to proceed)
- *   - sport + year walked from the ancestor chain
- *   - any cached tcdbSetId so the search step can be skipped
- *   - existing features so the action knows what to leave alone
- */
-export const _getTcdbEnrichmentChain = internalQuery({
-  args: { selectorOptionId: v.id("selectorOptions") },
-  returns: v.union(
-    v.null(),
-    v.object({
-      level: levelValidator,
-      setName: v.string(),
-      sport: v.optional(v.string()),
-      year: v.optional(v.number()),
-      cachedTcdbSetId: v.optional(v.string()),
-      existingFeatures: v.optional(v.record(v.string(), v.string())),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.selectorOptionId);
-    if (!row) return null;
-
-    let sport: string | undefined;
-    let year: number | undefined;
-
-    // Walk parentId pointers; cap depth at 16 to avoid pathological cycles.
-    // The deepest legitimate chain is 7 levels (sport→year→manufacturer→
-    // setName→variantType→insert→parallel) so 16 is comfortable headroom.
-    let cursor: Id<"selectorOptions"> | undefined = row.parentId;
-    let depth = 0;
-    while (cursor && depth < 16) {
-      const a: any = await ctx.db.get(cursor);
-      if (!a) break;
-      if (a.level === "sport" && !sport) sport = a.value;
-      if (a.level === "year" && !year) {
-        const n = Number(a.value);
-        if (Number.isFinite(n)) year = n;
-      }
-      cursor = a.parentId;
-      depth += 1;
-    }
-
-    return {
-      level: row.level,
-      setName: row.value,
-      sport,
-      year,
-      cachedTcdbSetId: row.setMetadata?.tcdbSetId,
-      existingFeatures: row.features,
     };
   },
 });

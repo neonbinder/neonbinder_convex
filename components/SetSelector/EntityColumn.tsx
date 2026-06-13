@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 type Level =
   | "sport"
@@ -48,6 +49,13 @@ export default function EntityColumn({
   // Set once the user engages this column after its first sync — see the
   // freeze-on-interaction effect below. Frozen columns stop auto-syncing.
   const [hasInteracted, setHasInteracted] = useState(false);
+
+  // Unique per-instance class for the custom-entry input so Maestro web's
+  // inputText resolves to THIS column's box. Maestro's createXPathFromElement
+  // keys off className (not aria-label), so a raw shared Tailwind class makes
+  // it type into the first matching input on the page (NEO-39). Same fix as the
+  // mb-search-<col> class on the column search input in EntitySelector.
+  const fieldClass = useFieldTestClass();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wasVisibleRef = useRef(isVisible);
@@ -221,7 +229,7 @@ export default function EntityColumn({
             onKeyDown={(e) => {
               if (e.key === "Enter") handleCustomSubmit();
             }}
-            className="w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+            className={`${fieldClass("customvalue")} w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
             placeholder="Enter custom value..."
             autoFocus
           />

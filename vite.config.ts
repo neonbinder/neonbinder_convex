@@ -26,8 +26,26 @@ async function loadMkcertIfHttpsEnabled(): Promise<Plugin | null> {
 // flows can hit /testing/sign-in against `vite dev` without needing a full
 // `vercel dev` setup. Same security layers and account selector as the
 // Vercel handler.
-type DevTestAccount = "main" | "new-profile";
-const DEV_TEST_ACCOUNTS = ["main", "new-profile"] as const satisfies readonly DevTestAccount[];
+type DevTestAccount =
+  | "main"
+  | "new-profile"
+  | "admin-no-credentials"
+  | "admin-bsc-only"
+  | "admin-sl-only";
+const DEV_TEST_ACCOUNTS = [
+  "main",
+  "new-profile",
+  "admin-no-credentials",
+  "admin-bsc-only",
+  "admin-sl-only",
+] as const satisfies readonly DevTestAccount[];
+const DEV_ACCOUNT_EMAIL_KEY: Record<DevTestAccount, string> = {
+  "main": "TEST_EMAIL",
+  "new-profile": "NEW_PROFILE_TEST_EMAIL",
+  "admin-no-credentials": "ADMIN_NO_CREDENTIALS_TEST_EMAIL",
+  "admin-bsc-only": "ADMIN_BSC_ONLY_TEST_EMAIL",
+  "admin-sl-only": "ADMIN_SL_ONLY_TEST_EMAIL",
+};
 const DEV_MAX_WORKER_INDEX = 31;
 
 function isDevTestAccount(value: unknown): value is DevTestAccount {
@@ -51,7 +69,7 @@ function resolveDevTestEmail(
   account: DevTestAccount,
   worker: number | null,
 ): string | undefined {
-  const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+  const baseKey = DEV_ACCOUNT_EMAIL_KEY[account];
   if (worker !== null) {
     const indexed = process.env[`${baseKey}_${worker}`];
     if (indexed) return indexed;
@@ -120,7 +138,7 @@ function clerkTestingApiPlugin(): Plugin {
         const worker = parsedWorker.index;
         const testEmail = resolveDevTestEmail(account, worker);
         if (!testEmail) {
-          const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+          const baseKey = DEV_ACCOUNT_EMAIL_KEY[account];
           const detail = worker !== null ? ` (tried ${baseKey}_${worker} and ${baseKey})` : "";
           res.statusCode = 500;
           res.setHeader("Content-Type", "application/json");
