@@ -1,88 +1,47 @@
 appId: com.neonbinder.web
-url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/profile&worker=${WORKER_INDEX || "0"}
+url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&account=admin-bsc-only&worker=${WORKER_INDEX || "0"}
 name: "Set Builder Gate — admin without SportLots credentials sees the warning banner"
 tags:
   - set-selector
   - regression
 ---
-# Mirror of admin-missing-bsc-shows-warning.yaml for the SportLots side.
+# Verifies the credentials gate on /set-selector:
+#   - Signs in as the dedicated admin-bsc-only account (dev+e2e-bsc-only@neonbinder.io).
+#   - Seeds ONLY BuySportsCards creds via ?sites=buysportscards (no SL seed).
+#   - Navigating to /set-selector renders the MissingCredentialsBanner
+#     naming SportLots only — NOT BuySportsCards.
+#   - The "Configure credentials in Profile" link points to /profile.
 #
-# Safe to run in parallel: credentials are per-user (Clerk userId). Each
-# worker signs in as its own dev+e2e-N account, so clearing/restoring SL
-# creds on this worker does not affect any other worker's session.
+# No clear, no restore, no reset — the account starts and ends with BSC-only.
+# BSC seed does a real login; allow up to ~18s for the seed step to complete.
 
+# Step 1: open /set-selector as admin-bsc-only (nothing seeded yet — don't assert gate here)
 - launchApp
 - extendedWaitUntil:
-    visible: "Neon Binder"
+    visible: "Set Builder"
     timeout: 45000
 
-# 1. Guarantee both creds exist
-- runFlow:
-    file: ../profile/setup-sportlots-credentials.yaml
-
-# 2. Clear SL creds only
-- openLink: ${APP_URL || "http://localhost:3000"}/profile
-- assertVisible: "Profile Settings"
-# Center the "Sportlots" tab rather than stopping at "BuySportsCards Credentials".
-# The tab row sits just below the h2 heading; scrolling only to the heading leaves
-# the Sportlots tab at the 629px viewport bottom edge, causing tapOn to trigger
-# Maestro's scrollToPoint → CDP empty-response flake. Centering the tab puts it
-# near y≈315 so the subsequent tapOn needs no implicit scroll.
-- scrollUntilVisible:
-    element:
-      text: "Sportlots"
-    centerElement: true
-    timeout: 20000
-# Switch to SportLots tab
-- tapOn: "Sportlots"
-- scrollUntilVisible:
-    element:
-      text: ".*Sportlots Credentials.*"
-    timeout: 10000
-- scrollUntilVisible:
-    element:
-      text: "Clear Credentials"
-    centerElement: true
-    timeout: 10000
-- tapOn: "Clear Credentials"
-- scrollUntilVisible:
-    element:
-      text: "Yes, Clear"
-    centerElement: true
-    timeout: 15000
-- tapOn: "Yes, Clear"
+# Step 2: seed ONLY BuySportsCards (real login, up to ~18s) then redirect back to /set-selector
+- openLink: ${APP_URL || "http://localhost:3000"}/testing/seed-credentials?sites=buysportscards&redirect=/set-selector
 - extendedWaitUntil:
-    visible: ".*Credentials cleared.*"
+    visible: "Set Builder"
     timeout: 30000
 
-# 3. Visit Set Builder — gate fires
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
+# Step 3: the gate banner must appear naming SportLots only
 - assertVisible: "Set Builder requires marketplace credentials"
+# SportLots must be named in the banner (the missing platform)
 - assertVisible: "SportLots"
+# BuySportsCards must NOT appear — asserting only the SL name is insufficient
+# because the both-missing banner also contains "SportLots"
+- assertNotVisible: "BuySportsCards"
+# The Set Selector UI itself must not be visible
 - assertNotVisible: "Set Selector"
-- assertNotVisible: "Sync Sports"
 
-# 4. Link works
+# Step 4: the CTA link leads to /profile
 - scrollUntilVisible:
     element:
       id: "Configure credentials in Profile"
     centerElement: true
-    timeout: 10000
 - tapOn:
     id: "Configure credentials in Profile"
 - assertVisible: "Profile Settings"
-
-# 5. Cleanup — restore SL creds
-- runFlow:
-    file: ../profile/clear-then-setup-sportlots-credentials.yaml
-
-# ============================================================
-# 6. Restore real credentials
-# clear-then-setup-sportlots above saved fake credentials (form-typing coverage).
-# Restore real credentials via seed-credentials so downstream flows on
-# this worker have a working marketplace token. No secret via Maestro -e.
-# ============================================================
-- openLink: ${APP_URL || "http://localhost:3000"}/testing/seed-credentials?redirect=/profile
-- extendedWaitUntil:
-    visible: "Profile Settings"
-    timeout: 30000

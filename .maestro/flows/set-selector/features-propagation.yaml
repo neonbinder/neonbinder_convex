@@ -13,15 +13,14 @@ tags:
 # is never touched — that path is owned exclusively by topps-chrome-*.yaml
 # and topps-chrome-add-feature.yaml.
 #
-# WHY Baseball / 2024 (not E2E Test Sport ${WORKER_INDEX} / 2026)?
-#   TeamPicker and features are sport-scoped. The cascade seeds Baseball
-#   teams/players so this flow runs against a correctly seeded sport scope.
-#   util-drill-to-custom-set.yaml uses E2E Test Sport ${WORKER_INDEX}/2026; for
-#   Baseball/2024 we inline the drill (same proven pattern as set-attributes-edit.yaml).
+# DRILL DELEGATION: Step 0 and Step D both call util-drill-to-custom.yaml
+# with Baseball/2024/Topps/fp-{N}. The util is idempotent (handles fp-{N}
+# already existing on Step D revisit) and returns at the Variant Types column.
+# Baseball/2024/Topps are pre-seeded by cascade setup.yaml.
 #
 # CARD CHECKLIST PATH:
-#   Custom sets reach CardChecklist via: Set → Insert (VT) → custom insert entry.
-#   fp-{N} → Insert → fp-insert-{N} → CardChecklist
+#   Custom sets reach CardChecklist via: Set → Insert (VT) →
+#   custom insert entry. fp-{N} → Insert → fp-insert-{N} → CardChecklist
 #   This mirrors card-detail-panel.yaml's proven "cd-{N} → Insert → Base" path.
 #   The SetAttributesPanel sets features on the SET level (fp-{N}) and they
 #   propagate to all descendant cards in the checklist of fp-insert-{N}.
@@ -38,12 +37,14 @@ tags:
 #   5. Revert: after reverting the override the card inherits the new set value.
 #
 # FLOW:
-#   Step 0: Drill to Baseball → 2024 → Topps → custom set fp-{WORKER_INDEX}.
+#   Step 0: Drill to Baseball → 2024 → Topps → custom set fp-{WORKER_INDEX}
+#           via util-drill-to-custom.yaml.
 #   Step A: Set League = "PropTest-MLB" at the set level → assert toast.
 #   Step B: Drill to Insert → fp-insert-{WORKER_INDEX} → add card #992-{ATTEMPT_ID}
 #           → open CardFeaturesEditor → verify "Inherited: PropTest-MLB".
 #   Step C: Override League to "PropTest-NL" on that card.
 #   Step D: Back at set level → update League to "PropTest-AL" → verify toast.
+#           Re-drill via util-drill-to-custom.yaml (idempotent revisit).
 #   Step E: Re-open override card → verify it still shows "PropTest-NL".
 #   Step F: Revert override → card now inherits "PropTest-AL".
 #   Cleanup: delete the test card.
@@ -52,6 +53,11 @@ tags:
 # Baseball, 2024, and Topps all exist in the shared Convex DB.
 
 - launchApp
+# Wait for the Clerk testing-token sign-in + redirect to /set-selector to
+# fully complete before calling the util. The util issues its own openLink
+# /set-selector which only works within an already-authenticated session.
+# Without this wait the openLink fires before Clerk finishes the token
+# exchange and the browser is redirected back to the sign-in page.
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
@@ -59,120 +65,18 @@ tags:
 # ============================================================
 # STEP 0 — DRILL TO PER-WORKER CUSTOM SET under Baseball/2024/Topps
 #
-# Inline drill (mirrors set-attributes-edit.yaml) — does NOT call
-# util-drill-to-custom-set.yaml because that util uses E2E Test Sport ${WORKER_INDEX}/2026.
-# Baseball/2024/Topps are pre-seeded by cascade setup.yaml.
+# util-drill-to-custom.yaml handles: openLink /set-selector + wait + all 4
+# levels. Returns at Variant Types column with Add-custom-Variant-Types
+# in viewport. Idempotent: fp-{N} already exists → select path only.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Set Selector"
-- assertVisible: "Baseball"
-
-# Level 1 — Baseball (use search input for reliable tap)
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- assertVisible:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-# Level 2 — Year 2024
-- assertVisible: "Years"
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# Level 3 — Topps (manufacturer)
-- assertVisible: "Manufacturers"
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Level 4 — Custom set "fp-{WORKER_INDEX}"
-# One set per worker — never collides with other workers or with Topps Chrome.
-- assertVisible: "Sets"
-- scrollUntilVisible:
-    element:
-      id: "Add custom Sets"
-    centerElement: true
-    timeout: 60000
-
 - runFlow:
-    when:
-      notVisible: "fp-${WORKER_INDEX || 0}"
-    commands:
-      - tapOn:
-          id: "Add custom Sets"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "fp-${WORKER_INDEX || 0}"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-# Tap the custom set row (search-input path if list has grown, fallback otherwise).
-- runFlow:
-    when:
-      visible: ".*Search sets.*"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "^Sets$"
-          direction: UP
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*Search sets.*"
-      - inputText: "fp-${WORKER_INDEX || 0}"
-      - assertVisible:
-          text: ".*fp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-      - tapOn:
-          text: ".*fp-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-- runFlow:
-    when:
-      notVisible: "Variant Types"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: ".*fp-${WORKER_INDEX || 0}.*"
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*fp-${WORKER_INDEX || 0}.*"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "fp-${WORKER_INDEX || 0}"
 
 - assertVisible: "Variant Types"
 
@@ -225,11 +129,11 @@ tags:
 - eraseText: 20
 - inputText: "PropTest-X"
 - pressKey: Enter
-# 15s timeout: propagation patches descendant cards synchronously.
+# 7s timeout: 0–1 card propagation write; must land in 7s (Convex write SLA).
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 15000
+    timeout: 7000
 
 # Second write: the canonical test value.
 - tapOn:
@@ -240,7 +144,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # STEP B — Drill to Insert → fp-insert-{WORKER_INDEX}, add a card, verify
@@ -278,6 +182,7 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Insert"
+    centerElement: true
     timeout: 10000
 - tapOn: "Insert"
 
@@ -340,7 +245,6 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # Open the edit form for our card.
 - scrollUntilVisible:
@@ -395,12 +299,17 @@ tags:
 
 # Save the card edit (closes the form). Scroll Save button into view first —
 # with features expanded it may be below the 1024×629 headless viewport.
+# waitToSettleTimeoutMs: 3000 — the pressKey: Enter above triggered a Convex
+# write; the DOM re-renders while writing. Scrolling too soon causes CDP
+# MismatchedInputException crashes (page mid-re-render). 3s settle gives
+# React time to finish before the scroll runs.
 - scrollUntilVisible:
     element:
       id: "Save card edit"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
+    waitToSettleTimeoutMs: 3000
+    timeout: 20000
 - tapOn:
     id: "Save card edit"
 
@@ -410,77 +319,24 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # ============================================================
 # STEP D — Re-propagate at set level: League → "PropTest-AL"
 #
-# Navigate back to the custom set level (reload clears column state).
+# Navigate back to the custom set level via util-drill-to-custom.yaml.
+# The util performs its own openLink /set-selector; items pre-exist from
+# Step 0 so it follows the idempotent select path. Returns at Variant Types.
 # This tests that re-propagation skips our overridden card.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Baseball"
+- runFlow:
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "fp-${WORKER_INDEX || 0}"
 
-# Re-drill to the custom set (items pre-exist from Step 0).
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- assertVisible:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Search for the custom set by name to avoid footer-zone clip failures.
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "fp-${WORKER_INDEX || 0}"
-- assertVisible:
-    text: ".*fp-${WORKER_INDEX || 0}.*"
-    below:
-      id: "Search sets"
-- tapOn:
-    text: ".*fp-${WORKER_INDEX || 0}.*"
-    below:
-      id: "Search sets"
-    waitToSettleTimeoutMs: 2000
 - assertVisible: "Variant Types"
 
 # SetAttributesPanel renders at setName level. Panel defaults EXPANDED for
@@ -519,10 +375,11 @@ tags:
 
 # Toast: at least 1 card updated (the non-overridden cards get "PropTest-AL").
 # Our override card (#992) has "PropTest-NL" — it is in skippedAsOverridden.
+# 7s timeout: propagation over 0–1 non-overridden cards (Convex write SLA).
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # STEP E — Verify override card still shows "PropTest-NL", not "PropTest-AL"
@@ -602,12 +459,15 @@ tags:
     id: "Revert League to inherited"
 
 # Save and close.
+# waitToSettleTimeoutMs: 3000 — tapOn: "Revert League to inherited" above
+# fires a Convex write; scroll during re-render causes CDP crashes.
 - scrollUntilVisible:
     element:
       id: "Save card edit"
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
+    waitToSettleTimeoutMs: 3000
+    timeout: 20000
 - tapOn:
     id: "Save card edit"
 
@@ -617,7 +477,6 @@ tags:
       text: "Propagation Test Player ${ATTEMPT_ID}"
     centerElement: true
     timeout: 15000
-- assertVisible: "Propagation Test Player ${ATTEMPT_ID}"
 
 # ============================================================
 # CLEANUP — delete this attempt's test card

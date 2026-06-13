@@ -3,129 +3,51 @@ name: "Util — drill to a (Sport, Year, Manufacturer, Set) — accepts env over
 tags:
   - util
 ---
-# FAST drill when called with defaults — assumes the cascade `setup.yaml`
-# flow has already populated:
-#   - BSC + SL credentials saved
-#   - Baseball → 2024 → Topps → Topps Chrome in selectorOptions
-#   - Variant Types (Base, Insert, Parallel) for that set
-# Most callers (cards-base, sets-base, all checklist-* flows etc.) use the
-# defaults and pay zero extra cost.
+# Thin wrapper over util-drill-to-custom.yaml.
 #
-# OVERRIDE PATH — when the caller passes a different SPORT (or YEAR /
-# MANUFACTURER / SET) via its `runFlow.env` block, the data may NOT be
-# pre-synced. The drill still works because each level's auto-sync fires
-# on column open; the `extendedWaitUntil` waits for the search input
-# (which signals sync completion) accommodate the longer marketplace
-# round-trip. This is the "lazy per-test sync" pattern documented in the
-# plan at ~/.claude/plans/we-ve-been-trying-to-delegated-ullman.md.
+# DEFAULTS (canonical Topps Chrome test anchor):
+#   SPORT        = "Baseball"
+#   YEAR         = "2024"
+#   MANUFACTURER = "Topps"
+#   SET          = "Topps Chrome"   (mapped to SET_NAME on the inner call)
 #
-# CALLER CONTRACT:
-#   - Caller has called launchApp and waited for sign-in redirect.
-#   - Caller flow tags include `requires:setup-done`.
-#   - The browser is on /set-selector when this util is invoked, OR
-#     the openLink below brings it there.
+# CALLER OVERRIDES — pass any subset of SPORT / YEAR / MANUFACTURER / SET via
+# `runFlow.env` to target a different hierarchy. util-drill-to-custom.yaml
+# handles both real-synced and custom rows at each level; all drill logic lives
+# there. This file exists only to give callers a stable name with baked-in defaults.
 #
-# Returns with the Variant Types column visible and Base/Insert/Parallel listed.
+# IMPORTANT:
+#   - util-drill-to-custom.yaml navigates to /set-selector itself. Callers do
+#     NOT need to navigate first.
+#   - util-drill-to-custom.yaml parameter for the Sets column is SET_NAME, not
+#     SET. This wrapper accepts SET from callers (historical name) and forwards
+#     it as SET_NAME. No caller change needed.
+#   - Passing only SPORT/YEAR/MANUFACTURER/SET_NAME (no VARIANT_TYPE/VARIANT)
+#     leaves the drill at Level 4 — the Variant Types column becomes visible
+#     and Base/Insert/Parallel appear once auto-sync completes. That is this
+#     wrapper's return contract.
+#   - The `requires:setup-done` and `cascade/` references from the old drill
+#     body are gone. The data-readiness guarantee now lives in the setup track
+#     (setup.yaml / setup-insert.yaml / setup-parallel.yaml).
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
+# Delegate all drill logic to the general-purpose drill util.
+# SET (old caller env name) is forwarded as SET_NAME (util-drill-to-custom
+# contract). Defaults are applied here so callers that pass nothing get the
+# canonical Baseball → 2024 → Topps → Topps Chrome path.
+- runFlow:
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: ${SPORT || "Baseball"}
+      YEAR: ${YEAR || "2024"}
+      MANUFACTURER: ${MANUFACTURER || "Topps"}
+      SET_NAME: ${SET || "Topps Chrome"}
 
-# Level 1 — Sport (defaults to Baseball). Use the Sports search input to
-# filter the column's internal-scroll list down to the target sport —
-# most sports past the first ~7 (alphabetical) sit below the column's
-# `max-h-[400px] overflow-y-auto` fold and Maestro's page-level scroll
-# can't reach them. The search input is targeted by its aria-label
-# `Search sports` (added on EntitySelector.tsx).
-#
-# IMPORTANT: after typing in the search input, the input itself has
-# `text=${SPORT}` (its current value) and `resource-id=Search sports`. A bare
-# `tapOn: ${SPORT}` re-matches the input (DOM order: input first), not the row.
-# `index: 1` is NOT a reliable fix — the input/row order flips between a cold
-# sync and a re-drill of already-synced data, so index:1 can land on the input
-# (NEO-46: that silently broke the Insert/Parallel pre-sync — the year was never
-# selected, so the Manufacturers column never opened). Select by RELATIONSHIP
-# instead: the result row is the `${SPORT}` element BELOW the search input.
-# Center the Sports column first. On /set-selector the AdminTools panel pushes
-# the Sports column down to ~y=460+, so its rows land at y≈556 — inside the
-# 1024×629 footer-click-steal zone (the tap is found in the DOM but the footer
-# absorbs the click, so the column never drills). centerElement pulls it to
-# mid-viewport. Year/Manufacturer/Set already center their search inputs; Sports
-# was the one level missing it.
-- scrollUntilVisible:
-    element:
-      id: "Search sports"
-    centerElement: true
-- tapOn:
-    id: "Search sports"
-- inputText: ${SPORT || "Baseball"}
-- scrollUntilVisible:
-    element:
-      text: ${SPORT || "Baseball"}
-      below:
-        id: "Search sports"
-    centerElement: true
-- tapOn:
-    text: ${SPORT || "Baseball"}
-    below:
-      id: "Search sports"
-
-# Level 2 — Year. Wait for the Years column search input as the auto-sync
-# completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
-- scrollUntilVisible:
-    element:
-      text: ".*Search years.*"
-    direction: right
-    centerElement: true
-- tapOn:
-    text: ".*Search years.*"
-- inputText: ${YEAR || "2024"}
-- tapOn:
-    text: ${YEAR || "2024"}
-    below:
-      id: "Search years"
-
-# Level 3 — Manufacturer. 90 s covers cold sync.
-- scrollUntilVisible:
-    element:
-      text: ".*Search manufacturers.*"
-    direction: right
-    centerElement: true
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: ${MANUFACTURER || "Topps"}
-- tapOn:
-    text: ${MANUFACTURER || "Topps"}
-    below:
-      id: "Search manufacturers"
-
-# Level 4 — Set. 120 s covers cold sync.
-- scrollUntilVisible:
-    element:
-      text: ".*Search sets.*"
-    direction: right
-    centerElement: true
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: ${SET || "Topps Chrome"}
-- tapOn:
-    text: ${SET || "Topps Chrome"}
-    below:
-      id: "Search sets"
-
-# Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
-# column first opens for a new set. Default path (Topps Chrome, pre-
-# synced by cascade) finishes in <5s. Cold-sync for new sets goes
-# through fetchAggregatedOptions → BSC + SL adapters; those calls
-# should complete in <10s but occasionally hang on slower runners
-# under worker contention. If that timer fires, the underlying bug is
-# in the variantType action serializing BSC/SL or hanging on a
-# session warm — chase that, not the timeout. Tracked in NEO-8.
+# Return guarantee: Variant Types column is visible and Base is listed.
+# The 60s on "Base" covers the variant-type auto-sync on the override / cold
+# path (BSC + SL fetch for a new set; setup track covers the canonical path).
 - extendedWaitUntil:
     visible: "Variant Types"
     timeout: 10000
 - extendedWaitUntil:
     visible: "Base"
     timeout: 60000
-- assertVisible: "Base"

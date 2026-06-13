@@ -22,9 +22,32 @@ import { issueClerkTestingTokens } from "../../lib/testing/issue-clerk-tokens.js
 // 5. 120s sign-in-token TTL (in issueClerkTestingTokens).
 // 6. Logs each issuance for audit (includes which account was selected).
 
-type TestAccount = "main" | "new-profile";
+type TestAccount =
+  | "main"
+  | "new-profile"
+  | "admin-no-credentials"
+  | "admin-bsc-only"
+  | "admin-sl-only";
 
-const TEST_ACCOUNTS = ["main", "new-profile"] as const satisfies readonly TestAccount[];
+const TEST_ACCOUNTS = [
+  "main",
+  "new-profile",
+  "admin-no-credentials",
+  "admin-bsc-only",
+  "admin-sl-only",
+] as const satisfies readonly TestAccount[];
+
+// Closed enum → server-env mapping (Layer 4 of the gate). The email NEVER comes
+// from the request — only from one of these env vars. The ADMIN_* accounts are
+// the Set-Builder credential-gate fixtures; their *_TEST_EMAIL vars MUST be
+// scoped to Vercel Preview + Development only — never Production.
+const ACCOUNT_EMAIL_KEY: Record<TestAccount, string> = {
+  "main": "TEST_EMAIL",
+  "new-profile": "NEW_PROFILE_TEST_EMAIL",
+  "admin-no-credentials": "ADMIN_NO_CREDENTIALS_TEST_EMAIL",
+  "admin-bsc-only": "ADMIN_BSC_ONLY_TEST_EMAIL",
+  "admin-sl-only": "ADMIN_SL_ONLY_TEST_EMAIL",
+};
 const MAX_WORKER_INDEX = 31;
 
 function isTestAccount(value: unknown): value is TestAccount {
@@ -43,7 +66,7 @@ function parseWorkerIndex(value: unknown): { ok: true; index: number | null } | 
 }
 
 function resolveTestEmail(account: TestAccount, worker: number | null): string | undefined {
-  const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+  const baseKey = ACCOUNT_EMAIL_KEY[account];
   if (worker !== null) {
     const indexed = process.env[`${baseKey}_${worker}`];
     if (indexed) return indexed;

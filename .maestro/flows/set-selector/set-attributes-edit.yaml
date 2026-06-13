@@ -51,148 +51,22 @@ tags:
 #   F. Drill into custom variant type → assert breadcrumb updates to child scope
 
 - launchApp
+# Wait for the async testing-sign-in (Clerk auth + rate-limit retry backoff on
+# the Nth concurrent sign-in) to finish and auto-redirect to /set-selector
+# BEFORE drilling. Without this guard, util-drill's openLink: /set-selector
+# races the in-flight sign-in and is bounced to /signin — which failed this
+# flow deterministically at parallelism>1 (3rd rapid sign-in per account →
+# rate-limit backoff). 45s covers the full backoff; matches team-picker's gate.
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 45000
-
-# ============================================================
-# PART A — NAVIGATE TO SET SELECTOR
-# ============================================================
-
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- assertVisible: "Set Selector"
-- assertVisible: "Baseball"
-
-# ============================================================
-# LEVEL 1 — Tap Baseball (pre-synced by cascade setup.yaml)
-# ============================================================
-
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- assertVisible:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-# ============================================================
-# LEVEL 2 — Year 2024
-# ============================================================
-
-- assertVisible: "Years"
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- assertVisible:
-    text: "2024"
-    below:
-      id: "Search years"
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# ============================================================
-# LEVEL 3 — Topps (manufacturer)
-# ============================================================
-
-- assertVisible: "Manufacturers"
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- assertVisible:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# ============================================================
-# LEVEL 4 — Custom set "attr-edit-{WORKER_INDEX}"
-# This per-worker set name guarantees 3 concurrent workers never touch the
-# same entity. addCustomSelectorOption is idempotent — safe to add twice.
-# ============================================================
-
-- assertVisible: "Sets"
-
-# Wait for Sets column to settle (the BSC/SL sync for Topps/2024 may be in
-# flight briefly). scrollUntilVisible on "Add custom Sets" doubles as a
-# settle-wait: it polls until the button appears in idle mode.
-# centerElement: true keeps the button mid-viewport (clear of footer zone)
-# for the following tap — same pattern as util-drill-to-custom-set.yaml.
-- scrollUntilVisible:
-    element:
-      id: "Add custom Sets"
-    centerElement: true
-    timeout: 60000
-
 - runFlow:
-    when:
-      notVisible: "attr-edit-${WORKER_INDEX || 0}"
-    commands:
-      - tapOn:
-          id: "Add custom Sets"
-      - assertVisible: "Add Custom Entry"
-      - inputText: "attr-edit-${WORKER_INDEX || 0}"
-      - pressKey: Enter
-      - assertNotVisible: "Add Custom Entry"
-
-# Tap the custom set row. When the list has grown past 8 items (multi-run CI),
-# a search input appears; use it to surface the row at index 1 to avoid
-# footer-zone clip failures (PR #31 pattern). Fallback for short lists below.
-- runFlow:
-    when:
-      visible: ".*Search sets.*"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: "^Sets$"
-          direction: UP
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*Search sets.*"
-      - inputText: "attr-edit-${WORKER_INDEX || 0}"
-      - assertVisible:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-      - tapOn:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          below:
-            id: "Search sets"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-- runFlow:
-    when:
-      notVisible: "Variant Types"
-    commands:
-      - scrollUntilVisible:
-          element:
-            text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          centerElement: true
-          timeout: 10000
-      - tapOn:
-          text: ".*attr-edit-${WORKER_INDEX || 0}.*"
-          waitToSettleTimeoutMs: 2000
-      - assertVisible: "Variant Types"
-
-# Confirm Variant Types column is visible — setName row is now selected and
-# the SetAttributesPanel will render below.
-- assertVisible: "Variant Types"
+    file: util-drill-to-custom.yaml
+    env:
+      SPORT: "Baseball"
+      YEAR: "2024"
+      MANUFACTURER: "Topps"
+      SET_NAME: "attr-edit-${WORKER_INDEX || 0}"
 
 # ============================================================
 # PART B — ASSERT BREADCRUMB SCOPE TEXT

@@ -354,5 +354,70 @@ Rule: if a button has BOTH visible text and an aria-label, tap by the visible te
 - Modal footer — with changes: `".*N promotion.*"`, `".*Save N change.*"`
 - Accept all button: `".*Accept all suggestions.*"`
 - Suggested badge text: `"Suggested"` (appears inside suggested rows)
-- Parallels zone heading: `".*Parallels of.*Stars.*"` regex
-- Top-level inserts zone: `"Top-level inserts"`
+- Parallels zone heading EXACT: `Parallels of "Stars"` (double-quotes around the insert name are part of the title). YAML: `Parallels of \"Stars\"`. Zone-relative assert: `assertVisible: text: "Stars Gold" below: "Parallels of \"Stars\""`.
+- Top-level inserts zone: `"Top-level inserts"`. Zone-relative: `assertVisible: text: "Stars" below: "Top-level inserts"`.
+- CRITICAL: After modal Close/Cancel/backdrop, EntitySelector columns collapse to selected-pill state — list rows are NOT in the DOM. Never `assertVisible`/`scrollUntilVisible` for row text (Stars/Gold/Red) after modal close. Assert action-button row instead: `id: "Add custom Inserts"` + `"Group Parallels"`. The cancel-discards proof of no-persist is established by the reopen→Suggested cycle, not a post-close row assertion.
+
+## CardDetailPanel (NEO-25) — right-anchored drawer
+
+Replaced the per-row inline edit modal (CardChecklistItem) with a single right-anchored drawer.
+Selection state hoisted into CardChecklist; panel is keyed on card._id so switching remounts it.
+
+### Opening
+- `id: "Edit card {cardNumber}"` (row Edit button aria-label) — unchanged from old modal
+- `id: "Open card {cardNumber}"` (new — clicking the card body row also opens it)
+
+### Drawer header
+- Title visible text: `"Card #{cardNumber}"` (e.g. `"Card #777-abc"`) — NEO-25 change; old modal said `"Edit card #..."`.
+  Assert with regex: `".*Card #{cardNumber}.*"`
+- Prev button: `id: "Previous card"` (↑ arrow)
+- Next button: `id: "Next card"` (↓ arrow)
+- Close (×) button: `id: "Close card detail"` — DIRTY-GUARDED (shows inline confirm if dirty)
+
+### Editable fields
+- Card name input: `id: "Card name"` (same as before) — autofocused on open.
+  IMPORTANT: Does NOT save on Enter (NEO-25 delta 4). Use `id: "Save card edit"` button.
+- Attribute toggle chips (aria-pressed): `id: "Toggle RC"`, `id: "Toggle AU"`, `id: "Toggle RELIC"`,
+  `id: "Toggle SP"`, `id: "Toggle SSP"`, `id: "Toggle NUM"` — active when aria-pressed="true".
+  Visible text for all chips: "RC", "AU", "RELIC", "SP", "SSP", "#'d".
+- Print run input: `id: "Print run"`, placeholder `"e.g. 99"`, visible label "Print run (/N)"
+- Autograph type input: `id: "Autograph type"`, placeholder `"On-Card / Sticker / Cut"`
+- Card variation input: `id: "Card variation"`, placeholder `"e.g. Gold Refractor"`, label "Variation / parallel"
+- Card title input (listingTitle): `id: "Card title"`, placeholder `"Listing title reused across marketplaces"`
+  Shows char count badge `"{N} chars"`; turns neon-pink (FF2EB3) if >80 chars.
+- Card description textarea (listingDescription): `id: "Card description"`, `rows: 3`
+
+### Read-only sections
+- Players section: shows player name chips or `"None linked. Add players via the marketplace fetch flow."`
+- Inherited from set: shows Sport/Year/Manufacturer/Set/Variant labels + values in a `<dl>`; no id needed, read-only.
+- CardFeaturesEditor is embedded at the bottom (same UI patterns as standalone — see section above).
+  Note: `id: "Value for League"` inside the drawer hits the embedded CardFeaturesEditor
+  (same aria-label as SetFeaturesPanel). CardFeaturesEditor persists immediately (no Save cycle).
+
+### Footer — normal state
+- Save button: `id: "Save card edit"` — closes drawer on success.
+- Cancel button: `id: "Cancel card edit"` — closes IMMEDIATELY (no dirty guard, unlike × and backdrop).
+
+### Footer — dirty-guard confirm bar (shows when × or backdrop clicked while dirty)
+- Bar appears when `pendingAction` is set (dirty + exit requested via × / backdrop / prev / next).
+- Visible label text: `"Discard unsaved changes?"`
+- Keep editing button: `id: "Keep editing"` — dismisses bar, drawer stays open.
+- Discard changes button: `id: "Discard changes"` — discards edits and runs the pending action.
+
+### Dismiss behaviors (CRITICAL delta from old modal)
+| Action | When clean | When dirty |
+|---|---|---|
+| Cancel button | closes immediately | closes immediately (no guard) |
+| Escape key | closes immediately (document listener — discards) | closes immediately (discards) |
+| × button | closes immediately | shows dirty-guard bar |
+| Backdrop click | closes immediately | shows dirty-guard bar |
+| Prev/Next buttons | navigates immediately | shows dirty-guard bar |
+
+### Backdrop tap in Maestro (1024×629 viewport)
+The panel is right-anchored, ~480px wide at 1024px. Tapping `point: "5%, 50%"` reliably lands on the
+backdrop layer (left side, well outside the panel). Use this to test the dirty-guard behavior.
+
+### Card number range convention
+Custom test cards: 700-999. Each flow picks a unique number, deletes the card on cleanup.
+flow→number mapping: edit-and-delete=777, team-picker=889, card-features-missing=991,
+features-propagation=992, card-detail-panel=888.

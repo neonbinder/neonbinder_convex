@@ -14,14 +14,6 @@ tags:
 #   - Confirming with a partial selection still saves all cards
 #   - The "Saved N cards." message appears after confirm
 #
-# WHY POINT TAP:
-#   Player names come from live BSC/SL data and vary per set/variant.
-#   We cannot hardcode a name. The UnknownEntitiesDialog renders the
-#   players section on the left half of the modal body. The first player
-#   row sits roughly 35–38% down the screen in the default viewport.
-#   A point tap at (25%, 38%) reliably lands in the first player label row.
-#   We verify the uncheck happened by confirming the footer updated —
-#   not by asserting the specific player name.
 #
 # FRESH-DB REQUIREMENT:
 #   This test requires empty `players` and `teams` tables for the dialog to
@@ -37,7 +29,6 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
 
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
@@ -59,13 +50,11 @@ tags:
     element:
       text: "Add Card"
     centerElement: true
-    timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
 # placeholder (still rendered visually).
 - extendedWaitUntil:
     visible: "Player name"
-    timeout: 5000
 - inputText: "9003"
 # Address inputs by aria-label (via Maestro's `id:` selector, which matches
 # the accessibility-tree identifier). Placeholders overlap ("Player name",
@@ -80,7 +69,6 @@ tags:
     element:
       text: "Player(s) — comma separated, optional"
     centerElement: true
-    timeout: 5000
 - tapOn:
     id: "Players"
 - inputText: "USPlayerA-${TEST_USERNAME}, USPlayerB-${TEST_USERNAME}"
@@ -102,7 +90,6 @@ tags:
     element:
       text: "Add"
     centerElement: true
-    timeout: 5000
 - tapOn:
     text: "Add"
 # After submit the form closes and the new card row renders in the
@@ -112,7 +99,6 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Skip Some Test ${TEST_USERNAME}"
-    timeout: 15000
 
 # ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
@@ -136,11 +122,9 @@ tags:
     direction: UP
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "Sync card checklist"
-    timeout: 5000
 # Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
 # `text: ".*Refresh"` regex matched a different Refresh element on the
 # page (NEO-13 root cause).
@@ -159,17 +143,20 @@ tags:
     text: ".*will be created.*"
 
 # ============================================================
-# UNCHECK THE FIRST PLAYER ROW
-# The players section occupies the left column of the modal body.
-# The modal is centered (max-w-3xl) with a ~120px header.
-# First player row is roughly 35–38% from the top of the screen.
-# Tapping the label text at (25%, 38%) toggles the checkbox off.
-# Verification: the footer count decreases (the row's name turns
-# struck-through but remains visible).
+# UNCHECK ONE KNOWN PLAYER ROW
+# Both player names were injected by this flow and are deterministic:
+# USPlayerA-${TEST_USERNAME} and USPlayerB-${TEST_USERNAME}.
+# Tap the USPlayerA row by name — this is precise and readable.
+# Verification: the footer "will be created" count is still visible
+# (at least one player still checked — USPlayerB is still on).
 # ============================================================
 
+- scrollUntilVisible:
+    element:
+      text: ".*USPlayerA-${TEST_USERNAME}.*"
+    centerElement: true
 - tapOn:
-    point: "25%, 38%"
+    text: ".*USPlayerA-${TEST_USERNAME}.*"
 
 # The footer text is still visible — count should now be one less.
 - assertVisible:
@@ -181,12 +168,17 @@ tags:
 
 # After unchecking at least one, the button may read "Confirm N & Save"
 # or "Skip All & Save" if all were unchecked. Either is acceptable.
+# Anchor scroll first (R8): after tapping a player row the modal can shift;
+# centering the confirm button guarantees it is in the tap zone.
+- scrollUntilVisible:
+    element:
+      text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+    centerElement: true
 - tapOn:
     text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
 
 - extendedWaitUntil:
     notVisible: "Confirm New Players & Teams"
-    timeout: 30000
 
 # ============================================================
 # VERIFY CARDS SAVED SUCCESSFULLY
@@ -196,7 +188,6 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved [0-9]+ cards.*"
-    timeout: 30000
 
 - assertVisible:
     text: ".*#[0-9].*"
