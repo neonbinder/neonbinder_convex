@@ -116,6 +116,29 @@ export default defineSchema({
     .index("by_value", ["value"])
     .index("by_level_and_parent", ["level", "parentId"]),
 
+  // Transient per-(level, parentId) marketplace-sync status for SetSelector
+  // columns (NEO-47 sync redesign). A row exists only while a sync is in flight
+  // ("syncing") or has errored ("error"); the happy path deletes it. The FE
+  // derives a column's loading/error/Retry state from this reactively, replacing
+  // EntityColumn's old sync state-machine + fragile onDone handoff. parentId
+  // omitted = root (sport) level.
+  selectorSyncStatus: defineTable({
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    parentId: v.optional(v.id("selectorOptions")),
+    status: v.union(v.literal("syncing"), v.literal("error")),
+    message: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_level_and_parent", ["level", "parentId"]),
+
   // Card Checklist - stores individual cards within a set variant.
   // Carries enough metadata to drive an eBay Sell Inventory API listing
   // without re-fetching from marketplaces. Inventory-copy fields (grade,

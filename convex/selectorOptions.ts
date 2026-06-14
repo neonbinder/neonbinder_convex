@@ -3,6 +3,7 @@ import {
   mutation,
   action,
   internalMutation,
+  internalAction,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
@@ -2253,6 +2254,221 @@ function withChildDeadline<T>(
     ),
   ]);
 }
+
+// ─── SetSelector sync redesign (NEO-47) ──────────────────────────────────────
+// One marketplace-agnostic door for the FE: it reads options via
+// getSelectorOptions and, when a column opens empty, calls ensureSelectorOptions.
+// The backend owns the whole "should I sync, and how" decision (already
+// populated? custom subtree? which level-strategy?) and reports progress via the
+// selectorSyncStatus table, which the FE reads reactively to drive loading/error
+// — replacing EntityColumn's fragile sync state-machine + onDone handoff.
+// Phase 1 routes the aggregator levels (sport/year/manufacturer/variantType);
+// setName + insert/parallel keep their existing path until Phases 2-3.
+
+/** Write/clear the transient per-(level,parentId) sync status. status omitted = clear (delete). */
+export const setSelectorSyncStatus = internalMutation({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    status: v.optional(v.union(v.literal("syncing"), v.literal("error"))),
+    message: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("selectorSyncStatus")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", args.level).eq("parentId", args.parentId),
+      )
+      .first();
+    if (!args.status) {
+      if (existing) await ctx.db.delete(existing._id);
+      return null;
+    }
+    const fields = {
+      status: args.status,
+      message: args.message,
+      requestId: args.requestId,
+      updatedAt: Date.now(),
+    };
+    if (existing) await ctx.db.patch(existing._id, fields);
+    else
+      await ctx.db.insert("selectorSyncStatus", {
+        level: args.level,
+        parentId: args.parentId,
+        ...fields,
+      });
+    return null;
+  },
+});
+
+/** Reactive sync status for one column (FE-facing). null = idle (not syncing, no error). */
+export const getSelectorSyncStatus = query({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+  },
+  returns: v.union(
+    v.object({
+      status: v.union(v.literal("syncing"), v.literal("error")),
+      message: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("selectorSyncStatus")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", args.level).eq("parentId", args.parentId),
+      )
+      .first();
+    return row ? { status: row.status, message: row.message } : null;
+  },
+});
+
+/**
+ * The single FE entry point to populate a column. Backend owns every decision:
+ * already-populated → no-op; custom subtree → no-op (the uniform skip the three
+ * old sync paths applied inconsistently); else mark "syncing" + schedule the
+ * level's sync. A mutation (so it can ctx.scheduler) — it reads via ctx.db
+ * directly (mutations can't runQuery).
+ */
+export const ensureSelectorOptions = mutation({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    force: v.optional(v.boolean()),
+  },
+  returns: v.object({ scheduled: v.boolean(), reason: v.string() }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const { level, parentId, force } = args;
+
+    // Already populated? (skip unless a forced refresh)
+    if (!force) {
+      const existing = await ctx.db
+        .query("selectorOptions")
+        .withIndex("by_level_and_parent", (q) =>
+          q.eq("level", level).eq("parentId", parentId),
+        )
+        .first();
+      if (existing) return { scheduled: false, reason: "already_populated" };
+    }
+
+    // Uniform custom-subtree skip: a custom ancestor has no marketplace presence,
+    // so no level below it syncs. Walk the parent chain via ctx.db.
+    let cursor: Id<"selectorOptions"> | undefined = parentId;
+    while (cursor) {
+      const row = await ctx.db.get(cursor);
+      if (!row) break;
+      if (row.isCustom) {
+        // Clear any stale status so the column drops cleanly to idle (+ Custom).
+        const stale = await ctx.db
+          .query("selectorSyncStatus")
+          .withIndex("by_level_and_parent", (q) =>
+            q.eq("level", level).eq("parentId", parentId),
+          )
+          .first();
+        if (stale) await ctx.db.delete(stale._id);
+        return { scheduled: false, reason: "custom_subtree" };
+      }
+      cursor = row.parentId;
+    }
+
+    // Mark syncing + schedule the level's sync (Phase 1: aggregator levels).
+    const requestId = newRequestId();
+    const existingStatus = await ctx.db
+      .query("selectorSyncStatus")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", level).eq("parentId", parentId),
+      )
+      .first();
+    if (existingStatus)
+      await ctx.db.patch(existingStatus._id, {
+        status: "syncing",
+        message: undefined,
+        requestId,
+        updatedAt: Date.now(),
+      });
+    else
+      await ctx.db.insert("selectorSyncStatus", {
+        level,
+        parentId,
+        status: "syncing",
+        requestId,
+        updatedAt: Date.now(),
+      });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.selectorOptions.runAggregatedSyncTracked,
+      { level, parentId, requestId },
+    );
+    return { scheduled: true, reason: "scheduled" };
+  },
+});
+
+/**
+ * Internal action scheduled by ensureSelectorOptions for the aggregator levels.
+ * Derives parentFilters from the ancestor chain (backend owns this — the FE
+ * never passes them), runs the existing fetchAggregatedOptions, then clears the
+ * sync status on success/empty or sets "error" on failure.
+ */
+export const runAggregatedSyncTracked = internalAction({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    requestId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const { level, parentId } = args;
+    const parentFilters: {
+      sport?: string;
+      year?: string;
+      manufacturer?: string;
+      setName?: string;
+    } = {};
+    if (parentId) {
+      const chain = await ctx.runQuery(api.selectorOptions.getAncestorChain, {
+        id: parentId,
+      });
+      for (const a of chain) {
+        if (
+          a.level === "sport" ||
+          a.level === "year" ||
+          a.level === "manufacturer" ||
+          a.level === "setName"
+        ) {
+          parentFilters[a.level] = a.value;
+        }
+      }
+    }
+    try {
+      const res = await ctx.runAction(
+        api.selectorOptions.fetchAggregatedOptions,
+        { level, parentId, parentFilters },
+      );
+      await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+        level,
+        parentId,
+        // success OR empty → clear (idle); a real failure → recoverable error.
+        ...(res.success
+          ? {}
+          : { status: "error" as const, message: res.message }),
+      });
+    } catch (e) {
+      await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+        level,
+        parentId,
+        status: "error",
+        message: e instanceof Error ? e.message : "Sync failed",
+      });
+    }
+    return null;
+  },
+});
 
 export const fetchAggregatedOptions = action({
   args: {
