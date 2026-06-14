@@ -123,4 +123,44 @@ http.route({
   }),
 });
 
+// ── LOCAL-HARNESS routes (NEO-47) ────────────────────────────────────────────
+// /e2e/add  = drip flows into an existing run (persistent local worker pool).
+// /e2e/flow = per-flow status for the local watcher. CI uses neither. Same
+// x-e2e-queue-secret gate (prod fail-closed via the underlying mutations/query).
+http.route({
+  path: "/e2e/add",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await bodyOf(req);
+    try {
+      const res = await ctx.runMutation(api.e2eQueue.enqueueFlows, {
+        secret: secretOf(req),
+        runId: String(body.runId ?? ""),
+        flows: Array.isArray(body.flows) ? body.flows.map(String) : [],
+      });
+      return Response.json(res);
+    } catch (e) {
+      return errorResponse(e);
+    }
+  }),
+});
+
+http.route({
+  path: "/e2e/flow",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await bodyOf(req);
+    try {
+      const res = await ctx.runQuery(api.e2eQueue.getFlow, {
+        secret: secretOf(req),
+        runId: String(body.runId ?? ""),
+        flowPath: String(body.flowPath ?? ""),
+      });
+      return Response.json(res);
+    } catch (e) {
+      return errorResponse(e);
+    }
+  }),
+});
+
 export default http;

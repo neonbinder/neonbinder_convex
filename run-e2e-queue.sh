@@ -143,12 +143,30 @@ if [ -z "${MAESTRO_SKIP_BOOTSTRAP:-}" ]; then
 fi
 
 # ── Claim loop: pull → run → report, until the queue drains ──────────────────
-echo "Draining queue (runId=$E2E_RUN_ID) as $RUNNER_ID ..." | tee -a "$LOG"
+# DAEMON MODE (local only, E2E_QUEUE_DAEMON set): instead of EXITING when the
+# queue drains, sleep and keep polling so flows enqueued later (./e2e-enqueue.sh)
+# get picked up — a persistent worker. CI never sets it, so its behavior is
+# unchanged (drain → exit). E2E_QUEUE_STOP_FILE (if set) or SIGINT/SIGTERM stop
+# the daemon cleanly after the current flow.
+DAEMON="${E2E_QUEUE_DAEMON:-}"
+POLL_INTERVAL="${E2E_QUEUE_POLL_INTERVAL:-5}"
+STOP_FILE="${E2E_QUEUE_STOP_FILE:-}"
+stop=0
+trap 'stop=1' INT TERM
+echo "Draining queue (runId=$E2E_RUN_ID) as $RUNNER_ID${DAEMON:+ [daemon]} ..." | tee -a "$LOG"
 ran=0
-while true; do
-  resp="$(_q claim "{\"runId\":\"${E2E_RUN_ID}\",\"claimedBy\":\"${RUNNER_ID}\",\"leaseMs\":900000}")" || { echo "claim failed: $resp" >&2; exit 1; }
+while [ "$stop" -eq 0 ]; do
+  if [ -n "$STOP_FILE" ] && [ -f "$STOP_FILE" ]; then echo "[$RUNNER_ID] stop sentinel" >> "$LOG"; break; fi
+  resp="$(_q claim "{\"runId\":\"${E2E_RUN_ID}\",\"claimedBy\":\"${RUNNER_ID}\",\"leaseMs\":900000}")" || {
+    echo "claim failed: $resp" >&2
+    [ -n "$DAEMON" ] && { sleep "$POLL_INTERVAL"; continue; }
+    exit 1
+  }
   flow="$(printf '%s' "$resp" | python3 -c "import sys,json; v=json.load(sys.stdin).get('flowPath'); print(v if v else '')")"
-  [ -z "$flow" ] && break   # queue drained
+  if [ -z "$flow" ]; then
+    [ -n "$DAEMON" ] && { sleep "$POLL_INTERVAL"; continue; }
+    break   # queue drained → exit (CI behavior)
+  fi
   echo "▶ [$RUNNER_ID] $flow" >> "$LOG"
   status="$(run_flow "$flow")"
   _q result "{\"runId\":\"${E2E_RUN_ID}\",\"flowPath\":\"${flow}\",\"status\":\"${status}\"}" >/dev/null || echo "WARN: result post failed for $flow" >&2
