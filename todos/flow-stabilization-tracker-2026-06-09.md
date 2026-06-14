@@ -9,7 +9,7 @@
 `⬜` not started · `🔄` in progress · `✅` done (decided + fixed + verified) · `⏭️` keep as-is (reviewed, no change) · `🗑️` delete (approved) · **🔴** = failed on PR #53 CI
 
 ## The 8 rules (shorthand)
-R1 what feature · R2 assert that & only that (no silent `when:` fall-through) · R3 dedup · R4 independent given setup+bootstrap (no re-login) · R5 no inflated `extendedWaitUntil` (7s default; keep real round-trips) · R6 no redundant `assertVisible` after `scrollUntilVisible` · R7 no destructive data actions · R8 `centerElement: true` on scroll-to-tap.
+R1 what feature · R2 assert that & only that (no silent `when:` fall-through) · R3 dedup (reuse shared logic e.g. cascade walk; + no other flow tests the same thing — NOT intra-flow before/after repetition) · R4 independent given setup+bootstrap (no re-login) · R5 no inflated `extendedWaitUntil` (7s default; keep real round-trips) · R6 no redundant `assertVisible` after `scrollUntilVisible` · R7 no destructive data actions · R8 `centerElement: true` on scroll-to-tap.
 
 ## CI baseline — PR #53 run `27202999828`
 **38 passed / 5 failed / 43 queued.** Seed + all 8 runner jobs passed; the `e2e` gate went red on 5 flow failures.
