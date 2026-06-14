@@ -248,6 +248,8 @@ export default function SetSelector() {
           isVisible={true}
           level="sport"
           onSelectExisting={handleSportSelect}
+          useEnsureSync
+          syncingLabel="Syncing Sport Options"
         />
 
         {/* 2. Year (SL & BSC) */}
@@ -269,6 +271,8 @@ export default function SetSelector() {
           level="year"
           parentId={selectedSportId || undefined}
           onSelectExisting={handleYearSelect}
+          useEnsureSync
+          syncingLabel="Syncing Year Options"
         />
 
         {/* 3. Manufacturer (SL only) */}
@@ -290,6 +294,8 @@ export default function SetSelector() {
           level="manufacturer"
           parentId={selectedYearId || undefined}
           onSelectExisting={handleManufacturerSelect}
+          useEnsureSync
+          syncingLabel="Syncing Manufacturer Options"
         />
 
         {/* 4. Set (BSC only) */}
@@ -335,6 +341,8 @@ export default function SetSelector() {
           level="variantType"
           parentId={selectedSetId || undefined}
           onSelectExisting={handleVariantTypeSelect}
+          useEnsureSync
+          syncingLabel="Syncing Variant Types"
         />
 
         {/* 6. Variant (reconciled BSC variantName + SL set list) — hidden
