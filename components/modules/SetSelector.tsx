@@ -320,6 +320,8 @@ export default function SetSelector() {
           level="setName"
           parentId={selectedManufacturerId || undefined}
           onSelectExisting={handleSetSelect}
+          useEnsureSync
+          syncingLabel="Syncing Sets"
         />
 
         {/* 5. Variant Type (BSC only: Base, Insert, Parallel, Promo) */}

@@ -2361,13 +2361,15 @@ export const ensureSelectorOptions = action({
         return { ran: false, reason: "already_populated" };
     }
 
-    // Derive the chain once: uniform custom-subtree skip + parentFilters.
+    // Derive the chain once: uniform custom-subtree skip + parentFilters + the
+    // year id (setName syncs at the year level — BSC has no manufacturer facet).
     const parentFilters: {
       sport?: string;
       year?: string;
       manufacturer?: string;
       setName?: string;
     } = {};
+    let yearId: Id<"selectorOptions"> | undefined;
     if (parentId) {
       const chain = await ctx.runQuery(api.selectorOptions.getAncestorChain, {
         id: parentId,
@@ -2382,6 +2384,7 @@ export const ensureSelectorOptions = action({
         return { ran: false, reason: "custom_subtree" };
       }
       for (const a of chain) {
+        if (a.level === "year") yearId = a._id;
         if (
           a.level === "sport" ||
           a.level === "year" ||
@@ -2401,10 +2404,34 @@ export const ensureSelectorOptions = action({
       requestId,
     });
     try {
-      const res = await ctx.runAction(
-        api.selectorOptions.fetchAggregatedOptions,
-        { level, parentId, parentFilters },
-      );
+      // Dispatch by level. setName syncs at the year level via
+      // syncSetsAcrossManufacturers (BSC-only, manufacturer derived by
+      // prefix-match — all that taxonomy-stitching stays inside that action,
+      // below this door). Aggregator levels go through fetchAggregatedOptions.
+      let res: { success: boolean; message: string };
+      if (level === "setName") {
+        if (!yearId) {
+          await ctx.runMutation(
+            internal.selectorOptions.setSelectorSyncStatus,
+            {
+              level,
+              parentId,
+              status: "error",
+              message: "Cannot sync sets — no year ancestor.",
+            },
+          );
+          return { ran: true, reason: "error" };
+        }
+        res = await ctx.runAction(
+          api.selectorOptions.syncSetsAcrossManufacturers,
+          { yearId },
+        );
+      } else {
+        res = await ctx.runAction(
+          api.selectorOptions.fetchAggregatedOptions,
+          { level, parentId, parentFilters },
+        );
+      }
       await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
         level,
         parentId,
