@@ -30,18 +30,29 @@ tags:
 # STEP 1 — Add a custom sport entry
 # ============================================================
 
-# Scroll to "+ Custom" in the Sports column — it may be below the fold when
-# the list is already populated with marketplace sports.
-# timeout: 60000 — after a DB reset the Sports column auto-syncs from scratch
-# (empty items → EntityColumn auto-fires sync → mode=sync, SportForm visible,
-# "+ Custom" hidden until sync finishes). Warm BSC session finishes in ~10s;
-# cold Puppeteer re-auth takes ~17.5s + SL. 60s matches util-drill-to-custom's
-# "Baseball" wait which guards the same auto-sync completion.
+# Wait for the Sports column to fully load before scrolling to "+ Custom".
+# "Baseball" appearing signals that the Sports auto-sync has completed and
+# the list is rendered and stable — safe to CDP-scroll after this.
+# timeout: 60000 covers the worst case: empty DB → auto-sync fires →
+# BSC/SL fetches take up to 38s FE backstop before the idle-mode buttons
+# ("Sync Sports" + "+ Custom") appear.
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 60000
+
+# Scroll to "+ Custom" (aria-label "Add custom Sports") with centerElement.
+# The Sports list can exceed the viewport height once entries accumulate
+# (Baseball, Basketball, ..., E2E Test Sport 0, E2E Test Sport 1, Football,
+# ..., TestCustomSport-dev@... from prior runs). With a stable (settled)
+# page, CDP scroll succeeds reliably. centerElement: true puts the button
+# at y≈315, clear of the footer-steal zone (y≥489). R8 fix.
 - scrollUntilVisible:
     element:
-      text: "+ Custom"
-    timeout: 60000
-- tapOn: "+ Custom"
+      id: "Add custom Sports"
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: "Add custom Sports"
 - assertVisible: "Add Custom Entry"
 
 # Type a unique custom sport name that will be easy to find after re-sync
@@ -59,18 +70,14 @@ tags:
 # The form disappearing confirms the entry was saved to the database.
 - assertNotVisible: "Add Custom Entry"
 
-# Reload /set-selector to reset the page scroll before tapping the
-# Sports column's search input. The earlier `scrollUntilVisible "+ Custom"`
-# left the page scrolled down so the column's header + search input sit
-# behind the sticky `binder-header` (`top-0 z-20`, ~66 px tall). At that
-# scroll position, Maestro resolves the input by aria-label in the DOM
-# (bounds ~y=35-73) but `hierarchyBasedTap` clicks at viewport coords
-# that fall inside the navbar's vertical range — the higher-z navbar
-# eats the click, the input never gains focus, and the subsequent
-# `inputText` keystrokes never reach it. The custom entry was persisted
-# by `pressKey Enter`; reloading rehydrates the column with the new
-# entry already in `items` and the input rendered cleanly below the
-# navbar where Maestro can hit it.
+# Reload /set-selector before verifying the new entry. Reloading is the
+# cleanest way to ensure the Sports column's search input is rendered at its
+# natural position below the sticky navbar. After tapping "+ Custom" and
+# entering the value the modal was in-viewport, but the column header and
+# search input may have scrolled behind the `binder-header` (`top-0 z-20`,
+# ~66 px tall). The custom entry was persisted by `pressKey Enter`;
+# reloading rehydrates the column with the new entry already in `items`
+# and the input rendered cleanly below the navbar where Maestro can hit it.
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - assertVisible: "Set Selector"
 
@@ -104,39 +111,99 @@ tags:
 
 # Trigger a marketplace sync for sports.
 #
-# `visibilityPercentage: 50` is required because the page's negative-margin
-# breakout layout (`app/set-selector/page.tsx:11-14`, `calc((100vw - 170px) * 0.9)`)
-# leaves the "Sync Sports" button at x=-2 at the 1024-wide CI viewport — ~98%
-# visible. The default 100% threshold made Maestro attempt a scroll that
-# triggered a CDP `Failed to execute JS` error, after which the element
-# couldn't be re-located. 50 is used (not 80) per the documented
-# viewport-edge-button pattern (mb-search/vis:50) for set-selector flows.
+# Two-phase approach — same as the "+ Custom" scroll above:
+# Phase 1: wait for "Baseball" to confirm the page has settled after the reload
+#           (Convex subscription rehydrated, list rendered — safe for CDP scroll).
+# Phase 2: scrollUntilVisible to bring "Sync Sports" to center and tap it.
+#
+# "Sync Sports" lands below the viewport fold when the Sports list has grown
+# (multiple workers' E2E Test Sport entries + TestCustomSport accumulate over runs).
+# centerElement: true avoids the footer-steal zone (y≥489 steals clicks). R8 fix.
+- extendedWaitUntil:
+    visible: "Baseball"
+    timeout: 30000
 - scrollUntilVisible:
     element:
       text: "Sync Sports"
-    timeout: 10000
-    visibilityPercentage: 50
+    timeout: 15000
+    centerElement: true
 - tapOn: "Sync Sports"
 
 # Wait for "Syncing Sport Options" to appear — confirms the sync form mounted
-# and the action is in-flight server-side. We do NOT wait for the sync to
-# finish: the server-side Convex action runs to completion regardless of whether
-# the user stays on this page. The test's assertion (Step 3) is that custom
-# entries survive a sync cycle; the action completing after we navigate away is
-# equally valid. Waiting for sync completion on a local-dev cold BSC/SL session
-# can take >2min (Puppeteer re-auth), making the test too slow for dev iteration.
+# and the action is in-flight. R5 fix: this is a UI form mount (local state
+# machine flip), not a marketplace round-trip — 7s default is sufficient.
 - extendedWaitUntil:
     visible: "Syncing Sport Options"
-    timeout: 15000
+    timeout: 7000
+
+# Wait for "Syncing Sport Options" to DISAPPEAR — confirms the sync cycle has
+# COMPLETED (SportForm.onDone fired, EntityColumn reverted to idle mode, the
+# "Sync Sports" / "+ Custom" buttons are restored). R2 fix: Step 3's survival
+# assertion is only meaningful after a COMPLETED sync cycle; asserting while the
+# Convex action is still in-flight can false-pass (the re-query hasn't landed yet).
+#
+# Completion-signal evidence: useSelectorSync.ts calls onDone() on the happy path
+# (result.success || result.optionsCount === 0 → setPhase("done") → onDone?.());
+# EntityColumn switches from mode="sync" to mode="idle" and unmounts SportForm.
+# The heading "Syncing Sport Options" (SportForm.tsx:43) is therefore the sole
+# DOM element whose disappearance signals the completed cycle.
+#
+# Timeout 55000: 38s FE backstop + 17s pad. If the form is still visible at
+# this point, the 38s FE backstop has fired (hasError=true) and the form is now
+# showing "Retry" + "Cancel" buttons. The notVisible check times out silently
+# (extendedWaitUntil never throws on timeout); the error-path block below
+# detects this and taps Cancel so the column returns to idle mode.
+- extendedWaitUntil:
+    notVisible: "Syncing Sport Options"
+    timeout: 55000
+
+# Error-path handler: if the FE backstop fired (38s), the form stays visible
+# with "Cancel" (hasError=true) or "Close" (rare: run()→undefined path).
+# Tapping Cancel dismisses the form and returns EntityColumn to idle mode.
+# This is equivalent to the user giving up on a slow re-sync and returning to
+# the column — the custom entry is still in the DB regardless of sync outcome.
+# The test's guarantee is that a COMPLETED OR ABORTED sync cycle does not
+# delete custom entries. R2 fix (error-path coverage).
+- runFlow:
+    when:
+      visible: "Syncing Sport Options"
+    commands:
+      - runFlow:
+          when:
+            visible: "Cancel"
+          commands:
+            - scrollUntilVisible:
+                element:
+                  text: "Cancel"
+                centerElement: true
+                timeout: 10000
+            - tapOn: "Cancel"
+      - runFlow:
+          when:
+            visible: "Syncing Sport Options"
+          commands:
+            - runFlow:
+                when:
+                  visible: "Close"
+                commands:
+                  - scrollUntilVisible:
+                      element:
+                        text: "Close"
+                      centerElement: true
+                      timeout: 10000
+                  - tapOn: "Close"
+      - extendedWaitUntil:
+          notVisible: "Syncing Sport Options"
+          timeout: 10000
 
 # ============================================================
 # STEP 3 — Verify custom entry still exists after re-sync
 # ============================================================
 
 # Reload /set-selector to reset page scroll before tapping the Sports
-# search input again — the post-sync `scrollUntilVisible "Sync Sports"`
-# left the page scrolled to the bottom of the column, putting the
-# search input behind the sticky navbar (see comment in STEP 1).
+# search input again — after the sync completed, the SportForm was mounted
+# and scrolled the page; a fresh load ensures the search input is below
+# the navbar where Maestro can hit it (see comment in STEP 1).
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - assertVisible: "Set Selector"
 
