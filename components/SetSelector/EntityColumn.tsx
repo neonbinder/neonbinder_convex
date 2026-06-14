@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
@@ -86,7 +86,7 @@ export default function EntityColumn({
     api.selectorOptions.getSelectorSyncStatus,
     useEnsureSync && level ? { level, parentId } : "skip",
   );
-  const ensureOptions = useMutation(
+  const ensureOptions = useAction(
     api.selectorOptions.ensureSelectorOptions,
   );
   const ensuredRef = useRef<Set<string>>(new Set());

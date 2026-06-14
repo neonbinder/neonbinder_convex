@@ -48,6 +48,7 @@ const mockQuery = vi.fn();
 
 vi.mock("convex/react", () => ({
   useMutation: () => mockAddCustom,
+  useAction: () => vi.fn(),
   useQuery: () => mockQuery(),
 }));
 

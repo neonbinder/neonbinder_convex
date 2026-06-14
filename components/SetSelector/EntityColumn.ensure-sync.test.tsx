@@ -40,8 +40,9 @@ const state: { items: unknown; status: unknown } = {
 };
 
 vi.mock("convex/react", () => ({
-  useMutation: (ref: string) =>
-    ref === "ensureSelectorOptions" ? mockEnsure : mockAddCustom,
+  useMutation: () => mockAddCustom,
+  useAction: (ref: string) =>
+    ref === "ensureSelectorOptions" ? mockEnsure : vi.fn(),
   useQuery: (ref: string) =>
     ref === "getSelectorSyncStatus" ? state.status : state.items,
 }));
