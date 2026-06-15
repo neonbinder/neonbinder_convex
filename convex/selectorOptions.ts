@@ -2316,6 +2316,10 @@ export const getSelectorSyncStatus = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
+    // Admin-gated like every other query in this file — the whole set-builder
+    // taxonomy is admin-managed (getSelectorOptions/getAncestorChain gate too),
+    // and `message` may carry backend sync detail that must not reach non-admins.
+    await requireAdmin(ctx);
     const row = await ctx.db
       .query("selectorSyncStatus")
       .withIndex("by_level_and_parent", (q) =>
@@ -2325,6 +2329,11 @@ export const getSelectorSyncStatus = query({
     return row ? { status: row.status, message: row.message } : null;
   },
 });
+
+// User-safe error surfaced via the reactive selectorSyncStatus.message — the
+// raw sync/exception detail goes to console.error only, never into reactive
+// state (security audit, NEO-47).
+const SYNC_ERROR_MESSAGE = "Couldn't sync options — please try again.";
 
 /**
  * The single FE entry point to populate a column (NEO-47). An ACTION, not a
@@ -2432,21 +2441,34 @@ export const ensureSelectorOptions = action({
           { level, parentId, parentFilters },
         );
       }
+      if (!res.success) {
+        // Raw sync detail → logs only; the persisted/reactive `message` stays
+        // a user-safe string (security audit, NEO-47).
+        console.error(
+          `[ensureSelectorOptions] sync error (${level}):`,
+          res.message,
+        );
+      }
       await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
         level,
         parentId,
         // success OR empty → clear (idle); a real failure → recoverable error.
         ...(res.success
           ? {}
-          : { status: "error" as const, message: res.message }),
+          : { status: "error" as const, message: SYNC_ERROR_MESSAGE }),
       });
       return { ran: true, reason: res.success ? "synced" : "error" };
     } catch (e) {
+      // Raw exception detail → logs only; reactive `message` stays generic.
+      console.error(
+        `[ensureSelectorOptions] sync threw (${level}):`,
+        e instanceof Error ? e.message : e,
+      );
       await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
         level,
         parentId,
         status: "error",
-        message: e instanceof Error ? e.message : "Sync failed",
+        message: SYNC_ERROR_MESSAGE,
       });
       return { ran: true, reason: "error" };
     }
