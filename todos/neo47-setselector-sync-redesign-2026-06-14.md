@@ -59,6 +59,18 @@ setName now routes through the same door. `ensureSelectorOptions` dispatches `le
 - **Validation:** 19 component tests still green. E2E: **setup** (fresh full cascade) green — convex log confirms `syncSetsAcrossManufacturers` ran THROUGH the door ("BSC returned 476 sets", zero new "Not authenticated"); **sets-base** (real-set select) + **#27** + **#32** (already-populated read + custom-add under real Topps) green.
 - Only **insert/parallel** remain on the legacy path → Phase 3.
 
+## Phase 3 — IMPLEMENTED (2026-06-14; commit 3ad9e92; NOT pushed)
+**Scope decision (owner-confirmed): backend custom-skip only.** The Phase-3 analysis (reading `VariantForm`/`ParallelForm` + the flow surface) resolved open question #3 below: insert/parallel reconciliation **cannot** fit the fire-and-forget door, because it auto-opens an interactive `ReconciliationModal` (a human resolves SL↔BSC matches and clicks Save — **no auto-write**), and `setup-insert.yaml`/`setup-parallel.yaml` **assert that auto-open + Save**. So insert/parallel **keep their bespoke modal on the legacy EntityColumn sync-mode path by design** — that form-render seam is *required* for an interactive modal. Full migration was explicitly rejected (would break the most load-bearing flows + the most complex UI for no functional gain).
+- **The fix (backend-only):** `fetchRawOptions` (`setReconciliation.ts`) gained the uniform `isCustomSubtree` skip — the **3rd and last** sync backend to get it. A custom ancestor's missing BSC slug previously tripped the BSC precondition and returned `success:true` *with* `errors:[…]`, which the forms' "both-empty + errors" guard surfaced as a spurious **"Sync failed: could not load variants/parallels"** before `onDone`. Now it returns `success:true` with empty options + **no errors** → the forms route empty+no-errors straight to `onDone` (idle, "+ Custom") with no error banner. Kept the check local (`chain.some(r => r.isCustom)`) — no cross-file import, per the convention noted in `selectorOptions.ts`.
+- **No FE change** — `VariantForm`/`ParallelForm` already handle success+empty+no-errors → `onDone`/idle. The form unmounts on `onDone`, so the skip's neutral `message` never even paints.
+- **Validation:** custom flows green — **cards-parallel-custom** + **move-parallels-of-inserts-custom** (both drill via `util-drill-to-custom-set` → custom-set subtree → insert/parallel column has a custom ancestor) — convex log proof the skip fired 3× ("custom subtree — skipping marketplace fetch for insert/parallel"). Regression: **setup-insert** green with a real, non-skip "Fetching insert options" fetch → non-custom reconciliation intact.
+
+## REDESIGN COMPLETE — all 3 sync backends share the uniform backend custom-skip
+- **aggregate** (sport/year/manufacturer/variantType) → `ensureSelectorOptions` door → `fetchAggregatedOptions` (reactive status, auto-write).
+- **sets** (setName) → `ensureSelectorOptions` door → `syncSetsAcrossManufacturers` (reactive status, auto-write).
+- **reconcile** (insert/parallel) → legacy EntityColumn sync-mode + `fetchRawOptions` → human `ReconciliationModal` → `storeReconciledOptions` (bespoke by design; now custom-skip-safe).
+- **Next:** security-auditor on `ensureSelectorOptions` + `fetchRawOptions` custom-skip (both gate marketplace fetches) → fold into the NEO-47 release bundle → PR.
+
 ## Resolved decisions (2026-06-14, owner)
 1. **insert/parallel stays always-manual reconciliation.** Auto-match is UI assistance only; a human confirms. (Do NOT auto-write high-confidence matches.)
 2. **`selectorSyncStatus` = a new dedicated table.**
