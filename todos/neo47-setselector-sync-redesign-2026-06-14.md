@@ -69,7 +69,13 @@ setName now routes through the same door. `ensureSelectorOptions` dispatches `le
 - **aggregate** (sport/year/manufacturer/variantType) → `ensureSelectorOptions` door → `fetchAggregatedOptions` (reactive status, auto-write).
 - **sets** (setName) → `ensureSelectorOptions` door → `syncSetsAcrossManufacturers` (reactive status, auto-write).
 - **reconcile** (insert/parallel) → legacy EntityColumn sync-mode + `fetchRawOptions` → human `ReconciliationModal` → `storeReconciledOptions` (bespoke by design; now custom-skip-safe).
-- **Next:** security-auditor on `ensureSelectorOptions` + `fetchRawOptions` custom-skip (both gate marketplace fetches) → fold into the NEO-47 release bundle → PR.
+## Security audit — PASSED (2026-06-14; fixes commit c4fd210; validated)
+security-auditor reviewed the full diff (`git diff 39841c4^..HEAD -- convex/`). **All six marketplace-fetch invariants clean:** admin gating on every entry point (`ensureSelectorOptions:2351` + downstream `fetchAggregatedOptions`/`syncSetsAcrossManufacturers`/`fetchRawOptions`/leaf adapters re-check); scheduler-vs-runAction identity (door uses `ctx.runAction`, never `ctx.scheduler` — the `f168f2f` pitfall stays fixed); prod fail-closed (`requireAdmin` *is* the prod gate here); custom-skip is post-`requireAdmin` and returns only benign data; no IDOR (`selectorOptions` is global admin-managed taxonomy, not user-partitioned); `setSelectorSyncStatus` correctly an `internalMutation`.
+- **HIGH (fixed):** `getSelectorSyncStatus` query lacked `requireAdmin` — every sibling query in the file gates, and `message` could carry raw backend sync detail to an authenticated non-admin. Added `requireAdmin` as the first handler line. (Blast radius was bounded — `getSiteToken` swallows its sensitive throws and returns null — but it was an unbounded raw-`Error.message` channel.)
+- **LOW (fixed):** raw `res.message`/`e.message` was persisted into the reactive `selectorSyncStatus.message`. Now `ensureSelectorOptions` writes a user-safe `SYNC_ERROR_MESSAGE` constant and `console.error`s the raw detail — safe-by-construction regardless of future deeper exceptions. No Maestro flow asserts on door error-banner text (verified), and the component test mocks its own status message, so neither broke.
+- **Validation:** deploy clean + 19 component tests green; **setup** green with zero new "Not authenticated" — the new `requireAdmin` gate is exercised continuously (it drives the "Syncing X Options" loading boxes setup asserts) and the admin path is intact.
+
+## Next: fold into the NEO-47 release bundle → web PR #55 + browser PR #47 (all-at-once release).
 
 ## Resolved decisions (2026-06-14, owner)
 1. **insert/parallel stays always-manual reconciliation.** Auto-match is UI assistance only; a human confirms. (Do NOT auto-write high-confidence matches.)
