@@ -1,32 +1,36 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Topps Chrome — write a feature value via SetAttributesPanel and verify propagation toast + persistence (isolated)"
+name: "Topps Chrome — write a feature value via SetAttributesPanel and verify propagation toast + persistence (sole-writer)"
 tags:
   - regression
+  - set-selector
 ---
 # Writes a feature value on the REAL 2024 Topps Chrome set and verifies:
 #   1. The "Updated N cards" propagation toast fires after saving on Enter.
 #   2. The value persists: re-opening the panel (page reload + re-drill) shows
 #      the value in the "Value for League" input.
 #
-# WHY ISOLATED:
-#   This is the ONE sanctioned feature-WRITE on the real Topps Chrome set.
-#   Isolated serial lane prevents concurrent mutations with other flows that
-#   also write to Topps Chrome features. Without isolation any concurrent
-#   feature-write flow would race in Phase
-#   1 and each other's toasts / assertions would mis-fire.
+# ISOLATION STORY (sole-writer tolerance):
+#   This flow is the SOLE writer of Topps Chrome's League feature. No other
+#   flow writes that datum: topps-chrome-marketplace-read.yaml (#36) is
+#   read-only and only checks the row exists; features-propagation.yaml writes
+#   a per-worker custom set (never touches the real Topps Chrome League value);
+#   card checklist flows read Base badges, not League. Because only one instance
+#   of this flow is enqueued per run it never races itself. It writes a FIXED
+#   value via a two-step CLEAR→MLB, so its own write is always a real change
+#   → deterministic toast + convergent end-state. Therefore it is safe under
+#   the NEO-49 work-queue via idempotent sole-writer tolerance — no serial lane
+#   is needed (the isolated lane no longer exists).
 #
 # PROPAGATION TOAST TIMING:
-#   The "Updated N cards" toast is non-optimistic: the mutation runs
-#   synchronously for ALL descendant cards in one Convex mutation call. For
-#   the real Topps Chrome set with 200-500+ cards this can exceed 20s on a
-#   cold preview. We use a 30s timeout on that assertion.
+#   The "Updated N cards" toast is a Convex mutation write — 7s like every
+#   other Convex call. Measured warm propagation to Topps Chrome cards ≈ 0.4–1s;
+#   a >7s propagation is a product finding, not a pad to inflate.
 #
 # PREREQUISITE (implicit): Topps Chrome with variant types and card checklist
-# rows must already exist in the shared Convex deployment from the cascade.
-# Like topps-chrome-marketplace-read.yaml, this flow relies on that data
-# persisting from a prior CI run (does not carry requires: — isolated flows
-# run in Phase 1 before the cascade's Phase 2 reset).
+# rows must already exist in the shared Convex deployment. Like
+# topps-chrome-marketplace-read.yaml, this flow relies on that data being
+# present (seeded by the cascade setup track).
 
 - launchApp
 - extendedWaitUntil:
@@ -37,96 +41,8 @@ tags:
 # DRILL TO 2024 TOPPS CHROME (setName level)
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
-
-# Level 1 — Baseball
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      below:
-        id: "Search sports"
-    timeout: 10000
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-# Level 2 — 2024
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      below:
-        id: "Search years"
-    timeout: 10000
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# Level 3 — Topps (manufacturer)
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      below:
-        id: "Search manufacturers"
-    timeout: 10000
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Level 4 — Topps Chrome
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      below:
-        id: "Search sets"
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    below:
-      id: "Search sets"
-
-# Variant Types column confirms the setName row is selected.
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
 
 # ============================================================
 # OPEN THE SET ATTRIBUTES PANEL
@@ -137,10 +53,9 @@ tags:
 - scrollUntilVisible:
     element:
       id: "Edit attributes"
-    centerElement: true
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
-    timeout: 15000
+    timeout: 7000
 
 # IDEMPOTENT EXPAND: tap only if currently collapsed.
 - runFlow:
@@ -176,11 +91,7 @@ tags:
     centerElement: true
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
-    timeout: 10000
-- extendedWaitUntil:
-    visible:
-      id: "Value for League"
-    timeout: 5000
+    timeout: 7000
 
 # Step 1: clearing sentinel write.
 - tapOn:
@@ -189,13 +100,10 @@ tags:
 - inputText: "TChrome-CLEAR"
 - pressKey: Enter
 
-# 30s timeout: real Topps Chrome can have 200-500+ descendant cards;
-# the propagation mutation runs synchronously and can exceed 20s on a cold
-# or loaded preview deployment.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 30000
+    timeout: 7000
 
 # Step 2: the test sentinel value.
 - tapOn:
@@ -204,103 +112,27 @@ tags:
 - inputText: "TChrome-MLB"
 - pressKey: Enter
 
-# Same 30s timeout for the same reason.
 - extendedWaitUntil:
     visible:
       text: ".*Updated [0-9]+ cards.*"
-    timeout: 30000
+    timeout: 7000
 
 # ============================================================
 # VERIFY VALUE PERSISTS — reload the page and re-drill
 # Navigate away and back to confirm "TChrome-MLB" was durably written.
+# util-drill-to-2024-topps-chrome navigates to /set-selector itself.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
-
-# Re-drill to Topps Chrome
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      below:
-        id: "Search sports"
-    timeout: 10000
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      below:
-        id: "Search years"
-    timeout: 10000
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      below:
-        id: "Search manufacturers"
-    timeout: 10000
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      below:
-        id: "Search sets"
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    below:
-      id: "Search sets"
-
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
 
 # Open the panel again.
 - scrollUntilVisible:
     element:
       id: "Edit attributes"
-    centerElement: true
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
-    timeout: 15000
+    timeout: 7000
 
 - runFlow:
     when:
@@ -321,7 +153,7 @@ tags:
     centerElement: true
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
-    timeout: 10000
+    timeout: 7000
 
 # The input should now show "TChrome-MLB" (persisted from the earlier write).
 # Maestro assertVisible with a full-match regex — partial match via ".*".

@@ -134,7 +134,9 @@ tags:
           element:
             text: "Cancel"
           centerElement: true
-      - tapOn: "Cancel"
+      - tapOn:
+          text: "Cancel"
+          optional: true
       - extendedWaitUntil:
           notVisible: "Cancel"
 

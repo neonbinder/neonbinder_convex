@@ -142,7 +142,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved Release Date.*"
-    timeout: 15000
+    timeout: 7000
 
 # Step 2: the test sentinel value.
 - tapOn:
@@ -153,7 +153,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved Release Date.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # PART C2 — EDIT "Value for Block" (metadata field rendered below Release Date)
@@ -169,7 +169,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved Block.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # PART C3 — EDIT "Value for TCDB Set ID"
@@ -198,7 +198,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved TCDB Set ID.*"
-    timeout: 15000
+    timeout: 7000
 
 # Step 2: the test sentinel value.
 - tapOn:
@@ -209,7 +209,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved TCDB Set ID.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # PART C4 — EDIT "Value for Source URL"
@@ -225,7 +225,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved Source URL.*"
-    timeout: 15000
+    timeout: 7000
 
 - tapOn:
     id: "Value for Source URL"
@@ -235,7 +235,7 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Saved Source URL.*"
-    timeout: 15000
+    timeout: 7000
 
 # ============================================================
 # PART D — COLLAPSE THE PANEL VIA "Hide attributes"
@@ -295,7 +295,8 @@ tags:
       id: "Add custom Variant Types"
     direction: UP
     visibilityPercentage: 100
-    timeout: 30000
+    centerElement: true
+    timeout: 15000
 
 - runFlow:
     when:

@@ -17,7 +17,7 @@ tags:
 # and re-runs never collide. The CI runner injects ATTEMPT_ID; the evalScript
 # below provides a fallback for standalone local runs.
 #
-# Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → pg-cancel-<worker>),
+# Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → pg-cancel-<worker>-<ATTEMPT_ID>),
 # every wait is the 7s default; the util owns the cold custom-subtree drill.
 
 - launchApp
@@ -31,7 +31,7 @@ tags:
 - runFlow:
     file: util-drill-to-custom-set.yaml
     env:
-      SET_NAME: "pg-cancel-${WORKER_INDEX || 0}"
+      SET_NAME: "pg-cancel-${WORKER_INDEX || 0}-${ATTEMPT_ID}"
       VARIANT_TYPE: "Insert"
 
 # ── ADD THREE CUSTOM INSERTS (<ID> Stars / <ID> Stars Gold / <ID> Stars Red) ──
@@ -138,6 +138,8 @@ tags:
 - assertVisible: "${ATTEMPT_ID} Stars Red"
 
 # ── RE-OPEN → original state: items are SUGGESTIONS again, not persisted ────
+# (CANCEL-button proof: after Accept All → Cancel → reopen, "Suggested" badges
+# are present because Cancel correctly discarded the pending promotion.)
 - scrollUntilVisible:
     element:
       text: "Group Parallels"
@@ -157,23 +159,53 @@ tags:
 # confirmed visibility.
 - assertVisible: ".*Save [0-9]+ change.*"
 
-# ── CLOSE #2: via BACKDROP tap (far-left edge, outside the modal panel) ─────
+# ── BACKDROP PROOF: Accept All → backdrop-close → reopen → assert "Suggested" ─
+# SETUP: Accept All inside the already-open modal (items are currently showing
+# "Suggested" state from the Cancel-proof above). After Accept All the items
+# should be promoted (pending, not yet saved).
+- scrollUntilVisible:
+    element:
+      text: ".*Accept all suggestions.*"
+    centerElement: true
+- tapOn: ".*Accept all suggestions.*"
+- assertVisible: ".*[0-9]+ promotion.*"
+- assertVisible: ".*Parallels of.*${ATTEMPT_ID} Stars.*"
+
+# CLOSE #2: via BACKDROP tap (far-left edge, outside the modal panel).
+# This should discard the pending Accept All — NOT write it to the DB.
 - tapOn:
     point: "2%, 50%"
 - assertNotVisible: ".*Drag inserts under a parent.*"
 
-# ── VERIFY BACKDROP CLOSE LEFT THE COLUMNS INTACT (no persist) ──────────────
-# The proof that Cancel/backdrop discarded the grouping is established above:
-# re-opening the modal showed "Suggested" badges — which only appear when items
-# are NOT persisted as parallels. Here we confirm backdrop-close left the session
-# in a clean state: the Inserts column action buttons are present and the modal
-# is gone. The column rows are inside EntitySelector's internal overflow scroll
-# which is collapsed after the modal interaction; we assert the action-button row
-# instead, which is always in the lower viewport after close.
+# RE-OPEN to verify backdrop discarded the pending promotion.
+- scrollUntilVisible:
+    element:
+      text: "Group Parallels"
+    centerElement: true
+- tapOn: "Group Parallels"
+- assertVisible: ".*Drag inserts under a parent.*"
+
+# PROOF: items carry "Suggested" badges again — if backdrop had persisted the
+# Accept All, reopening would show them as saved parallels with no "Suggested"
+# badge. "Suggested" on reopen == backdrop correctly discarded.
+- scrollUntilVisible:
+    element:
+      text: "Suggested"
+    centerElement: true
+    visibilityPercentage: 50
+# R6: no redundant assertVisible here — scrollUntilVisible already confirmed it.
+- assertVisible: ".*Save [0-9]+ change.*"
+
+# ── CLOSE the modal and verify columns intact ───────────────────────────────
+- tapOn: "Cancel"
+- assertNotVisible: ".*Drag inserts under a parent.*"
+
+# The Inserts column action buttons are present and the modal is gone.
+# R6 applied: scrollUntilVisible already asserts visibility; no redundant
+# assertVisible after the scroll.
 - scrollUntilVisible:
     element:
       id: "Add custom Inserts"
     visibilityPercentage: 50
-- assertVisible:
-    id: "Add custom Inserts"
+    centerElement: true
 - assertVisible: "Group Parallels"

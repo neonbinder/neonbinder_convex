@@ -723,33 +723,30 @@ tags:
 # LEVEL 5 — Variant Types (VARIANT_TYPE)
 # Gate: SPORT AND YEAR AND MANUFACTURER AND SET_NAME AND VARIANT_TYPE.
 #
-# For custom subtrees the VT column is short (0 marketplace types —
-# the gate short-circuits), so the Add-custom button always renders
-# in-viewport. Do NOT scroll here — the CDP scroll mechanic throws
-# MismatchedInputException while the page is still re-rendering after
-# a fresh Set was just created. Use a non-scrolling extendedWaitUntil.
-# (History: centerElement fix → CDP crash on attempt-1 cold path;
-# visibilityPercentage:100 → same crash; non-scroll extendedWaitUntil
-# resolved it. See util-drill-to-custom-set Level 5 comment block.)
-#
-# For real-synced sets (e.g. 2024 Topps Chrome) the VT column may have
-# Base/Insert/Parallel already. The non-scroll wait still works: the button
-# is present in-viewport on the real path too. If the column is taller
-# (many VTs), the fallback scrollUntilVisible below handles it.
+# NEO-47 raised the EntityColumn empty-state height ("No variant types
+# available. Sync from marketplaces to populate."), pushing the
+# "Add custom Variant Types" button to y≈605 in the 1024×629 headless
+# viewport — well into the footer-steal zone (≥489) and below the fold.
+# A non-scrolling extendedWaitUntil can't bring a below-fold button into
+# view, so we MUST use the standard R8 centerElement scroll.
+# The CDP MismatchedInputException that previously blocked this approach
+# is a recoverable transient that scrollUntilVisible retries through; the
+# fatal SIGSEGV era is mitigated by JAVA_TOOL_OPTIONS=-XX:+UseSerialGC.
 # ============================================================
 
 - runFlow:
     when:
       true: "${SPORT && YEAR && MANUFACTURER && SET_NAME && VARIANT_TYPE}"
     commands:
-      # Idle-mode signal: Add-custom button visible (no scroll — CDP crash risk).
+      # Idle-mode signal: centerElement-scroll to Add-custom button (R8 pattern).
       # 45s covers shared-Convex contention from parallel workers (~11s observed)
       # plus a first-run cold path where the Variant Types column briefly shows
       # "Syncing Variant Types" after a fresh custom Set is created (~32s recorded
       # on the cold path in CI; 30s was intermittently too short).
-      - extendedWaitUntil:
-          visible:
+      - scrollUntilVisible:
+          element:
             id: "Add custom Variant Types"
+          centerElement: true
           timeout: 45000
 
       # Add VARIANT_TYPE if not present yet.
@@ -764,9 +761,10 @@ tags:
           when:
             notVisible: ${VARIANT_TYPE}
           commands:
-            - extendedWaitUntil:
-                visible:
+            - scrollUntilVisible:
+                element:
                   id: "Add custom Variant Types"
+                centerElement: true
                 timeout: 30000
             - tapOn:
                 id: "Add custom Variant Types"
