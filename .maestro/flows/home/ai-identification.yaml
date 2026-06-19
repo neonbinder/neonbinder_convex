@@ -4,13 +4,16 @@ tags:
   - marketing
   - home
 ---
-- launchApp
+# Clear cookies/storage so the worker is always signed out, making the CTA test deterministic
+- launchApp:
+    clearState: true
 - assertVisible: "Neon Binder"
 
 # Scroll to and tap the AI card to navigate
 - scrollUntilVisible:
     element:
       text: ".*AI-Based.*"
+    centerElement: true
 - tapOn:
     text: ".*AI-Based.*"
 
@@ -19,41 +22,27 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Complete Card Data"
-- assertVisible: "Complete Card Data"
 - scrollUntilVisible:
     element:
       text: "Accuracy & Verification"
-- assertVisible: "Accuracy & Verification"
 - scrollUntilVisible:
     element:
       text: "Machine Learning"
-- assertVisible: "Machine Learning"
 
-# CTA: verify Get Started button opens Clerk dialog.
-# NOTE: Clerk's <SignUpButton> does not render its children when the user is
-# already signed in. When this flow runs after an auth flow (e.g. in a
-# serial PARALLELISM=1 suite), the user may be signed in and "Get Started"
-# will not be in the DOM. Guard with optional scrollUntilVisible.
+# CTA: Get Started opens Clerk sign-up dialog. clearState guarantees signed-out, so this is unconditional.
 - scrollUntilVisible:
     element:
       text: "Get Started"
-    optional: true
+    centerElement: true
+- tapOn: "Get Started"
+- assertVisible: "Create your account"
 
-# Only test the CTA if the button is rendered (user is signed out)
-- runFlow:
-    when:
-      visible: "Get Started"
-    commands:
-      - assertVisible: "Get Started"
-      - tapOn: "Get Started"
-      - assertVisible: "Create your account"
+# Dismiss dialog and verify it closed
+- tapOn:
+    point: "5%, 50%"
+- assertNotVisible: "Create your account"
 
-      # Dismiss dialog and navigate back to home
-      - tapOn:
-          point: "5%, 50%"
-      - assertNotVisible: "Create your account"
-
-# Always verify the Back button works (signed-in OR signed-out users see it)
+# Always verify the Back button works; signed-out is now guaranteed
 - tapOn: "Back"
 - assertVisible:
-    text: ".*Sign In.*|.*Dashboard.*"
+    text: ".*Sign In.*"

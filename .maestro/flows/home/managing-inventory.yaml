@@ -4,13 +4,15 @@ tags:
   - marketing
   - home
 ---
-- launchApp
+- launchApp:
+    clearState: true
 - assertVisible: "Neon Binder"
 
 # Scroll to and tap the Inventory card to navigate
 - scrollUntilVisible:
     element:
       text: ".*Multiple Inventory.*"
+    centerElement: true
 - tapOn:
     text: ".*Multiple Inventory.*"
 
@@ -19,21 +21,18 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Real-Time Inventory Control"
-- assertVisible: "Real-Time Inventory Control"
 - scrollUntilVisible:
     element:
       text: "Sales Intelligence"
-- assertVisible: "Sales Intelligence"
 - scrollUntilVisible:
     element:
       text: "Dominate the Card Show"
-- assertVisible: "Dominate the Card Show"
 
 # CTA: verify Get Started button opens Clerk dialog
 - scrollUntilVisible:
     element:
       text: "Get Started"
-- assertVisible: "Get Started"
+    centerElement: true
 - tapOn: "Get Started"
 - assertVisible: "Create your account"
 

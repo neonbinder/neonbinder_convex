@@ -1,5 +1,7 @@
 # Maestro E2E Author — Memory Index
 
+- `clearState: true` on `launchApp` DOES clear the Clerk session (confirmed 2026-06-19, tracker #52). Worker left signed-in by sign-in flow → ai-identification with clearState → "Get Started" appeared unconditionally → CTA fully tested. Use `launchApp: { clearState: true }` in any flow that must start signed-out regardless of prior worker state.
+
 - [Drill tap timing root cause](feedback_drill_tap_timing.md): `waitToSettleTimeoutMs: 0` has zero effect on tap duration. The 2s/tap is `hierarchyBasedTap` change-detection, not post-action settle. Do not tune settle expecting speedup; reduce action count instead.
 
 - ⭐ [REFINED CRITERIA 2026-06-15 — READ FIRST](feedback_refined_criteria_2026-06-15.md): R4 flows NEVER log in (45s sign-in guard → 7s; a login block/>7s sign-in is a defect). R5 everything reacts in 7s — the ONLY long-wait exception is a step directly driving a LIVE marketplace fetch on non-pre-synced data; ALL Convex calls incl. feature propagation → 7s, >7s is a product FINDING not a pad (30s propagation/bulk-commit carve-outs RETIRED). R9 all set-drilling via `util-drill-to-2024-topps-chrome`/`util-drill-to-custom` (no hand-rolled inline drills). SUPERSEDES older 45s/30s long-wait entries for feature flows; setup track + credentials-lifecycle keep marketplace-auth waits.

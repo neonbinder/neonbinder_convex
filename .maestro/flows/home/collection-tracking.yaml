@@ -2,14 +2,17 @@ url: ${APP_URL || "https://localhost:3000"}
 name: Collection Tracking Feature Page
 tags:
   - marketing
+  - home
 ---
-- launchApp
+- launchApp:
+    clearState: true
 - assertVisible: "Neon Binder"
 
 # Scroll to and tap the Collection Tracking card
 - scrollUntilVisible:
     element:
       text: ".*Collection Tracking.*"
+    centerElement: true
 - tapOn:
     text: ".*Collection Tracking.*"
 
@@ -18,21 +21,18 @@ tags:
 - scrollUntilVisible:
     element:
       text: "We Find Your Cards"
-- assertVisible: "We Find Your Cards"
 - scrollUntilVisible:
     element:
       text: "Build It Your Way"
-- assertVisible: "Build It Your Way"
 - scrollUntilVisible:
     element:
       text: "Track Everything"
-- assertVisible: "Track Everything"
 
 # CTA: verify Get Started button opens Clerk dialog
 - scrollUntilVisible:
     element:
       text: "Get Started"
-- assertVisible: "Get Started"
+    centerElement: true
 - tapOn: "Get Started"
 - assertVisible: "Create your account"
 
