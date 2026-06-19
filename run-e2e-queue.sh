@@ -85,7 +85,12 @@ fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
 CONFIG=".maestro/config.yaml"
-TEST_USERNAME="${TEST_USERNAME:-neontester-r${RUNNER_INDEX}}"
+# TEST_USERNAME is generated FRESH PER FLOW RUN inside run_flow (below), NOT once
+# here. This is a persistent daemon worker that runs the same flow many times, so
+# a username fixed at worker-start would collide ("Username already taken") on the
+# 2nd run. CI (run-e2e-smoke.sh) is one-shot, so it can set one per run; the
+# per-run-fresh equivalent on a daemon is per-flow generation. (Profile username
+# regex is ^[a-z0-9-]+$ — no underscores; an env-leaked email breaks it.)
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
 FLOW_TIMEOUT_SEC="${MAESTRO_FLOW_TIMEOUT_SEC:-600}"
 mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts" "$REPORT_DIR/debug" "$REPORT_DIR/logs" "$REPORT_DIR/maestro-home"
@@ -102,7 +107,7 @@ RESULTS="$REPORT_DIR/logs/runner-${RUNNER_INDEX}.results"
 : > "$LOG"; : > "$RESULTS"
 export MAESTRO_OPTS="-Duser.home=$PWD/$REPORT_DIR/maestro-home"
 
-ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "WORKER_INDEX=$WORKER_INDEX")
+ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "WORKER_INDEX=$WORKER_INDEX")
 if [ "${MAESTRO_HEADLESS:-1}" != "0" ]; then ARGS_BASE+=(--headless); fi
 
 # run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug; 1 retry on
@@ -117,7 +122,12 @@ run_flow() {
     exit_code=0
     [ "$attempt" -gt 1 ] && echo "↻ [$RUNNER_ID] retry $attempt: $flow" >> "$LOG"
     local attempt_id="${RUNNER_ID}-a${attempt}-${RANDOM}"
-    local args=("${ARGS_BASE[@]}" -e "ATTEMPT_ID=$attempt_id")
+    # Fresh username per run (unique across runners, runs, and attempts) so a
+    # re-run on this persistent worker never hits "Username already taken". The
+    # per-flow analog of CI's per-one-shot-run neontester-$(date +%s). Regex
+    # ^[a-z0-9-]+$ — all-lowercase, digits, hyphens only.
+    local test_username="neontester-${RUNNER_ID}-$(date +%s)-${RANDOM}"
+    local args=("${ARGS_BASE[@]}" -e "ATTEMPT_ID=$attempt_id" -e "TEST_USERNAME=$test_username")
     if [ -n "$TIMEOUT_CMD" ]; then
       "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${args[@]}" "${report_args[@]}" "$flow" >> "$LOG" 2>&1 || exit_code=$?
     else
