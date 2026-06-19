@@ -19,7 +19,7 @@ tags:
 # THIS run's triplet. The fallback evalScript below produces a stable 4-digit ID
 # for standalone runs.
 #
-# Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → pg-reject-<worker>);
+# Fully custom subtree (E2E Test Sport ${WORKER_INDEX} → 2026 → pg-reject-<worker>-<ATTEMPT_ID>);
 # every wait is the 7s default; the util owns the cold custom-subtree drill.
 
 - launchApp
@@ -33,7 +33,7 @@ tags:
 - runFlow:
     file: util-drill-to-custom-set.yaml
     env:
-      SET_NAME: "pg-reject-${WORKER_INDEX || 0}"
+      SET_NAME: "pg-reject-${WORKER_INDEX || 0}-${ATTEMPT_ID}"
       VARIANT_TYPE: "Insert"
 
 # ── ADD THREE CUSTOM INSERTS (<ID> Stars / <ID> Stars Gold / <ID> Champions) ──
@@ -52,7 +52,6 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "Add custom Inserts"
-    timeout: 30000
 
 # --- <ID> Stars ---
 - scrollUntilVisible:
@@ -130,7 +129,13 @@ tags:
 # "No changes yet" — asserting both would target the same elements. We assert
 # only the footer status text, which is the distinct, unique zero-diff indicator.
 - assertVisible: "No changes yet"
-# Stars Gold is back at top level (no longer under a Parallels zone).
+# "No changes yet" is the AUTHORITATIVE proof the reject worked.
+# Accept All made +1 promotion; the ✕ reject made −1 (demoting Gold back to
+# top-level); net diff is zero → footer reads "No changes yet". That accounting
+# signal is stronger than any zone-visibility check: the product intentionally
+# keeps the now-empty "Parallels of <ID> Stars" zone visible as a drop target,
+# so assertNotVisible on that heading can never pass. We do NOT assert it.
+# assertVisible on Stars Gold confirms the item itself is visible at top level.
 - assertVisible:
     text: ".*${ATTEMPT_ID} Stars Gold.*"
 

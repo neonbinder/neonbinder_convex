@@ -40,7 +40,6 @@ tags:
     element:
       text: "Base"
     centerElement: true
-- assertVisible: "Base"
 - assertVisible: "Insert"
 - assertVisible: "Parallel"
 
