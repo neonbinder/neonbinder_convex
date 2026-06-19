@@ -28,6 +28,9 @@
     "test:e2e:plan": "MAESTRO_PLAN_ONLY=1 PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh",
     "test:e2e:ci": "PATH=$HOME/.maestro/bin:$PATH ./run-e2e-smoke.sh smoke",
     "test:e2e:like-ci": "./run-e2e-like-ci.sh",
+    "e2e:local": "./e2e-local-stack.sh",
+    "e2e:local:fresh": "./e2e-local-stack.sh --seed",
+    "e2e:local:seed": "./e2e-seed.sh",
     "postinstall": "husky install"
   },
   "dependencies": {
