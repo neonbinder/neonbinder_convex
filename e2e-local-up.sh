@@ -79,11 +79,28 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+# Worker keeper: a maestro JVM can intermittently SIGSEGV on this laptop (even
+# with SerialGC above). Without supervision a crashed worker stays dead and the
+# harness silently stops draining (the whole stack then looks "hung"). Mirror
+# vite-keeper: relaunch the daemon worker whenever it exits, until the stop
+# sentinel appears. Each relaunch re-runs Phase 0 bootstrap, so it comes back
+# clean. A persistent crash can't busy-loop — bootstrap alone takes ~1-2 min.
+worker_keeper() {
+  local i="$1"
+  while [ ! -f "$STOP_FILE" ]; do
+    E2E_QUEUE_DAEMON=1 E2E_QUEUE_STOP_FILE="$STOP_FILE" RUNNER_INDEX="$i" \
+      PATH="$HOME/.maestro/bin:$PATH" ./run-e2e-queue.sh worker
+    local rc=$?
+    [ -f "$STOP_FILE" ] && break
+    echo "[worker-keeper] worker $i exited (rc=$rc) at $(date '+%H:%M:%S'); restarting in 3s" | tee -a "maestro-report/logs/runner-$i.log"
+    sleep 3
+  done
+}
+
 for i in $(seq 0 $((WORKERS - 1))); do
   if [ "$i" -gt 0 ]; then echo "… staggering ${BOOTSTRAP_STAGGER}s before worker $i bootstrap (shared SL/BSC account)"; sleep "$BOOTSTRAP_STAGGER"; fi
-  echo "▶ launching worker $i (TEST_EMAIL_$i) — log: maestro-report/logs/runner-$i.log"
-  E2E_QUEUE_DAEMON=1 E2E_QUEUE_STOP_FILE="$STOP_FILE" RUNNER_INDEX="$i" \
-    PATH="$HOME/.maestro/bin:$PATH" ./run-e2e-queue.sh worker &
+  echo "▶ launching worker $i (TEST_EMAIL_$i, keeper-supervised) — log: maestro-report/logs/runner-$i.log"
+  worker_keeper "$i" &
   pids+=("$!")
 done
 
