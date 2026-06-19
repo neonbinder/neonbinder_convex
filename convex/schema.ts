@@ -24,6 +24,18 @@ export default defineSchema({
       site: v.string(),
       hasCredentials: v.boolean(),
       lastUpdated: v.optional(v.string()),
+      // Per-(user, site) credential-operation lock. A credential op (store /
+      // test-login / delete) is mutually exclusive so a Clear can't race an
+      // in-flight marketplace login and corrupt the stored token. lockedAt is
+      // the lease anchor (epoch ms); a lock older than CRED_LOCK_LEASE_MS is
+      // stale and reclaimable (crash recovery). lockToken is server-minted and
+      // never sent to the client — release requires a matching token. All
+      // optional: existing rows read as "not locked" (no migration).
+      lockedAt: v.optional(v.number()),
+      lockedOp: v.optional(
+        v.union(v.literal("store"), v.literal("test"), v.literal("delete")),
+      ),
+      lockToken: v.optional(v.string()),
     }))),
     // Per-marketplace account identifiers captured at login time so callers
     // (e.g. fetchBscChecklist) don't have to re-derive them on every request.

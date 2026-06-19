@@ -18,6 +18,12 @@ export const getUserProfile = query({
         site: v.string(),
         hasCredentials: v.boolean(),
         lastUpdated: v.optional(v.string()),
+        // Lock state surfaced to the UI for the reactive in-flight disable.
+        // lockToken is intentionally NOT exposed (server-only — see projection).
+        lockedAt: v.optional(v.number()),
+        lockedOp: v.optional(
+          v.union(v.literal("store"), v.literal("test"), v.literal("delete")),
+        ),
       }))),
       marketplaceAccountIds: marketplaceAccountIdsValidator,
       preferences: v.optional(v.object({
@@ -45,7 +51,15 @@ export const getUserProfile = query({
 
     return {
       userId: profile.userId,
-      siteCredentials: profile.siteCredentials || [],
+      // Strip lockToken — it is server-only (required to release the lock and
+      // never sent to the client). lockedAt/lockedOp drive the reactive UI.
+      siteCredentials: (profile.siteCredentials || []).map((c) => ({
+        site: c.site,
+        hasCredentials: c.hasCredentials,
+        lastUpdated: c.lastUpdated,
+        lockedAt: c.lockedAt,
+        lockedOp: c.lockedOp,
+      })),
       marketplaceAccountIds: profile.marketplaceAccountIds,
       preferences: profile.preferences,
     };
@@ -260,6 +274,125 @@ export const removeSiteCredentialStatus = mutation({
     }
 
     return true;
+  },
+});
+
+// ─── Per-(user, site) credential-operation lock ──────────────────────────────
+// Serializes store / test-login / delete so a Clear can't race an in-flight
+// marketplace login and corrupt the stored token. A lock older than the lease
+// is stale and reclaimable (covers a crashed login that never released). Sized
+// above the worst-case login (loginWithRetry in credentials.ts: 60s/attempt ×
+// up to 4 retries + backoff = 270s). The happy path releases immediately in a
+// finally, so the lease only matters as a crash-recovery ceiling.
+// ⚠️ MAINTENANCE (security): if loginWithRetry's maxAttempts or per-attempt
+// timeout is raised, raise this lease in lockstep — otherwise a stale-lease
+// reclaim could hijack a still-running login (security-auditor, 2026-06-19).
+// The client mirror in app/profile/page.tsx must stay >= this value.
+export const CRED_LOCK_LEASE_MS = 5 * 60 * 1000;
+
+const lockedOpValidator = v.union(
+  v.literal("store"),
+  v.literal("test"),
+  v.literal("delete"),
+);
+
+/**
+ * Acquire the per-(user, site) credential lock. Called via ctx.runMutation from
+ * the node actions in credentials.ts, so userId is passed explicitly
+ * (internalMutation — not client-reachable). Convex mutations are serializable,
+ * so this read-check-set is race-free (two concurrent acquires can't both win).
+ * Returns { acquired: false, heldBy } when a live (non-lease-expired) lock
+ * already exists; the caller treats that as "operation in progress".
+ */
+export const acquireCredentialLock = internalMutation({
+  args: {
+    userId: v.string(),
+    site: v.string(),
+    op: lockedOpValidator,
+    token: v.string(),
+  },
+  returns: v.object({
+    acquired: v.boolean(),
+    heldBy: v.optional(lockedOpValidator),
+  }),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    const current = profile?.siteCredentials || [];
+    const idx = current.findIndex((c) => c.site === args.site);
+    const existing = idx >= 0 ? current[idx] : undefined;
+
+    // A live lock blocks acquisition; a stale (lease-expired) one is reclaimable.
+    if (
+      existing?.lockedAt != null &&
+      existing.lockedAt + CRED_LOCK_LEASE_MS > Date.now()
+    ) {
+      return { acquired: false, heldBy: existing.lockedOp };
+    }
+
+    const lockedEntry = {
+      site: args.site,
+      hasCredentials: existing?.hasCredentials ?? false,
+      lastUpdated: existing?.lastUpdated,
+      lockedAt: Date.now(),
+      lockedOp: args.op,
+      lockToken: args.token,
+    };
+
+    const updated = [...current];
+    if (idx >= 0) updated[idx] = lockedEntry;
+    else updated.push(lockedEntry);
+
+    if (profile) {
+      await ctx.db.patch(profile._id, { siteCredentials: updated });
+    } else {
+      await ctx.db.insert("userProfiles", {
+        userId: args.userId,
+        siteCredentials: updated,
+      });
+    }
+
+    return { acquired: true };
+  },
+});
+
+/**
+ * Release the per-(user, site) credential lock. Only clears the lock when the
+ * token matches, so we never stomp a lock that was reclaimed after the lease
+ * expired. Idempotent: a no-op if the entry is gone (e.g. a delete op removed
+ * it) or the token doesn't match.
+ */
+export const releaseCredentialLock = internalMutation({
+  args: {
+    userId: v.string(),
+    site: v.string(),
+    token: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+    if (!profile?.siteCredentials) return null;
+
+    const idx = profile.siteCredentials.findIndex((c) => c.site === args.site);
+    if (idx < 0) return null;
+    const entry = profile.siteCredentials[idx];
+    if (entry.lockToken !== args.token) return null; // someone else holds it now
+
+    const updated = [...profile.siteCredentials];
+    updated[idx] = {
+      site: entry.site,
+      hasCredentials: entry.hasCredentials,
+      lastUpdated: entry.lastUpdated,
+      // lockedAt / lockedOp / lockToken dropped — lock released.
+    };
+    await ctx.db.patch(profile._id, { siteCredentials: updated });
+    return null;
   },
 });
 

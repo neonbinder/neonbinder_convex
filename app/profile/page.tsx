@@ -87,6 +87,24 @@ export default function ProfilePage() {
       (cred) => cred.site === selectedSite && cred.hasCredentials,
     ) || false;
 
+  // Reactive in-flight guard. A credential op (store / test-login / delete)
+  // holds a per-(user, site) lock on the backend, surfaced as `lockedAt` on the
+  // profile. While ANY site has a LIVE lock, disable every credential control
+  // AND the site tabs so a Clear can't race an in-flight marketplace login. The
+  // backend release patches the row → this recomputes false (the disable lifts
+  // on completion, not on lease expiry). Must be >= the server lease in
+  // convex/userProfile.ts (CRED_LOCK_LEASE_MS); a stale lock (crashed op) is
+  // ignored after the lease and reclaimed by the next op. `profile === undefined`
+  // (loading) and legacy rows without the field read as not-busy.
+  const CRED_LOCK_LEASE_MS = 5 * 60 * 1000;
+  const anyCredentialOpInFlight =
+    profile?.siteCredentials?.some(
+      (cred) =>
+        typeof cred.lockedAt === "number" &&
+        cred.lockedAt + CRED_LOCK_LEASE_MS > Date.now(),
+    ) || false;
+  const credsBusy = isLoading || anyCredentialOpInFlight;
+
   // Set mounted flag after hydration
   useEffect(() => {
     setIsMounted(true);
@@ -227,7 +245,13 @@ export default function ProfilePage() {
     setIsLoading(true);
     setMessage("");
     try {
-      await deleteSiteCredentials({ site: selectedSite });
+      const result = await deleteSiteCredentials({ site: selectedSite });
+      if (!result.success) {
+        // e.g. "Another credential operation is in progress — try again."
+        setMessage(result.message);
+        setMessageType("error");
+        return;
+      }
       await removeCredentialStatus({ site: selectedSite });
       setUsername("");
       setPassword("");
@@ -710,9 +734,10 @@ export default function ProfilePage() {
                         role="tab"
                         aria-selected={isSelected}
                         aria-controls="site-credentials-panel"
-                        onClick={() => setSelectedSite(site.key)}
+                        onClick={() => { if (!credsBusy) setSelectedSite(site.key); }}
+                        disabled={credsBusy}
                         className={
-                          "px-4 py-2 rounded-md border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 " +
+                          "px-4 py-2 rounded-md border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed " +
                           (isSelected
                             ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-300"
                             : "border-slate-300 dark:border-slate-600 hover:border-green-500 text-foreground")
@@ -750,21 +775,21 @@ export default function ProfilePage() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <NeonButton
                     onClick={() => setEditMode(true)}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="flex-1"
                   >
                     Edit
                   </NeonButton>
                   <NeonButton
                     onClick={handleTestCredentials}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="flex-1 bg-slate-600 hover:bg-slate-700"
                   >
                     {isLoading ? "Testing..." : "Test Credentials"}
                   </NeonButton>
                   <NeonButton
                     onClick={handleClearCredentials}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="flex-1 bg-red-600 hover:bg-red-700"
                   >
                     {isLoading ? "Clearing..." : "Clear Credentials"}
@@ -816,14 +841,14 @@ export default function ProfilePage() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <NeonButton
                     onClick={handleSaveCredentials}
-                    disabled={isLoading || !username || !password}
+                    disabled={credsBusy || !username || !password}
                     className="flex-1"
                   >
                     {isLoading ? "Saving..." : "Save Credentials"}
                   </NeonButton>
                   <NeonButton
                     onClick={handleTestCredentials}
-                    disabled={isLoading || !hasStoredCredentials}
+                    disabled={credsBusy || !hasStoredCredentials}
                     className="flex-1 bg-slate-600 hover:bg-slate-700"
                   >
                     {isLoading ? "Testing..." : "Test Stored Credentials"}
@@ -831,7 +856,7 @@ export default function ProfilePage() {
                   {hasStoredCredentials && (
                     <NeonButton
                       onClick={handleClearCredentials}
-                      disabled={isLoading}
+                      disabled={credsBusy}
                       className="flex-1 bg-red-600 hover:bg-red-700"
                     >
                       {isLoading ? "Clearing..." : "Clear Credentials"}
@@ -841,7 +866,7 @@ export default function ProfilePage() {
                 {hasStoredCredentials && (
                   <NeonButton
                     onClick={() => setEditMode(false)}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="mt-2"
                   >
                     Cancel
@@ -857,14 +882,14 @@ export default function ProfilePage() {
                 <div className="flex gap-3">
                   <NeonButton
                     onClick={handleConfirmClear}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="bg-red-600 hover:bg-red-700"
                   >
                     {isLoading ? "Clearing..." : "Yes, Clear"}
                   </NeonButton>
                   <NeonButton
                     onClick={() => setConfirmingClear(false)}
-                    disabled={isLoading}
+                    disabled={credsBusy}
                     className="bg-slate-600 hover:bg-slate-700"
                   >
                     Cancel

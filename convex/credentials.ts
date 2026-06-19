@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
 import { GoogleAuth, IdTokenClient } from "google-auth-library";
+import { randomUUID } from "crypto";
 
 const MAX_INPUT_LENGTH = 256;
 const SUPPORTED_SITES = ["buysportscards", "sportlots"];
@@ -108,6 +109,38 @@ function validateInputLength(value: string, fieldName: string) {
   }
 }
 
+// Run a credential operation (store / test-login / delete) under the
+// per-(user, site) lock so it can't race another credential op against the
+// same key (e.g. a Clear interleaving an in-flight login → corrupted token).
+// On contention (another op already in flight) returns `busyResult` WITHOUT
+// running body — idiomatic "loser re-runs" (the UI also disables the action
+// reactively, so a user rarely hits this). Releases in a finally so the happy
+// path frees the lock immediately; a server-minted token guards release.
+async function withCredentialLock<T>(
+  ctx: { runMutation: (ref: any, args: any) => Promise<any> },
+  userId: string,
+  site: string,
+  op: "store" | "test" | "delete",
+  body: () => Promise<T>,
+  busyResult: T,
+): Promise<T> {
+  const token = randomUUID();
+  const lock = (await ctx.runMutation(
+    internal.userProfile.acquireCredentialLock,
+    { userId, site, op, token },
+  )) as { acquired: boolean };
+  if (!lock.acquired) return busyResult;
+  try {
+    return await body();
+  } finally {
+    await ctx.runMutation(internal.userProfile.releaseCredentialLock, {
+      userId,
+      site,
+      token,
+    });
+  }
+}
+
 /**
  * Store username/password credentials for a site.
  * Sends to browser service which stores in GCP and validates login.
@@ -132,45 +165,50 @@ export const storeSiteCredentials = action({
     validateInputLength(args.username, "Username");
     validateInputLength(args.password, "Password");
 
-    try {
-      const key = credKey(args.site, userId);
+    return withCredentialLock(ctx, userId, args.site, "store", async () => {
+      try {
+        const key = credKey(args.site, userId);
 
-      // Store credentials without marketplace validation.
-      // Use "Test Credentials" to validate against the marketplace separately.
-      const response = await browserFetch(`/credentials/${key}`, {
-        method: "PUT",
-        headers: await browserAuthHeaders(),
-        body: JSON.stringify({
-          username: args.username,
-          password: args.password,
-        }),
-      });
+        // Store credentials without marketplace validation.
+        // Use "Test Credentials" to validate against the marketplace separately.
+        const response = await browserFetch(`/credentials/${key}`, {
+          method: "PUT",
+          headers: await browserAuthHeaders(),
+          body: JSON.stringify({
+            username: args.username,
+            password: args.password,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          return {
+            success: false,
+            message: (errorData as { error?: string }).error || `Failed to store credentials for ${args.site}`,
+          };
+        }
+
+        return {
+          success: true,
+          secretId: key,
+          message: `Credentials stored successfully for ${args.site}`,
+        };
+      } catch (error) {
+        const detail = error instanceof Error
+          ? `${error.name}: ${error.message}${error.cause ? ` (cause: ${String(error.cause)})` : ""}`
+          : String(error);
+        console.error(
+          `[storeSiteCredentials] site=${args.site} url=${browserUrl()} threw: ${detail}`,
+        );
         return {
           success: false,
-          message: (errorData as { error?: string }).error || `Failed to store credentials for ${args.site}`,
+          message: "Failed to store credentials securely",
         };
       }
-
-      return {
-        success: true,
-        secretId: key,
-        message: `Credentials stored successfully for ${args.site}`,
-      };
-    } catch (error) {
-      const detail = error instanceof Error
-        ? `${error.name}: ${error.message}${error.cause ? ` (cause: ${String(error.cause)})` : ""}`
-        : String(error);
-      console.error(
-        `[storeSiteCredentials] site=${args.site} url=${browserUrl()} threw: ${detail}`,
-      );
-      return {
-        success: false,
-        message: "Failed to store credentials securely",
-      };
-    }
+    }, {
+      success: false,
+      message: "Another credential operation is in progress — try again.",
+    });
   },
 });
 
@@ -304,7 +342,7 @@ export const getSiteToken = internalAction({
         // even though credentials exist. Confirmed E2E root cause: a worker's
         // token was evicted ~18min after warm, so a later sport/year fetch got
         // a null token and the column came up empty (no Football, etc.).
-        const minted = await refreshSiteToken(ctx, args.site);
+        const minted = await refreshSiteToken(ctx, userId, args.site);
         if (!minted) return null;
         return await readCachedToken(args.site, userId);
       }
@@ -318,7 +356,7 @@ export const getSiteToken = internalAction({
       // own authenticate action. Each site has its own action because
       // the login flow + post-login bookkeeping (e.g. BSC sellerId
       // capture) differs per marketplace.
-      const refreshed = await refreshSiteToken(ctx, args.site);
+      const refreshed = await refreshSiteToken(ctx, userId, args.site);
       if (!refreshed) {
         // Refresh failed; fall back to the (likely stale) cached
         // token rather than null — let the caller's 401 path surface
@@ -344,28 +382,39 @@ export const getSiteToken = internalAction({
  * tokens properly.
  */
 async function refreshSiteToken(
-  ctx: { runAction: (ref: any, args: any) => Promise<unknown> },
+  ctx: {
+    runAction: (ref: any, args: any) => Promise<unknown>;
+    runMutation: (ref: any, args: any) => Promise<any>;
+  },
+  userId: string,
   site: string,
 ): Promise<boolean> {
-  try {
-    if (site === "buysportscards") {
-      const result = (await ctx.runAction(internal.credentials.authenticateBsc, {})) as {
-        success: boolean;
-      };
-      return result.success;
+  // Contend for the per-(user, site) credential lock: a background refresh runs
+  // the same login that writes a token to Secret Manager, so without this a
+  // fetch-driven re-auth could re-mint a token right after a user Clear (the
+  // same corruption class). On contention treat as refresh-failed (false) —
+  // getSiteToken then falls back to the cached token or null, both safe.
+  return withCredentialLock(ctx, userId, site, "test", async () => {
+    try {
+      if (site === "buysportscards") {
+        const result = (await ctx.runAction(internal.credentials.authenticateBsc, {})) as {
+          success: boolean;
+        };
+        return result.success;
+      }
+      if (site === "sportlots") {
+        const result = (await ctx.runAction(internal.credentials.authenticateSportlots, {})) as {
+          success: boolean;
+        };
+        return result.success;
+      }
+      console.warn(`[refreshSiteToken] no refresh handler for site: ${site}`);
+      return false;
+    } catch (error) {
+      console.error(`[refreshSiteToken] ${site} refresh threw:`, error);
+      return false;
     }
-    if (site === "sportlots") {
-      const result = (await ctx.runAction(internal.credentials.authenticateSportlots, {})) as {
-        success: boolean;
-      };
-      return result.success;
-    }
-    console.warn(`[refreshSiteToken] no refresh handler for site: ${site}`);
-    return false;
-  } catch (error) {
-    console.error(`[refreshSiteToken] ${site} refresh threw:`, error);
-    return false;
-  }
+  }, false);
 }
 
 /**
@@ -385,31 +434,36 @@ export const deleteSiteCredentials = action({
       throw new Error("Not authenticated");
     }
 
-    try {
-      const key = credKey(args.site, userId);
-      const response = await browserFetch(`/credentials/${key}`, {
-        method: "DELETE",
-        headers: await browserAuthHeaders(),
-      });
+    return withCredentialLock(ctx, userId, args.site, "delete", async () => {
+      try {
+        const key = credKey(args.site, userId);
+        const response = await browserFetch(`/credentials/${key}`, {
+          method: "DELETE",
+          headers: await browserAuthHeaders(),
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
+          return {
+            success: false,
+            message: "Failed to delete credentials",
+          };
+        }
+
+        return {
+          success: true,
+          message: `Credentials deleted successfully for ${args.site}`,
+        };
+      } catch (error) {
+        console.error(`Failed to delete credentials for ${args.site}`);
         return {
           success: false,
           message: "Failed to delete credentials",
         };
       }
-
-      return {
-        success: true,
-        message: `Credentials deleted successfully for ${args.site}`,
-      };
-    } catch (error) {
-      console.error(`Failed to delete credentials for ${args.site}`);
-      return {
-        success: false,
-        message: "Failed to delete credentials",
-      };
-    }
+    }, {
+      success: false,
+      message: "Another credential operation is in progress — try again.",
+    });
   },
 });
 
@@ -465,49 +519,62 @@ export const testSiteCredentials = action({
   }),
   handler: async (ctx, args): Promise<{ success: boolean; message: string; details?: string }> => {
     console.log(`[testSiteCredentials] Starting credential test for site: ${args.site}`);
-    try {
-      switch (args.site) {
-        case "buysportscards": {
-          console.log("[testSiteCredentials] Dispatching to authenticateBsc");
-          const result = await ctx.runAction(
-            internal.credentials.authenticateBsc,
-            {},
-          );
-          console.log(`[testSiteCredentials] authenticateBsc returned: success=${result.success}`);
-          return result;
-        }
-
-        case "ebay": {
-          console.log("[testSiteCredentials] Dispatching to ebay.testCredentials");
-          const result = await ctx.runAction(api.adapters.ebay.testCredentials, {});
-          console.log(`[testSiteCredentials] ebay.testCredentials returned: success=${result.success}`);
-          return result;
-        }
-
-        case "sportlots": {
-          console.log("[testSiteCredentials] Dispatching to authenticateSportlots");
-          const result = await ctx.runAction(
-            internal.credentials.authenticateSportlots,
-            {},
-          );
-          console.log(`[testSiteCredentials] authenticateSportlots returned: success=${result.success}`);
-          return result;
-        }
-
-        default:
-          console.log(`[testSiteCredentials] Unsupported site: ${args.site}`);
-          return {
-            success: false,
-            message: `Unsupported site: ${args.site}`,
-          };
-      }
-    } catch (error) {
-      console.error(`[testSiteCredentials] Error testing credentials for ${args.site}:`, error);
-      return {
-        success: false,
-        message: "Authentication test failed. Please check your credentials and try again.",
-      };
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
     }
+
+    // Hold the per-(user, site) lock across the whole login round-trip (the
+    // inner authenticate action, up to ~60s/attempt). The inner authenticate*
+    // actions do NOT re-acquire — the lock is non-reentrant on the same key.
+    return withCredentialLock(ctx, userId, args.site, "test", async () => {
+      try {
+        switch (args.site) {
+          case "buysportscards": {
+            console.log("[testSiteCredentials] Dispatching to authenticateBsc");
+            const result = await ctx.runAction(
+              internal.credentials.authenticateBsc,
+              {},
+            );
+            console.log(`[testSiteCredentials] authenticateBsc returned: success=${result.success}`);
+            return result;
+          }
+
+          case "ebay": {
+            console.log("[testSiteCredentials] Dispatching to ebay.testCredentials");
+            const result = await ctx.runAction(api.adapters.ebay.testCredentials, {});
+            console.log(`[testSiteCredentials] ebay.testCredentials returned: success=${result.success}`);
+            return result;
+          }
+
+          case "sportlots": {
+            console.log("[testSiteCredentials] Dispatching to authenticateSportlots");
+            const result = await ctx.runAction(
+              internal.credentials.authenticateSportlots,
+              {},
+            );
+            console.log(`[testSiteCredentials] authenticateSportlots returned: success=${result.success}`);
+            return result;
+          }
+
+          default:
+            console.log(`[testSiteCredentials] Unsupported site: ${args.site}`);
+            return {
+              success: false,
+              message: `Unsupported site: ${args.site}`,
+            };
+        }
+      } catch (error) {
+        console.error(`[testSiteCredentials] Error testing credentials for ${args.site}:`, error);
+        return {
+          success: false,
+          message: "Authentication test failed. Please check your credentials and try again.",
+        };
+      }
+    }, {
+      success: false,
+      message: "Another credential operation is in progress — try again.",
+    });
   },
 });
 
