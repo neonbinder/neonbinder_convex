@@ -51,6 +51,9 @@ jobs:
     timeout-minutes: 350 # ~24m/sample; 350 covers up to ~12 sequential samples
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # No checkout in this job, so gh can't infer the repo from git context —
+      # pin it explicitly (otherwise gh errors "not a git repository").
+      GH_REPO: ${{ github.repository }}
       # On a tag push, github.ref_name is the tag — not a branch — so pin the
       # branch under test. On workflow_dispatch (once on main) use the dispatch ref.
       REF: ${{ github.event_name == 'push' && 'jburich/sync-maestro-agent-memory' || github.ref_name }}
@@ -71,7 +74,12 @@ jobs:
             before=$(gh run list --workflow "E2E Tests" --branch "$REF" \
               --event workflow_dispatch --limit 1 --json databaseId \
               --jq '.[0].databaseId // "0"' 2>/dev/null || echo 0)
-            gh workflow run e2e-tests.yml --ref "$REF"
+            if ! gh workflow run e2e-tests.yml --ref "$REF"; then
+              echo "::warning::sample $i: workflow dispatch call failed — skipping"
+              echo "sample $i: DISPATCH_FAILED" >> samples.txt
+              echo "::endgroup::"
+              continue
+            fi
             rid=""
             for t in $(seq 1 36); do
               sleep 5
