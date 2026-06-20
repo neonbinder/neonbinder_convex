@@ -126,7 +126,7 @@ export default async function handler(
   const worker = parsedWorker.index;
   const testEmail = resolveTestEmail(account, worker);
   if (!testEmail) {
-    const baseKey = account === "main" ? "TEST_EMAIL" : "NEW_PROFILE_TEST_EMAIL";
+    const baseKey = ACCOUNT_EMAIL_KEY[account];
     const detail = worker !== null ? ` (tried ${baseKey}_${worker} and ${baseKey})` : "";
     res.status(500).json({
       error: `${baseKey} not configured for account "${account}"${detail}`,
