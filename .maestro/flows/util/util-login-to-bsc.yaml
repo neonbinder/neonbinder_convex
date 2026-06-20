@@ -37,8 +37,7 @@ tags:
 # ============================================================
 # FORCE A FRESH BSC LOGIN — tap "Test Credentials"
 # The "Test Credentials" button triggers the Puppeteer BSC login and
-# refreshes the sellerId stored in the DB. This is the step that
-# setup-bsc-credentials.yaml skips when creds are already present.
+# refreshes the sellerId stored in the DB.
 # Cloud Run cold-starts can add 20–30 s to the login round-trip.
 # ============================================================
 
