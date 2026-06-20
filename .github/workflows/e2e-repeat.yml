@@ -27,6 +27,14 @@ on:
         required: false
         default: "5"
         type: string
+  # NOTE: workflow_dispatch only works once this file is on the DEFAULT branch.
+  # Until it's merged to main, trigger a sweep by pushing a tag like
+  # `e2e-sample-run1` at this branch's HEAD — tag/push triggers run the workflow
+  # from the pushed ref, with no default-branch requirement. Tag triggers can't
+  # pass `count`, so they use the script's default (8).
+  push:
+    tags:
+      - "e2e-sample-*"
 
 # Don't let a second dispatch cancel an in-flight sampling sweep.
 concurrency:
@@ -43,14 +51,16 @@ jobs:
     timeout-minutes: 350 # ~24m/sample; 350 covers up to ~12 sequential samples
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      REF: ${{ github.ref_name }}
+      # On a tag push, github.ref_name is the tag — not a branch — so pin the
+      # branch under test. On workflow_dispatch (once on main) use the dispatch ref.
+      REF: ${{ github.event_name == 'push' && 'jburich/sync-maestro-agent-memory' || github.ref_name }}
       COUNT: ${{ inputs.count }}
     steps:
       - name: Run "E2E Tests" N times sequentially
         run: |
           set -uo pipefail
-          n="${COUNT:-5}"
-          case "$n" in (*[!0-9]*|'') n=5;; esac
+          n="${COUNT:-8}"
+          case "$n" in (*[!0-9]*|'') n=8;; esac
           [ "$n" -lt 1 ] && n=1
           [ "$n" -gt 12 ] && n=12
           echo "Running $n sequential E2E samples on ref '$REF'"
