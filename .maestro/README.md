@@ -157,6 +157,32 @@ two buckets.
      absorbs taps to elements at y < 64. Always center scroll targets
      mid-viewport, not at the top edge.
 
+## Navigation in flows: prefer `openLink` over tapping links
+
+**Tapping an element that triggers a page navigation can crash maestro-web
+intermittently** — upstream bug
+[mobile-dev-inc/maestro#2944](https://github.com/mobile-dev-inc/maestro/issues/2944)
+(open as of 2026-06). After every `tapOn`, maestro-web re-parses the DOM to
+confirm the UI settled; if the tap kicked off a client-side navigation that
+tears down the page mid-parse, an unguarded cast in `CdpWebDriver` throws
+(`LinkedHashMap cannot be cast to String`, or our variant
+`null cannot be cast to non-null type kotlin.Int`) and the flow dies with a
+generic **"Unknown error"**. It's a *race* — passes most of the time, fails
+intermittently. Example: `profile/fill-profile-data` passed 7/8 overnight, then
+crashed on `tapOn "View your profile"` (CI run 27905676068).
+
+| Intent | Do | Why |
+|---|---|---|
+| Navigate to reach a page (most cases) | `openLink: ${APP_URL …}/path` | Deterministic, faster, no post-tap DOM-parse race |
+| Verify a link points to the right place | `assertVisible` its href/text, then `openLink` to the target | Tests "wired correctly" + "target renders" without the racy click |
+| Exercise a click *handler* with real logic (guards, side effects, modals) | actually `tapOn` | Here the click IS the behaviour under test — accept retry / mitigate |
+
+Navigation is usually a *means*, not the thing under test — when it's a means,
+`openLink` is strictly better. You only need a real click when the handler does
+something beyond plain navigation; for a plain `<a href>` you lose nothing by
+navigating directly. **Watch #2944**: once it's fixed and we bump maestro, real
+click-navigation becomes reliable and this convention can relax.
+
 ## Worker-state seeding
 
 The cascade's `requires:` / `provides:` dependency graph IS the seeding

@@ -1,5 +1,9 @@
 # Maestro E2E Author — Memory Index
 
+- ⭐ [Navigation: openLink, not link taps (maestro-web #2944)](feedback_navigation_openlink_convention.md): tapping a link that triggers navigation intermittently crashes maestro-web (`null→kotlin.Int` / `LinkedHashMap→String` cast in CdpWebDriver's post-tap DOM parse; surfaced as "Unknown error"). Default to `openLink` to navigate; assert href + openLink to verify a link; only `tapOn`-navigate when the click handler has real logic. Watch upstream #2944 for the fix.
+
+- [tapOn does NOT auto-scroll on web headless (2026-06-20)](feedback_tapOn_autoscroll_experiment.md): 0/5 vs 5/5 — direct tapOn on below-fold elements always fails with "Element not found"; scrollUntilVisible is non-negotiable. Taller viewport (1024×900) reduces scroll time ~2.9s but does NOT eliminate the need.
+
 - `clearState: true` on `launchApp` DOES clear the Clerk session (confirmed 2026-06-19, tracker #52). Worker left signed-in by sign-in flow → ai-identification with clearState → "Get Started" appeared unconditionally → CTA fully tested. Use `launchApp: { clearState: true }` in any flow that must start signed-out regardless of prior worker state.
 
 - [Drill tap timing root cause](feedback_drill_tap_timing.md): `waitToSettleTimeoutMs: 0` has zero effect on tap duration. The 2s/tap is `hierarchyBasedTap` change-detection, not post-action settle. Do not tune settle expecting speedup; reduce action count instead.
