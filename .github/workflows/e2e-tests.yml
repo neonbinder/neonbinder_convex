@@ -299,6 +299,27 @@ jobs:
           pattern: maestro-report-runner-*
           path: all-shards
 
+      - name: ⏱️ Flow timing summary (slowest first)
+        if: always()
+        run: |
+          {
+            echo "## ⏱️ Flow timings (slowest first)"
+            echo "| flow | seconds |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Pull "time<TAB>name" from every flow's JUnit <testsuite>, sort slowest-first,
+          # flag anything over 3 min. (maestro writes one testsuite per flow with time=.)
+          find all-shards -path '*/junit/*.xml' -print0 2>/dev/null \
+            | xargs -0 grep -hoE '<testsuite [^>]*>' 2>/dev/null \
+            | sed -E 's/.*name="([^"]+)"[^>]*time="([0-9.]+)".*/\2\t\1/' \
+            | sort -rn \
+            | awk -F'\t' '
+                { secs=$1+0; name=$2; total+=secs; if (secs>180) slow++;
+                  flag=(secs>180)?" :warning:":"";
+                  printf "| %s%s | %.0f |\n", name, flag, secs }
+                END { printf "\n**Total flow-seconds:** %.0f &middot; **flows > 3 min:** %d\n", total, slow }
+              ' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish Maestro JUnit report (merged)
         if: always()
         uses: mikepenz/action-junit-report@v5

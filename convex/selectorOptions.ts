@@ -3,7 +3,6 @@ import {
   mutation,
   action,
   internalMutation,
-  internalQuery,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
@@ -327,10 +326,10 @@ export const getAncestorChain = query({
         sportlotsDisplay: v.optional(v.string()),
       }),
       metadata: metadataValidator,
-      // NEO-38: surface ancestor setMetadata so callers (the in-band TCDB
-      // apply in commitCardChecklist, SetFeaturesPanel) can read the
-      // setName-level release date / tcdbSetId etc. without a second
-      // round-trip. Shape mirrors the `setMetadata` column on schema.ts.
+      // NEO-38: surface ancestor setMetadata so callers (SetAttributesPanel)
+      // can read the setName-level release date / tcdbSetId etc. without a
+      // second round-trip. These fields are manually edited (no auto-sync).
+      // Shape mirrors the `setMetadata` column on schema.ts.
       setMetadata: setMetadataValidator,
       // NEO-24: surface ancestor features so callers (commitCardChecklist
       // inheritance merge, SetFeaturesPanel) can resolve effective values
@@ -1174,7 +1173,7 @@ export const addCustomCard = mutation({
     // NEO-38: precedence = materialized ancestor node features < card-observed
     // facts. The set-level heuristic now lives on the nodes (no per-card
     // deriveSetLevelFeatures merge), which fixes the bug where a per-card
-    // heuristic shadowed authoritative TCDB values written at the node.
+    // heuristic shadowed authoritative values written at the node.
     const mergedFeatures: Record<string, string> = {
       ...inheritedFeatures,
       ...deriveCardObservedFeatures({ attributes: args.attributes }),
@@ -1375,7 +1374,7 @@ export const getDescendantCardCount = query({
 
 /**
  * NEO-38: core materialization routine shared by the public
- * `setSelectorOptionFeature` mutation AND the in-mutation heuristic/TCDB seed
+ * `setSelectorOptionFeature` mutation AND the in-mutation heuristic seed
  * inside `commitCardChecklist`. Convex mutations can't call other mutations
  * (no ctx.runMutation in a mutation), so the propagation logic lives here as a
  * plain helper that takes a mutation `ctx`.
@@ -1486,63 +1485,6 @@ export async function materializeSelectorOptionFeature(
     propagatedToNodeCount,
     skippedAsOverridden,
   };
-}
-
-/**
- * NEO-38: apply an in-band TCDB preview at the setName node. Called from inside
- * `commitCardChecklist` (a mutation) AFTER the heuristic node-seed, so TCDB's
- * authoritative value overrides the heuristic via the materialization rule:
- * the heuristic value we wrote a moment ago becomes the node's "old value",
- * which TCDB's write matches-and-overwrites all the way down the subtree (a
- * descendant that still carries the heuristic value follows TCDB; a descendant
- * that an operator overrode keeps its own value).
- *
- * No-op when there's no setName node, no TCDB data, or TCDB was unavailable.
- * setMetadata is merge-patched (same semantics as `setSetMetadata`); features
- * are written through `materializeSelectorOptionFeature`.
- */
-async function applyTcdbToSetNameNode(
-  ctx: { db: { get: any; patch: any; query: any } },
-  setNameNodeId: Id<"selectorOptions"> | undefined,
-  tcdb:
-    | {
-        tcdbUnavailable: boolean;
-        setMetadata?: {
-          releaseDate?: string;
-          totalCardCount?: number;
-          block?: string;
-          tcdbSetId?: string;
-          sourceUrl?: string;
-          lastSyncedAt?: number;
-        };
-        features?: Record<string, string>;
-      }
-    | undefined,
-): Promise<void> {
-  if (!setNameNodeId) return;
-  if (!tcdb || tcdb.tcdbUnavailable) return;
-
-  // 1. Merge-patch setMetadata onto the setName node (preserve existing keys).
-  if (tcdb.setMetadata && Object.keys(tcdb.setMetadata).length > 0) {
-    const node = await ctx.db.get(setNameNodeId);
-    if (node) {
-      await ctx.db.patch(setNameNodeId, {
-        setMetadata: { ...(node.setMetadata ?? {}), ...tcdb.setMetadata },
-        lastUpdated: Date.now(),
-      });
-    }
-  }
-
-  // 2. Materialize each TCDB feature at the setName node. Because this runs
-  //    after the heuristic seed, the node's current value for these keys is the
-  //    heuristic value (or an operator override) — materialize overwrites the
-  //    heuristic and cascades down; operator overrides on descendants persist.
-  if (tcdb.features) {
-    for (const [key, value] of Object.entries(tcdb.features)) {
-      if (typeof value !== "string" || value.trim() === "") continue;
-      await materializeSelectorOptionFeature(ctx, setNameNodeId, key, value);
-    }
-  }
 }
 
 export const setSelectorOptionFeature = mutation({
@@ -2312,6 +2254,227 @@ function withChildDeadline<T>(
   ]);
 }
 
+// ─── SetSelector sync redesign (NEO-47) ──────────────────────────────────────
+// One marketplace-agnostic door for the FE: it reads options via
+// getSelectorOptions and, when a column opens empty, calls ensureSelectorOptions.
+// The backend owns the whole "should I sync, and how" decision (already
+// populated? custom subtree? which level-strategy?) and reports progress via the
+// selectorSyncStatus table, which the FE reads reactively to drive loading/error
+// — replacing EntityColumn's fragile sync state-machine + onDone handoff.
+// Phase 1 routes the aggregator levels (sport/year/manufacturer/variantType);
+// setName + insert/parallel keep their existing path until Phases 2-3.
+
+/** Write/clear the transient per-(level,parentId) sync status. status omitted = clear (delete). */
+export const setSelectorSyncStatus = internalMutation({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    status: v.optional(v.union(v.literal("syncing"), v.literal("error"))),
+    message: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("selectorSyncStatus")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", args.level).eq("parentId", args.parentId),
+      )
+      .first();
+    if (!args.status) {
+      if (existing) await ctx.db.delete(existing._id);
+      return null;
+    }
+    const fields = {
+      status: args.status,
+      message: args.message,
+      requestId: args.requestId,
+      updatedAt: Date.now(),
+    };
+    if (existing) await ctx.db.patch(existing._id, fields);
+    else
+      await ctx.db.insert("selectorSyncStatus", {
+        level: args.level,
+        parentId: args.parentId,
+        ...fields,
+      });
+    return null;
+  },
+});
+
+/** Reactive sync status for one column (FE-facing). null = idle (not syncing, no error). */
+export const getSelectorSyncStatus = query({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+  },
+  returns: v.union(
+    v.object({
+      status: v.union(v.literal("syncing"), v.literal("error")),
+      message: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    // Admin-gated like every other query in this file — the whole set-builder
+    // taxonomy is admin-managed (getSelectorOptions/getAncestorChain gate too),
+    // and `message` may carry backend sync detail that must not reach non-admins.
+    await requireAdmin(ctx);
+    const row = await ctx.db
+      .query("selectorSyncStatus")
+      .withIndex("by_level_and_parent", (q) =>
+        q.eq("level", args.level).eq("parentId", args.parentId),
+      )
+      .first();
+    return row ? { status: row.status, message: row.message } : null;
+  },
+});
+
+// User-safe error surfaced via the reactive selectorSyncStatus.message — the
+// raw sync/exception detail goes to console.error only, never into reactive
+// state (security audit, NEO-47).
+const SYNC_ERROR_MESSAGE = "Couldn't sync options — please try again.";
+
+/**
+ * The single FE entry point to populate a column (NEO-47). An ACTION, not a
+ * mutation+scheduler: a scheduled function runs with NO auth (system identity),
+ * so fetchAggregatedOptions' requireAdmin threw "Not authenticated". ctx.runAction
+ * from an authenticated action PROPAGATES the caller's admin identity, so we run
+ * the sync inline instead. Backend owns every decision: already-populated → no-op;
+ * custom subtree → no-op (the uniform skip the legacy paths applied
+ * inconsistently); else mark "syncing", run the level's sync, clear/error the
+ * status. The FE fires this (fire-and-forget) and watches selectorSyncStatus
+ * reactively, so the long fetch never blocks the UI.
+ */
+export const ensureSelectorOptions = action({
+  args: {
+    level: levelValidator,
+    parentId: v.optional(v.id("selectorOptions")),
+    force: v.optional(v.boolean()),
+  },
+  returns: v.object({ ran: v.boolean(), reason: v.string() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ ran: boolean; reason: string }> => {
+    await requireAdmin(ctx);
+    const { level, parentId, force } = args;
+
+    // Already populated? (skip unless a forced refresh)
+    if (!force) {
+      const existing = await ctx.runQuery(
+        api.selectorOptions.getSelectorOptions,
+        { level, parentId },
+      );
+      if (existing.length > 0)
+        return { ran: false, reason: "already_populated" };
+    }
+
+    // Derive the chain once: uniform custom-subtree skip + parentFilters + the
+    // year id (setName syncs at the year level — BSC has no manufacturer facet).
+    const parentFilters: {
+      sport?: string;
+      year?: string;
+      manufacturer?: string;
+      setName?: string;
+    } = {};
+    let yearId: Id<"selectorOptions"> | undefined;
+    if (parentId) {
+      const chain = await ctx.runQuery(api.selectorOptions.getAncestorChain, {
+        id: parentId,
+      });
+      // A custom ancestor has no marketplace presence → no level below it syncs.
+      // (The legacy fetchRawOptions lacked this skip entirely.)
+      if (isCustomSubtree(chain)) {
+        await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+          level,
+          parentId,
+        });
+        return { ran: false, reason: "custom_subtree" };
+      }
+      for (const a of chain) {
+        if (a.level === "year") yearId = a._id;
+        if (
+          a.level === "sport" ||
+          a.level === "year" ||
+          a.level === "manufacturer" ||
+          a.level === "setName"
+        ) {
+          parentFilters[a.level] = a.value;
+        }
+      }
+    }
+
+    const requestId = newRequestId();
+    await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+      level,
+      parentId,
+      status: "syncing",
+      requestId,
+    });
+    try {
+      // Dispatch by level. setName syncs at the year level via
+      // syncSetsAcrossManufacturers (BSC-only, manufacturer derived by
+      // prefix-match — all that taxonomy-stitching stays inside that action,
+      // below this door). Aggregator levels go through fetchAggregatedOptions.
+      let res: { success: boolean; message: string };
+      if (level === "setName") {
+        if (!yearId) {
+          await ctx.runMutation(
+            internal.selectorOptions.setSelectorSyncStatus,
+            {
+              level,
+              parentId,
+              status: "error",
+              message: "Cannot sync sets — no year ancestor.",
+            },
+          );
+          return { ran: true, reason: "error" };
+        }
+        res = await ctx.runAction(
+          api.selectorOptions.syncSetsAcrossManufacturers,
+          { yearId },
+        );
+      } else {
+        res = await ctx.runAction(
+          api.selectorOptions.fetchAggregatedOptions,
+          { level, parentId, parentFilters },
+        );
+      }
+      if (!res.success) {
+        // Raw sync detail → logs only; the persisted/reactive `message` stays
+        // a user-safe string (security audit, NEO-47).
+        console.error(
+          `[ensureSelectorOptions] sync error (${level}):`,
+          res.message,
+        );
+      }
+      await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+        level,
+        parentId,
+        // success OR empty → clear (idle); a real failure → recoverable error.
+        ...(res.success
+          ? {}
+          : { status: "error" as const, message: SYNC_ERROR_MESSAGE }),
+      });
+      return { ran: true, reason: res.success ? "synced" : "error" };
+    } catch (e) {
+      // Raw exception detail → logs only; reactive `message` stays generic.
+      console.error(
+        `[ensureSelectorOptions] sync threw (${level}):`,
+        e instanceof Error ? e.message : e,
+      );
+      await ctx.runMutation(internal.selectorOptions.setSelectorSyncStatus, {
+        level,
+        parentId,
+        status: "error",
+        message: SYNC_ERROR_MESSAGE,
+      });
+      return { ran: true, reason: "error" };
+    }
+  },
+});
+
 export const fetchAggregatedOptions = action({
   args: {
     level: levelValidator,
@@ -3045,17 +3208,6 @@ const previewCardValidator = v.object({
   unmatched: v.optional(v.union(v.literal("bsc"), v.literal("sl"))),
 });
 
-// NEO-38: in-band TCDB result attached to the checklist preview. The same shape
-// is accepted back by `commitCardChecklist` so the operator-reviewed TCDB data
-// is applied at the setName node (and overrides the heuristic seed there).
-const tcdbPreviewValidator = v.object({
-  // false when TCDB returned usable data; true on Cloudflare/unavailable/error/
-  // no-confident-match. When true, setMetadata/features are absent.
-  tcdbUnavailable: v.boolean(),
-  setMetadata: v.optional(setMetadataObjectValidator),
-  features: v.optional(v.record(v.string(), v.string())),
-});
-
 /**
  * Action — fetch reconciled checklist preview without persisting.
  *
@@ -3084,10 +3236,6 @@ export const fetchCardChecklist = action({
     cards: v.array(previewCardValidator),
     unknownPlayers: v.array(v.string()),
     unknownTeams: v.array(v.string()),
-    // NEO-38: in-band TCDB preview (run concurrently with BSC/SL). Absent when
-    // the chain has no setName ancestor (e.g. fetching at a level above
-    // setName) or when sport/year couldn't be resolved.
-    tcdb: v.optional(tcdbPreviewValidator),
   }),
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -3111,18 +3259,6 @@ export const fetchCardChecklist = action({
     }>;
     unknownPlayers: string[];
     unknownTeams: string[];
-    tcdb?: {
-      tcdbUnavailable: boolean;
-      setMetadata?: {
-        releaseDate?: string;
-        totalCardCount?: number;
-        block?: string;
-        tcdbSetId?: string;
-        sourceUrl?: string;
-        lastSyncedAt?: number;
-      };
-      features?: Record<string, string>;
-    };
   }> => {
     try {
       // Resolve ancestor chain → filter map + sport + cardNumberPrefix
@@ -3297,9 +3433,9 @@ export const fetchCardChecklist = action({
         }));
       };
 
-      // NEO-38: SL, BSC, and TCDB are independent network fetches. Run all
-      // three concurrently with Promise.allSettled so TCDB overlaps the
-      // marketplace fetches and a TCDB outage can never reject the others.
+      // SL and BSC are independent network fetches. Run both concurrently
+      // with Promise.allSettled so one marketplace's outage can never reject
+      // the other.
 
       const fetchSl = async (): Promise<SlCard[]> => {
         // Adapter signature is record<string,string>; flatten single-ID
@@ -3364,44 +3500,9 @@ export const fetchCardChecklist = action({
         });
       };
 
-      type TcdbActionResult = {
-        success: boolean;
-        tcdbUnavailable: boolean;
-        message?: string;
-        setMetadata?: {
-          releaseDate?: string;
-          totalCardCount?: number;
-          block?: string;
-          tcdbSetId?: string;
-          sourceUrl?: string;
-          lastSyncedAt?: number;
-        };
-        features?: Record<string, string>;
-      };
-      const fetchTcdb = async (): Promise<TcdbActionResult | null> => {
-        // TCDB keys off the canonical set name + sport + year. Only attempt
-        // when the chain actually carries a setName (fetching at a level above
-        // setName has no canonical set to look up). sport/year come from the
-        // chain `filters`.
-        if (!filters.setName || !sport || !filters.year) return null;
-        return await ctx.runAction(internal.adapters.tcdb.fetchTcdbSetData, {
-          sport: filters.sport ?? sport,
-          year: filters.year,
-          setName: filters.setName,
-        }).catch((err) => {
-          console.error(`[fetchCardChecklist] TCDB error:`, err);
-          return {
-            success: false as const,
-            tcdbUnavailable: true as const,
-            message: String(err),
-          };
-        });
-      };
-
-      const [slSettled, bscSettled, tcdbSettled] = await Promise.allSettled([
+      const [slSettled, bscSettled] = await Promise.allSettled([
         fetchSl(),
         fetchBsc(),
-        fetchTcdb(),
       ]);
 
       const slCards: SlCard[] =
@@ -3410,27 +3511,7 @@ export const fetchCardChecklist = action({
         bscSettled.status === "fulfilled"
           ? bscSettled.value
           : { success: false, cards: [] };
-      const tcdbActionResult: TcdbActionResult | null =
-        tcdbSettled.status === "fulfilled" ? tcdbSettled.value : null;
 
-      // Normalize TCDB into the preview shape. When the fetch was skipped
-      // (no setName/sport/year) we leave `tcdb` undefined; otherwise we always
-      // surface a tcdb object (tcdbUnavailable flag tells the UI what happened).
-      const tcdbPreview:
-        | {
-            tcdbUnavailable: boolean;
-            setMetadata?: TcdbActionResult["setMetadata"];
-            features?: Record<string, string>;
-          }
-        | undefined = tcdbActionResult
-        ? tcdbActionResult.success
-          ? {
-              tcdbUnavailable: false,
-              setMetadata: tcdbActionResult.setMetadata,
-              features: tcdbActionResult.features,
-            }
-          : { tcdbUnavailable: true }
-        : undefined;
       const bscCards = (bscResult.success ? bscResult.cards : []) as Array<{
         cardNumber: string;
         cardName: string;
@@ -3603,7 +3684,6 @@ export const fetchCardChecklist = action({
         cards: out,
         unknownPlayers,
         unknownTeams,
-        ...(tcdbPreview ? { tcdb: tcdbPreview } : {}),
       };
     } catch (error) {
       console.error(`[fetchCardChecklist] Error:`, error);
@@ -3635,12 +3715,6 @@ export const commitCardChecklist = mutation({
     cards: v.array(previewCardValidator),
     confirmedNewPlayers: v.array(v.string()),
     confirmedNewTeams: v.array(v.string()),
-    // NEO-38: the in-band TCDB preview the operator reviewed. Applied at the
-    // setName node AFTER the heuristic seed so the real TCDB value overrides
-    // the heuristic via the materialization rule. Optional — older callers and
-    // custom-subtree commits omit it; tcdbUnavailable commits pass it but with
-    // no setMetadata/features to apply.
-    tcdb: v.optional(tcdbPreviewValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -3805,7 +3879,7 @@ export const commitCardChecklist = mutation({
     // level. We need these ids to seed the heuristic at its natural ORIGINATING
     // level (sport/year/manufacturer/setName/variant) so it materializes down
     // to descendant nodes + cards, rather than deriving it per-card. This fixes
-    // the bug where a per-card heuristic shadowed authoritative TCDB values.
+    // the bug where a per-card heuristic shadowed authoritative node values.
     const ancestorNodeIdByLevel: Partial<Record<Level, Id<"selectorOptions">>> =
       {};
     // Snapshot each ancestor node's `features` map BEFORE we seed, keyed by
@@ -3868,21 +3942,10 @@ export const commitCardChecklist = mutation({
       }
     }
 
-    // NEO-38 TCDB-APPLY-ANCHOR: in-band TCDB values are applied at the setName
-    // node AFTER the heuristic seed (see below), so the real value overwrites
-    // the heuristic via the materialization override rule (the heuristic value
-    // we just wrote becomes the node's "old value", and TCDB's write matches-or-
-    // overwrites it down the subtree).
-    await applyTcdbToSetNameNode(
-      ctx,
-      ancestorNodeIdByLevel.setName,
-      args.tcdb,
-    );
-
     // NEO-38: rebuild the inherited feature map for NEW cards by RE-READING the
-    // ancestor node `features` (post heuristic-seed + post TCDB-apply). Merge
-    // top-down (deeper ancestors override shallower). Existing rows are owned by
-    // the materialization pass above; we don't re-merge onto them here.
+    // ancestor node `features` (post heuristic-seed). Merge top-down (deeper
+    // ancestors override shallower). Existing rows are owned by the
+    // materialization pass above; we don't re-merge onto them here.
     const inheritedFeatures: Record<string, string> = {};
     {
       let cursorId: Id<"selectorOptions"> | undefined = args.selectorOptionId;
@@ -3957,9 +4020,9 @@ export const commitCardChecklist = mutation({
         });
       } else {
         // NEO-38: precedence = materialized ancestor node features (which now
-        // include the heuristic seed + any in-band TCDB values) < card-observed
-        // facts. A fact seen on THIS card (e.g. it's a rookie) beats the
-        // inherited values. No per-card set-level derivation anymore.
+        // include the heuristic seed) < card-observed facts. A fact seen on
+        // THIS card (e.g. it's a rookie) beats the inherited values. No
+        // per-card set-level derivation anymore.
         const mergedFeatures: Record<string, string> = {
           ...(inheritedFeaturesOrUndefined ?? {}),
           ...deriveCardObservedFeatures(card),
@@ -4055,13 +4118,14 @@ export const commitCardChecklist = mutation({
       );
     }
 
-    // NEO-24/38: harvest the locally-observable card-count onto the setName
-    // ancestor. releaseDate / block / sourceUrl / tcdbSetId already landed
-    // in-band via `applyTcdbToSetNameNode` above (no scheduled enrichment
-    // anymore — the in-band path replaces it). Patching the setName row keeps
-    // metadata centralized at the canonical level (variantType / insert /
-    // parallel rows are version-of-a-set; metadata lives one level up). We
-    // reuse the setName id captured during the ancestor walk.
+    // NEO-24/38: harvest the locally-observable card-count from the BSC/SL
+    // checklist fetch onto the setName ancestor, and stamp lastSyncedAt with
+    // the time of this checklist sync. Other metadata (releaseDate / block /
+    // sourceUrl / tcdbSetId) is manually edited via `setSetMetadata` and left
+    // untouched here. Patching the setName row keeps metadata centralized at
+    // the canonical level (variantType / insert / parallel rows are
+    // version-of-a-set; metadata lives one level up). We reuse the setName id
+    // captured during the ancestor walk.
     const setNameAncestorId: Id<"selectorOptions"> | undefined =
       ancestorNodeIdByLevel.setName;
     if (setNameAncestorId) {
@@ -4092,71 +4156,6 @@ export const commitCardChecklist = mutation({
       count: richCards.length,
       createdPlayerIds,
       createdTeamIds,
-    };
-  },
-});
-
-// ===========================================================================
-// NEO-24 Stage 3b — TCDB enrichment support
-// ===========================================================================
-
-/**
- * Internal query consumed by `adapters/tcdb.enrichSetFromTcdb`.
- *
- * Lives here (not in adapters/tcdb.ts) because `adapters/tcdb.ts` is a
- * "use node" action file — Convex requires queries to run in the
- * isolate, not Node. Same split pattern as wikidata → players.getInternal.
- *
- * Returns the pieces the enrichment action needs:
- *   - level + value (must be `setName` for enrichment to proceed)
- *   - sport + year walked from the ancestor chain
- *   - any cached tcdbSetId so the search step can be skipped
- *   - existing features so the action knows what to leave alone
- */
-export const _getTcdbEnrichmentChain = internalQuery({
-  args: { selectorOptionId: v.id("selectorOptions") },
-  returns: v.union(
-    v.null(),
-    v.object({
-      level: levelValidator,
-      setName: v.string(),
-      sport: v.optional(v.string()),
-      year: v.optional(v.number()),
-      cachedTcdbSetId: v.optional(v.string()),
-      existingFeatures: v.optional(v.record(v.string(), v.string())),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.selectorOptionId);
-    if (!row) return null;
-
-    let sport: string | undefined;
-    let year: number | undefined;
-
-    // Walk parentId pointers; cap depth at 16 to avoid pathological cycles.
-    // The deepest legitimate chain is 7 levels (sport→year→manufacturer→
-    // setName→variantType→insert→parallel) so 16 is comfortable headroom.
-    let cursor: Id<"selectorOptions"> | undefined = row.parentId;
-    let depth = 0;
-    while (cursor && depth < 16) {
-      const a: any = await ctx.db.get(cursor);
-      if (!a) break;
-      if (a.level === "sport" && !sport) sport = a.value;
-      if (a.level === "year" && !year) {
-        const n = Number(a.value);
-        if (Number.isFinite(n)) year = n;
-      }
-      cursor = a.parentId;
-      depth += 1;
-    }
-
-    return {
-      level: row.level,
-      setName: row.value,
-      sport,
-      year,
-      cachedTcdbSetId: row.setMetadata?.tcdbSetId,
-      existingFeatures: row.features,
     };
   },
 });

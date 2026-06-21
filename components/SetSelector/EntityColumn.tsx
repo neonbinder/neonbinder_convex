@@ -1,8 +1,9 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { GenericId } from "convex/values";
 import NeonButton from "../modules/NeonButton";
+import { useFieldTestClass } from "@/src/hooks/useFieldTestClass";
 
 type Level =
   | "sport"
@@ -30,6 +31,15 @@ type EntityColumnProps = {
   // the Variants column to expose the "Group Parallels" trigger without
   // forcing every column to learn about that domain.
   extraActions?: ReactNode;
+  // NEO-47 sync redesign: when true, this column uses the backend-owned
+  // ensureSelectorOptions + reactive selectorSyncStatus path (no FE sync
+  // state-machine / onDone handoff). Aggregator levels only for now;
+  // setName/insert/parallel keep the legacy renderForm path until Phases 2-3.
+  useEnsureSync?: boolean;
+  // Heading shown in the loading box while ensureSelectorOptions syncs. Must
+  // match the legacy form heading the flows assert on (e.g. "Syncing Sport
+  // Options"). Only used when useEnsureSync is true.
+  syncingLabel?: string;
 };
 
 export default function EntityColumn({
@@ -41,6 +51,8 @@ export default function EntityColumn({
   parentId,
   onSelectExisting,
   extraActions,
+  useEnsureSync,
+  syncingLabel,
 }: EntityColumnProps) {
   const [mode, setMode] = useState<"idle" | "sync" | "custom">("idle");
   const [customValue, setCustomValue] = useState("");
@@ -48,6 +60,13 @@ export default function EntityColumn({
   // Set once the user engages this column after its first sync — see the
   // freeze-on-interaction effect below. Frozen columns stop auto-syncing.
   const [hasInteracted, setHasInteracted] = useState(false);
+
+  // Unique per-instance class for the custom-entry input so Maestro web's
+  // inputText resolves to THIS column's box. Maestro's createXPathFromElement
+  // keys off className (not aria-label), so a raw shared Tailwind class makes
+  // it type into the first matching input on the page (NEO-39). Same fix as the
+  // mb-search-<col> class on the column search input in EntitySelector.
+  const fieldClass = useFieldTestClass();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wasVisibleRef = useRef(isVisible);
@@ -59,6 +78,18 @@ export default function EntityColumn({
     api.selectorOptions.getSelectorOptions,
     level ? { level, parentId } : "skip",
   );
+
+  // NEO-47 new-path hooks (active only when useEnsureSync). Reactive sync status
+  // (null = idle) drives loading/error; ensureSelectorOptions is the one backend
+  // door that decides whether/how to populate.
+  const syncStatus = useQuery(
+    api.selectorOptions.getSelectorSyncStatus,
+    useEnsureSync && level ? { level, parentId } : "skip",
+  );
+  const ensureOptions = useAction(
+    api.selectorOptions.ensureSelectorOptions,
+  );
+  const ensuredRef = useRef<Set<string>>(new Set());
 
   // Track which (level, parentId) keys have already had auto-sync fired
   // so closing the form doesn't immediately retrigger it. A fresh
@@ -140,6 +171,7 @@ export default function EntityColumn({
   // auto-runs `fetchRawOptions`/`fetchAggregatedOptions` on mount, so this is
   // the only nudge needed.
   useEffect(() => {
+    if (useEnsureSync) return; // new path handles populate via ensureSelectorOptions
     if (!isVisible) return;
     if (hasInteracted) return;
     if (mode !== "idle") return;
@@ -150,7 +182,23 @@ export default function EntityColumn({
     if (autoSyncedRef.current.has(key)) return;
     autoSyncedRef.current.add(key);
     setMode("sync");
-  }, [isVisible, mode, level, parentId, items, hasInteracted]);
+  }, [isVisible, mode, level, parentId, items, hasInteracted, useEnsureSync]);
+
+  // NEO-47 new path: on an empty column, ask the backend to populate (once per
+  // key). The backend decides everything (already-populated / custom-subtree /
+  // which marketplaces); we just read items + syncStatus reactively. No FE sync
+  // mode, so there is no onDone handoff to drop — the stuck-sync race is gone.
+  useEffect(() => {
+    if (!useEnsureSync) return;
+    if (!isVisible) return;
+    if (!level) return;
+    if (items === undefined) return;
+    if (items.length > 0) return;
+    const key = `${level}:${parentId ?? "root"}`;
+    if (ensuredRef.current.has(key)) return;
+    ensuredRef.current.add(key);
+    void ensureOptions({ level, parentId });
+  }, [useEnsureSync, isVisible, level, parentId, items, ensureOptions]);
 
   const addCustomOption = useMutation(
     api.selectorOptions.addCustomSelectorOption,
@@ -203,57 +251,98 @@ export default function EntityColumn({
 
   if (!isVisible) return null;
 
+  // Extracted so both the legacy mode-machine path and the new ensureSync path
+  // render byte-identical custom-entry + idle-button UI (keeps NEO-39 field-class
+  // + the "Add custom X" aria-label the drills target).
+  const customForm = (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+      <h2 className="text-lg font-semibold mb-3">Add Custom Entry</h2>
+      <input
+        type="text"
+        value={customValue}
+        onChange={(e) => setCustomValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleCustomSubmit();
+        }}
+        className={`${fieldClass("customvalue")} w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600`}
+        placeholder="Enter custom value..."
+        autoFocus
+      />
+      {customError && (
+        <div className="p-2 mb-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
+          {customError}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <NeonButton onClick={handleCustomSubmit}>Add</NeonButton>
+        <NeonButton cancel onClick={() => setMode("idle")}>
+          Cancel
+        </NeonButton>
+      </div>
+    </div>
+  );
+
+  const idleButtons = (onSync: () => void) => (
+    <div className="flex gap-2">
+      <NeonButton onClick={onSync}>{addButtonText}</NeonButton>
+      {level && (
+        <NeonButton
+          secondary
+          onClick={() => setMode("custom")}
+          aria-label={`Add custom ${addButtonText.replace(/^Sync /, "")}`}
+        >
+          + Custom
+        </NeonButton>
+      )}
+      {extraActions}
+    </div>
+  );
+
+  // NEO-47 new path: loading/error derived from the reactive selectorSyncStatus
+  // (no FE sync mode → no onDone handoff to drop). Sync button = forced re-sync
+  // via the backend door; "+ Custom" still opens the custom form.
+  const newPathContent = () => {
+    if (syncStatus?.status === "syncing") {
+      return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">
+            {syncingLabel ?? `Syncing ${addButtonText.replace(/^Sync /, "")}`}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Fetching from marketplaces…
+          </p>
+        </div>
+      );
+    }
+    if (mode === "custom") return customForm;
+    const forceSync = () => {
+      if (level) void ensureOptions({ level, parentId, force: true });
+    };
+    return (
+      <>
+        {syncStatus?.status === "error" && (
+          <div className="p-3 mb-1 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
+            {syncStatus.message || "Couldn't sync options."}
+          </div>
+        )}
+        {idleButtons(forceSync)}
+      </>
+    );
+  };
+
   return (
     <div
       ref={containerRef}
       className="min-w-[260px] max-w-[340px] flex-shrink-0 flex flex-col gap-4"
     >
       {selector}
-      {mode === "sync" ? (
-        renderForm(handleFormDone)
-      ) : mode === "custom" ? (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-3">Add Custom Entry</h2>
-          <input
-            type="text"
-            value={customValue}
-            onChange={(e) => setCustomValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCustomSubmit();
-            }}
-            className="w-full p-2 mb-3 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-            placeholder="Enter custom value..."
-            autoFocus
-          />
-          {customError && (
-            <div className="p-2 mb-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-red-800 dark:text-red-200 text-sm">
-              {customError}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <NeonButton onClick={handleCustomSubmit}>Add</NeonButton>
-            <NeonButton cancel onClick={() => setMode("idle")}>
-              Cancel
-            </NeonButton>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <NeonButton onClick={() => setMode("sync")}>
-            {addButtonText}
-          </NeonButton>
-          {level && (
-            <NeonButton
-              secondary
-              onClick={() => setMode("custom")}
-              aria-label={`Add custom ${addButtonText.replace(/^Sync /, "")}`}
-            >
-              + Custom
-            </NeonButton>
-          )}
-          {extraActions}
-        </div>
-      )}
+      {useEnsureSync
+        ? newPathContent()
+        : mode === "sync"
+          ? renderForm(handleFormDone)
+          : mode === "custom"
+            ? customForm
+            : idleButtons(() => setMode("sync"))}
     </div>
   );
 }

@@ -54,6 +54,8 @@ yarn-error.log*
 
 # Maestro E2E outputs
 maestro-report/
+# Local E2E queue-harness run context (holds the dev queue secret) + sentinels
+.e2e-local/
 artifacts/
 junit/
 summary.md
@@ -62,3 +64,4 @@ hs_err_pid*.log
 # Local Maestro per-run report dirs (REPORT_DIR=mr-*) and JVM crash dumps
 mr-*/
 hs_err_pid*.log
+replay_pid*.log

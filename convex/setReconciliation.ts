@@ -321,6 +321,31 @@ export const fetchRawOptions = action({
           { id: parentId },
         );
 
+        // Uniform custom-subtree skip — the third and last sync backend to
+        // get it (fetchAggregatedOptions + syncSetsAcrossManufacturers in
+        // selectorOptions.ts already have it). A custom ancestor has no
+        // marketplace presence, so BSC/SL must not be queried. Without this,
+        // the custom node's missing BSC slug trips the precondition below and
+        // surfaces a spurious "Sync failed: could not load …" on what should
+        // be a clean skip → the form then routes empty+no-errors to onDone
+        // (idle, "+ Custom"). Kept local (no cross-file import) per the
+        // convention noted in selectorOptions.ts. See NEO-22 / NEO-47 Phase 3.
+        if (chain.some((row) => row.isCustom === true)) {
+          console.log(
+            `[fetchRawOptions] custom subtree — skipping marketplace fetch for ${level}`,
+          );
+          return {
+            success: true,
+            bscOptions: [],
+            slOptions: [],
+            autoMatched: [],
+            unmatchedBsc: [],
+            unmatchedSl: [],
+            errors: [],
+            message: "Custom subtree — no marketplace variants to sync",
+          };
+        }
+
         slPlatformFilters = {};
         bscPlatformFilters = {};
 
@@ -552,7 +577,7 @@ export const storeReconciledOptions = mutation({
         }),
         metadata: metadataValidator,
         // NEO-24: reconciler may seed set-level marketplace metadata
-        // (release date, TCDB SID, etc) when the data source provides it.
+        // (release date, etc) when the data source provides it.
         // Merge-patched onto existing rows; features are NOT touched here
         // — those go through `setSelectorOptionFeature` so propagation
         // semantics stay centralized.

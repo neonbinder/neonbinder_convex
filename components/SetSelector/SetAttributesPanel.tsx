@@ -20,14 +20,16 @@ import { EXPECTED_FEATURES } from "../../convex/features/expectedFeatures";
  *     `setSelectorOptionFeature`, which fans the change out to every
  *     descendant cardChecklist row that hasn't overridden the key.
  *
- *  2. Set METADATA (releaseDate, totalCardCount, block, …) — formerly
- *     read-only header chips. Now rendered as rows in the same list:
+ *  2. Set METADATA (releaseDate, totalCardCount, block, tcdbSetId,
+ *     sourceUrl) — formerly read-only header chips. Now rendered as rows in
+ *     the same list. All of these are MANUALLY edited (no auto-sync):
  *       - At the setName level: editable string/number rows persisted via
  *         `setSetMetadata` (merge-patch; clearing a string field sends "").
- *         tcdbSetId / sourceUrl / lastSyncedAt stay read-only (sync-owned).
  *       - At any other level: read-only, inherited from the nearest
  *         setName ancestor (surfaced by `getAncestorChain`'s setMetadata),
  *         labeled "From set: {value}".
+ *     `sourceUrl` is rendered as plain text (never an auto-linked anchor) to
+ *     avoid injecting a user-entered URL as a clickable link.
  *
  * Every row makes its source legible: own value vs. inherited-from-{level}.
  *
@@ -213,6 +215,8 @@ export default function SetAttributesPanel({
       releaseDate: "Release Date",
       totalCardCount: "Total Cards",
       block: "Block",
+      tcdbSetId: "TCDB Set ID",
+      sourceUrl: "Source URL",
     };
     const labels = Object.keys(patch)
       .map((k) => METADATA_LABELS[k as keyof SetMetadata] ?? k)
@@ -341,8 +345,8 @@ export default function SetAttributesPanel({
 
 /**
  * Metadata rows for the unified list. Behaviour depends on level:
- *  - setName: editable releaseDate / totalCardCount / block, read-only
- *    tcdbSetId / sourceUrl / lastSyncedAt.
+ *  - setName: all editable — releaseDate / totalCardCount / block /
+ *    tcdbSetId / sourceUrl. (sourceUrl is a plain text input, never a link.)
  *  - other levels: read-only, inherited from the nearest setName ancestor.
  */
 function MetadataSection({
@@ -384,11 +388,15 @@ function MetadataSection({
           value={ownMeta.block}
           onSave={(v) => onSave({ block: v })}
         />
-        <MetadataReadonlyRow label="TCDB Set ID" value={ownMeta.tcdbSetId} />
-        <MetadataReadonlyRow label="Source URL" value={ownMeta.sourceUrl} />
-        <MetadataReadonlyRow
-          label="Last Synced"
-          value={formatSyncedAt(ownMeta.lastSyncedAt)}
+        <MetadataEditableRow
+          label="TCDB Set ID"
+          value={ownMeta.tcdbSetId}
+          onSave={(v) => onSave({ tcdbSetId: v })}
+        />
+        <MetadataEditableRow
+          label="Source URL"
+          value={ownMeta.sourceUrl}
+          onSave={(v) => onSave({ sourceUrl: v })}
         />
       </>
     );
@@ -430,22 +438,8 @@ function MetadataSection({
         value={meta.sourceUrl}
         sourceNote={sourceNote}
       />
-      <MetadataReadonlyRow
-        label="Last Synced"
-        value={formatSyncedAt(meta.lastSyncedAt)}
-        sourceNote={sourceNote}
-      />
     </>
   );
-}
-
-function formatSyncedAt(ts: number | undefined): string | undefined {
-  if (!ts) return undefined;
-  return new Date(ts).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 /**
@@ -508,7 +502,7 @@ function MetadataEditableRow({
   );
 }
 
-/** Read-only metadata row — sync-owned fields, or inherited from a set. */
+/** Read-only metadata row — used for values inherited from a setName ancestor. */
 function MetadataReadonlyRow({
   label,
   value,

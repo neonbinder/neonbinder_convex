@@ -34,24 +34,28 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-ebay"
+    centerElement: true
 - tapOn:
     id: "pub-ebay"
 - inputText: "https://www.ebay.com/str/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-bsc"
+    centerElement: true
 - tapOn:
     id: "pub-bsc"
 - inputText: "https://www.buysportscards.com/Seller/1d8570d204/${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-sportlots"
+    centerElement: true
 - tapOn:
     id: "pub-sportlots"
 - inputText: "https://sportlots.com/dealers/?dealer=${TEST_USERNAME}"
 - scrollUntilVisible:
     element:
       id: "pub-myslabs"
+    centerElement: true
 - tapOn:
     id: "pub-myslabs"
 - inputText: "http://myslabs.to/e8c447c0-5917-4326-be26-be2201e36d4a"
@@ -65,6 +69,7 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-paypal"
+    centerElement: true
 - tapOn:
     id: "pub-paypal"
 - inputText: "${TEST_USERNAME}-pp"
@@ -72,6 +77,7 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-venmo"
+    centerElement: true
 - tapOn:
     id: "pub-venmo"
 - inputText: "${TEST_USERNAME}-venmo"
@@ -79,6 +85,7 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-cashapp"
+    centerElement: true
 - tapOn:
     id: "pub-cashapp"
 - inputText: "${TEST_USERNAME}-cashapp"
@@ -91,18 +98,21 @@ tags:
 - scrollUntilVisible:
     element:
       id: "pub-twitter"
+    centerElement: true
 - tapOn:
     id: "pub-twitter"
 - inputText: "https://x.com/${TEST_USERNAME}-twit"
 - scrollUntilVisible:
     element:
       id: "pub-instagram"
+    centerElement: true
 - tapOn:
     id: "pub-instagram"
 - inputText: "https://instagram.com/${TEST_USERNAME}-ig"
 - scrollUntilVisible:
     element:
       id: "pub-tiktok"
+    centerElement: true
 - tapOn:
     id: "pub-tiktok"
 - inputText: "https://tiktok.com/@${TEST_USERNAME}-tt"
@@ -116,8 +126,11 @@ tags:
 # Verify the profile link shows the correct URL path
 - assertVisible: "View your profile at /u/${TEST_USERNAME}"
 
-# Tap the profile link — navigates to /u/${TEST_USERNAME}
-- tapOn: "View your profile at /u/${TEST_USERNAME}"
+# Navigate to the public profile — openLink avoids the CDP-context destruction
+# that tapOn-on-a-link causes when the client-side router tears down the page
+# mid-tap (null→Int cast crash; seen in CI run 27905676068). The assertVisible
+# above already proved the link text/path is correct; this just gets us there.
+- openLink: ${APP_URL || "http://localhost:3000"}/u/${TEST_USERNAME}
 - assertVisible: "Buying and Selling all kinds of Sports Cards"
 
 # Validate public profile content
@@ -141,20 +154,16 @@ tags:
 - scrollUntilVisible:
     element:
       text: ".*paypal.me/${TEST_USERNAME}-pp.*"
-- assertVisible: ".*paypal.me/${TEST_USERNAME}-pp.*"
 - scrollUntilVisible:
     element:
       text: ".*venmo.com/${TEST_USERNAME}-venmo.*"
-- assertVisible: ".*venmo.com/${TEST_USERNAME}-venmo.*"
 - scrollUntilVisible:
     element:
       text: ".*cash.app.*${TEST_USERNAME}-cashapp.*"
-- assertVisible: ".*cash.app.*${TEST_USERNAME}-cashapp.*"
 
 # Social media links
 - scrollUntilVisible:
     element:
       text: ".*x.com/${TEST_USERNAME}-twit.*"
-- assertVisible: ".*x.com/${TEST_USERNAME}-twit.*"
 - assertVisible: ".*instagram.com/${TEST_USERNAME}-ig.*"
 - assertVisible: ".*tiktok.com.*${TEST_USERNAME}-tt.*"

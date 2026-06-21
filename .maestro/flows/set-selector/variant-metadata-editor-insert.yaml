@@ -69,19 +69,31 @@ tags:
 - scrollUntilVisible:
     element:
       text: "Metadata"
-- assertVisible: "Metadata"
 # Insert checkbox (read-only, checked); Parallel checkbox (read-only, unchecked).
 - assertVisible: "Insert"
 - assertVisible: "Parallel"
 - assertVisible: "Prefix:"
 
-# ── EDIT THE PREFIX → "Save" appears (field starts empty on a fresh variant) ─
+# ── EDIT THE PREFIX → "Save" appears ────────────────────────────────────────
+# Erase any prior value first (idempotency: on re-run the field may already hold
+# a prior TEST-* value; without eraseText the field is unchanged → Save never
+# appears → assert fails). Then type a fresh value keyed to this attempt.
+- scrollUntilVisible:
+    element:
+      text: "Prefix:"
 - tapOn: "Prefix:"
-- inputText: "TEST-"
+- eraseText: 20
+- inputText: "TEST-${ATTEMPT_ID}"
 - assertVisible: "Save"
 
 # ── SAVE → button disappears once the mutation commits; panel stays ─────────
+- scrollUntilVisible:
+    element:
+      text: "Save"
 - tapOn: "Save"
 - assertNotVisible: "Save"
 - assertVisible: "Metadata"
 - assertVisible: "Prefix:"
+# Confirm the saved value persisted in the panel.
+- assertVisible:
+    text: ".*TEST-${ATTEMPT_ID}.*"

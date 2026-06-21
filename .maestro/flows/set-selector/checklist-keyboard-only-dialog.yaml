@@ -30,13 +30,13 @@ tags:
 #   due to the Tab key limitation. That coverage is exercised manually. The key
 #   keyboard path — Enter to confirm without touching the mouse — is covered here.
 #
-# UNIQUENESS GUARANTEE:
-#   TEST_USERNAME is timestamp-based (neontester-$(date +%s)), so
-#   KOPlayer-${TEST_USERNAME} is globally unique on every run. The custom
-#   card's player is always classified as unknown by fetchCardChecklist
-#   reconciliation, guaranteeing the UnknownEntitiesDialog opens — regardless
-#   of what prior runs have written to the `players` table. An empty DB is
-#   NOT required.
+# PER-ATTEMPT ISOLATION:
+#   TEST_USERNAME = neontester-r<RUNNER_INDEX> (stable per CI runner, NOT
+#   timestamped). KOPlayer-${ATTEMPT_ID} is unique per attempt because the runner
+#   injects ATTEMPT_ID="w<worker>-a<attempt>-<RANDOM>". This guarantees a fresh
+#   UNKNOWN player on every attempt so the UnknownEntitiesDialog always opens —
+#   regardless of what prior runs have written to the `players` table. An empty
+#   DB is NOT required. Mirrors the pattern used in team-picker.yaml.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -66,22 +66,20 @@ tags:
     element:
       text: "Add Card"
     centerElement: true
-    timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
 # placeholder (still rendered visually) and appears after the auto-focused
 # Card number input is on screen.
 - extendedWaitUntil:
     visible: "Player name"
-    timeout: 5000
-- inputText: "9002"
+- inputText: "9002-${ATTEMPT_ID}"
 # Address inputs by aria-label (via Maestro's `id:` selector, which matches
 # the accessibility-tree identifier). Placeholders overlap ("Player name",
 # "Player(s) — comma separated, optional") and Maestro's text matcher cannot
 # disambiguate them reliably — see NEO-13 root cause.
 - tapOn:
     id: "Card name"
-- inputText: "Keyboard Dialog Test ${TEST_USERNAME}"
+- inputText: "Keyboard Dialog Test ${ATTEMPT_ID}"
 # The Players input is the 4th row of the form — below the fold on the
 # default 1024x629 headless viewport. Scroll anchor uses the visible
 # placeholder text; tap target uses the aria-label via `id:`.
@@ -89,15 +87,14 @@ tags:
     element:
       text: "Player(s) — comma separated, optional"
     centerElement: true
-    timeout: 5000
 - tapOn:
     id: "Players"
-- inputText: "KOPlayer-${TEST_USERNAME}"
+- inputText: "KOPlayer-${ATTEMPT_ID}"
 # Defensive: confirm the typed player name landed on the form before
 # submitting. If a future regression breaks input targeting again, this
 # fails immediately at the form step instead of 60s later at the dialog
 # assertion.
-- assertVisible: "KOPlayer-${TEST_USERNAME}"
+- assertVisible: "KOPlayer-${ATTEMPT_ID}"
 # Anchor the form-submit tap on the viewport so the test does not depend on
 # how much vertical space the checklist above the form consumes. Maestro
 # text matchers are full-match, so plain "Add" binds to the submit button
@@ -108,7 +105,6 @@ tags:
     element:
       text: "Add"
     centerElement: true
-    timeout: 5000
 - tapOn:
     text: "Add"
 # After submit the form closes and the new card row renders in the
@@ -117,8 +113,7 @@ tags:
 # title rather than assuming it lands inside the current viewport.
 - scrollUntilVisible:
     element:
-      text: "Keyboard Dialog Test ${TEST_USERNAME}"
-    timeout: 15000
+      text: "Keyboard Dialog Test ${ATTEMPT_ID}"
 
 # Defensive: under parallel-worker load the addCustomCard mutation has
 # been observed to commit server-side (new card appears in list above)
@@ -139,11 +134,11 @@ tags:
           element:
             text: "Cancel"
           centerElement: true
-          timeout: 5000
-      - tapOn: "Cancel"
+      - tapOn:
+          text: "Cancel"
+          optional: true
       - extendedWaitUntil:
           notVisible: "Cancel"
-          timeout: 5000
 
 # ============================================================
 # TRIGGER THE FETCH
@@ -171,18 +166,15 @@ tags:
 # and "Sync card checklist" are in the same flex row — centering "Add Card"
 # at mid-viewport (~y=315) puts the Sync button at the same y. This is the
 # same pattern used in multi-source-panel-opens-dialog.yaml (line 167-172).
-# visibilityPercentage: 50 matches the multi-source flow's exact params.
 - scrollUntilVisible:
     element:
       text: "Add Card"
     direction: UP
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "Sync card checklist"
-    timeout: 5000
 - tapOn:
     id: "Sync card checklist"
 # The custom-card preamble guarantees an unknown player, so the dialog
@@ -204,7 +196,6 @@ tags:
 - extendedWaitUntil:
     visible:
       text: ".*Confirm [0-9]+ & Save.*"
-    timeout: 10000
 
 - pressKey: Enter
 
@@ -214,15 +205,17 @@ tags:
 
 - extendedWaitUntil:
     notVisible: "Confirm New Players & Teams"
-    timeout: 30000
 
 # Wait for the save confirmation. The commitCardChecklist mutation runs after
-# the dialog confirm, writing cards in batches. For large sets (300+ cards),
-# this can take several seconds. Use 60s for safety.
+# the dialog confirm, writing cards in batches.
+# DELIBERATE CARVE-OUT: 30s — this is the only non-fetch long wait in this
+# flow. commitCardChecklist writes the full ~335-card Topps Chrome checklist
+# on a cold commit (~16.5s measured); this is a bulk WRITE exception, not a
+# per-element UI wait. Analogous to the 60s marketplace-fetch carve-out.
 - extendedWaitUntil:
     visible:
       text: ".*Saved [0-9]+ cards.*"
-    timeout: 60000
+    timeout: 30000
 
 - assertVisible:
     text: ".*#[0-9].*"

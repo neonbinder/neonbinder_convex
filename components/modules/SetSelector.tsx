@@ -180,7 +180,7 @@ export default function SetSelector() {
   // (e.g. Football → custom year 2026) scroll DOWN to reach the column's
   // "Add custom" button, which then pushed the year dropdown's top (2026)
   // out of view → "2026 not visible" e2e failures (NEO-38). Those levels are
-  // auto-seeded by the heuristic/TCDB at commit anyway; manual editing there
+  // auto-seeded by the heuristic at commit anyway; manual editing there
   // (rare) is a follow-up needing a non-drill-disrupting placement.
   const deepestSelectedId =
     selectedVariantOfVariantId ||
@@ -231,8 +231,17 @@ export default function SetSelector() {
       {/* pb-4 prevents the horizontal scrollbar from overlapping each
           EntityColumn's action-button row (Sync X / + Custom). Without it,
           Maestro web taps at the action-button y-coordinate hit the
-          scrollbar instead of the button — see PR #31 diagnosis. */}
-      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
+          scrollbar instead of the button — see PR #31 diagnosis.
+
+          pl-4 keeps the leftmost column's "Sync <X>" button clear of the
+          viewport's left edge. This page sits in a vw-based full-bleed wrapper
+          that leaves the first column only ~6px of edge clearance; under a
+          CLASSIC scrollbar (Linux/Windows, incl. CI headless Chrome) the
+          full-bleed math over-pulls ~8px left, rendering "Sync Sports" at
+          x=-2 (~98% visible). Maestro's scrollUntilVisible(visibility:100%)
+          then can't tap it. Mac overlay scrollbars (0px) hide this locally —
+          custom-entry-survives-resync 8/8 CI failure, NEO root-cause. */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4 pl-4">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
           selector={
@@ -248,6 +257,8 @@ export default function SetSelector() {
           isVisible={true}
           level="sport"
           onSelectExisting={handleSportSelect}
+          useEnsureSync
+          syncingLabel="Syncing Sport Options"
         />
 
         {/* 2. Year (SL & BSC) */}
@@ -269,6 +280,8 @@ export default function SetSelector() {
           level="year"
           parentId={selectedSportId || undefined}
           onSelectExisting={handleYearSelect}
+          useEnsureSync
+          syncingLabel="Syncing Year Options"
         />
 
         {/* 3. Manufacturer (SL only) */}
@@ -290,6 +303,8 @@ export default function SetSelector() {
           level="manufacturer"
           parentId={selectedYearId || undefined}
           onSelectExisting={handleManufacturerSelect}
+          useEnsureSync
+          syncingLabel="Syncing Manufacturer Options"
         />
 
         {/* 4. Set (BSC only) */}
@@ -314,6 +329,8 @@ export default function SetSelector() {
           level="setName"
           parentId={selectedManufacturerId || undefined}
           onSelectExisting={handleSetSelect}
+          useEnsureSync
+          syncingLabel="Syncing Sets"
         />
 
         {/* 5. Variant Type (BSC only: Base, Insert, Parallel, Promo) */}
@@ -335,6 +352,8 @@ export default function SetSelector() {
           level="variantType"
           parentId={selectedSetId || undefined}
           onSelectExisting={handleVariantTypeSelect}
+          useEnsureSync
+          syncingLabel="Syncing Variant Types"
         />
 
         {/* 6. Variant (reconciled BSC variantName + SL set list) — hidden

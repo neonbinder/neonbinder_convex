@@ -3,129 +3,125 @@ name: "Util — drill to a (Sport, Year, Manufacturer, Set) — accepts env over
 tags:
   - util
 ---
-# FAST drill when called with defaults — assumes the cascade `setup.yaml`
-# flow has already populated:
-#   - BSC + SL credentials saved
-#   - Baseball → 2024 → Topps → Topps Chrome in selectorOptions
-#   - Variant Types (Base, Insert, Parallel) for that set
-# Most callers (cards-base, sets-base, all checklist-* flows etc.) use the
-# defaults and pay zero extra cost.
+# Direct search-select drill for the REAL pre-synced hierarchy.
 #
-# OVERRIDE PATH — when the caller passes a different SPORT (or YEAR /
-# MANUFACTURER / SET) via its `runFlow.env` block, the data may NOT be
-# pre-synced. The drill still works because each level's auto-sync fires
-# on column open; the `extendedWaitUntil` waits for the search input
-# (which signals sync completion) accommodate the longer marketplace
-# round-trip. This is the "lazy per-test sync" pattern documented in the
-# plan at ~/.claude/plans/we-ve-been-trying-to-delegated-ullman.md.
+# DEFAULTS (canonical Topps Chrome test anchor):
+#   SPORT        = "Baseball"
+#   YEAR         = "2024"
+#   MANUFACTURER = "Topps"
+#   SET          = "Topps Chrome"
 #
-# CALLER CONTRACT:
-#   - Caller has called launchApp and waited for sign-in redirect.
-#   - Caller flow tags include `requires:setup-done`.
-#   - The browser is on /set-selector when this util is invoked, OR
-#     the openLink below brings it there.
+# CALLER OVERRIDES — pass any subset of SPORT / YEAR / MANUFACTURER / SET via
+# `runFlow.env` to target a different hierarchy (must be pre-synced or this
+# util will fail clearly when the search input does not appear).
 #
-# Returns with the Variant Types column visible and Base/Insert/Parallel listed.
+# RETURN CONTRACT:
+#   Variant Types column is visible, "Base" is listed.
+#   The 60s timeout on "Base" is sanctioned — it covers the variant-type
+#   auto-sync on the override / cold path (BSC + SL fetch for a non-pre-synced
+#   set). On the canonical Topps Chrome path the warm data satisfies it in <7s.
+#
+# WHAT THIS IS NOT:
+#   - This util does NOT create custom entries (no "Add custom" branch).
+#   - Use util-drill-to-custom.yaml for flows that need create-or-select logic.
+#
+# PROVEN PATTERN: mirrors setup.yaml lines ~132-209 exactly — select-only,
+# no notVisible guards, no create branches.
 
+# ── NAVIGATE ─────────────────────────────────────────────────────────────────
 - openLink: ${APP_URL || "http://localhost:3000"}/set-selector
 - extendedWaitUntil:
     visible: "Set Selector"
     timeout: 20000
 
-# Level 1 — Sport (defaults to Baseball). Use the Sports search input to
-# filter the column's internal-scroll list down to the target sport —
-# most sports past the first ~7 (alphabetical) sit below the column's
-# `max-h-[400px] overflow-y-auto` fold and Maestro's page-level scroll
-# can't reach them. The search input is targeted by its aria-label
-# `Search sports` (added on EntitySelector.tsx).
-#
-# IMPORTANT: after typing in the search input, the input itself has
-# `text=${SPORT}` (its current value) and `resource-id=Search sports`. A bare
-# `tapOn: ${SPORT}` re-matches the input (DOM order: input first), not the row.
-# `index: 1` is NOT a reliable fix — the input/row order flips between a cold
-# sync and a re-drill of already-synced data, so index:1 can land on the input
-# (NEO-46: that silently broke the Insert/Parallel pre-sync — the year was never
-# selected, so the Manufacturers column never opened). Select by RELATIONSHIP
-# instead: the result row is the `${SPORT}` element BELOW the search input.
-# Center the Sports column first. On /set-selector the AdminTools panel pushes
-# the Sports column down to ~y=460+, so its rows land at y≈556 — inside the
-# 1024×629 footer-click-steal zone (the tap is found in the DOM but the footer
-# absorbs the click, so the column never drills). centerElement pulls it to
-# mid-viewport. Year/Manufacturer/Set already center their search inputs; Sports
-# was the one level missing it.
-- scrollUntilVisible:
-    element:
-      id: "Search sports"
-    centerElement: true
-- tapOn:
-    id: "Search sports"
-- inputText: ${SPORT || "Baseball"}
+# ── SPORT ─────────────────────────────────────────────────────────────────────
+# Baseball is seeded by setup.yaml and appears immediately — no search input at
+# this level. Scroll + center before tapping (footer-steal zone rule).
+# waitToSettleTimeoutMs: 0 — the subsequent extendedWaitUntil re-syncs; the
+# settle dead-wait is redundant here.
+- extendedWaitUntil:
+    visible: ${SPORT || "Baseball"}
 - scrollUntilVisible:
     element:
       text: ${SPORT || "Baseball"}
-      below:
-        id: "Search sports"
     centerElement: true
+    waitToSettleTimeoutMs: 0
 - tapOn:
     text: ${SPORT || "Baseball"}
-    below:
-      id: "Search sports"
+    waitToSettleTimeoutMs: 0
 
-# Level 2 — Year. Wait for the Years column search input as the auto-sync
-# completion signal. 180 s covers a cold sync (BSC + SL fetch ~30-60 s each).
+# ── YEAR ──────────────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Years"
+- extendedWaitUntil:
+    visible: ".*Search years.*"
 - scrollUntilVisible:
     element:
       text: ".*Search years.*"
-    direction: right
     centerElement: true
+    waitToSettleTimeoutMs: 0
+# 250ms settle on the search-box tap — input needs to be focused before inputText
+# fires, and a 0ms settle can drop the first character on a reactive page.
 - tapOn:
     text: ".*Search years.*"
+    waitToSettleTimeoutMs: 250
 - inputText: ${YEAR || "2024"}
 - tapOn:
     text: ${YEAR || "2024"}
     below:
       id: "Search years"
+    waitToSettleTimeoutMs: 0
 
-# Level 3 — Manufacturer. 90 s covers cold sync.
+# ── MANUFACTURER ──────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Manufacturers"
+- extendedWaitUntil:
+    visible: ".*Search manufacturers.*"
 - scrollUntilVisible:
     element:
       text: ".*Search manufacturers.*"
-    direction: right
     centerElement: true
+    waitToSettleTimeoutMs: 0
 - tapOn:
     text: ".*Search manufacturers.*"
+    waitToSettleTimeoutMs: 250
 - inputText: ${MANUFACTURER || "Topps"}
 - tapOn:
     text: ${MANUFACTURER || "Topps"}
     below:
       id: "Search manufacturers"
+    waitToSettleTimeoutMs: 0
 
-# Level 4 — Set. 120 s covers cold sync.
+# ── SET ───────────────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Sets"
+- extendedWaitUntil:
+    visible: ".*Search sets.*"
 - scrollUntilVisible:
     element:
       text: ".*Search sets.*"
-    direction: right
     centerElement: true
+    waitToSettleTimeoutMs: 0
 - tapOn:
     text: ".*Search sets.*"
+    waitToSettleTimeoutMs: 250
 - inputText: ${SET || "Topps Chrome"}
 - tapOn:
     text: ${SET || "Topps Chrome"}
     below:
       id: "Search sets"
+    waitToSettleTimeoutMs: 0
 
-# Level 5 — Variant Types. Auto-syncs Base/Insert/Parallel when this
-# column first opens for a new set. Default path (Topps Chrome, pre-
-# synced by cascade) finishes in <5s. Cold-sync for new sets goes
-# through fetchAggregatedOptions → BSC + SL adapters; those calls
-# should complete in <10s but occasionally hang on slower runners
-# under worker contention. If that timer fires, the underlying bug is
-# in the variantType action serializing BSC/SL or hanging on a
-# session warm — chase that, not the timeout. Tracked in NEO-8.
+# ── RETURN CONTRACT ───────────────────────────────────────────────────────────
+# Variant Types column appears once the set row is selected.
 - extendedWaitUntil:
     visible: "Variant Types"
-    timeout: 10000
-- extendedWaitUntil:
-    visible: "Base"
+# "Base" appears after the variant-type sync completes. 60s is the sanctioned
+# ceiling for override / cold paths (BSC + SL fetch); warm Topps Chrome satisfies
+# this in <7s. DO NOT increase this timeout without explicit user approval.
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    centerElement: true
     timeout: 60000
-- assertVisible: "Base"
+    waitToSettleTimeoutMs: 0

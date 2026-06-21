@@ -114,17 +114,27 @@ leaves the token potentially invalid for subsequent tests — acceptable locally
 Numbered cards (e.g., `/99`, `/50`) are parallel variants. The 2024 Topps Chrome Base set
 does NOT contain numbered cards. Do not use `".*/[0-9]+.*"` assertions on Base checklist flows.
 
-## UnknownEntitiesDialog requires fresh DB (entities tables not reset)
+## UnknownEntitiesDialog: re-run-safety depends on per-attempt entity names
 
 `resetSetBuilderData` only deletes `selectorOptions` and `cardChecklist` rows.
 Players and teams tables are NOT deleted. After the FIRST successful fetch run,
-all entities exist → dialog never opens again.
+all entities exist → dialog never opens again for the SAME entity names.
 
-Flows depending on this dialog will ALWAYS fail locally after first run:
+**Re-run-safe pattern (confirmed 2026-06-19):** Use `${ATTEMPT_ID}` for ALL entity names
+injected into a card-add form (player names, card name, card number when on a shared real set).
+`ATTEMPT_ID` is unique per harness attempt, so players are always unknown on every run.
+`checklist-fetch-unknown-entities-skip-some.yaml` was fixed with this pattern and now passes
+two consecutive runs on the persistent dev Convex without a DB reset.
+
+Flows still requiring an empty DB (use hardcoded or TEST_USERNAME-stable entity names):
 - checklist-fetch-cancel-dialog.yaml
 - checklist-fetch-unknown-entities-confirm.yaml
-- checklist-fetch-unknown-entities-skip-some.yaml
 - checklist-keyboard-only-dialog.yaml
 
-These tests are RELIABLE ON CI where each preview deployment starts with an empty Convex DB.
-Do NOT treat their local failure as a regression.
+These tests are RELIABLE ON CI (fresh Convex preview per PR) but will fail locally after
+the first run. Do NOT treat their local failure as a regression.
+
+**Card number on shared real sets:** if a flow adds cards to the real "2024 Topps Chrome"
+Base checklist (via `util-drill-to-base-variant.yaml`), the card number must also use
+`${ATTEMPT_ID}` (e.g. `"9${ATTEMPT_ID}"`) — otherwise re-runs create a duplicate card
+number that already exists in the DB, causing the form to reject or silently overwrite.

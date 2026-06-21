@@ -34,10 +34,7 @@ export const PlatformType = v.union(
   v.literal("ebay"),
   v.literal("sportlots"),
   v.literal("myslabs"),
-  v.literal("mycardpost"),
-  // NEO-38: TCDB is an in-band metadata/feature source (not a marketplace),
-  // fetched concurrently with BSC/SL during the checklist preview.
-  v.literal("tcdb")
+  v.literal("mycardpost")
 );
 
 // Search parameters for ListByCard adapters

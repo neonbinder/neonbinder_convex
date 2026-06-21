@@ -154,6 +154,98 @@ export const markResult = mutation({
 });
 
 /**
+ * LOCAL-HARNESS drip-enqueue (NEO-47). Unlike `seedQueue` (idempotent run-lock,
+ * seeded once in CI), this appends flows to an EXISTING run so a persistent local
+ * worker pool can be fed one flow at a time. Insert-if-absent; an already-queued
+ * flow that is terminal (passed/failed) or still pending is RESET to pending so a
+ * just-fixed flow can be re-validated; a flow currently "running" is left alone.
+ * CI never calls this. Same secret gate + flow-path validation as seedQueue.
+ */
+export const enqueueFlows = mutation({
+  args: { secret: v.string(), runId: v.string(), flows: v.array(v.string()) },
+  returns: v.object({ queued: v.number(), skippedRunning: v.number() }),
+  handler: async (ctx, args) => {
+    assertAuthorized(args.secret);
+    if (args.flows.length > MAX_SEED_FLOWS) {
+      throw new Error(`Too many flows (${args.flows.length} > ${MAX_SEED_FLOWS})`);
+    }
+    let queued = 0;
+    let skippedRunning = 0;
+    for (const flowPath of args.flows) {
+      if (!FLOW_PATH_RE.test(flowPath) || flowPath.includes("..")) {
+        throw new Error(`Invalid flow path: ${flowPath}`);
+      }
+      const existing = await ctx.db
+        .query("e2eFlowQueue")
+        .withIndex("by_run_flow", (q) =>
+          q.eq("runId", args.runId).eq("flowPath", flowPath),
+        )
+        .first();
+      if (!existing) {
+        await ctx.db.insert("e2eFlowQueue", {
+          runId: args.runId,
+          flowPath,
+          status: "pending",
+          attempts: 0,
+        });
+        queued += 1;
+      } else if (existing.status === "running") {
+        skippedRunning += 1;
+      } else {
+        await ctx.db.patch(existing._id, {
+          status: "pending",
+          claimedBy: undefined,
+          startedAt: undefined,
+          finishedAt: undefined,
+        });
+        queued += 1;
+      }
+    }
+    return { queued, skippedRunning };
+  },
+});
+
+/**
+ * Per-flow status for a run (LOCAL-HARNESS watcher — `./e2e-watch.sh`). Returns
+ * null when the flow isn't queued for this run. Secret-gated like the rest.
+ */
+export const getFlow = query({
+  args: { secret: v.string(), runId: v.string(), flowPath: v.string() },
+  returns: v.union(
+    v.object({
+      status: v.union(
+        v.literal("pending"),
+        v.literal("running"),
+        v.literal("passed"),
+        v.literal("failed"),
+      ),
+      attempts: v.number(),
+      claimedBy: v.optional(v.string()),
+      startedAt: v.optional(v.number()),
+      finishedAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    assertAuthorized(args.secret);
+    const row = await ctx.db
+      .query("e2eFlowQueue")
+      .withIndex("by_run_flow", (q) =>
+        q.eq("runId", args.runId).eq("flowPath", args.flowPath),
+      )
+      .first();
+    if (!row) return null;
+    return {
+      status: row.status,
+      attempts: row.attempts,
+      claimedBy: row.claimedBy,
+      startedAt: row.startedAt,
+      finishedAt: row.finishedAt,
+    };
+  },
+});
+
+/**
  * Live status for a run — counts by status. Powers BOTH the CI gate (any failed,
  * or leftover running at the end, → red) AND live run monitoring (query any time
  * for "30 passed / 4 running / 9 pending / 2 failed" without parsing GH logs).

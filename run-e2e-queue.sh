@@ -85,7 +85,12 @@ fi
 
 MAESTRO="$HOME/.maestro/bin/maestro"
 CONFIG=".maestro/config.yaml"
-TEST_USERNAME="${TEST_USERNAME:-neontester-r${RUNNER_INDEX}}"
+# TEST_USERNAME is generated FRESH PER FLOW RUN inside run_flow (below), NOT once
+# here. This is a persistent daemon worker that runs the same flow many times, so
+# a username fixed at worker-start would collide ("Username already taken") on the
+# 2nd run. CI (run-e2e-smoke.sh) is one-shot, so it can set one per run; the
+# per-run-fresh equivalent on a daemon is per-flow generation. (Profile username
+# regex is ^[a-z0-9-]+$ — no underscores; an env-leaked email breaks it.)
 REPORT_DIR="${REPORT_DIR:-maestro-report}"
 FLOW_TIMEOUT_SEC="${MAESTRO_FLOW_TIMEOUT_SEC:-600}"
 mkdir -p "$REPORT_DIR/junit" "$REPORT_DIR/artifacts" "$REPORT_DIR/debug" "$REPORT_DIR/logs" "$REPORT_DIR/maestro-home"
@@ -102,7 +107,7 @@ RESULTS="$REPORT_DIR/logs/runner-${RUNNER_INDEX}.results"
 : > "$LOG"; : > "$RESULTS"
 export MAESTRO_OPTS="-Duser.home=$PWD/$REPORT_DIR/maestro-home"
 
-ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "TEST_USERNAME=$TEST_USERNAME" -e "WORKER_INDEX=$WORKER_INDEX")
+ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "WORKER_INDEX=$WORKER_INDEX")
 if [ "${MAESTRO_HEADLESS:-1}" != "0" ]; then ARGS_BASE+=(--headless); fi
 
 # run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug; 1 retry on
@@ -117,7 +122,12 @@ run_flow() {
     exit_code=0
     [ "$attempt" -gt 1 ] && echo "↻ [$RUNNER_ID] retry $attempt: $flow" >> "$LOG"
     local attempt_id="${RUNNER_ID}-a${attempt}-${RANDOM}"
-    local args=("${ARGS_BASE[@]}" -e "ATTEMPT_ID=$attempt_id")
+    # Fresh username per run (unique across runners, runs, and attempts) so a
+    # re-run on this persistent worker never hits "Username already taken". The
+    # per-flow analog of CI's per-one-shot-run neontester-$(date +%s). Regex
+    # ^[a-z0-9-]+$ — all-lowercase, digits, hyphens only.
+    local test_username="neontester-${RUNNER_ID}-$(date +%s)-${RANDOM}"
+    local args=("${ARGS_BASE[@]}" -e "ATTEMPT_ID=$attempt_id" -e "TEST_USERNAME=$test_username")
     if [ -n "$TIMEOUT_CMD" ]; then
       "$TIMEOUT_CMD" --kill-after=30 "$FLOW_TIMEOUT_SEC" "$MAESTRO" test "${args[@]}" "${report_args[@]}" "$flow" >> "$LOG" 2>&1 || exit_code=$?
     else
@@ -143,12 +153,30 @@ if [ -z "${MAESTRO_SKIP_BOOTSTRAP:-}" ]; then
 fi
 
 # ── Claim loop: pull → run → report, until the queue drains ──────────────────
-echo "Draining queue (runId=$E2E_RUN_ID) as $RUNNER_ID ..." | tee -a "$LOG"
+# DAEMON MODE (local only, E2E_QUEUE_DAEMON set): instead of EXITING when the
+# queue drains, sleep and keep polling so flows enqueued later (./e2e-enqueue.sh)
+# get picked up — a persistent worker. CI never sets it, so its behavior is
+# unchanged (drain → exit). E2E_QUEUE_STOP_FILE (if set) or SIGINT/SIGTERM stop
+# the daemon cleanly after the current flow.
+DAEMON="${E2E_QUEUE_DAEMON:-}"
+POLL_INTERVAL="${E2E_QUEUE_POLL_INTERVAL:-5}"
+STOP_FILE="${E2E_QUEUE_STOP_FILE:-}"
+stop=0
+trap 'stop=1' INT TERM
+echo "Draining queue (runId=$E2E_RUN_ID) as $RUNNER_ID${DAEMON:+ [daemon]} ..." | tee -a "$LOG"
 ran=0
-while true; do
-  resp="$(_q claim "{\"runId\":\"${E2E_RUN_ID}\",\"claimedBy\":\"${RUNNER_ID}\",\"leaseMs\":900000}")" || { echo "claim failed: $resp" >&2; exit 1; }
+while [ "$stop" -eq 0 ]; do
+  if [ -n "$STOP_FILE" ] && [ -f "$STOP_FILE" ]; then echo "[$RUNNER_ID] stop sentinel" >> "$LOG"; break; fi
+  resp="$(_q claim "{\"runId\":\"${E2E_RUN_ID}\",\"claimedBy\":\"${RUNNER_ID}\",\"leaseMs\":900000}")" || {
+    echo "claim failed: $resp" >&2
+    [ -n "$DAEMON" ] && { sleep "$POLL_INTERVAL"; continue; }
+    exit 1
+  }
   flow="$(printf '%s' "$resp" | python3 -c "import sys,json; v=json.load(sys.stdin).get('flowPath'); print(v if v else '')")"
-  [ -z "$flow" ] && break   # queue drained
+  if [ -z "$flow" ]; then
+    [ -n "$DAEMON" ] && { sleep "$POLL_INTERVAL"; continue; }
+    break   # queue drained → exit (CI behavior)
+  fi
   echo "▶ [$RUNNER_ID] $flow" >> "$LOG"
   status="$(run_flow "$flow")"
   _q result "{\"runId\":\"${E2E_RUN_ID}\",\"flowPath\":\"${flow}\",\"status\":\"${status}\"}" >/dev/null || echo "WARN: result post failed for $flow" >&2

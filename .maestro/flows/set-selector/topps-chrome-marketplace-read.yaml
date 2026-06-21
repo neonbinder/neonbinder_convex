@@ -1,30 +1,29 @@
 appId: com.neonbinder.web
 url: ${APP_URL || "http://localhost:3000"}/testing/sign-in?redirect=/set-selector&worker=${WORKER_INDEX || "0"}
-name: "Topps Chrome — read-only verify marketplace-derived set attributes are present (isolated)"
+name: "Topps Chrome — read-only verify marketplace-derived set attributes are present (read-only)"
 tags:
   - regression
+  - set-selector
 ---
-# Read-only smoke of the SetAttributesPanel on the REAL 2024 Topps Chrome set.
+# Read-only verification of the SetAttributesPanel on the REAL 2024 Topps Chrome set.
 #
-# WHY ISOLATED:
-#   This flow reads from the real selectorOptions/setAttributes rows that the
-#   cascade and marketplace fetch produced. Running it in the isolated serial
-#   lane (Phase 1) keeps it from racing the cascade-reset that setup.yaml
-#   triggers in Phase 2. No writes are performed here.
+# WHY READ-ONLY / NO ISOLATION NEEDED:
+#   This flow performs zero writes — it never taps a save button, "Edit attributes",
+#   or any mutating input. Because it only reads, concurrent workers in the NEO-49
+#   work-queue cannot stomp each other. No isolated lane is needed (the isolated lane
+#   is gone; the queue is dynamic, not phased).
 #
 # WHAT THIS VERIFIES:
-#   1. The BSC/SportLots sync that the cascade's sets-base/sets-inserts flows
-#      triggered actually persisted feature data on the real Topps Chrome set.
-#   2. The "Will propagate to N cards" counter renders (at least one feature
-#      row is visible with a propagation preview count).
-#   3. The panel heading, breadcrumb, and at least one populated metadata
-#      field (setMetadata from TCDB or sync) are visible — confirming the
-#      panel renders correctly when real marketplace data is present.
+#   1. BSC/SportLots sync (run by the setup track) persisted feature data on the
+#      real Topps Chrome set — League rows and the "Will propagate to N cards"
+#      counter are visible.
+#   2. The panel heading, breadcrumb, and at least one populated metadata field
+#      are present — the panel renders correctly with real marketplace data.
+#   3. At least one feature input row (aria-label "Value for League") is rendered,
+#      confirming the features list is populated from the BSC/SL sync.
 #
-# PREREQUISITE (implicit): the cascade must have run at least once on this
-# Convex deployment so Topps Chrome is in selectorOptions. This flow does NOT
-# carry a requires: tag because isolated flows run before the cascade in Phase
-# 1 — it relies on data persisting from the prior CI run. On a brand-new
+# PREREQUISITE (implicit): the setup track must have run at least once on this
+# Convex deployment so Topps Chrome is in selectorOptions. On a brand-new
 # deployment the flow will fail clearly ("Topps Chrome" not visible in Sets).
 #
 # NO WRITES: this flow never taps a save button, "Edit attributes", or any
@@ -37,99 +36,13 @@ tags:
 
 # ============================================================
 # DRILL TO 2024 TOPPS CHROME (setName level)
+# The util navigates to /set-selector itself and returns with
+# Baseball → 2024 → Topps → Topps Chrome selected, ready at
+# the Variant Types column.
 # ============================================================
 
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: "Baseball"
-    timeout: 30000
-
-# Level 1 — Baseball
-- tapOn:
-    id: "Search sports"
-- inputText: "Baseball"
-- extendedWaitUntil:
-    visible:
-      text: "Baseball"
-      below:
-        id: "Search sports"
-    timeout: 10000
-- tapOn:
-    text: "Baseball"
-    below:
-      id: "Search sports"
-
-# Level 2 — 2024
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search years.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search years.*"
-- inputText: "2024"
-- extendedWaitUntil:
-    visible:
-      text: "2024"
-      below:
-        id: "Search years"
-    timeout: 10000
-- tapOn:
-    text: "2024"
-    below:
-      id: "Search years"
-
-# Level 3 — Topps (manufacturer)
-- extendedWaitUntil:
-    visible: "Manufacturers"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search manufacturers.*"
-    timeout: 30000
-- tapOn:
-    text: ".*Search manufacturers.*"
-- inputText: "Topps"
-- extendedWaitUntil:
-    visible:
-      text: "Topps"
-      below:
-        id: "Search manufacturers"
-    timeout: 10000
-- tapOn:
-    text: "Topps"
-    below:
-      id: "Search manufacturers"
-
-# Level 4 — Topps Chrome (the real marketplace-synced set)
-- extendedWaitUntil:
-    visible: "Sets"
-    timeout: 20000
-- extendedWaitUntil:
-    visible: ".*Search sets.*"
-    timeout: 60000
-- tapOn:
-    text: ".*Search sets.*"
-- inputText: "Topps Chrome"
-- extendedWaitUntil:
-    visible:
-      text: "Topps Chrome"
-      below:
-        id: "Search sets"
-    timeout: 10000
-- tapOn:
-    text: "Topps Chrome"
-    below:
-      id: "Search sets"
-
-# Wait for the Variant Types column — confirms the setName row is selected
-# and the SetAttributesPanel renders below.
-- extendedWaitUntil:
-    visible: "Variant Types"
-    timeout: 20000
+- runFlow:
+    file: util-drill-to-2024-topps-chrome.yaml
 
 # ============================================================
 # OPEN SET ATTRIBUTES PANEL (read-only expand)
@@ -141,10 +54,8 @@ tags:
 - scrollUntilVisible:
     element:
       id: "Edit attributes"
-    centerElement: true
     visibilityPercentage: 10
-    waitToSettleTimeoutMs: 1000
-    timeout: 15000
+    timeout: 7000
 
 # IDEMPOTENT EXPAND: tap only if the panel is currently collapsed.
 - runFlow:
@@ -202,6 +113,4 @@ tags:
       id: "Value for League"
     visibilityPercentage: 10
     waitToSettleTimeoutMs: 1000
-    timeout: 10000
-- assertVisible:
-    id: "Value for League"
+    timeout: 7000

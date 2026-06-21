@@ -24,6 +24,18 @@ export default defineSchema({
       site: v.string(),
       hasCredentials: v.boolean(),
       lastUpdated: v.optional(v.string()),
+      // Per-(user, site) credential-operation lock. A credential op (store /
+      // test-login / delete) is mutually exclusive so a Clear can't race an
+      // in-flight marketplace login and corrupt the stored token. lockedAt is
+      // the lease anchor (epoch ms); a lock older than CRED_LOCK_LEASE_MS is
+      // stale and reclaimable (crash recovery). lockToken is server-minted and
+      // never sent to the client — release requires a matching token. All
+      // optional: existing rows read as "not locked" (no migration).
+      lockedAt: v.optional(v.number()),
+      lockedOp: v.optional(
+        v.union(v.literal("store"), v.literal("test"), v.literal("delete")),
+      ),
+      lockToken: v.optional(v.string()),
     }))),
     // Per-marketplace account identifiers captured at login time so callers
     // (e.g. fetchBscChecklist) don't have to re-derive them on every request.
@@ -89,16 +101,17 @@ export default defineSchema({
       isInsert: v.optional(v.boolean()),
       isParallel: v.optional(v.boolean()),
     })),
-    // NEO-24: marketplace-listing metadata at the set level. Populated by
-    // TCDB enrichment (Stage 3) and admin edits. Set-level only — does NOT
-    // propagate to descendant cardChecklist rows (those use `features`).
+    // Set-level metadata, entered MANUALLY in the Set Builder (admin edits via
+    // `setSetMetadata`). Set-level only — does NOT propagate to descendant
+    // cardChecklist rows (those use `features`). (Previously auto-populated by
+    // TCDB enrichment; that scraping was removed — automation tracked separately.)
     setMetadata: v.optional(v.object({
       releaseDate: v.optional(v.string()),       // ISO date string when known
       totalCardCount: v.optional(v.number()),    // declared set size
       block: v.optional(v.string()),             // e.g. "Series 1", "Update"
-      tcdbSetId: v.optional(v.string()),         // canonical TCDB SID for re-sync
-      sourceUrl: v.optional(v.string()),         // last-fetched audit trail
-      lastSyncedAt: v.optional(v.number()),      // ms epoch of last enrichment
+      tcdbSetId: v.optional(v.string()),         // TCDB SID (manually entered)
+      sourceUrl: v.optional(v.string()),         // reference URL (manually entered)
+      lastSyncedAt: v.optional(v.number()),      // legacy: last auto-sync epoch (no longer written)
     })),
     // NEO-24: marketplace-agnostic feature map. Keys come from
     // `convex/features/expectedFeatures.ts` (e.g. "league", "era",
@@ -114,6 +127,29 @@ export default defineSchema({
     .index("by_parent", ["parentId"])
     .index("by_value", ["value"])
     .index("by_level_and_parent", ["level", "parentId"]),
+
+  // Transient per-(level, parentId) marketplace-sync status for SetSelector
+  // columns (NEO-47 sync redesign). A row exists only while a sync is in flight
+  // ("syncing") or has errored ("error"); the happy path deletes it. The FE
+  // derives a column's loading/error/Retry state from this reactively, replacing
+  // EntityColumn's old sync state-machine + fragile onDone handoff. parentId
+  // omitted = root (sport) level.
+  selectorSyncStatus: defineTable({
+    level: v.union(
+      v.literal("sport"),
+      v.literal("year"),
+      v.literal("manufacturer"),
+      v.literal("setName"),
+      v.literal("variantType"),
+      v.literal("insert"),
+      v.literal("parallel"),
+    ),
+    parentId: v.optional(v.id("selectorOptions")),
+    status: v.union(v.literal("syncing"), v.literal("error")),
+    message: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_level_and_parent", ["level", "parentId"]),
 
   // Card Checklist - stores individual cards within a set variant.
   // Carries enough metadata to drive an eBay Sell Inventory API listing

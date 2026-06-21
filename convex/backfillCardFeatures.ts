@@ -10,7 +10,7 @@
  * `materializeSelectorOptionFeature` cascade a value to descendant NODES and
  * cardChecklist rows. At sync, `commitCardChecklist` seeds the
  * `deriveSetLevelFeatures` heuristic FILL-ABSENT at each key's natural
- * originating node, then in-band TCDB overwrites at the setName node.
+ * originating node.
  *
  * The OLD backfill (commit d1baf01) gap-filled features directly onto each
  * `cardChecklist` row and never touched nodes — inconsistent with the new
@@ -28,9 +28,9 @@
  * previous value, any operator/card-observed override is preserved, and a
  * second run is a no-op (idempotent).
  *
- * TCDB metadata for existing sets is intentionally OUT of scope here — it is
- * refreshed via a normal in-band re-fetch (PR B-1). This backfill only seeds
- * the heuristic so pre-pipeline data isn't left blank.
+ * Set metadata (releaseDate / block / tcdbSetId / sourceUrl) is intentionally
+ * OUT of scope here — it is manually edited via `setSetMetadata`. This backfill
+ * only seeds the heuristic so pre-pipeline data isn't left blank.
  *
  * Originating-node mapping (mirrors commitCardChecklist's seedPlan)
  * ----------------------------------------------------------------

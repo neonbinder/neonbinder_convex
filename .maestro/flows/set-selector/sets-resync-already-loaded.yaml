@@ -34,13 +34,22 @@ tags:
     file: util-drill-to-2024-topps-chrome.yaml
 
 # Variant types persisted across the fresh session.
-- assertVisible: "Base"
+# R8: scroll Base into view first — the variant types column is overflow-y-auto
+# and at 1024×629 the entries can be below the fold.
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    centerElement: true
 - assertVisible: "Insert"
 - assertVisible: "Parallel"
 
-# Auto-sync guard: with items already present the column stays idle — "Sync
-# Variant Types" is visible (idle), the column did NOT switch into sync mode.
+# Auto-sync guard: with items already present the column must NOT have entered
+# sync mode. "Syncing Variant Types" is the in-progress state — a broken guard
+# would still be showing it here (BSC/SL round-trips take multiple seconds).
+- assertNotVisible: "Syncing Variant Types"
+
+# Idle button confirms the column settled without a re-sync. R6: the scroll
+# itself proves visibility; the redundant assertVisible that followed is dropped.
 - scrollUntilVisible:
     element:
       text: "Sync Variant Types"
-- assertVisible: "Sync Variant Types"

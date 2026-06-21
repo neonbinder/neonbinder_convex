@@ -18,6 +18,10 @@ function TestingSeedCredentialsContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
+  // Optional `sites` (comma-separated platform names, e.g. "sportlots" or
+  // "buysportscards") narrows seeding to a subset — the credential-gate fixtures
+  // seed exactly one platform so the other reads as missing. Omitted → seed all.
+  const sitesParam = searchParams.get("sites");
   const [status, setStatus] = useState("Initializing...");
   const ranRef = useRef(false);
 
@@ -40,7 +44,10 @@ function TestingSeedCredentialsContent() {
     (async () => {
       try {
         setStatus("Seeding marketplace credentials...");
-        const result = await seedAction({});
+        const sites = sitesParam
+          ? sitesParam.split(",").map((s) => s.trim()).filter(Boolean)
+          : undefined;
+        const result = await seedAction(sites ? { sites } : {});
         const summary = result.seeded
           .map((s) => `${s.site}=${s.skipped ? "skip" : s.stored ? "stored" : "fail"}`)
           .join(" ");
@@ -51,7 +58,7 @@ function TestingSeedCredentialsContent() {
         setStatus(`Error: ${msg}`);
       }
     })();
-  }, [isAuthenticated, isLoading, navigate, redirect, seedAction]);
+  }, [isAuthenticated, isLoading, navigate, redirect, seedAction, sitesParam]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

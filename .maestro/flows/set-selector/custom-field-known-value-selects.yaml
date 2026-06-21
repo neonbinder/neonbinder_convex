@@ -20,11 +20,12 @@ tags:
 #   The EntityColumn FE calls onSelectExisting(_id) — the same handler that
 #   fires when the user taps the row directly — which drives the drill forward.
 #
-# PRECONDITION (requires:setup-done):
-#   cascade/setup.yaml has run; Baseball is already in the Sports column as
-#   synced data (not custom). The cascade also saves BSC + SL credentials and
-#   warms the Puppeteer session, so the subsequent Years auto-sync can use a
-#   live token and won't cold-start during this flow's assertions.
+# PRECONDITION:
+#   setup.yaml (the worker-bootstrap flow) runs first via the test:e2e:pick
+#   prerequisite closure. It seeds BSC + SL credentials and pre-syncs Baseball
+#   into the Sports column so it is available as synced data by the time this
+#   flow starts. The work-queue (NEO-49) replaced the old requires:/provides:
+#   dep-graph and the cascade/ directory is gone.
 #
 # DATA ISOLATION:
 #   This flow only reads from the shared Sports column (Baseball) and drills
@@ -37,12 +38,6 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 45000
-
-- openLink: ${APP_URL || "http://localhost:3000"}/set-selector
-- extendedWaitUntil:
-    visible: "Set Selector"
-    timeout: 20000
 
 # ============================================================
 # WAIT FOR SPORTS COLUMN IDLE
@@ -54,11 +49,9 @@ tags:
 
 - extendedWaitUntil:
     visible: "Sports"
-    timeout: 30000
 
 - extendedWaitUntil:
     visible: "Baseball"
-    timeout: 60000
 
 # ============================================================
 # OPEN THE "+ CUSTOM" FORM ON THE SPORTS COLUMN
@@ -75,14 +68,8 @@ tags:
     element:
       id: "Add custom Sports"
     visibilityPercentage: 50
-    timeout: 10000
 - tapOn:
     id: "Add custom Sports"
-
-# The form heading "Add Custom Entry" is the unambiguous open signal.
-- extendedWaitUntil:
-    visible: "Add Custom Entry"
-    timeout: 5000
 
 # ============================================================
 # TYPE A VALUE THAT ALREADY EXISTS AS SYNCED DATA
@@ -114,7 +101,6 @@ tags:
 
 - extendedWaitUntil:
     notVisible: "Add Custom Entry"
-    timeout: 10000
 
 # ============================================================
 # ASSERT OUTCOME 2 — DRILL ADVANCED TO YEAR COLUMN
@@ -123,29 +109,12 @@ tags:
 # without selecting (e.g. a silent dismiss), the Years column
 # would never appear.
 #
-# "Years" (the column heading) appears as soon as the Baseball row
-# is selected and React mounts the next column — before the Years
-# marketplace sync even starts. This is a fast, reliable signal.
+# We assert "Sync Years" (the sync button at the bottom of the
+# Years column) rather than the "Years" heading: the 1024×629
+# headless viewport renders the year rows list starting near the
+# top of the column, pushing the heading above the fold before
+# the assertion fires. "Sync Years" is always visible in the
+# lower portion of the column and is unique to the Years column.
 # ============================================================
 
-- extendedWaitUntil:
-    visible: "Years"
-    timeout: 30000
-
-# Asserting the "Add custom Years" button (aria-label) OR the "Sync Years"
-# button confirms the Years column has rendered to its idle or sync state —
-# proving the column is fully mounted, not just the heading flashed.
-# We use the scrollUntilVisible pattern (not extendedWaitUntil) because
-# the button may be below the fold when several columns are open.
-# visibilityPercentage: 50 matches the established Sports-column pattern.
-- scrollUntilVisible:
-    element:
-      text: ".*Sync Years.*|.*Search years.*"
-    visibilityPercentage: 50
-    timeout: 60000
-
-# Final visible assertion: the Years column is fully present, confirming
-# that typing "Baseball" into the + Custom form selected the existing
-# Baseball row and advanced the drill — exactly like tapping Baseball
-# directly would have done.
-- assertVisible: "Years"
+- assertVisible: "Sync Years"

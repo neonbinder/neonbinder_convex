@@ -19,13 +19,12 @@ tags:
 #   button calls the same onCancel callback as the key — testing the button
 #   is sufficient to confirm the cancel logic runs correctly.
 #
-# FRESH-DB REQUIREMENT:
-#   This test requires that the `players` and `teams` tables are EMPTY so
-#   that the UnknownEntitiesDialog opens on first fetch. Guaranteed on CI by
-#   the per-PR Convex preview reset (vercel.json buildCommand uses
-#   --preview-create "pr-${PR_NUMBER}"). For local runs against the
-#   persistent dev Convex, manually click "Reset Set Builder Data" in
-#   AdminTools before running this flow.
+# DIALOG GUARANTEE:
+#   The UnknownEntitiesDialog is guaranteed to open because the custom card
+#   added in the preamble uses a per-attempt-unique player name
+#   ("CDPlayer-${ATTEMPT_ID}"). That player is always unknown to the global
+#   `players` table on this attempt, so fetchCardChecklist will always surface
+#   it for confirmation. An empty `players`/`teams` DB is NOT required.
 
 # ============================================================
 # LAUNCH + SIGN IN
@@ -34,7 +33,6 @@ tags:
 - launchApp
 - extendedWaitUntil:
     visible: "Set Selector"
-    timeout: 10000
 
 # ============================================================
 # DRILL TO A BASE VARIANT WITH EMPTY CHECKLIST
@@ -58,14 +56,12 @@ tags:
     element:
       text: "Add Card"
     centerElement: true
-    timeout: 10000
 - tapOn: "Add Card"
 # Wait for the form to open. "Player name" is the card-name input's
 # placeholder (still rendered visually) and reliably becomes visible after
 # the autoFocused "#" input renders.
 - extendedWaitUntil:
     visible: "Player name"
-    timeout: 5000
 # The card number input is auto-focused on form open.
 # Card number includes ATTEMPT_ID so a retry doesn't add a duplicate row
 # (run-e2e-smoke.sh seeds ATTEMPT_ID=w<worker>-a<attempt>-<RANDOM>).
@@ -84,7 +80,6 @@ tags:
     element:
       text: "Player(s) — comma separated, optional"
     centerElement: true
-    timeout: 5000
 - tapOn:
     id: "Players"
 - inputText: "CDPlayer-${ATTEMPT_ID}"
@@ -101,8 +96,8 @@ tags:
 # ============================================================
 # TRIGGER THE FETCH AND WAIT FOR THE DIALOG
 # The custom-card preamble guarantees the dialog opens with our unique
-# player. The end-state composite handles "dialog opened" OR "saved"
-# (in case some flake shortcuts the dialog).
+# player (CDPlayer-${ATTEMPT_ID} is always unknown). The wait below
+# requires the dialog — no escape hatch to "Saved N cards".
 # ============================================================
 
 # After the add-custom-card preamble scrolled DOWN to verify the new row,
@@ -121,11 +116,9 @@ tags:
     direction: UP
     centerElement: true
     visibilityPercentage: 50
-    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "Sync card checklist"
-    timeout: 5000
 # Tap the CardChecklist's Fetch/Refresh button by aria-label. Plain
 # `text: ".*Refresh"` regex matched a different Refresh element on the
 # page (NEO-13 root cause).
@@ -133,23 +126,20 @@ tags:
     id: "Sync card checklist"
 - extendedWaitUntil:
     visible:
-      text: "Confirm New Players & Teams|.*Saved [0-9]+ cards.*"
+      text: "Confirm New Players & Teams"
     # 60s — fetchCardChecklist scrapes BSC (~30s ceiling) + SL in parallel.
     # This wait is for a backend marketplace fetch, not a user-perceived
     # response, so it sits outside the 10s UI-interaction budget.
+    # The unique CDPlayer-${ATTEMPT_ID} guarantees the dialog opens — no
+    # escape hatch to "Saved N cards" needed.
     timeout: 60000
 
-# If the dialog did appear (fast path), cancel it. The post-cancel
-# message asserts below cover the "did not open" branch implicitly
-# (in that branch the message is "Saved N cards." not "Fetch cancelled").
-- runFlow:
-    when:
-      visible: "Confirm New Players & Teams"
-    commands:
-      - tapOn: "Cancel (Esc)"
-      - extendedWaitUntil:
-          notVisible: "Confirm New Players & Teams"
-          timeout: 10000
+# Cancel is unconditional — the extendedWaitUntil above already confirmed
+# the dialog is visible. The guard was removed because the dialog MUST open
+# (ATTEMPT_ID player is always unknown), so silently skipping cancel is wrong.
+- tapOn: "Cancel (Esc)"
+- extendedWaitUntil:
+    notVisible: "Confirm New Players & Teams"
 
 # ============================================================
 # VERIFY THE BSC/SL CARDS WERE NOT SAVED
@@ -175,8 +165,3 @@ tags:
       id: "Sync card checklist"
     direction: UP
     centerElement: true
-    timeout: 10000
-- extendedWaitUntil:
-    visible:
-      id: "Sync card checklist"
-    timeout: 5000

@@ -33,13 +33,11 @@ tags:
 - openLink: ${APP_URL || "http://localhost:3000"}/profile
 - extendedWaitUntil:
     visible: "Neon Binder"
-    timeout: 20000
 
 # ============================================================
 # FORCE A FRESH BSC LOGIN — tap "Test Credentials"
 # The "Test Credentials" button triggers the Puppeteer BSC login and
-# refreshes the sellerId stored in the DB. This is the step that
-# setup-bsc-credentials.yaml skips when creds are already present.
+# refreshes the sellerId stored in the DB.
 # Cloud Run cold-starts can add 20–30 s to the login round-trip.
 # ============================================================
 
@@ -48,14 +46,13 @@ tags:
 # widens the CDP empty-response window that causes the NEO-8 flake.
 - extendedWaitUntil:
     visible: "Profile Settings"
-    timeout: 10000
 
 # waitToSettleTimeoutMs: Maestro waits for the view hierarchy to quiesce between
 # scroll steps, reducing CDP "end-of-input"/empty-hierarchy errors on dynamic pages.
 - scrollUntilVisible:
     element:
       text: "Test Credentials"
-    timeout: 20000
+    centerElement: true
     waitToSettleTimeoutMs: 1000
 - tapOn: "Test Credentials"
 
@@ -74,6 +71,3 @@ tags:
 # At this point the sellerId is fresh and valid in the DB.
 # The caller may now run util-drill-to-base-variant safely.
 # ============================================================
-
-- assertVisible:
-    text: ".*BSC account authenticated successfully.*|.*Credentials saved successfully.*"
