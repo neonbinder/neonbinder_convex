@@ -231,8 +231,17 @@ export default function SetSelector() {
       {/* pb-4 prevents the horizontal scrollbar from overlapping each
           EntityColumn's action-button row (Sync X / + Custom). Without it,
           Maestro web taps at the action-button y-coordinate hit the
-          scrollbar instead of the button — see PR #31 diagnosis. */}
-      <div className="flex flex-row gap-4 overflow-x-auto pb-4">
+          scrollbar instead of the button — see PR #31 diagnosis.
+
+          pl-4 keeps the leftmost column's "Sync <X>" button clear of the
+          viewport's left edge. This page sits in a vw-based full-bleed wrapper
+          that leaves the first column only ~6px of edge clearance; under a
+          CLASSIC scrollbar (Linux/Windows, incl. CI headless Chrome) the
+          full-bleed math over-pulls ~8px left, rendering "Sync Sports" at
+          x=-2 (~98% visible). Maestro's scrollUntilVisible(visibility:100%)
+          then can't tap it. Mac overlay scrollbars (0px) hide this locally —
+          custom-entry-survives-resync 8/8 CI failure, NEO root-cause. */}
+      <div className="flex flex-row gap-4 overflow-x-auto pb-4 pl-4">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
           selector={
