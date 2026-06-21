@@ -126,8 +126,11 @@ tags:
 # Verify the profile link shows the correct URL path
 - assertVisible: "View your profile at /u/${TEST_USERNAME}"
 
-# Tap the profile link — navigates to /u/${TEST_USERNAME}
-- tapOn: "View your profile at /u/${TEST_USERNAME}"
+# Navigate to the public profile — openLink avoids the CDP-context destruction
+# that tapOn-on-a-link causes when the client-side router tears down the page
+# mid-tap (null→Int cast crash; seen in CI run 27905676068). The assertVisible
+# above already proved the link text/path is correct; this just gets us there.
+- openLink: ${APP_URL || "http://localhost:3000"}/u/${TEST_USERNAME}
 - assertVisible: "Buying and Selling all kinds of Sports Cards"
 
 # Validate public profile content
