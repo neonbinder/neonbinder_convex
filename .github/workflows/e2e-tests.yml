@@ -152,10 +152,17 @@ jobs:
       - name: Seed global baseline (setup track, worker 0)
         env:
           APP_URL: http://localhost:3000
-          # Single ordered writer: setup.yaml does the global reset + Base, then
-          # insert, then parallel. Forced serial in the scheduler too (SELECT_MODE
-          # setup), but pin it here for clarity. No SHARD_* → single-shard, worker 0.
+          # Single ordered writer: the setup flow does the global reset + Base +
+          # Insert + Parallel in one in-place pass (NEO-62). Forced serial in the
+          # scheduler too (SELECT_MODE setup); pinned here for clarity. No SHARD_*
+          # → single-shard, worker 0.
           MAESTRO_PARALLELISM: "1"
+          # Skip Phase-0 worker-bootstrap (NEO-62): the setup flow's own url chain
+          # (/testing/sign-in?redirect=/testing/reset?redirect=/testing/seed-credentials)
+          # already signs in + per-user resets + seeds creds + warms BSC/SL for
+          # worker 0, so a separate bootstrap is pure duplication (~66s). Runner
+          # jobs still bootstrap (they don't set this).
+          MAESTRO_SKIP_BOOTSTRAP: "1"
           REPORT_DIR: maestro-report
         run: npm run test:e2e -- setup
 
