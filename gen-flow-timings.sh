@@ -41,7 +41,8 @@ flow_has_tag() {
 }
 
 # 1. Enqueue set (authoritative flow list) → temp file.
-enq="$(mktemp)"; trap 'rm -f "$enq" "$tc"' EXIT
+tc=""  # declared before the trap so `set -u` can't trip if we exit early.
+enq="$(mktemp)"; trap 'rm -f "$enq" "${tc:-}"' EXIT
 while IFS= read -r f; do
   flow_has_tag "$f" util  && continue
   flow_has_tag "$f" wip   && continue
