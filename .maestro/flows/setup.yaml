@@ -16,6 +16,16 @@ tags:
 # Parallel — the util's fast-drill (no syncs needed; all data in Convex)
 # is cheaper than the session restart the old design paid.
 #
+# WHY NOT A HORIZONTAL SCROLL (NEO-62 investigation):
+#   After tapping "Base", the app does NOT just push the columns row off-screen
+#   horizontally. It renders a full-panel detail view (BaseMappingForm +
+#   CardChecklist) that replaces the columns layout entirely. The Variant Types
+#   column ("Insert", "Parallel") disappears from the DOM viewport — it is not
+#   in any horizontal overflow-x-auto container that scrollUntilVisible
+#   direction: LEFT can reach. Confirmed with forensic screenshots: the base
+#   detail panel occupies the full left 2/3 of the screen, the columns are gone.
+#   openLink re-drill IS the correct and only workable approach here.
+#
 # ── CANONICAL PRE-SYNCED DATA (the contract every other flow relies on) ──────
 # After this flow completes, the shared Convex deployment holds exactly this —
 # any flow may fast-drill to it and read it WITHOUT syncing. If you need data
@@ -321,10 +331,13 @@ tags:
 # ════════════════════════════════════════════════════════════════════════════
 # RE-DRILL TO INSERT — NEO-62 Lever 1.
 #
-# After the Base card fetch, the CardChecklist fills the horizontal viewport
-# (the rightmost column in the SetSelector's overflow-x-auto layout), pushing
-# the Variant Types column (with "Insert") off-screen to the LEFT. A simple
-# scrollUntilVisible cannot reach a horizontally-clipped element.
+# After the Base card fetch, the app renders a full-panel detail view
+# (BaseMappingForm + CardChecklist) that replaces the SetSelector columns
+# layout entirely. "Insert" in the Variant Types column is NOT in a horizontal
+# overflow container — it is gone from the viewport. scrollUntilVisible
+# direction: LEFT cannot recover it (confirmed forensically: LEFT scroll was
+# attempted 5× and failed because the element is not in any scrollable
+# ancestor; the panel is a full-page layout change, not a CSS overflow clip).
 #
 # Pattern (R9): use util-drill-to-2024-topps-chrome, which does openLink to
 # /set-selector and re-drills the cascade (fast, all data already in Convex).
@@ -441,9 +454,11 @@ tags:
 # ════════════════════════════════════════════════════════════════════════════
 # RE-DRILL TO PARALLEL — NEO-62 Lever 1 (continued).
 #
-# Same pattern as the Insert section above: after the Future Stars card fetch,
-# the CardChecklist fills the viewport horizontally. Use the drill util to
-# navigate back and re-select Topps Chrome, then tap "Parallel".
+# Same situation as the Insert section above: after the Future Stars card
+# fetch, the app shows the Insert detail panel (full-page layout change).
+# "Parallel" is not reachable by horizontal scroll — openLink re-drill
+# is the only viable approach. See the Insert section comment for the
+# forensic evidence (direction:LEFT scrollUntilVisible attempted + failed).
 # ════════════════════════════════════════════════════════════════════════════
 
 - runFlow: set-selector/util-drill-to-2024-topps-chrome.yaml
