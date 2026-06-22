@@ -7,24 +7,27 @@ type: project
 # Canonical Pre-Synced Setup Data
 
 The global setup **track** runs ONCE, as worker 0, before every other flow. It is
-**three flows** the runner executes in sequence (NOT the old
-`set-selector/cascade/*`):
+**ONE flow** (NEO-62 Lever 1 — collapsed from 3 flows):
 
 1. `.maestro/flows/setup.yaml` — global "Reset Set Builder Data" wipe, seed
    teams, warm worker 0, drill Baseball→2024→Topps→Topps Chrome, sync Variant
-   Types, fetch + save **Base** cards.
-2. `.maestro/flows/setup-insert.yaml` — select Insert, save matched variants,
-   fetch **Future Stars** cards.
-3. `.maestro/flows/setup-parallel.yaml` — select Parallel, save matched variants,
-   fetch **Gold Wave Refractors** cards.
+   Types, fetch + save **Base** cards. After the Base fetch, re-drill via
+   `util-drill-to-2024-topps-chrome` (fast, no syncs — all data already in
+   Convex) → tap "Insert" → ReconciliationModal → save matched variants +
+   fetch **Future Stars** cards. Re-drill again via the same util → tap
+   "Parallel" → ReconciliationModal → save matched variants + fetch **Gold
+   Wave Refractors** cards.
 
-**Why three flows, not one:** switching variant types in place after a card fetch
-is unreliable, and a 2nd in-session `openLink` restores the SPA's prior deep
-selection so a fresh fast-drill breaks (confirmed: `Search manufacturers` not
-found, columns rendered at y=556 / bottom of the 1024×629 viewport). Each variant
-gets its OWN flow = fresh browser context = clean slate (the proven cascade
-pattern). `/testing/reset` only clears the caller's profiles, NOT the global
-`selectorOptions`, so the data setup.yaml built survives flows 2 and 3.
+**Why re-drill instead of in-place switch (NEO-62 discovery):** after the Base
+card fetch, the CardChecklist fills the HORIZONTAL viewport (the rightmost column
+in the SetSelector's overflow-x-auto layout). The Variant Types column with
+"Insert" is horizontally off-screen to the LEFT. Maestro's `scrollUntilVisible`
+only scrolls vertically — it cannot reach a horizontally-clipped element. The
+`util-drill-to-2024-topps-chrome` util does `openLink /set-selector` (resets
+page state) then fast-drills to Topps Chrome, leaving "Variant Types" visible
+with "Base" centered. "Insert" and "Parallel" are immediately below "Base" in
+the column and reachable with standard `scrollUntilVisible direction:DOWN`.
+One browser context = one sign-in, two extra drills (each ~16s), no re-login.
 
 Every OTHER (feature) flow is independent: it signs in, **fast-drills** to this
 data, and reads it — no syncs, no dep-graph tags, no global reset.
@@ -75,6 +78,8 @@ correction, which is not something flows plan around.)
   setup.yaml (the warm track) — never copy them into a feature flow.
 - Per-worker credential warming is the runner's job (loops `worker-bootstrap.yaml`
   per worker via MAESTRO_PARALLELISM), not setup.yaml's. setup only warms worker 0.
+  Note: the CI seed job runs with MAESTRO_SKIP_BOOTSTRAP=1 (NEO-62 Lever 2) —
+  setup.yaml is fully self-sufficient via its sign-in→reset→seed-credentials URL chain.
 
 ## Keep in sync
 
