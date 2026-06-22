@@ -299,6 +299,24 @@ jobs:
           pattern: maestro-report-runner-*
           path: all-shards
 
+      - name: Regenerate flow-timings.tsv (LPT seed table)
+        if: always()
+        # Rebuild .maestro/flow-timings.tsv from this run's per-flow JUnit times so a
+        # later run can seed the queue longest-first (NEO-61). Flows not measured this
+        # run keep their committed value. Uploaded as an artifact (NOT committed here);
+        # the weekly refresh-flow-timings.yml downloads it and opens a chore PR when
+        # it drifts.
+        run: bash gen-flow-timings.sh all-shards .maestro/flow-timings.tsv > flow-timings.tsv
+
+      - name: Upload flow-timings artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-timings
+          path: flow-timings.tsv
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: ⏱️ Flow timing summary (slowest first)
         if: always()
         run: |
