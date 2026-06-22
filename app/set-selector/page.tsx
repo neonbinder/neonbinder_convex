@@ -32,12 +32,18 @@ export default function SetSelectorPage() {
     );
   }
 
-  // The break-out negative margins below are tuned for wide viewports (≥1280 px).
-  // At 1024 px (Maestro CI headless viewport), they push the inner content past
-  // x=0 and clip the leftmost AdminTools button by ~1%, which trips Maestro's
-  // 100 % visibility threshold and breaks cascade/setup.yaml. AdminTools doesn't
-  // need the break-out — it lives in a max-w-6xl wrapper either way — so render
-  // it OUTSIDE the break-out container in its own normally-padded section.
+  // The cascade lives in a horizontally-scrollable columns row, so it does NOT
+  // need to break out of the layout for width — it scrolls. A prior vw-based
+  // full-bleed break-out (negative margins) caused multiple CI bugs: a left-edge
+  // clip (custom-entry-survives-resync) and — fatally for in-place seeding — it
+  // let the columns row slide UNDER the fixed nav so taps landed on the nav and
+  // navigated to /inventory (NEO-63). It also only added width above ~1300px; at
+  // ≤1280 (incl the 1024px Maestro CI viewport) it was equal-or-narrower anyway.
+  // So: no break-out. The section renders in normal flow inside main's
+  // lg:pr-[170px] gutter — nav-safe exactly like every other page — capped at
+  // the layout's max-w-6xl; the columns row's overflow-x-auto handles extra
+  // columns via horizontal scroll. (AdminTools already lives in its own padded
+  // section and never needed the break-out either.)
   return (
     <>
       <div className="max-w-6xl mx-auto px-6 pt-6 mb-4">
@@ -47,14 +53,7 @@ export default function SetSelectorPage() {
         </p>
         <AdminTools />
       </div>
-      <div
-        className="px-6 pb-6"
-        style={{
-          width: "calc((100vw - 170px) * 0.9)",
-          marginLeft: "calc(-50vw + 50% + (100vw - 170px) * 0.05)",
-          marginRight: "calc(-50vw + 50% + 170px + (100vw - 170px) * 0.05)",
-        }}
-      >
+      <div className="px-6 pb-6">
         <SetSelector />
       </div>
     </>
