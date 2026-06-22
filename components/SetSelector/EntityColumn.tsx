@@ -104,10 +104,18 @@ export default function EntityColumn({
 
   useEffect(() => {
     if (isVisible && !wasVisibleRef.current && containerRef.current) {
+      // CENTER the newly-revealed column in the horizontal scroll row, not
+      // `inline: "end"`. "end" parked each new column hard against the row's
+      // right edge — which is where the fixed nav sidebar overlays (x≈854–1024
+      // at the 1024px viewport) — so a deep column's tap point landed UNDER the
+      // nav and Maestro/users hit a nav item instead (→ /inventory). This was
+      // the real root of the nav-overlap (NEO-63); the page break-out only
+      // shifted which column was affected. Centering keeps the active column
+      // clear of both the nav (right) and the left edge.
       containerRef.current.scrollIntoView({
         behavior: "smooth",
         block: "nearest",
-        inline: "end",
+        inline: "center",
       });
     }
     wasVisibleRef.current = isVisible;
