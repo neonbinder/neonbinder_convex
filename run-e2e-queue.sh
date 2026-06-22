@@ -59,10 +59,61 @@ if [ "$MODE" = "enqueue" ]; then
   done < <(find .maestro/flows/ -name "*.yaml" | sort)
 
   if [ ${#FLOWS[@]} -eq 0 ]; then echo "No flows to enqueue." >&2; exit 1; fi
-  # Build a JSON string array of the flow paths.
+
+  # ── LPT ordering (NEO-61): seed LONGEST-PROCESSING-TIME-FIRST ────────────────
+  # The queue claims in INSERTION order (convex/e2eQueue.ts claimNext → .first() on
+  # by_run_status), so enqueuing the biggest flows first lets the work-stealing pool
+  # start the long poles immediately and balances the runner tail — alphabetical
+  # seeding left a ~4.5 min fastest↔slowest spread (e2e-sample-run2). Durations come
+  # from .maestro/flow-timings.tsv (auto-regenerated each run by gen-flow-timings.sh).
+  # A flow absent from the table (new/unmeasured) gets the MEDIAN of known values →
+  # mid-queue, never starved last. Missing/empty table → keep the alphabetical order
+  # above (so a deleted/empty table can never break enqueue). bash 3.2-safe (no
+  # mapfile) for local parity with macOS.
+  TIMINGS_TSV=".maestro/flow-timings.tsv"
+  if [ -s "$TIMINGS_TSV" ] && grep -qvE '^#|^[[:space:]]*$' "$TIMINGS_TSV"; then
+    reordered=()
+    while IFS= read -r f; do reordered+=("$f"); done < <(printf '%s\n' "${FLOWS[@]}" | python3 -c '
+import sys
+dur = {}
+with open(".maestro/flow-timings.tsv") as fh:
+    for line in fh:
+        line = line.rstrip("\n")
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            try:
+                dur[parts[1]] = float(parts[0])
+            except ValueError:
+                pass
+vals = sorted(dur.values())
+if vals:
+    n = len(vals)
+    median = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2.0
+else:
+    median = 0.0
+flows = [l.strip() for l in sys.stdin if l.strip()]
+flows.sort(key=lambda f: (-dur.get(f, median), f))  # seconds desc, path asc
+print("\n".join(flows))
+')
+    FLOWS=("${reordered[@]}")
+    echo "Enqueue order: LPT (longest-first) via ${TIMINGS_TSV}" >&2
+  else
+    echo "Enqueue order: alphabetical (${TIMINGS_TSV} missing/empty)" >&2
+  fi
+
+  # Dry-run hook (local verification / CI debugging): print the resolved order and
+  # stop before touching the queue. Never set in the seed job.
+  if [ -n "${E2E_ENQUEUE_PRINT_ONLY:-}" ]; then
+    printf '%s\n' "${FLOWS[@]}"
+    exit 0
+  fi
+
+  # Build a JSON string array of the flow paths (now in LPT order).
   json_flows=$(printf '%s\n' "${FLOWS[@]}" | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")
   resp=$(_q seed "{\"runId\":\"${E2E_RUN_ID}\",\"flows\":${json_flows}}")
-  echo "Enqueued ${#FLOWS[@]} flow(s): ${resp}"
+  echo "Enqueued ${#FLOWS[@]} flow(s) (LPT order): ${resp}"
   exit 0
 fi
 
