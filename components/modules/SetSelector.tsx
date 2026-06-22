@@ -234,13 +234,13 @@ export default function SetSelector() {
           scrollbar instead of the button — see PR #31 diagnosis.
 
           pl-4 keeps the leftmost column's "Sync <X>" button clear of the
-          viewport's left edge. The page previously sat in a vw-based full-bleed
-          break-out that, under a CLASSIC scrollbar (incl. CI Chrome), over-pulled
-          ~8px left at 1024 → "Sync Sports" at x=-2 (~98% visible), which
-          scrollUntilVisible(visibility:100%) couldn't tap (custom-entry-survives-
-          resync 8/8 CI failure). NEO-63 removed that break-out — the page now
-          renders in normal flow inside main's nav-safe gutter — so pl-4 is just
-          ordinary left padding now, kept as a small safety margin. */}
+          viewport's left edge. This page sits in a vw-based full-bleed wrapper
+          that leaves the first column only ~6px of edge clearance; under a
+          CLASSIC scrollbar (Linux/Windows, incl. CI headless Chrome) the
+          full-bleed math over-pulls ~8px left, rendering "Sync Sports" at
+          x=-2 (~98% visible). Maestro's scrollUntilVisible(visibility:100%)
+          then can't tap it. Mac overlay scrollbars (0px) hide this locally —
+          custom-entry-survives-resync 8/8 CI failure, NEO root-cause. */}
       <div className="flex flex-row gap-4 overflow-x-auto pb-4 pl-4">
         {/* 1. Sport (SL & BSC) */}
         <EntityColumn
