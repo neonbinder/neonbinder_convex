@@ -11,31 +11,30 @@ tags:
 # Runs ONCE, as worker 0, before every other flow in the E2E suite. A single
 # browser context handles all three variant types (Base → Insert → Parallel)
 # so the redundant re-logins and cold sign-in overhead from the old 3-flow
-# design are eliminated. After the Base card fetch, the flow re-drills to
-# Topps Chrome (via util-drill-to-2024-topps-chrome) to reach Insert and
-# Parallel — the util's fast-drill (no syncs needed; all data in Convex)
-# is cheaper than the session restart the old design paid.
+# design are eliminated. After the Base card fetch, the flow switches IN PLACE
+# (scroll UP → expand the Variant Types chip → tap Insert, then Parallel) to
+# reach Insert and Parallel — no re-drill / openLink needed.
 #
-# LAYOUT REALITY (NEO-62 investigation — corrected):
+# LAYOUT REALITY (NEO-63 — root cause fixed in app code):
 #   The SetSelector columns row (overflow-x-auto) IS always rendered; the
 #   columns are NOT replaced by the detail view after selecting Base. After
 #   the Base card fetch the page scrolls DOWN to the checklist — the columns
 #   row is simply ABOVE the viewport (not removed). The Variant Types column
 #   ("Insert", "Parallel") is recoverable with a vertical scroll UP.
 #
-#   HOWEVER: after scroll UP + chip expansion (tapping the collapsed "Base"
-#   chip) + tapping Insert, the Inserts column appears at the current
-#   horizontal-scroll position of the columns container. That position is set
-#   by the Base-fetch drill and places the Inserts column's search input at
-#   x≈719–1011, which OVERLAPS the fixed nav sidebar (x≈860–1024). Maestro's
-#   hierarchyBasedTap then hits the "Inventory" nav item instead of the
-#   search input, silently navigating away. Confirmed forensically: screen-
-#   shot shows /inventory after the tap, every time.
+#   PREVIOUSLY the in-place switch failed: tapping Insert/Parallel revealed the
+#   next column at a horizontal-scroll position that parked its search input
+#   under the fixed nav sidebar (x≈854–1024), so Maestro's hierarchyBasedTap
+#   hit the "Inventory" nav item and navigated away (→ /inventory). That was
+#   because EntityColumn's reveal-scroll used scrollIntoView inline:"end",
+#   parking each newly-revealed column hard against the row's RIGHT edge.
 #
-#   The util-drill-to-2024-topps-chrome openLink resets both the vertical and
-#   horizontal scroll to a safe starting position where the Inserts/Parallels
-#   search inputs are at x<860 (nav-safe). That is why openLink re-drill IS
-#   the correct approach for the Base→Insert and Insert→Parallel transitions.
+#   NEO-63 (eccfe50) fixed this at the source: EntityColumn now reveals with
+#   inline:"center", so the active column lands in the middle of the visible
+#   row, clear of the nav. Proven: the Sets-column search input moved from
+#   x=788 (under nav, tap 934 → /inventory) to x=546 (tap 692, nav-safe). The
+#   in-place switch is therefore now correct AND ~1m cheaper than the old
+#   double openLink re-drill.
 #
 # ── CANONICAL PRE-SYNCED DATA (the contract every other flow relies on) ──────
 # After this flow completes, the shared Convex deployment holds exactly this —
@@ -340,26 +339,31 @@ tags:
     text: ".*#[0-9].*"
 
 # ════════════════════════════════════════════════════════════════════════════
-# RE-DRILL TO INSERT — NEO-62 Lever 1.
+# SWITCH TO INSERT — in-place; NEO-63 centers the active column (EntityColumn
+# inline:center) so it's nav-safe.
 #
-# After the Base card fetch the Variant Types column shows a COLLAPSED CHIP
-# (EntitySelector: selectedId && !expanded → chip mode). The chip IS visible
-# (columns row persists above the viewport — a UP scroll recovers it), but
-# tapping the chip to expand + selecting Insert places the Inserts column
-# search input at x≈719–1011 which overlaps the fixed nav sidebar (x≈860+).
-# Maestro's hierarchyBasedTap then hits "Inventory" nav instead of the input.
-#
-# Pattern (R9): use util-drill-to-2024-topps-chrome, which does openLink to
-# /set-selector and re-drills the cascade (fast, all data already in Convex).
-# The openLink resets both vertical and horizontal scroll, placing the Inserts
-# column at a nav-safe x position (<860). The util's return contract:
-# "Variant Types" visible, "Base" scrolled to center.
+# After the Base card fetch the page has scrolled DOWN to the checklist; the
+# Variant Types column (a COLLAPSED CHIP showing "Base" — EntitySelector:
+# selectedId && !expanded → chip mode) is ABOVE the viewport. Scroll UP to the
+# columns row, tap the "Base" chip to expand it (re-showing Base/Insert/
+# Parallel), then tap "Insert". When the Inserts column reveals, EntityColumn's
+# inline:center reveal-scroll keeps its search input clear of the fixed nav
+# (x≈854–1024 at 1024px) — proven by NEO-63: the Sets-column search input moved
+# from x=788 (under nav, tap 934) to x=546 (tap 692, nav-safe). No re-drill /
+# openLink needed.
 # ════════════════════════════════════════════════════════════════════════════
 
-- runFlow: set-selector/util-drill-to-2024-topps-chrome.yaml
-
-# util return contract: "Base" is visible (scrolled to center). "Insert" is
-# just below Base in the Variant Types column — scroll down to reach it.
+# Scroll UP to the Variant Types column (the collapsed "Base" chip is the
+# in-viewport anchor for the columns row after the checklist scroll).
+- scrollUntilVisible:
+    element:
+      text: "Base"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+# Expand the collapsed chip so the Base/Insert/Parallel buttons reappear.
+- tapOn: "Base"
+# Insert is a button in the now-expanded Variant Types column.
 - scrollUntilVisible:
     element:
       text: "Insert"
@@ -467,19 +471,29 @@ tags:
     timeout: 30000
 
 # ════════════════════════════════════════════════════════════════════════════
-# RE-DRILL TO PARALLEL — NEO-62 Lever 1 (continued).
+# SWITCH TO PARALLEL — in-place; NEO-63 centers the active column (EntityColumn
+# inline:center) so it's nav-safe.
 #
-# Same situation as the Insert section above: after the Future Stars card
-# fetch, chip expansion + Parallel selection places the Parallels column
-# search input at x≈719–1011, overlapping the nav sidebar. Re-drill via
-# openLink resets scroll positions and puts the Parallels search input at
-# a nav-safe x position. See the Insert section comment for the full
-# nav-overlap analysis.
+# Same situation as the Insert section above: after the Future Stars (Insert)
+# card fetch the page scrolled DOWN to the checklist and the Variant Types
+# column is a COLLAPSED CHIP — now showing "Insert" (the currently-selected
+# variant). Scroll UP to that chip, expand it, then tap "Parallel". When the
+# Parallels column reveals, EntityColumn's inline:center reveal-scroll keeps its
+# search input clear of the fixed nav. See the Insert section comment for the
+# full NEO-63 analysis. No re-drill / openLink needed.
 # ════════════════════════════════════════════════════════════════════════════
 
-- runFlow: set-selector/util-drill-to-2024-topps-chrome.yaml
-
-# Scroll down past "Base" (centered by the util) to reach "Parallel".
+# Scroll UP to the Variant Types column (the collapsed "Insert" chip is the
+# in-viewport anchor for the columns row after the checklist scroll).
+- scrollUntilVisible:
+    element:
+      text: "Insert"
+    direction: UP
+    centerElement: true
+    timeout: 10000
+# Expand the collapsed chip so the Base/Insert/Parallel buttons reappear.
+- tapOn: "Insert"
+# Parallel is a button in the now-expanded Variant Types column.
 - scrollUntilVisible:
     element:
       text: "Parallel"
