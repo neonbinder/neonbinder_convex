@@ -92,6 +92,16 @@ runs:
         echo "Pinned Maestro: ${maestro_version}"
         echo "Pinned Java:    ${java_version}"
 
+    - name: Cache Maestro CLI
+      id: maestro-cache
+      uses: actions/cache@v4
+      with:
+        # Maestro installs into ~/.maestro (bin + bundled lib). Key on the pinned
+        # version so a bump invalidates automatically (NEO-62 — saves the ~30s
+        # curl|bash install on every seed + runner job).
+        path: ~/.maestro
+        key: maestro-${{ runner.os }}-${{ steps.pins.outputs.maestro }}
+
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
@@ -116,6 +126,7 @@ runs:
         # check below sees multi-line output and fails even when the version
         # is correct. Also propagate to downstream steps via GITHUB_ENV.
         MAESTRO_CLI_NO_ANALYTICS: "1"
+        MAESTRO_CACHE_HIT: ${{ steps.maestro-cache.outputs.cache-hit }}
       run: |
         # Pin Maestro to .maestro/version. The installer reads MAESTRO_VERSION
         # to grab a specific tag instead of latest — without this, CI drifts
@@ -123,17 +134,30 @@ runs:
         # pipefail so a curl failure (e.g. 504 from the Maestro CDN) surfaces
         # as a non-zero exit — the install script prints the error but exits 0.
         set -o pipefail
-        curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
-          "https://get.maestro.mobile.dev" | bash
+        install_maestro() {
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 10 \
+            "https://get.maestro.mobile.dev" | bash
+        }
+        if [ "$MAESTRO_CACHE_HIT" = "true" ] && [ -x "$HOME/.maestro/bin/maestro" ]; then
+          echo "Maestro restored from cache — skipping install."
+        else
+          install_maestro
+        fi
         echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
         echo "MAESTRO_CLI_NO_ANALYTICS=1" >> "$GITHUB_ENV"
         # Verify the binary is actually installed AND matches the pin before
         # we spend 30 min in downstream steps discovering it doesn't. Extract
         # just the semver line with grep — defensive against any leftover
-        # banner output if MAESTRO_CLI_NO_ANALYTICS isn't honored.
+        # banner output if MAESTRO_CLI_NO_ANALYTICS isn't honored. A stale/corrupt
+        # cache self-heals: reinstall once before failing.
         installed="$("$HOME/.maestro/bin/maestro" --version | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)"
         if [ "$installed" != "$MAESTRO_VERSION" ]; then
-          echo "::error::Maestro installer returned '${installed}' but pin is '${MAESTRO_VERSION}'"
-          exit 1
+          echo "::warning::Maestro is '${installed}' (pin '${MAESTRO_VERSION}') — reinstalling."
+          install_maestro
+          installed="$("$HOME/.maestro/bin/maestro" --version | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)"
+          if [ "$installed" != "$MAESTRO_VERSION" ]; then
+            echo "::error::Maestro still '${installed}' after reinstall (pin '${MAESTRO_VERSION}')"
+            exit 1
+          fi
         fi
         echo "Maestro ${installed} ready (pinned)"

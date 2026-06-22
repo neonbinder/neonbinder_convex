@@ -273,25 +273,20 @@ case "$SELECT_MODE" in
     # before the shard matrix fans out, never as a thread). The CI `seed` job
     # invokes this against the shared per-PR Convex preview so the global
     # baseline (selectorOptions / cardChecklist / players / teams) is present
-    # before any shard's flows run. Order is EXPLICIT and load-bearing:
-    #   setup.yaml         → global reset + warm + Baseball/2024/Topps Chrome + Base cards
-    #   setup-insert.yaml  → Insert variants saved + checklist
-    #   setup-parallel.yaml→ Parallel variants saved + checklist
-    # Alphabetical sort would run setup.yaml LAST — so we hard-code the order and
-    # skip the sort -u below. Add any new setup-track flow here, in dependency order.
+    # before any shard's flows run.
+    # NEO-62 (Lever 1): collapsed from 3 flows to 1. setup.yaml now handles
+    # Base + Insert + Parallel in a single browser context — no restarts,
+    # no re-drills, no re-logins.
     for f in \
-      .maestro/flows/setup.yaml \
-      .maestro/flows/setup-insert.yaml \
-      .maestro/flows/setup-parallel.yaml; do
+      .maestro/flows/setup.yaml; do
       [ -f "$f" ] && SELECTED_FLOWS+=("$f")
     done
     ;;
 esac
 
-# The setup track is a strictly-ordered, single-writer seed (global reset →
-# base → insert → parallel). Force serial worker-0 regardless of caller
-# parallelism so the three flows never race or sign in as different Clerk users
-# (which would each re-run the global reset and clobber the others).
+# The setup track is a single-writer seed (global reset → base → insert →
+# parallel, all in one browser context). Force serial worker-0 regardless of
+# caller parallelism.
 if [ "$SELECT_MODE" = "setup" ]; then
   PARALLELISM=1
 fi
@@ -352,9 +347,8 @@ if [ -z "$NO_DEPS" ]; then
   done
 fi
 
-# Final SMOKE_FLOWS = sorted-unique selected set — EXCEPT the setup track, whose
-# explicit dependency order (setup → insert → parallel) must survive (sort -u
-# would put setup.yaml last and break the seed).
+# Final SMOKE_FLOWS = sorted-unique selected set — EXCEPT the setup track
+# (NEO-62: now a single setup.yaml), which bypasses sort -u so it stays first.
 SMOKE_FLOWS=()
 if [ "$SELECT_MODE" = "setup" ]; then
   SMOKE_FLOWS=("${SELECTED_FLOWS[@]}")
