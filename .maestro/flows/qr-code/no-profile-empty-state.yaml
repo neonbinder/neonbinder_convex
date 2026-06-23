@@ -2,26 +2,24 @@
 # empty state (and a Go to Profile CTA) when the signed-in user has NO saved
 # public profile.
 #
-# Parallel-safety (the new-profile race): this flow shares the `new-profile`
-# Clerk account with profile/fill-profile-data.yaml, which resets+FILLS that
-# same account. To make the empty-state assertion deterministic we (a) own our
-# own reset via the /testing/reset redirect (wipes this user's publicProfiles
-# so getMyPublicProfile === null) AND (b) chain ordering with requires/provides:
-# this flow `provides:profile-empty-checked` and runs BEFORE fill-profile-data,
-# which `requires:profile-empty-checked`. The runner guarantees no producer of a
-# required state runs concurrently with — or after a failure of — its consumer,
-# so fill-profile-data can never fill the account between our reset and assert.
+# SELF-CONTAINED (R4): the flow owns its own reset — signing in as the
+# `new-profile` account and routing through /testing/reset wipes this user's
+# publicProfiles so getMyPublicProfile === null and the empty state renders. It
+# depends on NO other flow's state, so it's correct under the cloud queue (which
+# runs flows in arbitrary order, on arbitrary runners, with a fresh per-flow
+# ${TEST_USERNAME}). The `new-profile` account is per-WORKER_INDEX, so distinct
+# runners never collide; within a runner flows run sequentially, and every flow
+# that touches this account resets it at entry — so our reset immediately
+# precedes our assert and the empty state is deterministic.
 #
 # Entry URL: sign in as the new-profile account, reset it, land on /qr-code.
 # `account=new-profile` and `worker` are TOP-LEVEL sign-in query params (the
-# inner redirect value is left unencoded so the router parses them as siblings)
-# — same pattern as fill-profile-data.yaml.
+# inner redirect value is left unencoded so the router parses them as siblings).
 url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/reset?redirect=/qr-code&account=new-profile&worker=${WORKER_INDEX || "0"}
 name: QR Code — no profile empty state
 tags:
   - smoke
   - qr-code
-  - provides:profile-empty-checked
 ---
 # Step 1: open the app at the signed-in, freshly-reset /qr-code route.
 - launchApp
