@@ -1,0 +1,67 @@
+# R1 — Single feature: the PUBLIC sale page (/u/:username/sale) reads ?amt= and
+# accumulates a per-username running total in localStorage that persists across
+# reloads, and renders the configured payment buttons.
+# (Reset-on-pay is NOT covered here — see the note at the bottom of the flow.)
+#
+# Public page — no auth, no ProtectedLayout. We reach it via openLink (not a
+# tapped nav link → avoids the maestro-web CDP nav crash) and force a clean
+# localStorage via clearState so a prior run's sale_total_<username> can't
+# carry over.
+#
+# Data dependency (R3/R4): the payment buttons only render because
+# ${TEST_USERNAME}'s profile has venmo/paypal/cashapp set — done by
+# profile/fill-profile-data.yaml, which owns ${TEST_USERNAME}. We declare
+# `requires:profile-filled`; no in-body login or profile setup (R4).
+#
+# Accumulation note: the add is deduped per `username:location.search`, so to
+# accumulate we use full reloads with DIFFERENT amt values (each openLink is a
+# real reload with a new search string).
+url: ${APP_URL || "https://localhost:3000"}
+name: Sale page — running total accumulates
+tags:
+  - smoke
+  - sale
+  - requires:profile-filled
+---
+# Step 1: start signed-out with a clean localStorage (no carried-over total).
+- launchApp:
+    clearState: true
+
+# Step 2: first scan of $5 — page reads ?amt=5 and shows the running total.
+- openLink: ${APP_URL || "https://localhost:3000"}/u/${TEST_USERNAME}/sale?amt=5
+- assertVisible: "Total Sale Amount"
+- assertVisible: "$5.00"
+
+# Step 3: second scan of $3 (different search string → not deduped) accumulates
+# to $8.00, proving the per-username running total persists across reloads.
+- openLink: ${APP_URL || "https://localhost:3000"}/u/${TEST_USERNAME}/sale?amt=3
+- assertVisible: "$8.00"
+
+# Step 4: payment buttons render (they only appear because the profile has the
+# payment fields set). Unlike the public-profile page, this sale-page button
+# exposes NO sr-only href text — its accessible name is just the visible label
+# — so we assert the visible labels, not the hrefs. (fill-profile-data already
+# covers href correctness on the profile page via its sr-only spans.)
+# Scroll each into view first (centerElement clears the 1024x629 edge-clipping;
+# this public page has no sticky binder-header, but centering is still safest).
+- scrollUntilVisible:
+    element:
+      text: "PayPal [(]F&F[)]"
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      text: "Venmo"
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      text: "Cash App"
+    centerElement: true
+
+# Reset-on-pay is DE-SCOPED (not testable cleanly in maestro-web): the ONLY
+# trigger for reset() → $0.00 is tapping a payment button, and that handler does
+# `window.open(href, "_blank")` to the EXTERNAL payment site (e.g. cash.app).
+# maestro-web follows into that new tab, so the original sale tab (where $0.00
+# would render) is unreachable — the run lands on the external site (a cash.app
+# 404 in our run) and the $0.00 assert can never see the reset DOM. Verifying
+# reset-on-pay would require either a product change (a non-navigating reset
+# affordance, or an sr-only total) which is out of scope for this flow.

@@ -1,0 +1,63 @@
+# R1 — Single feature: a signed-in user WITH a saved public profile can enter a
+# sale amount on /qr-code and generate a QR code whose sale URL points at their
+# public sale page (https://neonbinder.io/u/<username>/sale?amt=<amount>), with
+# Download + Print actions appearing.
+#
+# Data dependency (R3/R4): this flow needs ${TEST_USERNAME}'s public profile to
+# already be SAVED — profile/fill-profile-data.yaml does that (and owns the
+# ${TEST_USERNAME} value for the run). We declare `requires:profile-filled`;
+# fill-profile-data `provides:profile-filled`, so the runner schedules this flow
+# only after the profile exists. We do NOT log in or fill anything in-body (R4).
+#
+# CRITICAL: getMyPublicProfile is keyed by the SIGNED-IN user, and
+# fill-profile-data saves the profile on the `new-profile` account — so we MUST
+# sign in as that same account here, or getMyPublicProfile returns a different
+# (empty) profile and the page shows the empty state instead of the generator.
+#
+# Entry URL: standard auth handshake — sign in as the new-profile account (which
+# owns the saved ${TEST_USERNAME} profile) and land on /qr-code.
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/qr-code&account=new-profile&worker=${WORKER_INDEX || "0"}
+name: QR Code — generate sale QR
+tags:
+  - smoke
+  - qr-code
+  - requires:profile-filled
+---
+# Step 1: open /qr-code; the generator form renders because the profile exists.
+- launchApp
+- assertVisible: "QR Code Generator"
+
+# Step 2: enter a valid amount. The input has no aria-label; in maestro-web the
+# `id:` matcher resolves the HTML id when no resource-id/aria-label is present
+# (same pattern as fill-profile-data.yaml's `id: pub-paypal`, which targets a
+# bare HTML id and passes in CI). The amount input's HTML id is "amount". The
+# Generate button stays disabled until the amount is valid (0.01–9999.99).
+- tapOn:
+    id: "amount"
+- inputText: "8"
+
+# Step 3: generate the QR code.
+- tapOn: "Generate QR Code"
+
+# Step 4: the generated content (QR box, encoded-URL <p>, Download/Print) renders
+# BELOW the fold on the 1024x629 headless viewport — the big white QR box pushes
+# the URL text and the action buttons off the bottom. Scroll the Download button
+# into view (centerElement) first; it sits just below the URL <p>, so bringing it
+# on-screen also surfaces the URL text. (Different element than the URL we assert
+# next, so this scroll is not a redundant pre-assert of that text — R6 ok.)
+- scrollUntilVisible:
+    element:
+      text: "Download"
+    centerElement: true
+
+# Step 5: the encoded sale URL renders as plain <p> text — assert it carries this
+# user's username and the amount. Integer amounts render bare (8, not 8.00). The
+# ? is escaped; .* tolerates the surrounding break-all wrapping.
+- assertVisible: ".*neonbinder.io/u/${TEST_USERNAME}/sale[?]amt=8.*"
+
+# Step 6: Download + Print actions render only after generate (Download is
+# already on-screen from the Step 4 scroll; Print sits beside it). Assert both
+# render (the feature); do NOT tap — Download triggers a file download and Print
+# does window.open + a native print dialog, both of which would leave the DOM.
+- assertVisible: "Download"
+- assertVisible: "Print"

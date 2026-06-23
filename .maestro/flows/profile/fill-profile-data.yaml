@@ -2,6 +2,15 @@ url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/re
 name: Fill Profile Data
 tags:
   - profile
+  # provides:profile-filled — this flow saves ${TEST_USERNAME}'s public profile
+  # (incl. venmo/paypal/cashapp payment fields). qr-code/generate-qr and
+  # sale/running-total require that saved state.
+  - provides:profile-filled
+  # requires:profile-empty-checked — qr-code/no-profile-empty-state resets+asserts
+  # the empty state on the SAME shared new-profile account this flow fills. Gating
+  # on it forces empty-state to run (and pass) first, so this flow can never fill
+  # the account between empty-state's reset and its assertion (parallel-safety).
+  - requires:profile-empty-checked
 # TEST_USERNAME must be unique per run. The runner (run-e2e-smoke.sh) sets it
 # to neontester-$(date +%s); when running this flow directly pass
 # -e TEST_USERNAME=neontester-$(date +%s). No env-block default — a hardcoded

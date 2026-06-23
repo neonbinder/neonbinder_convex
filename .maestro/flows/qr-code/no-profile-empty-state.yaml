@@ -1,0 +1,36 @@
+# R1 — Single feature: the /qr-code page shows the "set up your profile first"
+# empty state (and a Go to Profile CTA) when the signed-in user has NO saved
+# public profile.
+#
+# Parallel-safety (the new-profile race): this flow shares the `new-profile`
+# Clerk account with profile/fill-profile-data.yaml, which resets+FILLS that
+# same account. To make the empty-state assertion deterministic we (a) own our
+# own reset via the /testing/reset redirect (wipes this user's publicProfiles
+# so getMyPublicProfile === null) AND (b) chain ordering with requires/provides:
+# this flow `provides:profile-empty-checked` and runs BEFORE fill-profile-data,
+# which `requires:profile-empty-checked`. The runner guarantees no producer of a
+# required state runs concurrently with — or after a failure of — its consumer,
+# so fill-profile-data can never fill the account between our reset and assert.
+#
+# Entry URL: sign in as the new-profile account, reset it, land on /qr-code.
+# `account=new-profile` and `worker` are TOP-LEVEL sign-in query params (the
+# inner redirect value is left unencoded so the router parses them as siblings)
+# — same pattern as fill-profile-data.yaml.
+url: ${APP_URL || "https://localhost:3000"}/testing/sign-in?redirect=/testing/reset?redirect=/qr-code&account=new-profile&worker=${WORKER_INDEX || "0"}
+name: QR Code — no profile empty state
+tags:
+  - smoke
+  - qr-code
+  - provides:profile-empty-checked
+---
+# Step 1: open the app at the signed-in, freshly-reset /qr-code route.
+- launchApp
+
+# Step 2: with no saved profile, the page shows the empty-state copy verbatim.
+# (No "QR Code Generator" form here — the null-profile branch renders instead.)
+- assertVisible: "Set up your public profile first to generate sale QR codes."
+
+# Step 3: and offers the Go to Profile CTA (links to /profile). Asserting it
+# renders is the feature; we do NOT tap it (plain <a> nav — out of scope, and
+# tapping nav links risks the maestro-web CDP crash).
+- assertVisible: "Go to Profile"
