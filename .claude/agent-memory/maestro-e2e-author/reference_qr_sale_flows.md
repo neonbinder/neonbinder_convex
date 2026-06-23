@@ -66,7 +66,18 @@ maestro-web FOLLOWS into the new tab, so the original sale tab (where $0.00 woul
 render) is unreachable — the run lands on the external site (a cash.app 404 in our
 run). Sale-page payment buttons also expose NO sr-only href (unlike the
 public-profile page), so the total-in-href isn't assertable either. `running-total`
-covers accumulation ($5→$8), persistence across reloads, and the three
-button-render asserts (visible labels "PayPal (F&F)" / "Venmo" / "Cash App"); the
-reset assertion was removed with a de-scope comment. A clean test would need a
-product change (non-navigating reset affordance or sr-only total).
+covers accumulation ($5→$8), persistence across reloads, and the FOUR
+button-render asserts (visible labels "PayPal (F&F)" / "PayPal (G&S)" / "Venmo" /
+"Cash App"); the reset assertion was removed with a de-scope comment. A clean
+reset test would need a product change (non-navigating reset affordance or
+sr-only total).
+
+**All four payment buttons require their own profile field.** Each sale-page
+button only renders when its source field is set (`.filter(l => !!l.href)`):
+PayPal (F&F)←paypalUsername, **PayPal (G&S)←paypalEmail**, Venmo←venmoUsername,
+Cash App←cashAppUsername. The fill util sets all four (paypalEmail via the
+VISIBLE label "PayPal email (Goods & Services)" → htmlFor focuses
+`pub-paypal-email`; wrap the matcher in `.*...[(]Goods & Services[)].*` — parens
+escaped, `.*` for the label's trailing "Buyer-protected payments" span). The
+email value isn't asserted directly (no "→" preview on that field, no sr-only
+href on the sale button) — the G&S button rendering is the downstream proof.

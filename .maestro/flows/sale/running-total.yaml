@@ -49,15 +49,21 @@ tags:
 - openLink: ${APP_URL || "https://localhost:3000"}/u/${TEST_USERNAME}/sale?amt=3
 - assertVisible: "$8.00"
 
-# Step 6: payment buttons render (they only appear because the profile has the
-# payment fields set). Unlike the public-profile page, this sale-page button
-# exposes NO sr-only href text — its accessible name is just the visible label —
-# so we assert the visible labels, not the hrefs. Scroll each into view first
-# (centerElement clears the 1024x629 edge-clipping; this public page has no sticky
-# binder-header, but centering is still safest).
+# Step 6: all four payment buttons render (they only appear because the profile
+# has the matching fields set — PayPal F&F from paypalUsername, PayPal G&S from
+# paypalEmail, Venmo from venmoUsername, Cash App from cashAppUsername). Unlike
+# the public-profile page, these sale-page buttons expose NO sr-only href text —
+# the accessible name is just the visible label — so we assert the visible
+# labels, not the hrefs. Scroll each into view first (centerElement clears the
+# 1024x629 edge-clipping; this public page has no sticky binder-header, but
+# centering is still safest). Labels with parens are escaped [(]...[)].
 - scrollUntilVisible:
     element:
       text: "PayPal [(]F&F[)]"
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      text: "PayPal [(]G&S[)]"
     centerElement: true
 - scrollUntilVisible:
     element:

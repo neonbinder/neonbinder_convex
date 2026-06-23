@@ -48,6 +48,20 @@ tags:
     id: "pub-paypal"
 - inputText: "${TEST_USERNAME}-pp"
 - assertVisible: "→ paypal.me/${TEST_USERNAME}-pp"
+# PayPal email (Goods & Services) — set so the sale page renders the "PayPal
+# (G&S)" button (its href is gated on profile.paypalEmail). Target the VISIBLE
+# label (its htmlFor="pub-paypal-email" focuses the input), not the bare HTML id.
+# The label parens are regex-special — escaped as [(] / [)]. The label also has a
+# trailing "Buyer-protected payments" span, so wrap in .* (Maestro text matches
+# are full-string anchored). There is no "→" preview for the email field; the
+# G&S button on the sale page is the downstream proof the value persisted.
+- scrollUntilVisible:
+    element:
+      text: ".*PayPal email [(]Goods & Services[)].*"
+    centerElement: true
+- tapOn:
+    text: ".*PayPal email [(]Goods & Services[)].*"
+- inputText: "${TEST_USERNAME}@example.com"
 - scrollUntilVisible:
     element:
       id: "pub-venmo"
