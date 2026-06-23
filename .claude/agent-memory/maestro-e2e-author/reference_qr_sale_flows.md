@@ -19,23 +19,45 @@ page shows the empty state. The public `sale` page uses
 profile to exist for `${TEST_USERNAME}` — no account match needed (it's public,
 no sign-in).
 
-**requires/provides chain used (parallel-safe, no deadlock):**
-- `no-profile-empty-state` → `provides:profile-empty-checked` (resets new-profile
-  via /testing/reset and asserts the empty state FIRST).
-- `fill-profile-data` → `requires:profile-empty-checked` + `provides:profile-filled`
-  (so it can never fill the shared new-profile account between empty-state's reset
-  and its assert).
-- `generate-qr` + `running-total` → `requires:profile-filled` (read-only, run in
-  parallel with each other safely).
-Confirmed via `npm run test:e2e:plan` — levels 0→1→2, no cycle.
+**SELF-CONTAINED — NOT a requires/provides chain (CORRECTED).** The earlier
+design chained the flows via `requires:`/`provides:` so a producer flow filled the
+profile and consumers read it. THAT IS WRONG for the cloud: the cloud queue
+(`run-e2e-queue.sh`) regenerates `TEST_USERNAME` FRESH PER FLOW RUN and has NO
+requires/provides ordering at all — flows drain off a shared queue in arbitrary
+order on arbitrary runners. A flow can NEVER rely on another flow's saved
+profile. (Locally `run-e2e-smoke.sh` sets ONE TEST_USERNAME for the whole pick-run
+AND honors requires/provides, which masked the bug — green local, red cloud.)
+Fix: EACH flow creates the data it needs under its OWN ${TEST_USERNAME}, in-flow.
+- `generate-qr` + `running-total`: entry URL signs in (new-profile) → /testing/reset
+  → /profile, then `runFlow: ../profile/util-fill-public-profile.yaml` fills+saves
+  the profile, then proceeds (generate-qr → /qr-code; running-total →
+  `launchApp: clearState` to sign out + clear localStorage → openLink the public
+  sale page).
+- The shared fill is a `util`-tagged sub-flow (`profile/util-fill-public-profile.yaml`),
+  excluded from both local discovery (`flow_has_tag util && continue`) and cloud
+  enqueue — so it is NOT queued standalone (R3 dedup without copy-paste). It fills
+  username/display/tagline + venmo/paypal/cashapp (the minimal set the QR
+  generator and sale page need).
+- `no-profile-empty-state`: already self-contained — its own /testing/reset wipes
+  the profile and it asserts the empty state. No tags beyond smoke/qr-code.
+Confirmed via `npm run test:e2e:plan` — all 3 are Independent (0 dep-graph), and
+all 4 (incl. Phase-0 bootstrap) pass GREEN headless, parallelism=1, first attempt.
 
 **QR generated content renders BELOW the 1024×629 fold.** After "Generate QR
 Code", the big white QR box pushes the encoded-URL `<p>` text and Download/Print
 buttons off the bottom. `assertVisible` on the URL fails until you
 `scrollUntilVisible {text:"Download", centerElement:true}` first (Download sits
 just below the URL `<p>`, so it surfaces the URL too). Integer amounts render
-bare: amt=8 → URL `.../sale?amt=8` (not 8.00). `id:"amount"` correctly resolves
-the bare HTML id (see [[maestro-id-matches-html-id]]).
+bare: amt=8 → URL `.../sale?amt=8` (not 8.00).
+
+**Amount entry — select by the VISIBLE LABEL, never the bare HTML id.** The
+amount input is `<input id="amount" ...>` with a separate `<label htmlFor="amount">
+Sale Amount</label>` and no aria-label. `tapOn: "Sale Amount"` (the visible label)
+focuses the input via `htmlFor`, then `inputText: "8"` lands in it — proven by the
+QR-URL assert (`.../sale?amt=8`). Do NOT use `tapOn: {id:"amount"}`: a bare HTML id
+is an internal identifier no user perceives, which violates the hard rule "target
+only visible text or aria-label." (If a future input genuinely can't be reached via
+a visible label, add an `aria-label` to the element in source, then `id:"<aria>"`.)
 
 **Reset-on-pay is NOT testable in maestro-web (de-scoped).** The only trigger for
 `reset()` → $0.00 on the sale page is tapping a payment button, whose handler does
