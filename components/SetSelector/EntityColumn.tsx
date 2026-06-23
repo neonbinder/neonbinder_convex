@@ -105,9 +105,14 @@ export default function EntityColumn({
   useEffect(() => {
     if (isVisible && !wasVisibleRef.current && containerRef.current) {
       containerRef.current.scrollIntoView({
-        behavior: "smooth",
+        // "auto" (instant), not "smooth": Maestro reads layout bounds and taps
+        // immediately, so a smooth-scroll animation lets it tap a column before
+        // it settles — the e2e nav-tap that parked the prior NEO-63 attempt.
+        behavior: "auto",
         block: "nearest",
-        inline: "end",
+        // "center", not "end": keep the active column off both edges (clear of
+        // the fixed nav on the right) when it is first revealed.
+        inline: "center",
       });
     }
     wasVisibleRef.current = isVisible;
