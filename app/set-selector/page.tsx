@@ -32,12 +32,16 @@ export default function SetSelectorPage() {
     );
   }
 
-  // The break-out negative margins below are tuned for wide viewports (≥1280 px).
-  // At 1024 px (Maestro CI headless viewport), they push the inner content past
-  // x=0 and clip the leftmost AdminTools button by ~1%, which trips Maestro's
-  // 100 % visibility threshold and breaks cascade/setup.yaml. AdminTools doesn't
-  // need the break-out — it lives in a max-w-6xl wrapper either way — so render
-  // it OUTSIDE the break-out container in its own normally-padded section.
+  // The cascade lives in a horizontally-scrollable columns row, so it does NOT
+  // need to break out of the layout for width — it scrolls. A prior vw-based
+  // full-bleed break-out (negative margins) caused NEO-63: the negative left
+  // margin pushed content off the left edge, which let scrollIntoView drag a
+  // deep column UNDER the fixed nav (x≈864–1024 at 1024px) so taps hit the nav
+  // and navigated to /inventory. It also clipped AdminTools at ≤1024px and only
+  // added width above ~1300px anyway. So: no break-out — the section renders in
+  // normal flow inside binder-layout's max-w-6xl + lg:pr-[170px] nav gutter,
+  // nav-safe exactly like every other page; the columns row's overflow-x-auto
+  // handles extra columns via horizontal scroll.
   return (
     <>
       <div className="max-w-6xl mx-auto px-6 pt-6 mb-4">
@@ -47,14 +51,7 @@ export default function SetSelectorPage() {
         </p>
         <AdminTools />
       </div>
-      <div
-        className="px-6 pb-6"
-        style={{
-          width: "calc((100vw - 170px) * 0.9)",
-          marginLeft: "calc(-50vw + 50% + (100vw - 170px) * 0.05)",
-          marginRight: "calc(-50vw + 50% + 170px + (100vw - 170px) * 0.05)",
-        }}
-      >
+      <div className="px-6 pb-6">
         <SetSelector />
       </div>
     </>
