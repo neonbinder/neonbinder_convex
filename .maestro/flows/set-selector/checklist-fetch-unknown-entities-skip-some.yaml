@@ -141,44 +141,70 @@ tags:
 - assertVisible:
     text: ".*New Players [(][1-9][0-9]*[)].*"
 
-# Footer shows the initial total — all included by default.
-- assertVisible:
-    text: ".*will be created.*"
-
 # ============================================================
-# UNCHECK ONE KNOWN PLAYER ROW
+# SKIP ONE PLAYER ROW — prove the decrement re-run-safely (capture & compare)
 # Both player names were injected by this flow and are unique per attempt:
-# USPlayerA-${ATTEMPT_ID} and USPlayerB-${ATTEMPT_ID}.
-# Tap the USPlayerA row by name — this is precise and readable.
-# Verification: the footer "will be created" count is still visible
-# (at least one player still checked — USPlayerB is still on).
+# USPlayerA-${ATTEMPT_ID} and USPlayerB-${ATTEMPT_ID}. Tap the USPlayerA row
+# by its exact unique name — precise and readable.
+#
+# WHY NOT A HARDCODED COUNT (the old `.*1 will be created.*`):
+#   The footer "N of M will be created" count is GLOBAL — it sums EVERY
+#   unknown player the fetch surfaced, including stale players left in the
+#   shared `players` table by earlier attempts. On a non-fresh DB the count
+#   is NOT 2 (we observed "7 of 8" and "10 of 10"), so a fixed "1 will be
+#   created" is false and contradicts this flow's own RE-RUN SAFETY header.
+#
+# WHY NOT ASSERT THE CHECKBOX STATE DIRECTLY:
+#   The dialog's per-row checkbox is a bare native <input type=checkbox> with
+#   NO aria-label / accessible name (UnknownEntitiesDialog.tsx). Its checked
+#   state does NOT reach Maestro's accessibility tree — the row node is just
+#   `text=USPlayerA-..., checked=null` and the "line-through" is CSS-only —
+#   so there is no per-row checked signal to target.
+#
+# WHAT WE DO INSTEAD (re-run-safe, works whether N starts at 2 or 10):
+#   Capture the footer's current "to be created" count, then after unchecking
+#   exactly one player assert the count dropped by exactly one. This proves
+#   the row toggled off regardless of how many stale players are present.
 # ============================================================
+
+# Footer reads "<included> of <total> will be created." (all players are
+# included by default, so included == total here). Capture that footer line.
+- copyTextFrom:
+    text: ".*of [0-9]+ will be created.*"
+# Compute the EXPECTED count after one uncheck = the first integer minus one.
+# Same evalScript/output.* precedent as the ATTEMPT_ID line above (~line 34).
+- evalScript: ${output.EXPECTED_INCLUDED = parseInt(maestro.copiedText.match(/[0-9]+/)[0], 10) - 1}
 
 - scrollUntilVisible:
     element:
       text: ".*USPlayerA-${ATTEMPT_ID}.*"
     centerElement: true
+# Tap USPlayerA to uncheck (skip) it.
 - tapOn:
     text: ".*USPlayerA-${ATTEMPT_ID}.*"
 
-# The footer text is still visible — count should now be one less.
+# R2 — Prove the "skip some" semantic: the footer's "to be created" count
+# MUST now read exactly one less than before. Passes ONLY if unchecking
+# USPlayerA dropped the count by one — re-run-safe for any starting count.
 - assertVisible:
-    text: ".*will be created.*"
+    text: ".*${output.EXPECTED_INCLUDED} of [0-9]+ will be created.*"
 
 # ============================================================
 # CONFIRM — save with the remaining (non-skipped) entities
 # ============================================================
 
-# After unchecking at least one, the button may read "Confirm N & Save"
-# or "Skip All & Save" if all were unchecked. Either is acceptable.
+# Exactly one entity remains checked: the button must read "Confirm N & Save"
+# (not "Skip All & Save" — we did NOT uncheck all of them).
+# The |Skip All & Save fallthrough is REMOVED: its presence hid the R2 bug
+# by letting the flow green when zero entities were left (wrong semantic).
 # Anchor scroll first (R8): after tapping a player row the modal can shift;
 # centering the confirm button guarantees it is in the tap zone.
 - scrollUntilVisible:
     element:
-      text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+      text: ".*Confirm [0-9]+ & Save.*"
     centerElement: true
 - tapOn:
-    text: ".*Confirm [0-9]+ & Save.*|Skip All & Save"
+    text: ".*Confirm [0-9]+ & Save.*"
 
 - extendedWaitUntil:
     notVisible: "Confirm New Players & Teams"
