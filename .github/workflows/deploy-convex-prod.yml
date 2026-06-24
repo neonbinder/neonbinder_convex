@@ -1,0 +1,51 @@
+name: Deploy Convex (production)
+
+# Owns the PRODUCTION Convex backend deploy, decoupled from Vercel.
+#
+# Why this exists (NEO-65): the Vercel buildCommand only ever ran
+# `npx convex deploy --preview-create …`, which the Convex CLI rejects with a
+# non-preview key, so it fell through to `|| npm run build` and shipped the
+# frontend WITHOUT deploying any functions. Prod Convex (first-starfish-800)
+# froze while the frontend advanced → "Could not find public function" on
+# prod /set-selector. CI now owns the prod backend deploy so it can never
+# silently skew again.
+#
+# Runs on every push to main (idempotent — `convex deploy` only pushes diffs)
+# and on manual dispatch (hotfix / force redeploy).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Never let two prod deploys overlap; let an in-flight one finish.
+concurrency:
+  group: deploy-convex-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy Convex functions to production (first-starfish-800)
+        # CONVEX_DEPLOY_KEY makes `convex deploy` non-interactive and targets the
+        # key's deployment. Must be a PRODUCTION deploy key for first-starfish-800
+        # (Convex Dashboard → first-starfish-800 → Settings → Deploy Keys).
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "::error::CONVEX_DEPLOY_KEY_PROD is not set. Add a Convex *Production* deploy key for first-starfish-800 in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          npx convex deploy
