@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { getCurrentUserId } from "./auth";
 import { GoogleAuth, IdTokenClient } from "google-auth-library";
 import { randomUUID } from "crypto";
+import { oidcAudienceFor } from "./browserAudience";
 
 const MAX_INPUT_LENGTH = 256;
 const SUPPORTED_SITES = ["buysportscards", "sportlots"];
@@ -68,8 +69,9 @@ async function getIdTokenClient(audience: string): Promise<IdTokenClient | null>
 }
 
 async function browserAuthHeaders(): Promise<Record<string, string>> {
-  const url = browserUrl();
-  const client = await getIdTokenClient(url);
+  // Send requests to browserUrl() (possibly a tagged pr-N--- preview host) but
+  // mint the OIDC token against the base service URL that Cloud Run expects.
+  const client = await getIdTokenClient(oidcAudienceFor(browserUrl()));
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (!client) return headers;
   const authHeaders = await client.getRequestHeaders();
