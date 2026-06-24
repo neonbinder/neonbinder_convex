@@ -59,10 +59,13 @@ tags:
 - assertNotVisible: "Add Custom Entry"
 
 # ── SELECT "META-TEST" → VariantMetadataEditor panel renders ────────────────
-- assertVisible: "META-TEST"
+# R8 — centerElement: true so the tap lands clear of the footer (y≈315),
+# avoiding the sticky-footer-steal zone at y≥489.
+# R6 — dropped the preceding assertVisible: "META-TEST" (redundant with scroll).
 - scrollUntilVisible:
     element:
       text: "META-TEST"
+    centerElement: true
 - tapOn: "META-TEST"
 
 # The Metadata panel renders below the Variants list (off-fold) — scroll to it.
@@ -78,18 +81,24 @@ tags:
 # Erase any prior value first (idempotency: on re-run the field may already hold
 # a prior TEST-* value; without eraseText the field is unchanged → Save never
 # appears → assert fails). Then type a fresh value keyed to this attempt.
+# R8 — centerElement: true; Prefix: is in the VariantMetadataEditor panel
+# which may be near the bottom of the viewport.
 - scrollUntilVisible:
     element:
       text: "Prefix:"
+    centerElement: true
 - tapOn: "Prefix:"
 - eraseText: 20
 - inputText: "TEST-${ATTEMPT_ID}"
 - assertVisible: "Save"
 
 # ── SAVE → button disappears once the mutation commits; panel stays ─────────
+# R8 — centerElement: true; "Save" is at the bottom of the VariantMetadataEditor
+# panel — the footer-steal zone at y≥489 is a real risk here.
 - scrollUntilVisible:
     element:
       text: "Save"
+    centerElement: true
 - tapOn: "Save"
 - assertNotVisible: "Save"
 - assertVisible: "Metadata"

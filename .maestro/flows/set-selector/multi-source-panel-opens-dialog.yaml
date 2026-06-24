@@ -36,62 +36,16 @@ tags:
 - assertVisible: "Set Selector"
 
 # ============================================================
-# FAST DRILL — Baseball → 2024 → Topps → Topps Chrome
-# Delegated to util-drill-to-2024-topps-chrome.yaml.
-# Navigates to /set-selector internally; return contract is
-# Variant Types column visible with "Base" listed.
+# DRILL TO BASE VARIANT + CONFIRM BASESET PICKER
+# R9 — delegated to util-drill-to-base-variant.yaml (the canonical util that
+# owns the full Baseball→2024→Topps→Topps Chrome→Base drill, handles both
+# BaseSetPicker Path A/B, and leaves CardChecklist visible).
+# No inline Base-tap or BaseSetPicker logic here.
+# Return contract: CardChecklist panel is visible ("Add Card" in viewport).
 # ============================================================
 
 - runFlow:
-    file: util-drill-to-2024-topps-chrome.yaml
-
-# ============================================================
-# LEVEL 5 — Select Base variant type
-# BaseMappingForm may re-open on a fresh session. Handle both
-# paths (SL picker shown → confirm it; picker never shown →
-# CardChecklist is already visible from the prior confirmed mapping).
-# ============================================================
-
-- scrollUntilVisible:
-    element:
-      text: "Base"
-    timeout: 10000
-- tapOn: "Base"
-
-# Wait for either the BaseSetPicker modal (SL data) or the Re-map Base
-# button (mapping already confirmed from prior run / auto-confirmed).
-- extendedWaitUntil:
-    visible:
-      text: ".*Select Base Set.*|.*Re-map Base.*"
-    timeout: 60000
-
-# If the picker is open, confirm the pre-selected set.
-# SANCTIONED idempotent shared-set touch: every worker confirms the same
-# canonical Base mapping on the real Topps Chrome set — the write is
-# idempotent (same value, no divergence). Kept because the BSC
-# multi-source panel only renders on this real marketplace-backed set, and
-# the work-queue does not guarantee sets-base.yaml ran first (cold-set
-# self-heal).
-- runFlow:
-    when:
-      visible: "Select Base Set"
-    commands:
-      - extendedWaitUntil:
-          visible: "Confirm Base Set"
-          timeout: 7000
-      - tapOn: "Confirm Base Set"
-      - extendedWaitUntil:
-          notVisible: "Select Base Set"
-          timeout: 30000
-
-# Scroll until the CardChecklist action row is visible — confirms the
-# Base variantType has a mapping and the checklist panel has rendered.
-- scrollUntilVisible:
-    element:
-      text: "Add Card"
-    centerElement: true
-    visibilityPercentage: 50
-    timeout: 10000
+    file: util-drill-to-base-variant.yaml
 
 # ============================================================
 # ASSERT "Multi-source sets" PANEL IS VISIBLE

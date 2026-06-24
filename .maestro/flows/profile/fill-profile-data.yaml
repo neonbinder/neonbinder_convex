@@ -117,10 +117,12 @@ tags:
     id: "pub-tiktok"
 - inputText: "https://tiktok.com/@${TEST_USERNAME}-tt"
 
-# Save
+# Save — centerElement keeps "Save Public Profile" away from the y>=489 footer-steal
+# zone in the 1024x629 headless viewport (R8).
 - scrollUntilVisible:
     element:
       text: "Save Public Profile"
+    centerElement: true
 - tapOn: "Save Public Profile"
 - assertVisible: "Profile saved.*"
 # Verify the profile link shows the correct URL path

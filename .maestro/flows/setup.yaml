@@ -511,8 +511,8 @@ tags:
       - scrollUntilVisible:
           element:
             text: ".*BSC.*"
-      - assertVisible:
-          text: ".*BSC.*"
+      # R6 — scrollUntilVisible already asserts the ".*BSC.*" element is visible;
+      # the redundant assertVisible of the same target was removed.
       - assertVisible:
           text: ".*SportLots.*"
       - scrollUntilVisible:

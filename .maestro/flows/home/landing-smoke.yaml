@@ -4,7 +4,8 @@ tags:
   - smoke
   - home
 ---
-- launchApp
+- launchApp:
+    clearState: true
 
 # Header: logo text and Sign In button
 - assertVisible: "Neon Binder"
