@@ -360,31 +360,78 @@ jobs:
 
       - name: Build combined summary
         if: always()
+        # Render a per-test pass/fail + duration table from the merged JUnit
+        # (all-shards/**/junit/*.xml) — the same files the "Maestro E2E" check
+        # reads. Replaces the old summary.md-based builder, which always fell
+        # through to "No shard summaries found" once the runners stopped
+        # emitting summary.md (NEO-64). Failures are surfaced first, then
+        # passing flows slowest-first.
         run: |
           combined=combined-summary.md
+          rows="$(mktemp)"
+
+          # One <testsuite> per flow → TSV: <rank>\t<seconds>\t<name>\t<status>
+          # rank 0 = failed/errored (listed first), 1 = passed/skipped.
+          # Attributes parsed by name, space-anchored so "classname" can't
+          # shadow "name".
+          find all-shards -path '*/junit/*.xml' -print0 2>/dev/null \
+            | xargs -0 grep -hoE '<testsuite [^>]*>' 2>/dev/null \
+            | awk '
+                function attr(s, k,   re, m) {
+                  re = "[[:space:]]" k "=\"[^\"]*\""
+                  if (match(s, re)) {
+                    m = substr(s, RSTART, RLENGTH)
+                    sub("^[[:space:]]" k "=\"", "", m); sub(/"$/, "", m)
+                    return m
+                  }
+                  return ""
+                }
+                {
+                  name = attr($0, "name"); if (name == "") next
+                  tests = attr($0, "tests") + 0
+                  fails = attr($0, "failures") + 0
+                  errs  = attr($0, "errors") + 0
+                  skips = attr($0, "skipped") + 0
+                  secs  = attr($0, "time") + 0
+                  if (fails > 0 || errs > 0)             { rank = 0; status = "failed" }
+                  else if (tests == 0 || skips >= tests) { rank = 1; status = "skipped" }
+                  else                                   { rank = 1; status = "passed" }
+                  printf "%d\t%.3f\t%s\t%s\n", rank, secs, name, status
+                }
+              ' > "$rows"
+
+          shards=$(find all-shards -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+          passed=$(awk -F'\t' '$4=="passed"'  "$rows" | wc -l | tr -d ' ')
+          failed=$(awk -F'\t' '$4=="failed"'  "$rows" | wc -l | tr -d ' ')
+          skipped=$(awk -F'\t' '$4=="skipped"' "$rows" | wc -l | tr -d ' ')
+          total_secs=$(awk -F'\t' '{t+=$2} END{printf "%.0f", t+0}' "$rows")
+          n_rows=$(wc -l < "$rows" | tr -d ' ')
+
           {
             echo "## Maestro E2E results (sharded)"
             echo ""
+            if [ "$n_rows" -eq 0 ]; then
+              echo "⚠️ _No JUnit results were produced by any shard. All shards may have failed before reporting — check the \`runner\` job logs._"
+            else
+              if [ "$failed" -eq 0 ]; then icon="✅"; else icon="❌"; fi
+              line="$icon **${passed} passed"
+              [ "$failed"  -gt 0 ] && line="$line · ${failed} failed"
+              [ "$skipped" -gt 0 ] && line="$line · ${skipped} skipped"
+              line="$line** · ${total_secs}s total · ${shards} shards"
+              echo "$line"
+              echo ""
+              echo "| Test | Status | Duration |"
+              echo "|---|---|---|"
+              sort -t$'\t' -k1,1n -k2,2nr "$rows" \
+                | awk -F'\t' '
+                    { secs=$2; name=$3; status=$4
+                      sym = (status=="failed") ? "❌ fail" : (status=="skipped") ? "⏭️ skip" : "✅ pass"
+                      printf "| %s | %s | %.0fs |\n", name, sym, secs }
+                  '
+            fi
           } > "$combined"
-          found=0
-          for shard_dir in all-shards/*/; do
-            [ -d "$shard_dir" ] || continue
-            name=$(basename "$shard_dir")
-            sfile=$(find "$shard_dir" -name summary.md | head -1)
-            [ -n "$sfile" ] || continue
-            found=1
-            {
-              echo "<details open><summary><strong>$name</strong></summary>"
-              echo ""
-              cat "$sfile"
-              echo ""
-              echo "</details>"
-              echo ""
-            } >> "$combined"
-          done
-          if [ "$found" -eq 0 ]; then
-            echo "_No shard summaries found (all shards may have failed before producing a report)._" >> "$combined"
-          fi
+
+          rm -f "$rows"
           cat "$combined" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post Maestro summary as sticky PR comment
