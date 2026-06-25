@@ -1,0 +1,55 @@
+name: CI
+
+# Fast inner-loop gate. Runs the vitest unit/component suite and ESLint on
+# every PR, in parallel to — and independent of — the Maestro E2E matrix in
+# e2e-tests.yml. E2E is the slow, full merge gate (~tens of minutes); this is
+# the quick one (a few minutes) that catches business-logic and lint
+# regressions before the E2E budget is spent (NEO-48).
+#
+# NOTE: `tsc --noEmit` is intentionally NOT gated yet — main currently has
+# pre-existing type errors (including in two convex-test files that vitest
+# runs fine, since vitest does not typecheck). Wire it in once it is green.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# One active run per PR/branch; a newer push cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Skip husky git-hook install on the runner — irrelevant in CI and the
+  # `postinstall` hook would otherwise try to wire local hooks.
+  HUSKY: 0
+
+jobs:
+  unit:
+    name: Unit & component tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
