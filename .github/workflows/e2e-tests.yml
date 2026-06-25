@@ -18,6 +18,8 @@ permissions:
   contents: read
   checks: write
   pull-requests: write
+  # NEO-35: keyless WIF auth to read Cloud Run for browser-preview discovery.
+  id-token: write
 
 # ─── Dynamic work-queue (NEO-49) ──────────────────────────────────────────────
 # main deploys to prod on every merge, so the FULL suite is the merge-blocking
@@ -132,13 +134,89 @@ jobs:
           echo "Convex site URL: $site"
           echo "convex_site=$site" >> "$GITHUB_OUTPUT"
 
+  browser-override:
+    # NEO-35: if a per-PR browser-service preview is live (a Cloud Run pr-*
+    # tagged revision on dev), point THIS PR's Convex preview at it so E2E
+    # exercises the in-flight browser code instead of the shared dev service.
+    # Cross-repo PR numbers are independent, so there's no pr-<thisPR> join —
+    # we use the NEWEST live pr-* preview (the "current browser preview").
+    # Fail-safe: every non-happy path leaves the canonical dev default in place,
+    # so this can NEVER block the E2E gate. Runs before `seed`, which seeds
+    # marketplace creds through the browser service and so reads this value.
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - id: gcp-auth
+        name: Authenticate to GCP (read-only Cloud Run reader)
+        uses: google-github-actions/auth@v2
+        continue-on-error: true
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ secrets.GCP_SA_CONVEX_E2E }}
+
+      - if: steps.gcp-auth.outcome == 'success'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - if: steps.gcp-auth.outcome == 'success'
+        name: Discover newest live browser preview + point this Convex preview at it
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_E2E_PREVIEW_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HEAD_REF:-}" ]; then
+            echo "::notice::No head_ref (not a PR) — skipping browser-preview override."; exit 0
+          fi
+          if [ -z "${CONVEX_DEPLOY_KEY:-}" ]; then
+            echo "::notice::CONVEX_E2E_PREVIEW_KEY not set — skipping browser-preview override."; exit 0
+          fi
+          # Pick the NEWEST live pr-* tagged revision on the dev browser service.
+          # roles/run.viewer is read-only (no invoke).
+          svc=$(gcloud run services describe neonbinder-browser \
+            --region=us-central1 --project=neonbinder-dev --format=json)
+          mapfile -t rows < <(printf '%s' "$svc" \
+            | jq -r '.status.traffic[] | select((.tag // "") | startswith("pr-")) | "\(.revisionName)\t\(.url)"')
+          if [ "${#rows[@]}" -eq 0 ]; then
+            echo "::notice::No live pr-* browser preview — E2E uses the canonical dev default."; exit 0
+          fi
+          newest_url=""; newest_ts=""
+          for row in "${rows[@]}"; do
+            rev="${row%%$'\t'*}"; url="${row#*$'\t'}"
+            ts=$(gcloud run revisions describe "$rev" --region=us-central1 --project=neonbinder-dev \
+              --format='value(metadata.creationTimestamp)' 2>/dev/null || echo "")
+            if [ -z "$newest_ts" ] || [[ "$ts" > "$newest_ts" ]]; then newest_ts="$ts"; newest_url="$url"; fi
+          done
+          if [ -z "$newest_url" ]; then
+            echo "::notice::Could not resolve a preview URL — using the canonical dev default."; exit 0
+          fi
+          echo "Active browser preview: $newest_url"
+          # Set it on THIS PR's Convex preview (named after the branch; Convex
+          # sanitizes head_ref identically to the Vercel build, so they match).
+          # Run convex from a scratch project (this job has no convex dep);
+          # --ignore-scripts blocks any postinstall from exfiltrating the key.
+          work="$(mktemp -d)"; cd "$work"
+          printf '%s' '{"name":"x","private":true,"dependencies":{"convex":"1.39.1"}}' > package.json
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          if npx convex env set --preview-name "$HEAD_REF" NEONBINDER_BROWSER_URL "$newest_url"; then
+            echo "✅ Pointed Convex preview '$HEAD_REF' at $newest_url"
+          else
+            echo "::warning::Failed to set the browser-preview override; E2E will use the canonical dev default."
+          fi
+
   seed:
     # Seed the shared per-PR Convex preview's global baseline ONCE, before the
     # matrix fans out. Runs the setup track (setup → insert → parallel) as worker
     # 0 at parallelism 1; `run-e2e-smoke.sh setup` is the only entry point that
     # runs setup-tagged flows. Because resetMyTestState (the per-shard Phase-0
     # bootstrap) is auth-scoped per user, it never wipes this global baseline.
-    needs: setup
+    # Also waits on browser-override so NEONBINDER_BROWSER_URL is set on the
+    # preview before this seeds marketplace creds through the browser service.
+    needs: [setup, browser-override]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
