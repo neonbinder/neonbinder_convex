@@ -144,6 +144,12 @@ jobs:
     # so this can NEVER block the E2E gate. Runs before `seed`, which seeds
     # marketplace creds through the browser service and so reads this value.
     needs: setup
+    # Fork guard: this job mints a GCP WIF token + uses a Convex deploy key, so
+    # it must never run for fork-originated PRs. The GCP attribute_condition
+    # can't distinguish fork-head from base PRs, so the workflow-level guard is
+    # the required second layer (mirrors browser-deploy.yml). On fork PRs / non-
+    # PR triggers this job skips and `seed` falls back to the canonical default.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -216,7 +222,12 @@ jobs:
     # bootstrap) is auth-scoped per user, it never wipes this global baseline.
     # Also waits on browser-override so NEONBINDER_BROWSER_URL is set on the
     # preview before this seeds marketplace creds through the browser service.
+    # browser-override SKIPS on fork PRs (fork guard); `always() && setup ok`
+    # lets seed still run then (falling back to the canonical dev default).
+    # A non-skipped browser-override FAILURE is itself fail-safe (it exits 0 on
+    # every path), so seed never needs to gate on its result.
     needs: [setup, browser-override]
+    if: always() && needs.setup.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
