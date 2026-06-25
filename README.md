@@ -57,6 +57,45 @@ If you're reading this README on GitHub and want to use this template, run:
 npm create convex@latest -- -t nextjs-convexauth
 ```
 
+## Testing
+
+### Unit & component tests (vitest)
+
+Fast inner-loop tests live next to the code they cover:
+
+- `convex/*.test.ts`, `lib/**/*.test.ts` — backend logic via [`convex-test`](https://github.com/get-convex/convex-test) (node / edge runtime).
+- `components/**/*.test.tsx` — React components via Testing Library + happy-dom.
+
+Run them with:
+
+```bash
+npm run test:unit         # one-shot run (what CI runs)
+npm run test:unit:watch   # watch mode while developing
+```
+
+These run on **every PR** via the `CI` GitHub Actions workflow (`.github/workflows/ci.yml`),
+in parallel with the slower Maestro E2E suite — the unit lane is the quick gate, E2E is the full one.
+
+> `tsc --noEmit` is not yet a CI gate (main has pre-existing type errors); run it manually for now.
+
+### Running tests inside a git worktree
+
+A fresh `git worktree add` has **no** `node_modules`, so `npm run test:unit` fails with
+`Cannot find package 'vitest'`. If your worktree's dependencies match the primary checkout,
+symlink them instead of reinstalling:
+
+```bash
+npm run link-deps     # or: ./link-deps.sh
+npm run test:unit
+```
+
+`link-deps.sh` symlinks `node_modules` to the primary checkout when `package-lock.json` matches,
+and refuses (telling you to `npm ci`) when dependencies have drifted.
+
+### End-to-end tests (Maestro)
+
+See `CLAUDE.md` (E2E Testing section) and `run-e2e-smoke.sh` for the Maestro flow suite.
+
 ## Learn more
 
 To learn more about developing your project with Convex, check out:
