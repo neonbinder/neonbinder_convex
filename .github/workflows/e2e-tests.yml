@@ -287,6 +287,13 @@ jobs:
     # N → TEST_EMAIL_N (0..7 provisioned). Needs the preview URL (setup), the
     # seeded baseline AND the enqueued queue (seed).
     needs: [setup, seed]
+    # Mirror seed's own guard. On workflow_dispatch (the deploy-gate / cross-repo
+    # trigger) the PR-only `browser-override` job is skipped; without this `if`
+    # that skip cascades through `seed` to `runner`, so the matrix never expands
+    # and the queue is never drained — the `e2e` gate then fails on pending>0
+    # having run zero flows (NEO-68). `seed` already succeeded via its own
+    # `if: always()`, so gate on seed's result and run regardless of the skip.
+    if: always() && needs.seed.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
