@@ -644,18 +644,24 @@ run_flow_on_worker() {
       echo "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     fi
   } >> "$log_file"
-  # Run with 1 retry on non-timeout failures. The Maestro CDP web driver
-  # has documented intermittent failures ("null cannot be cast to non-null
-  # type kotlin.Int", "Failed to execute JS") that happen between successful
-  # scrollUntilVisible and the immediately-following tap on the same element.
-  # The JVM has also been observed to SIGSEGV/SIGBUS mid-flow. These
-  # infrastructure flakes do not reflect product bugs and almost always
-  # succeed on a second attempt. Retry is bounded to 1 (worst case: 2x
-  # runtime per flow) and is skipped for timeout codes since those usually
-  # mean a slow/hung product path that retry won't help.
+  # NEO-39: the per-flow retry is OFF by default. It was a band-aid that
+  # masked reactive-form instability — a flow that failed the first attempt
+  # and passed on the second was logged "Passed on retry" and the suite still
+  # went green, hiding real dropped/stomped/cross-wired-edit bugs. With the
+  # retry off, a first-attempt failure surfaces as a real failure, which is
+  # the definition-of-done for stable reactive forms (the suite must pass on
+  # the first attempt).
+  #
+  # MAESTRO_FLOW_RETRIES is retained as an escape hatch: set it to 2+ to
+  # temporarily re-enable retries when triaging a genuine Maestro/JVM
+  # infrastructure flake (CDP "null cannot be cast to non-null type
+  # kotlin.Int" / "Failed to execute JS" between a scrollUntilVisible and the
+  # immediately-following tap, or a JVM SIGSEGV/SIGBUS mid-flow). Timeout
+  # codes (124/137) are never retried. The loop still stamps a per-attempt
+  # ATTEMPT_ID, so a re-enabled retry stays parallel-safe.
   local exit_code=0
   local attempt=1
-  local max_attempts="${MAESTRO_FLOW_RETRIES:-2}"
+  local max_attempts="${MAESTRO_FLOW_RETRIES:-1}"
   while [ "$attempt" -le "$max_attempts" ]; do
     exit_code=0
     if [ "$attempt" -gt 1 ]; then

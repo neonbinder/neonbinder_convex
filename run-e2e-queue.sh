@@ -161,14 +161,18 @@ export MAESTRO_OPTS="-Duser.home=$PWD/$REPORT_DIR/maestro-home"
 ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "WORKER_INDEX=$WORKER_INDEX")
 if [ "${MAESTRO_HEADLESS:-1}" != "0" ]; then ARGS_BASE+=(--headless); fi
 
-# run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug; 1 retry on
-# non-timeout failure (the same infra-flake mitigation as run-e2e-smoke.sh).
+# run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug. Retry is
+# OFF by default (NEO-39): a first-attempt failure surfaces as a real failure
+# instead of being masked by a silent re-run, which is the definition-of-done
+# for stable reactive forms. Set MAESTRO_FLOW_RETRIES=2+ to re-enable retries
+# when triaging a genuine Maestro/JVM infra flake (timeouts 124/137 are never
+# retried). Mirrors run-e2e-smoke.sh.
 run_flow() {
   local flow="$1"
   local slug; slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
   local report_args=(--format JUNIT --output "$REPORT_DIR/junit/$slug.xml" --test-suite-name "$slug"
     --test-output-dir "$REPORT_DIR/artifacts/$slug" --debug-output "$REPORT_DIR/debug/$slug" --flatten-debug-output)
-  local exit_code attempt=1 max_attempts="${MAESTRO_FLOW_RETRIES:-2}"
+  local exit_code attempt=1 max_attempts="${MAESTRO_FLOW_RETRIES:-1}"
   while [ "$attempt" -le "$max_attempts" ]; do
     exit_code=0
     [ "$attempt" -gt 1 ] && echo "↻ [$RUNNER_ID] retry $attempt: $flow" >> "$LOG"
