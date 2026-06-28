@@ -66,11 +66,48 @@ tags:
     text: ".*Search years.*"
     waitToSettleTimeoutMs: 250
 - inputText: ${YEAR || "2024"}
+# Let the filtered year ROW settle below the search input before tapping. On the
+# cold first drill the Years list re-renders (the Convex subscription and the
+# search filter both settling); tapping mid-re-render lands the click on a stale
+# node and the selection is silently dropped (NEO-39: CI logged the year tap as
+# COMPLETED yet the Manufacturers column never mounted). Re-asserting the row in
+# place (non-scrolling) lets the render settle first.
+- extendedWaitUntil:
+    visible:
+      text: ${YEAR || "2024"}
+      below:
+        id: "Search years"
+    timeout: 7000
+# waitToSettleTimeoutMs 1000: selecting a year is a pure FE state update that
+# collapses the Years column and mounts Manufacturers. The settle lets that
+# happy-path collapse complete BEFORE the lost-tap guard below evaluates, so the
+# guard never fires mid-collapse.
 - tapOn:
     text: ${YEAR || "2024"}
     below:
       id: "Search years"
-    waitToSettleTimeoutMs: 0
+    waitToSettleTimeoutMs: 1000
+# LOST-TAP SAFETY NET (NEO-39 — the per-flow retry is OFF). If the cold render
+# dropped the tap above, the year was never selected, so the Years column is
+# still expanded and its "Search years" input is still present (a successful tap
+# collapses the column and removes that input — the two states are atomic). Only
+# in that not-yet-selected state do we re-issue the select. The guard therefore
+# both DETECTS the lost tap and GUARANTEES the row is still there to re-tap;
+# re-selecting the same year is idempotent (handleYearSelect just re-sets the id,
+# there is no toggle/deselect). This conditional necessarily spends one ~7s `when`
+# poll on the happy path (the input is gone, so the guard waits the full window
+# then skips) — a deliberate, documented exception to the no-idle-wait rule,
+# bought in exchange for guaranteed first-attempt stability with the retry off.
+- runFlow:
+    when:
+      visible:
+        id: "Search years"
+    commands:
+      - tapOn:
+          text: ${YEAR || "2024"}
+          below:
+            id: "Search years"
+          waitToSettleTimeoutMs: 1000
 
 # ── MANUFACTURER ──────────────────────────────────────────────────────────────
 - extendedWaitUntil:

@@ -355,6 +355,8 @@ tags:
                           id: "Search years"
                       timeout: 7000
                   # Guard: skip tap if Manufacturers already open (re-drill toggle risk).
+                  # waitToSettleTimeoutMs 1000: let the happy-path Years-column
+                  # collapse finish before the lost-tap retry below evaluates.
                   - runFlow:
                       when:
                         notVisible: "Manufacturers"
@@ -363,6 +365,31 @@ tags:
                             text: "${YEAR}"
                             below:
                               id: "Search years"
+                            waitToSettleTimeoutMs: 1000
+                  # LOST-TAP SAFETY NET (NEO-39 — per-flow retry is OFF). On the
+                  # cold path the year tap can be dropped on a stale re-rendering
+                  # node (CI logged the tap COMPLETED yet Manufacturers never
+                  # mounted). The year is selected ⇔ the Years column collapses and
+                  # its "Search years" input disappears (atomic). So if that input
+                  # is STILL present here, the select was lost — re-issue it once.
+                  # The guard guarantees the row is still there to re-tap, and
+                  # re-selecting the same year is idempotent (handleYearSelect, no
+                  # toggle). Real-year callers only (Baseball/2024 — features-
+                  # propagation, set-attributes-edit, team-picker); custom-year
+                  # callers have no "Search years" input so the outer block is
+                  # skipped and they pay nothing. Costs one ~7s `when` poll on the
+                  # happy path (input gone → wait+skip): the documented price of
+                  # first-attempt stability with the retry disabled.
+                  - runFlow:
+                      when:
+                        visible:
+                          id: "Search years"
+                      commands:
+                        - tapOn:
+                            text: "${YEAR}"
+                            below:
+                              id: "Search years"
+                            waitToSettleTimeoutMs: 1000
             # If the year is not in search results (custom year not yet added).
             # Guard on notVisible "Manufacturers": if Manufacturers is already visible,
             # the Year was just selected — skip (same reason as Sports guard above).
