@@ -644,28 +644,24 @@ run_flow_on_worker() {
       echo "$MAESTRO" test "${worker_args[@]}" "${report_args[@]}" "$flow"
     fi
   } >> "$log_file"
-  # NEO-39: the per-flow retry is OFF by default. It was a band-aid that
-  # masked reactive-form instability — a flow that failed the first attempt
-  # and passed on the second was logged "Passed on retry" and the suite still
-  # went green, hiding real dropped/stomped/cross-wired-edit bugs. With the
-  # retry off, a first-attempt failure surfaces as a real failure, which is
-  # the definition-of-done for stable reactive forms (the suite must pass on
-  # the first attempt).
-  #
-  # MAESTRO_FLOW_RETRIES is retained as an escape hatch: set it to 2+ to
-  # temporarily re-enable retries when triaging a genuine Maestro/JVM
-  # infrastructure flake (CDP "null cannot be cast to non-null type
-  # kotlin.Int" / "Failed to execute JS" between a scrollUntilVisible and the
-  # immediately-following tap, or a JVM SIGSEGV/SIGBUS mid-flow). Timeout
-  # codes (124/137) are never retried. The loop still stamps a per-attempt
-  # ATTEMPT_ID, so a re-enabled retry stays parallel-safe.
+  # SCOPED RETRY (NEO-39): no blanket per-flow retry. A flow is retried ONCE
+  # *only* when its debug log shows a confirmed maestro-web CDP driver crash
+  # ("... cannot be cast to non-null type kotlin.Int" — the CdpWebDriver abort,
+  # pure test-infra fragility, not a product bug). Every other failure
+  # (assertion-false, element-not-found, lost-tap-then-assert, dropped/stomped
+  # edits, …) fails on the FIRST attempt so real product regressions surface
+  # immediately — the definition-of-done for NEO-39. The crash string lives only
+  # in the per-flow debug maestro.log (not stdout), so we grep that. Timeout
+  # codes (124/137) are never retried. ATTEMPT_ID is stamped per attempt for
+  # parallel-safety. MAESTRO_FLOW_RETRIES caps attempts (default 2 = one scoped
+  # retry; set 1 to disable even the crash retry). Mirrors run-e2e-queue.sh.
   local exit_code=0
   local attempt=1
-  local max_attempts="${MAESTRO_FLOW_RETRIES:-1}"
+  local max_attempts="${MAESTRO_FLOW_RETRIES:-2}"
   while [ "$attempt" -le "$max_attempts" ]; do
     exit_code=0
     if [ "$attempt" -gt 1 ]; then
-      echo "↻ [w$worker_index] Retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
+      echo "↻ [w$worker_index] driver-crash retry attempt $attempt/$max_attempts: $flow" >> "$log_file"
     fi
     # Per-attempt unique ID. Flows that add cards to the global
     # cardChecklist table reference ${ATTEMPT_ID} in their card
@@ -689,11 +685,16 @@ run_flow_on_worker() {
     if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
       break
     fi
-    attempt=$((attempt + 1))
+    # Scoped: retry ONLY a confirmed CDP driver crash, never a product/assertion failure.
+    if grep -q "cannot be cast to non-null type" "$REPORT_DIR/debug/$slug/maestro.log" 2>/dev/null; then
+      attempt=$((attempt + 1))
+    else
+      break
+    fi
   done
   if [ "$exit_code" -eq 0 ]; then
     if [ "$attempt" -gt 1 ]; then
-      echo "✅ [w$worker_index] Passed on retry: $flow" >> "$log_file"
+      echo "✅ [w$worker_index] Passed on driver-crash retry: $flow" >> "$log_file"
     else
       echo "✅ [w$worker_index] Passed: $flow" >> "$log_file"
     fi

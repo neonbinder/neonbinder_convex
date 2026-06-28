@@ -161,21 +161,27 @@ export MAESTRO_OPTS="-Duser.home=$PWD/$REPORT_DIR/maestro-home"
 ARGS_BASE=(--platform web --config "$CONFIG" -e "APP_URL=$APP_URL" -e "WORKER_INDEX=$WORKER_INDEX")
 if [ "${MAESTRO_HEADLESS:-1}" != "0" ]; then ARGS_BASE+=(--headless); fi
 
-# run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug. Retry is
-# OFF by default (NEO-39): a first-attempt failure surfaces as a real failure
-# instead of being masked by a silent re-run, which is the definition-of-done
-# for stable reactive forms. Set MAESTRO_FLOW_RETRIES=2+ to re-enable retries
-# when triaging a genuine Maestro/JVM infra flake (timeouts 124/137 are never
-# retried). Mirrors run-e2e-smoke.sh.
+# run_flow <flow> → echoes PASS|FAIL ; writes per-flow junit + debug.
+#
+# SCOPED RETRY (NEO-39): the blanket per-flow retry is gone. A flow is retried
+# ONCE *only* when its debug log shows a confirmed maestro-web CDP driver crash
+# ("... cannot be cast to non-null type kotlin.Int" — the CdpWebDriver abort that
+# is pure test-infra fragility, not a product bug). Every other failure —
+# assertion-false, element-not-found, lost-tap-then-assert, etc. — fails on the
+# FIRST attempt so genuine product regressions surface immediately (the whole
+# point of NEO-39). Timeouts (124/137) are never retried. The crash string lives
+# only in the per-flow debug maestro.log (not stdout), so we grep that.
+# MAESTRO_FLOW_RETRIES caps attempts (default 2 = one scoped retry; set 1 to
+# disable even the crash retry). Mirrors run-e2e-smoke.sh.
 run_flow() {
   local flow="$1"
   local slug; slug=$(echo "$flow" | sed -e 's|^\.maestro/flows/||' -e 's|/|_|g' -e 's|\.yaml$||')
   local report_args=(--format JUNIT --output "$REPORT_DIR/junit/$slug.xml" --test-suite-name "$slug"
     --test-output-dir "$REPORT_DIR/artifacts/$slug" --debug-output "$REPORT_DIR/debug/$slug" --flatten-debug-output)
-  local exit_code attempt=1 max_attempts="${MAESTRO_FLOW_RETRIES:-1}"
+  local exit_code attempt=1 max_attempts="${MAESTRO_FLOW_RETRIES:-2}"
   while [ "$attempt" -le "$max_attempts" ]; do
     exit_code=0
-    [ "$attempt" -gt 1 ] && echo "↻ [$RUNNER_ID] retry $attempt: $flow" >> "$LOG"
+    [ "$attempt" -gt 1 ] && echo "↻ [$RUNNER_ID] driver-crash retry $attempt: $flow" >> "$LOG"
     local attempt_id="${RUNNER_ID}-a${attempt}-${RANDOM}"
     # Fresh username per run (unique across runners, runs, and attempts) so a
     # re-run on this persistent worker never hits "Username already taken". The
@@ -190,7 +196,12 @@ run_flow() {
     fi
     [ "$exit_code" -eq 0 ] && break
     { [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; } && break  # don't retry timeouts
-    attempt=$((attempt + 1))
+    # Scoped: retry ONLY a confirmed CDP driver crash, never a product/assertion failure.
+    if grep -q "cannot be cast to non-null type" "$REPORT_DIR/debug/$slug/maestro.log" 2>/dev/null; then
+      attempt=$((attempt + 1))
+    else
+      break
+    fi
   done
   if [ "$exit_code" -eq 0 ]; then echo "PASS $flow" >> "$RESULTS"; echo "passed"
   else echo "FAIL $flow" >> "$RESULTS"; echo "failed"; fi
