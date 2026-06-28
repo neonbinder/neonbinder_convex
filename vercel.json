@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "echo 'NEO-39: always build so flow/harness-only PRs still get a preview for E2E' && exit 1",
   "buildCommand": "npx convex deploy --cmd-url-env-var-name VITE_CONVEX_URL --cmd 'npm run build'",
   "framework": "vite",
   "installCommand": "npm ci",
